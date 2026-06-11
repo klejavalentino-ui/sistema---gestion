@@ -2,6 +2,8 @@ import json
 import os
 import requests
 
+fb_config = None
+
 # 1. Intentar cargar desde variables de entorno (producción en Render)
 env_config = os.environ.get("FIREBASE_CONFIG")
 if env_config:
