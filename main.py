@@ -84,6 +84,11 @@ def filter_user_docs(all_docs, prefix):
             user_docs.append(doc_copy)
     return user_docs
 
+# --- Ruta Principal (SPA) ---
+@app.route("/")
+def index():
+    return render_template("index.html")
+
 # --- Rutas de Autenticación ---
 
 @app.route("/api/auth/login", methods=["POST"])
