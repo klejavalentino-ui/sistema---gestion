@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mazo - Sistema de Gestión ERP</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/static/css/styles.css?v=1.0.5">
+  <!-- Chart.js para estadísticas del Panel y Gastos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS para exportación a Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- --- TOAST NOTIFICATIONS --- -->
+  <div id="idx-toast" class="idx-toast">Notificación</div>
+
+  <!-- --- 1. AUTH SECTOR --- -->
+  <section id="auth-section" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;">
+    <div class="idx-card" style="width: 100%; max-width: 400px; padding: 35px; background: var(--bg-dark); border-color: var(--border-color);">
+      <div style="text-align: center; margin-bottom: 25px;">
+        <h1 style="font-size: 2.2rem; font-weight: 900; color: #fff; letter-spacing: 2px;">MAZO<span>.</span></h1>
+        <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 5px; font-weight: 500;">Sistema de Gestión ERP</p>
+      </div>
+
+      <!-- Login Container -->
+      <div id="login-container">
+        <div id="login-error" class="badge-red" style="display: none; width: 100%; padding: 10px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 16px; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);"></div>
+        <form id="login-form">
+          <div class="form-group">
+            <label class="form-label" for="login-email">Correo Electrónico</label>
+            <input type="email" id="login-email" class="form-input" placeholder="admin@mazo.com" required autocomplete="email">
+          </div>
+          <div class="form-group" style="margin-bottom: 24px;">
+            <label class="form-label" for="login-password">Contraseña</label>
+            <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Iniciar Sesión</button>
+        </form>
+        <div style="text-align: center; margin-top: 20px; font-size: 0.8rem; color: var(--text-gray);">
+          ¿No tenés una cuenta? <a href="#" onclick="toggleAuthView(true)" style="color: var(--accent-red); font-weight: 700; text-decoration: none;">Registrate</a>
+        </div>
+      </div>
+
+      <!-- Register Container -->
+      <div id="register-container" style="display: none;">
+        <div id="register-error" class="badge-red" style="display: none; width: 100%; padding: 10px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 16px; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);"></div>
+        <form id="register-form">
+          <div class="form-group">
+            <label class="form-label" for="register-email">Correo Electrónico</label>
+            <input type="email" id="register-email" class="form-input" placeholder="nuevo@mazo.com" required autocomplete="email">
+          </div>
+          <div class="form-group" style="margin-bottom: 24px;">
+            <label class="form-label" for="register-password">Contraseña (mínimo 6 caracteres)</label>
+            <input type="password" id="register-password" class="form-input" placeholder="••••••••" required autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Crear Cuenta</button>
+        </form>
+        <div style="text-align: center; margin-top: 20px; font-size: 0.8rem; color: var(--text-gray);">
+          ¿Ya tenés una cuenta? <a href="#" onclick="toggleAuthView(false)" style="color: var(--accent-red); font-weight: 700; text-decoration: none;">Iniciá Sesión</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- --- 2. MAIN APPLICATION SECTOR --- -->
+  <section id="app-section" class="app-wrapper" style="display: none;">
+    <!-- TOP BAR -->
+    <header class="app-topbar">
+      <div class="topbar-left">
+        <div class="topbar-logo">
+          <span class="logo-sub">hecho en Argentina</span>
+          <h1 class="logo-main">mazo.</h1>
+        </div>
+        <div class="topbar-divider"></div>
+        <div class="topbar-title">Sistema de Gestión</div>
+      </div>
+      <div class="topbar-right">
+        <div class="notification-bell-container" id="bell-container">
+          <button class="btn-bell" type="button" onclick="toggleNotifications(event)">
+            <i class="fa-regular fa-bell"></i>
+            <span class="bell-badge" id="notification-badge" style="display: none;"></span>
+          </button>
+          
+          <!-- Dropdown container -->
+          <div class="notifications-dropdown" id="notifications-dropdown">
+            <div class="dropdown-header">
+              <i class="fa-regular fa-bell" style="margin-right: 6px;"></i>
+              <span>Notificaciones</span>
+            </div>
+            <div class="dropdown-body" id="notifications-list">
+              <!-- Inyectado dinámicamente -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="idx-sidebar">
+      
+      <ul class="menu-list">
+        <li class="menu-item active" data-tab="sales">
+          <a href="#" class="menu-link"><i>🛒</i> Ventas</a>
+        </li>
+        <li class="menu-item" data-tab="inventory">
+          <a href="#" class="menu-link"><i>📦</i> Inventario</a>
+        </li>
+        <li class="menu-item" data-tab="suppliers">
+          <a href="#" class="menu-link"><i>🚚</i> Compras</a>
+        </li>
+        <li class="menu-item" data-tab="extras">
+          <a href="#" class="menu-link"><i>⚙️</i> Adicionales</a>
+        </li>
+        <li class="menu-item" data-tab="supplier-accounts">
+          <a href="#" class="menu-link"><i>💳</i> Cuentas a Pagar</a>
+        </li>
+        <li class="menu-item" data-tab="collections">
+          <a href="#" class="menu-link"><i>🪙</i> Cobranzas</a>
+        </li>
+        <li class="menu-item" data-tab="cash">
+          <a href="#" class="menu-link"><i>💵</i> Caja</a>
+        </li>
+        <li class="menu-item" data-tab="fixed-costs">
+          <a href="#" class="menu-link"><i>🧾</i> Gastos Mensuales</a>
+        </li>
+        <li class="menu-item" data-tab="marketing">
+          <a href="#" class="menu-link"><i>🔗</i> Marketing</a>
+        </li>
+        <li class="menu-item" data-tab="panel">
+          <a href="#" class="menu-link"><i>📊</i> Panel</a>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user-info">
+          <span id="user-display-email" class="sidebar-user-email">email@mazo.com</span>
+          <span class="sidebar-user-role">Administrador</span>
+        </div>
+        <button class="btn-logout" onclick="handleLogout()">Cerrar Sesión</button>
+      </div>
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT -->
+    <main class="idx-main">
+      
+      <!-- TAB 1: PANEL DE CONTROL -->
+      <section id="panel-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Panel de Control</h2>
+            <p>Métricas claves y visualización de la salud financiera del negocio.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="exportPanelToExcel()">
+              <i>📥</i> Descargar XLS
+            </button>
+            <select id="panel-month-select" class="form-select" style="width: 140px; padding: 8px 12px;" onchange="renderPanel()">
+              <!-- Cargado dinámicamente en JS -->
+            </select>
+            <div class="period-pill-select">
+              <button class="period-pill-btn active" id="period-hoy" onclick="setPanelPeriod('hoy')">Hoy</button>
+              <button class="period-pill-btn" id="period-semana" onclick="setPanelPeriod('semana')">7 Días</button>
+              <button class="period-pill-btn" id="period-mes" onclick="setPanelPeriod('mes')">Mensual</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Grid -->
+        <div class="dashboard-kpis">
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Ventas Totales</span>
+              <div class="kpi-icon emerald">💵</div>
+            </div>
+            <div id="panel-stat-revenue" class="kpi-value">$0</div>
+            <div class="kpi-desc">Facturación Bruta</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Ticket Promedio</span>
+              <div class="kpi-icon orange">💳</div>
+            </div>
+            <div id="panel-stat-ticket" class="kpi-value">$0</div>
+            <div class="kpi-desc">Promedio por Venta</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Unidades</span>
+              <div class="kpi-icon blue">📦</div>
+            </div>
+            <div id="panel-stat-units" class="kpi-value">0</div>
+            <div class="kpi-desc">Prendas Despachadas</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Op. Comercial</span>
+              <div class="kpi-icon emerald">📈</div>
+            </div>
+            <div id="panel-stat-operativo" class="kpi-value">$0</div>
+            <div class="kpi-desc">Ventas - Costo Físico</div>
+          </div>
+          <div class="kpi-card" onclick="openFixedCostsPanelModal()" style="cursor: pointer;">
+            <div class="kpi-header">
+              <span class="kpi-title">Costos Mensuales</span>
+              <div class="kpi-icon rose">👛</div>
+            </div>
+            <div id="panel-stat-costs" class="kpi-value">$0</div>
+            <div id="panel-stat-costs-month" class="kpi-desc">Este Mes</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Resultado Neto</span>
+              <div class="kpi-icon rose">💰</div>
+            </div>
+            <div id="panel-stat-neto" class="kpi-value">$0</div>
+            <div class="kpi-desc">Operativo - Costos Fijos</div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-grid">
+          <!-- Line Chart: Evolución de Ventas -->
+          <div class="chart-card-wrapper" id="panel-evolution-chart-box">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Evolución de Ventas</h3>
+              <span style="color: var(--text-gray); font-size: 0.75rem; font-weight: 500;">Histórico Dinámico</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="chart-evolution" style="width: 100%; height: 100%;"></canvas>
+            </div>
+          </div>
+
+          <!-- Bar Chart: Top Categorías -->
+          <div class="chart-card-wrapper" id="panel-category-chart-box">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Top Categorías</h3>
+              <span style="color: var(--text-gray); font-size: 0.75rem; font-weight: 500;">Unidades Vendidas</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="chart-categories" style="width: 100%; height: 100%;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stock Crítico Section -->
+        <div class="idx-card" style="margin-top: 24px;">
+          <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 16px; color: var(--text-white);">Stock Crítico (Bajo Mínimo de Pedido)</h3>
+          <div id="panel-stock-critico-list" class="grid-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            <!-- Cargado dinámicamente -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: VENTAS (POS) -->
+      <section id="sales-section" class="tab-content active">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Punto de Venta (POS)</h2>
+            <p>Registrar transacciones de caja de remeras, buzos y otros productos.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="openSalesHistoryModal()">
+              <i>🕒</i> Historial de Ventas
+            </button>
+          </div>
+        </div>
+
+        <div class="pos-wrapper">
+          <!-- POS Left Panel: Products List -->
+          <div class="pos-products-panel">
+            <div class="pos-filter-bar">
+              <div class="pos-search-row">
+                <div class="pos-search-wrapper">
+                  <i class="pos-search-icon">🔍</i>
+                  <input type="text" id="pos-search-input" class="pos-search-input" placeholder="Buscar producto o SKU..." oninput="renderSalesPOS()">
+                </div>
+                <button class="btn btn-emerald" style="padding: 8px 14px;" onclick="exportSalesHistory()">
+                  <i>📊</i> Exportar XLS
+                </button>
+              </div>
+              <div id="pos-categories-pills" class="pos-category-scroll">
+                <!-- Píldoras de Categorías -->
+              </div>
+            </div>
+
+            <div id="pos-products-grid" class="pos-products-grid">
+              <!-- Grid de Tarjetas de Productos -->
+            </div>
+          </div>
+
+          <!-- POS Right Panel: Shopping Cart -->
+          <div class="pos-cart-panel">
+            <div class="pos-cart-header">
+              <h3 class="pos-cart-title"><i>🛒</i> Carrito Actual</h3>
+              <span id="pos-cart-count-badge" class="pos-cart-badge">0 items</span>
+            </div>
+
+            <div id="pos-cart-items-container" class="pos-cart-items">
+              <!-- Items del carrito -->
+            </div>
+
+            <div class="pos-cart-footer">
+              <div class="pos-cart-total-row">
+                <span class="pos-cart-total-label">Total a Cobrar</span>
+                <span id="pos-cart-total-val" class="pos-cart-total-value">$ 0</span>
+              </div>
+              <button id="pos-cobrar-btn" class="pos-cart-cobrar-btn" onclick="openCheckoutModal()" disabled>COBRAR</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: INVENTARIO -->
+      <section id="inventory-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Inventario</h2>
+            <p>Control de SKU variants, talle/color, precios y niveles de existencias físicas.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="exportInventoryToExcel()">
+              <i>📥</i> Exportar Excel
+            </button>
+            <button class="btn btn-primary" onclick="openCreateProductModal()">
+              <i>+</i> Nuevo Producto
+            </button>
+          </div>
+        </div>
+
+        <div class="idx-card" style="padding: 0; overflow: hidden;">
+          <div style="padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;">
+            <div class="pos-search-wrapper" style="width: 100%; max-width: 380px;">
+              <i class="pos-search-icon">🔍</i>
+              <input type="text" id="inventory-search-input" class="pos-search-input" placeholder="Buscar por SKU, nombre o categoría..." oninput="renderInventory()">
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <select id="inventory-category-filter" class="form-select" style="width: 180px; padding: 8px 12px;" onchange="renderInventory()">
+                <option value="Todas las Categorías">Todas las Categorías</option>
+              </select>
+              <button class="btn btn-secondary" style="padding: 8px 10px;" onclick="openCategoriesModal()" title="Gestionar Categorías">
+                <i>⚙️</i>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="idx-table">
+              <thead>
+                <tr>
+                  <th>SKU / Producto</th>
+                  <th>Categoría</th>
+                  <th>Variante</th>
+                  <th style="text-align: right;">Stock Actual</th>
+                  <th style="text-align: right;">Unidades de Stock Critico</th>
+                  <th style="text-align: right;">Costo Unit.</th>
+                  <th style="text-align: right;">Precio Venta</th>
+                  <th style="text-align: right;">Margen</th>
+                  <th style="text-align: right; width: 80px;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-table-body">
+                <!-- Renglones de productos -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: COMPRAS E INGRESOS -->
+      <section id="suppliers-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Compras e Ingresos</h2>
+            <p>Gestiona tus proveedores y registra la entrada de mercadería.</p>
+          </div>
+        </div>
+
+        <div class="compras-layout">
+          <!-- COLUMNA IZQUIERDA: INGRESO Y HISTORIAL -->
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- CARD 1: INGRESO DE MERCADERÍA -->
+            <div class="idx-card">
+              <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                <span style="color: var(--accent-emerald); font-size: 1.25rem;">+</span> Ingreso de Mercadería
+              </h3>
+              
+              <form id="stock-intake-form" onsubmit="handleStockIntakeSubmit(event)">
+                <!-- Producto a Reponer -->
+                <div class="form-group" style="position: relative;">
+                  <label class="form-label">Producto a Reponer</label>
+                  <input type="text" id="intake-product-search" class="form-input" placeholder="🔍 Escanear código o buscar nombre.." autocomplete="off">
+                  <input type="hidden" id="intake-product-sku">
+                  <div id="intake-search-results" class="autocomplete-dropdown" style="display: none;"></div>
+                </div>
+
+                <!-- Proveedor -->
+                <div class="form-group">
+                  <label class="form-label">Proveedor</label>
+                  <select id="intake-supplier-select" class="form-select" required>
+                    <option value="">Seleccionar proveedor..</option>
+                  </select>
+                </div>
+
+                <!-- Cantidades por Talle -->
+                <div class="form-group">
+                  <label class="form-label">Cantidad a Ingresar por Talle</label>
+                  <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; text-align: center;">
+                    <div>
+                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">S</span>
+                      <input type="number" id="intake-qty-S" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+                      <span id="intake-stock-S" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+                    </div>
+                    <div>
+                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">M</span>
+                      <input type="number" id="intake-qty-M" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+                      <span id="intake-stock-M" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+                    </div>
+                    <div>
+                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">L</span>
+                      <input type="number" id="intake-qty-L" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+                      <span id="intake-stock-L" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+                    </div>
+                    <div>
+                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">XL</span>
+                      <input type="number" id="intake-qty-XL" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+                      <span id="intake-stock-XL" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+                    </div>
+                    <div>
+                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">XXL</span>
+                      <input type="number" id="intake-qty-XXL" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+                      <span id="intake-stock-XXL" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+                    </div>
+                    <div>
+                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">Único</span>
+                      <input type="number" id="intake-qty-U" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+                      <span id="intake-stock-U" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Adicionales Grid -->
+                <div class="grid-2">
+                  <div class="form-group">
+                    <label class="form-label">Materia Prima (Opcional)</label>
+                    <input type="number" id="intake-materia-prima" class="form-input" placeholder="$ 0" min="0" step="0.01">
+                    <div id="intake-materia-prima-current" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; font-weight: 700; font-size: 0.75rem; color: #fff; justify-content: space-between; margin-top: 8px; align-items: center;">
+                      <span style="color: var(--text-gray); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;">MATERIA PRIMA</span>
+                      <span id="intake-materia-prima-current-val" style="color: var(--accent-emerald); font-weight: 800;">$0</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Estampado</label>
+                    <select id="intake-estampado-select" class="form-select">
+                      <option value="0">Sin estampado ($0)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="grid-2">
+                  <div class="form-group">
+                    <label class="form-label">Packaging</label>
+                    <select id="intake-packaging-select" class="form-select">
+                      <option value="0">Sin packaging ($0)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Bordado</label>
+                    <select id="intake-bordado-select" class="form-select">
+                      <option value="0">Sin bordado ($0)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="grid-2">
+                  <div class="form-group">
+                    <label class="form-label">Margen (%) (Opcional)</label>
+                    <input type="number" id="intake-margin" class="form-input" placeholder="% 0" min="0" step="0.1">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Fecha de Ingreso *</label>
+                    <input type="date" id="intake-date" class="form-input" required>
+                  </div>
+                </div>
+
+                <!-- Preview Area -->
+                <div style="border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 16px 0; margin: 16px 0; display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);">
+                    <span>Costo Unitario Total Calculado:</span>
+                    <span id="intake-total-cost-preview" style="color: var(--accent-emerald); font-weight: 800;">$0</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);">
+                    <span>Precio de Venta:</span>
+                    <span id="intake-sale-price-preview" style="color: var(--text-white); font-weight: 800;">$0</span>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">+ Actualizar Stock</button>
+              </form>
+            </div>
+
+            <!-- CARD 2: HISTORIAL DE INGRESOS -->
+            <div class="idx-card">
+              <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-history" style="color: var(--text-gray);"></i> Historial de Ingresos
+              </h3>
+              <div id="stock-intakes-list" class="space-y-4" style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
+                <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px 0;">No hay movimientos recientes.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLUMNA DERECHA: PROVEEDORES CARDS -->
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <div class="idx-card" style="position: relative;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 10px;">
+                  <i class="fas fa-truck" style="color: var(--accent-red);"></i> Proveedores
+                </h3>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openSupplierModal()">+ Nuevo</button>
+              </div>
+
+              <div id="suppliers-list" class="space-y-4" style="max-height: 800px; overflow-y: auto; padding-right: 4px;">
+                <!-- Cargado dinámicamente en formato de cards -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- TAB 5: CUENTAS A PAGAR -->
+      <section id="supplier-accounts-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Cuentas a Pagar</h2>
+            <p>Monitorear transacciones, compras en cta. corriente y deudas con proveedores.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="exportSupplierAccountsToExcel()">
+              <i>📥</i> Exportar Excel
+            </button>
+            <button class="btn btn-primary" onclick="openAccountModal('proveedor')">
+              + Nuevo Proveedor
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Card -->
+        <div class="idx-card" style="max-width: 480px; padding: 20px; margin-bottom: 24px; border-left: 4px solid var(--accent-red); display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Pagar (Proveedores)</span>
+            <div id="supplier-accounts-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: #fff; margin-top: 6px;">$ 0</div>
+          </div>
+          <div style="font-size: 2rem; color: var(--accent-red); opacity: 0.8;">📉</div>
+        </div>
+
+        <!-- Main Card Container -->
+        <div class="idx-card" style="padding: 24px;">
+          <div style="position: relative; margin-bottom: 24px; max-width: 360px;">
+            <i class="pos-search-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-gray);">🔍</i>
+            <input type="text" id="supplier-accounts-search" class="pos-search-input" placeholder="Buscar por nombre..." oninput="renderSupplierAccounts()" style="padding: 8px 12px 8px 36px;">
+          </div>
+
+          <div id="supplier-accounts-list" style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Cuentas corrientes a pagar cargadas dinámicamente -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: COBRANZAS -->
+      <section id="collections-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Cobranzas</h2>
+            <p>Gestión de saldos a cobrar de clientes.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="exportCollectionsToExcel()">
+              <i>📥</i> Exportar Excel
+            </button>
+            <button class="btn btn-primary" onclick="openAccountModal('cliente')">
+              + Nuevo Cliente
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Card -->
+        <div class="idx-card" style="max-width: 480px; padding: 20px; margin-bottom: 24px; border-left: 4px solid var(--accent-emerald); display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Cobrar (Clientes)</span>
+            <div id="collections-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: #fff; margin-top: 6px;">$ 0</div>
+          </div>
+          <div style="font-size: 2rem; color: var(--accent-emerald); opacity: 0.8;">📈</div>
+        </div>
+
+        <!-- Main Card Container -->
+        <div class="idx-card" style="padding: 24px;">
+          <div style="position: relative; margin-bottom: 24px; max-width: 360px;">
+            <i class="pos-search-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-gray);">🔍</i>
+            <input type="text" id="collections-search" class="pos-search-input" placeholder="Buscar por nombre..." oninput="renderCollections()" style="padding: 8px 12px 8px 36px;">
+          </div>
+
+          <div id="collections-list" style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Cuentas corrientes a cobrar cargadas dinámicamente -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 7: CAJA DIARIA -->
+      <section id="cash-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Caja Diaria</h2>
+            <p>Registro cronológico de entradas y salidas de efectivo y transferencias bancarias.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="badge badge-emerald" style="padding: 10px 16px; font-size: 0.9rem;" id="cash-neto-badge">Caja Neta: $ 0</div>
+            <button class="btn btn-primary" onclick="openCashTransactionModal()">
+              <i>+</i> Registrar Movimiento
+            </button>
+          </div>
+        </div>
+
+        <div class="idx-card">
+          <div class="table-wrapper">
+            <table class="idx-table">
+              <thead>
+                <tr>
+                  <th>Fecha y Hora</th>
+                  <th>Concepto / Descripción</th>
+                  <th>Tipo</th>
+                  <th style="text-align: right;">Monto</th>
+                </tr>
+              </thead>
+              <tbody id="cash-table-body">
+                <!-- Movimientos de caja -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 8: GASTOS MENSUALES -->
+      <section id="fixed-costs-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Gastos Mensuales</h2>
+            <p>Administración y asignación de costos fijos, alquileres, servicios e impuestos.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="exportFixedCostsToExcel()">
+              <i>📥</i> Exportar XLS
+            </button>
+            <select id="costs-month-select" class="form-select" style="width: 140px; padding: 8px 12px;" onchange="renderFixedCosts()">
+              <!-- Opciones de meses cargadas por JS -->
+            </select>
+            <div class="badge badge-red" style="padding: 10px 16px; font-size: 0.9rem;" id="costs-total-badge">Gastos: $ 0</div>
+          </div>
+        </div>
+
+        <div class="gastos-layout">
+          <!-- Form Card Left -->
+          <div class="idx-card">
+            <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--accent-red);">+</span> Registrar Gasto
+            </h3>
+            <form id="idx-cost-form">
+              <!-- Categorías -->
+              <div class="form-group">
+                <label class="form-label">Categoría</label>
+                <div class="grid-2" id="cost-category-grid">
+                  <!-- Botones de categorías inyectados en JS -->
+                </div>
+              </div>
+
+              <!-- Concepto subcategorías -->
+              <div class="form-group">
+                <label class="form-label" id="cost-concept-label">Concepto</label>
+                <div id="cost-concept-pills" class="flex-wrap-gap-1">
+                  <!-- Píldoras inyectadas en JS -->
+                </div>
+              </div>
+
+              <!-- Periodo -->
+              <div class="idx-card" style="padding: 16px; background: var(--bg-input); margin-bottom: 16px;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 6px;">📅 Período de Pago</label>
+                <select id="cost-period-month" class="form-select" style="margin-bottom: 12px;">
+                  <!-- Meses -->
+                </select>
+                <div class="grid-3" style="margin-bottom: 12px;">
+                  <button type="button" class="btn btn-secondary" id="period-type-mensual" style="font-size: 0.65rem;" onclick="setPeriodType('MENSUAL')">MENSUAL</button>
+                  <button type="button" class="btn btn-secondary" id="period-type-quincenal" style="font-size: 0.65rem;" onclick="setPeriodType('QUINCENAL')">QUINCENAL</button>
+                  <button type="button" class="btn btn-secondary" id="period-type-semanal" style="font-size: 0.65rem;" onclick="setPeriodType('SEMANAL')">SEMANAL</button>
+                </div>
+                <div id="period-details-container">
+                  <!-- Selectores quincena o semana si aplica -->
+                </div>
+                <div style="text-align: center; font-weight: 800; color: var(--accent-red); font-size: 0.8rem; margin-top: 10px;" id="cost-period-display">
+                  <!-- Visualización de periodo final -->
+                </div>
+              </div>
+
+              <!-- Monto -->
+              <div class="form-group">
+                <label class="form-label">Monto ($)</label>
+                <input type="text" id="cost-amount-input" class="form-input" style="font-size: 1.1rem; font-weight: 800;" placeholder="0" required>
+              </div>
+
+              <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; margin-top: 8px;">Agregar Gasto</button>
+            </form>
+          </div>
+
+          <!-- List & Donut Chart Right -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Donut Chart -->
+            <div class="donut-chart-card">
+              <div class="donut-svg-wrapper">
+                <canvas id="canvas-fixed-costs-donut" width="160" height="160"></canvas>
+              </div>
+              <div class="donut-info-block">
+                <span class="donut-legend-marker"><span class="donut-legend-dot"></span> <span id="donut-top-category-name">Servicios</span></span>
+                <h3 class="donut-info-title">Distribución</h3>
+                <p id="donut-info-description" class="donut-info-desc">La mayor parte de tus costos fijos provienen de Servicios.</p>
+              </div>
+            </div>
+
+            <!-- List Table -->
+            <div class="idx-card" style="padding: 0; overflow: hidden;">
+              <div style="padding: 14px 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 800; font-size: 0.85rem;">Historial de Gastos</span>
+              </div>
+              <div class="table-wrapper">
+                <table class="idx-table">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th>Categoría</th>
+                      <th style="text-align: right;">Monto</th>
+                      <th style="text-align: center; width: 60px;">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="fixed-costs-table-body">
+                    <!-- Gastos cargados -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 9: MARKETING -->
+      <section id="marketing-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2 style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--accent-red);"><i class="fas fa-bullhorn"></i></span> Marketing
+            </h2>
+            <p>Gestión de publicidad y productos para influencers.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button id="btn-mkt-new-delivery" class="btn btn-primary" style="background: var(--accent-red); border-color: var(--accent-red);" onclick="openMarketingDeliveryModal()">
+              + Registrar Entrega
+            </button>
+            <button id="btn-mkt-new-influencer" class="btn btn-primary" style="background: var(--accent-red); border-color: var(--accent-red); display: none;" onclick="openInfluencerModal()">
+              + Nuevo Influencer
+            </button>
+            <button id="btn-mkt-new-campaign" class="btn btn-primary" style="background: var(--accent-red); border-color: var(--accent-red); display: none;" onclick="openMarketingCampaignModal()">
+              + Nueva Campaña
+            </button>
+          </div>
+        </div>
+
+        <!-- Sub-Tabs Navigation -->
+        <div class="pos-category-scroll" style="margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+          <button class="pos-category-btn active" id="mkt-pill-summary" onclick="switchMarketingSubTab('summary')">Resumen y Entregas</button>
+          <button class="pos-category-btn" id="mkt-pill-influencers" onclick="switchMarketingSubTab('influencers')">Influencers</button>
+          <button class="pos-category-btn" id="mkt-pill-campaigns" onclick="switchMarketingSubTab('campaigns')">Campañas Publicidad</button>
+        </div>
+
+        <!-- Sub-Tab Content 1: Resumen y Entregas -->
+        <div id="mkt-summary-content" class="mkt-subtab-content">
+          <div class="gastos-layout" style="margin-bottom: 24px;">
+            <!-- Left Card: Inversión Total en Influencers -->
+            <div class="idx-card" style="position: relative; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-gray);">Inversión Total en Influencers</span>
+                <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(229, 56, 59, 0.08); display: flex; align-items: center; justify-content: center; color: var(--accent-red); font-size: 1rem;">
+                  <i class="fas fa-share-alt"></i>
+                </div>
+              </div>
+              <div id="mkt-summary-total-influencers" class="kpi-value" style="margin-top: 16px; font-size: 1.8rem; font-weight: 900; color: #fff; white-space: nowrap;">$0</div>
+              <div id="mkt-summary-products-delivered" style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px; font-weight: 600;">Productos entregados: 0</div>
+            </div>
+            
+            <!-- Right Card: Costo por Influencer -->
+            <div class="idx-card" style="padding: 24px; display: flex; flex-direction: column; justify-content: center; min-height: 120px;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-gray); margin-bottom: 8px;">Costo por Influencer</span>
+              <div id="mkt-influencers-cost-chart-container" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; color: var(--text-gray); font-size: 0.8rem; padding: 10px 0;">
+                No hay registros de influencers.
+              </div>
+            </div>
+          </div>
+
+          <!-- Historial de Entregas Table -->
+          <div class="idx-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 14px 16px; border-bottom: 1px solid var(--border-color); font-weight: 800; font-size: 0.85rem;">
+              Historial de Entregas
+            </div>
+            <div class="table-wrapper">
+              <table class="idx-table">
+                <thead>
+                  <tr>
+                    <th>FECHA</th>
+                    <th>INFLUENCER</th>
+                    <th>PRODUCTO</th>
+                    <th style="text-align: center;">CANT.</th>
+                    <th style="text-align: right;">COSTO TOTAL</th>
+                    <th style="text-align: center;">ACCIONES</th>
+                  </tr>
+                </thead>
+                <tbody id="mkt-deliveries-table-body">
+                  <!-- Inyectado dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-Tab Content 2: Influencers -->
+        <div id="mkt-influencers-content" class="mkt-subtab-content" style="display: none;">
+          <div id="mkt-influencers-grid" class="grid-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            <!-- Influencer cards inyectadas dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Sub-Tab Content 3: Campañas Publicidad -->
+        <div id="mkt-campaigns-content" class="mkt-subtab-content" style="display: none;">
+          <div class="gastos-layout" style="margin-bottom: 24px;">
+            <!-- Left Card: Inversión Total en Publicidad -->
+            <div class="idx-card" style="position: relative; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-gray);">Inversión Total en Publicidad</span>
+                <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(16, 185, 129, 0.08); display: flex; align-items: center; justify-content: center; color: var(--accent-emerald); font-size: 1rem;">
+                  <i class="fas fa-ad"></i>
+                </div>
+              </div>
+              <div id="mkt-summary-total-ads" class="kpi-value" style="margin-top: 16px; font-size: 1.8rem; font-weight: 900; color: #fff; white-space: nowrap;">$0</div>
+              <div style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px; font-weight: 600;">Inversión acumulada en todos los canales</div>
+            </div>
+            
+            <!-- Right Card: Costo por Plataforma -->
+            <div class="idx-card" style="padding: 24px; display: flex; flex-direction: column; justify-content: center; min-height: 120px;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-gray); margin-bottom: 8px;">Costo por Plataforma</span>
+              <div id="mkt-platforms-cost-chart-container" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; color: var(--text-gray); font-size: 0.8rem; padding: 10px 0;">
+                No hay registros de publicidad.
+              </div>
+            </div>
+          </div>
+
+          <!-- Historial de Campañas Table -->
+          <div class="idx-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 14px 16px; border-bottom: 1px solid var(--border-color); font-weight: 800; font-size: 0.85rem;">
+              Historial de Campañas
+            </div>
+            <div class="table-wrapper">
+              <table class="idx-table">
+                <thead>
+                  <tr>
+                    <th>FECHA</th>
+                    <th>PLATAFORMA</th>
+                    <th>CAMPAÑA</th>
+                    <th style="text-align: right;">INVERSIÓN</th>
+                    <th style="text-align: center;">ACCIONES</th>
+                  </tr>
+                </thead>
+                <tbody id="mkt-campaigns-table-body">
+                  <!-- Inyectado dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 10: CONFIGURACION DE ADICIONALES -->
+      <section id="extras-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Configuración de Adicionales</h2>
+            <p>Configurar costos de servicios de terceros (Estampados, Packaging, Bordados) asociados a prendas.</p>
+          </div>
+        </div>
+
+        <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+          <!-- Estampados -->
+          <div class="idx-card">
+            <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; color: var(--text-white);">Precios de Estampados</h3>
+            <form id="extras-estampados-form" class="space-y-4">
+              <div class="form-group">
+                <label class="form-label" for="ext-est-minorista">Minorista ($)</label>
+                <input type="text" id="ext-est-minorista" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ext-est-mayorista">Mayorista ($)</label>
+                <input type="text" id="ext-est-mayorista" class="form-input" required>
+              </div>
+              <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Estampados</button>
+            </form>
+          </div>
+
+          <!-- Packaging -->
+          <div class="idx-card">
+            <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; color: var(--text-white);">Precios de Packaging</h3>
+            <form id="extras-packagings-form" class="space-y-4">
+              <div class="form-group">
+                <label class="form-label" for="ext-pack-chica">Bolsa Chica ($)</label>
+                <input type="text" id="ext-pack-chica" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ext-pack-mediana">Bolsa Mediana ($)</label>
+                <input type="text" id="ext-pack-mediana" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ext-pack-grande">Bolsa Grande ($)</label>
+                <input type="text" id="ext-pack-grande" class="form-input" required>
+              </div>
+              <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Packaging</button>
+            </form>
+          </div>
+
+          <!-- Bordados -->
+          <div class="idx-card">
+            <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; color: var(--text-white);">Precios de Bordados</h3>
+            <form id="extras-bordados-form" class="space-y-4">
+              <div class="form-group">
+                <label class="form-label" for="ext-bor-basico">Bordado Básico ($)</label>
+                <input type="text" id="ext-bor-basico" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ext-bor-medio">Bordado Medio ($)</label>
+                <input type="text" id="ext-bor-medio" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ext-bor-complejo">Bordado Complejo ($)</label>
+                <input type="text" id="ext-bor-complejo" class="form-input" required>
+              </div>
+              <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Bordados</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </section>
+
+  <!-- ======================================================= -->
+  <!-- MODALS PORTAL -->
+  <!-- ======================================================= -->
+
+  <!-- MODAL A: POS CHECKOUT (Cobrar Venta) -->
+  <div id="checkout-modal" class="modal-backdrop">
+    <div class="modal-content max-w-sm">
+      <!-- Step 1: Payment Method Selection -->
+      <div id="checkout-step-method" class="p-6">
+        <div class="modal-header" style="border: none; padding: 0 0 20px 0;">
+          <h3 class="modal-title">Método de Pago</h3>
+          <span class="modal-close-btn" onclick="closeCheckoutModal()">✕</span>
+        </div>
+        
+        <div class="idx-card" style="background: var(--bg-input); padding: 16px; text-align: center; margin-bottom: 20px;">
+          <p style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Total a Cobrar</p>
+          <p id="checkout-total-display" style="font-size: 1.8rem; font-weight: 900; color: #fff; margin-top: 4px;">$ 0</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Efectivo')">
+            <span style="font-size: 1.2rem; margin-right: 12px;">💵</span> <strong>Efectivo</strong>
+          </button>
+          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Tarjeta')">
+            <span style="font-size: 1.2rem; margin-right: 12px;">💳</span> <strong>Tarjeta / Débito</strong>
+          </button>
+          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Transferencia')">
+            <span style="font-size: 1.2rem; margin-right: 12px;">📱</span> <strong>Transferencia</strong>
+          </button>
+          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Financiado')">
+            <span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas (Cta. Corriente)</strong>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Current Account Client Registration -->
+      <div id="checkout-step-finance" style="display: none;" class="p-6">
+        <div class="modal-header" style="border: none; padding: 0 0 20px 0;">
+          <h3 class="modal-title">Cobranzas (Cta. Corriente)</h3>
+          <span class="modal-close-btn" onclick="closeCheckoutModal()">✕</span>
+        </div>
+
+        <div class="idx-card" style="background: var(--bg-input); padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas</p>
+            <p id="checkout-units-display" style="font-size: 1.1rem; font-weight: 800;">0 u.</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Total Venta</p>
+            <p id="checkout-finance-total-display" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-red);">$ 0</p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="form-group">
+            <label class="form-label" for="chk-client-name">Nombre del Cliente / Entidad *</label>
+            <input type="text" id="chk-client-name" class="form-input" list="chk-client-list" placeholder="Ej. Juan Pérez" onchange="autoFillClientInfo()" required>
+            <datalist id="chk-client-list">
+              <!-- Cargado dinámicamente -->
+            </datalist>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="chk-client-phone">Teléfono</label>
+              <input type="text" id="chk-client-phone" class="form-input" placeholder="Opcional">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="chk-client-address">Dirección</label>
+              <input type="text" id="chk-client-address" class="form-input" placeholder="Opcional">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="chk-client-paid">Monto Entregado (Entrega inicial)</label>
+            <input type="text" id="chk-client-paid" class="form-input" placeholder="$ 0" oninput="formatCheckoutPaidAmount()">
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(229, 56, 59, 0.05); border-radius: 8px; margin-top: 16px; border: 1px solid rgba(229, 56, 59, 0.15);">
+            <span style="font-size: 0.75rem; font-weight: 800; color: var(--accent-red);">Saldo a Deuda:</span>
+            <span id="checkout-debt-display" style="font-size: 1.1rem; font-weight: 900; color: var(--accent-red);">$ 0</span>
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%; padding: 12px; margin-top: 20px; font-weight: 800;" onclick="submitCheckoutFinance()">Confirmar Venta en Cobranzas</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Success Notification -->
+      <div id="checkout-step-success" style="display: none;" class="p-12">
+        <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
+          <div style="width: 60px; height: 60px; border-radius: 50%; background: var(--accent-emerald); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 20px; box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);">✓</div>
+          <h3 style="font-size: 1.6rem; font-weight: 900; color: #fff;">¡Venta Registrada!</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL B: POS SALES HISTORY (Ver Historial de Ventas) -->
+  <div id="sales-history-modal" class="modal-backdrop">
+    <div class="modal-content max-w-2xl">
+      <div class="modal-header">
+        <h3 class="modal-title">Historial de Ventas</h3>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-emerald" style="padding: 6px 12px; font-size: 0.75rem;" onclick="exportSalesHistory()">📥 Exportar XLS</button>
+          <span class="modal-close-btn" onclick="closeSalesHistoryModal()">✕</span>
+        </div>
+      </div>
+      <div class="modal-body" style="max-height: 60vh;">
+        <div id="sales-history-empty" style="text-align: center; padding: 40px; color: var(--text-gray); display: none;">
+          <p>No hay ventas registradas en el historial.</p>
+        </div>
+        <div id="sales-history-list" class="space-y-6">
+          <!-- Historial cargado dinámicamente -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL C: POS SIZE SELECTION (Elegir Talle para Carrito) -->
+  <div id="size-modal" class="modal-backdrop">
+    <div class="modal-content max-w-sm">
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar Talle</h3>
+        <span class="modal-close-btn" onclick="closeSizeModal()">✕</span>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 20px;">
+          <p id="size-modal-product-name" style="font-weight: 800; font-size: 0.95rem; color: #fff;"></p>
+          <p id="size-modal-product-color" style="font-size: 0.8rem; color: var(--text-gray); margin-top: 2px;"></p>
+        </div>
+        <div id="size-modal-options-grid" class="grid-3" style="gap: 10px;">
+          <!-- Talles disponibles -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL D: INVENTARIO ADD/EDIT PRODUCT (Registrar o Editar variantes) -->
+  <div id="product-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-product-title" class="modal-title">Nuevo Producto</h3>
+        <span class="modal-close" onclick="closeProductModal()">✕</span>
+      </div>
+      <form id="product-form" onsubmit="saveProductForm(event)">
+        <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+          <div class="form-group">
+            <label class="form-label" for="prod-name">Nombre del Producto</label>
+            <input type="text" id="prod-name" class="form-input" placeholder="Ej. Remera Oversize Básica" required>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="prod-sku">Código (SKU Base)</label>
+              <input type="text" id="prod-sku" class="form-input" placeholder="Ej. REM-OVR-N" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="prod-category">Categoría</label>
+              <select id="prod-category" class="form-select" required>
+                <!-- Opciones de categorías inyectadas por JS -->
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prod-color">Color</label>
+            <input type="text" id="prod-color" class="form-input" placeholder="Ej. Negro" required>
+          </div>
+
+          <!-- Talles y Stock -->
+          <div class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
+            <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Talles y Stock</label>
+            <div class="grid-3 sm:grid-6" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
+              <div>
+                <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">S</label>
+                <input type="number" id="stock-S" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+              </div>
+              <div>
+                <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">M</label>
+                <input type="number" id="stock-M" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+              </div>
+              <div>
+                <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">L</label>
+                <input type="number" id="stock-L" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+              </div>
+              <div>
+                <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XL</label>
+                <input type="number" id="stock-XL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+              </div>
+              <div>
+                <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XXL</label>
+                <input type="number" id="stock-XXL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+              </div>
+              <div>
+                <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">Único</label>
+                <input type="number" id="stock-Unico" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+              </div>
+            </div>
+            <p style="font-size: 0.65rem; color: var(--text-gray); text-align: center; margin-top: 12px; font-weight: 500;">Ingresá el stock inicial de los talles que desees habilitar.</p>
+          </div>
+
+          <!-- Adicionales de Prenda -->
+          <div class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
+            <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Adicionales Incorporados</label>
+            <div class="grid-3" style="gap: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 0.75rem;">Estampado</label>
+                <select id="prod-estampado" class="form-select" onchange="recalculateProductPrice()">
+                  <option value="">Sin estampado ($0)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 0.75rem;">Bordado</label>
+                <select id="prod-bordado" class="form-select" onchange="recalculateProductPrice()">
+                  <option value="">Sin bordado ($0)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 0.75rem;">Packaging</label>
+                <select id="prod-packaging" class="form-select" onchange="recalculateProductPrice()">
+                  <option value="">Sin packaging ($0)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stock Crítico Dinámico (Punto de Pedido) -->
+          <div class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
+            <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Stock Crítico Dinámico (Punto de Pedido)</label>
+            <div class="grid-2" style="gap: 12px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;" for="prod-te">Tiempo de Entrega (días)</label>
+                <input type="number" id="prod-te" class="form-input" placeholder="Por defecto: 15" min="0">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;" for="prod-ss">Stock de Seguridad (uds)</label>
+                <input type="number" id="prod-ss" class="form-input" placeholder="Colchón para imprevistos" min="0">
+              </div>
+            </div>
+            <p style="font-size: 0.65rem; color: var(--text-gray); text-align: center; margin-top: 12px; font-weight: 500;">
+              Fórmula: PP = (Venta Media Diaria × Tiempo de Entrega) + Stock de Seguridad.
+            </p>
+          </div>
+
+          <!-- Costos y Rentabilidad -->
+          <div class="idx-card" style="background: var(--bg-input); padding: 16px;">
+            <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Costos y Rentabilidad</label>
+            <div class="grid-3" style="gap: 12px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Materia Prima ($)</label>
+                <input type="text" id="prod-cost-input" class="form-input" placeholder="0" oninput="recalculateProductPrice()" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Margen (%)</label>
+                <input type="number" id="prod-margin" class="form-input" placeholder="0" oninput="recalculateProductPrice()" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Precio Venta</label>
+                <div id="prod-price-preview" style="padding: 10px; background: var(--bg-dark); border-radius: 8px; color: var(--accent-emerald); font-weight: 900; border: 1px solid var(--border-color); text-align: center;">$ 0</div>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px; margin-top: 16px; border: 1px solid var(--border-color);">
+              <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-gray);">Costo Unitario Total:</span>
+              <span id="prod-total-cost-display" style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ 0</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeProductModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Producto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL E: INVENTARIO CATEGORIES (Gestionar Categorías) -->
+  <div id="categories-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Gestionar Categorías</h3>
+        <span class="modal-close-btn" onclick="closeCategoriesModal()">✕</span>
+      </div>
+      <div class="modal-body" style="padding: 20px; space-y-6;">
+        <!-- Agregar -->
+        <div style="display: flex; gap: 8px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+          <input type="text" id="new-category-input" class="form-input" placeholder="Nueva categoría...">
+          <button class="btn btn-primary" onclick="submitAddCategory()">+ Añadir</button>
+        </div>
+        <!-- Listado -->
+        <div style="font-weight: 700; font-size: 0.8rem; color: var(--text-gray); margin-bottom: 10px;">Categorías Creadas</div>
+        <div id="categories-list-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
+          <!-- Listado de categorías con botón eliminar -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL F: PROVEEDOR ADD/EDIT (Compras) -->
+  <div id="supplier-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-supplier-title" class="modal-title">Nuevo Proveedor</h3>
+        <span class="modal-close-btn" onclick="closeSupplierModal()">✕</span>
+      </div>
+      <form id="supplier-form" onsubmit="saveSupplierForm(event)">
+        <input type="hidden" id="supplier-id-input">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="supplier-name">Nombre Proveedor</label>
+            <input type="text" id="supplier-name" class="form-input" placeholder="Ej. Textil Buenos Aires" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="supplier-phone">Teléfono de Contacto</label>
+            <input type="text" id="supplier-phone" class="form-input" placeholder="Ej. 11 1234-5678" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="supplier-categories">Categorías (Separadas por comas)</label>
+            <input type="text" id="supplier-categories" class="form-input" placeholder="Ej. REMERAS, BUZOS" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="supplier-products">Productos / Insumos (Separados por comas)</label>
+            <textarea id="supplier-products" class="form-textarea" placeholder="Ej. Remera Oversize Básica, Hoodie" rows="3" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeSupplierModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Proveedor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL G: CUENTA CORRIENTE REGISTRO (Pagar/Cobrar) -->
+  <div id="account-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-account-title" class="modal-title">Registrar Cuenta Corriente</h3>
+        <span class="modal-close-btn" onclick="closeAccountModal()">✕</span>
+      </div>
+      <form id="account-form" onsubmit="saveAccountForm(event)">
+        <input type="hidden" id="account-type-input">
+        <input type="hidden" id="account-id-input">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="acc-entity-name">Nombre Cliente / Proveedor *</label>
+            <input type="text" id="acc-entity-name" class="form-input" placeholder="Ej. Tienda Central" required>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="acc-phone">Teléfono</label>
+              <input type="text" id="acc-phone" class="form-input" placeholder="Opcional">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="acc-address">Dirección</label>
+              <input type="text" id="acc-address" class="form-input" placeholder="Opcional">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeAccountModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Cuenta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL H: CUENTA CORRIENTE DETALLE Y REGISTRO DE TRANSACCIONES -->
+  <div id="account-detail-modal" class="modal-backdrop">
+    <div class="modal-content max-w-2xl">
+      <div class="modal-header">
+        <h3 id="modal-account-detail-title" class="modal-title">Detalle de Cuenta</h3>
+        <span class="modal-close-btn" onclick="closeAccountDetailModal()">✕</span>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color);">
+          <div>
+            <p style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Teléfono / Dirección</p>
+            <p id="acc-detail-info" style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;"></p>
+          </div>
+          <div style="text-align: right;">
+            <p style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;" id="acc-detail-balance-label">Saldo Pendiente</p>
+            <p id="acc-detail-balance" style="font-size: 1.4rem; font-weight: 900; color: var(--accent-red); margin-top: 2px;">$ 0</p>
+          </div>
+        </div>
+
+        <!-- Nueva Transacción Form -->
+        <div class="idx-card" style="padding: 16px; background: var(--bg-input); margin-bottom: 20px;">
+          <h4 style="font-size: 0.8rem; font-weight: 800; margin-bottom: 14px; color: var(--text-white);">Registrar Movimiento</h4>
+          <form id="account-tx-form" onsubmit="saveAccountTransactionForm(event)">
+            <input type="hidden" id="account-tx-id-input">
+            <div class="form-group">
+              <label class="form-label" for="tx-description">Descripción</label>
+              <input type="text" id="tx-description" class="form-input" placeholder="Ej. Pago a cuenta, Compra de mercadería" required>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label" for="tx-amount" id="tx-amount-label">Monto Cargado ($)</label>
+                <input type="text" id="tx-amount" class="form-input" placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="tx-payment" id="tx-payment-label">Monto Entregado ($)</label>
+                <input type="text" id="tx-payment" class="form-input" placeholder="0">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 0.8rem; padding: 10px;">Registrar Movimiento</button>
+          </form>
+        </div>
+
+        <!-- Listado Transacciones -->
+        <div style="font-weight: 800; font-size: 0.8rem; color: var(--text-gray); margin-bottom: 10px;">Historial de Movimientos</div>
+        <div class="table-wrapper" style="max-height: 200px;">
+          <table class="idx-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Descripción</th>
+                <th style="text-align: right;" id="th-tx-amount">Deuda</th>
+                <th style="text-align: right;" id="th-tx-payment">Pago</th>
+              </tr>
+            </thead>
+            <tbody id="account-tx-table-body">
+              <!-- Cargado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL I: REGISTRAR MOVIMIENTO CAJA DIARIA -->
+  <div id="cash-tx-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Registrar Movimiento de Caja</h3>
+        <span class="modal-close-btn" onclick="closeCashTransactionModal()">✕</span>
+      </div>
+      <form id="cash-tx-form" onsubmit="saveCashTransactionForm(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="caja-type">Tipo de Movimiento</label>
+            <select id="caja-type" class="form-select">
+              <option value="income">Ingreso (+)</option>
+              <option value="expense">Egreso (-)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="caja-description">Concepto / Descripción *</label>
+            <input type="text" id="caja-description" class="form-input" placeholder="Ej. Retiro de caja, Cambio chico" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="caja-amount">Monto ($)</label>
+            <input type="text" id="caja-amount" class="form-input" placeholder="0" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeCashTransactionModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL J: PANEL FIXED COSTS (Lista de Gastos del Mes en Dashboard) -->
+  <div id="panel-costs-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="panel-costs-modal-title" class="modal-title">Gestionar Gastos Mensuales</h3>
+        <span class="modal-close-btn" onclick="closeFixedCostsPanelModal()">✕</span>
+      </div>
+      <div class="modal-body" style="max-height: 60vh;">
+        <div id="panel-costs-modal-list" class="space-y-4">
+          <!-- Lista de gastos agrupados por categoría con botón pagar -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL K: INFLUENCER REGISTRO (Marketing) -->
+  <div id="influencer-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-influencer-title" class="modal-title">Nuevo Influencer</h3>
+        <span class="modal-close-btn" onclick="closeInfluencerModal()">✕</span>
+      </div>
+      <form id="influencer-form" onsubmit="saveInfluencerForm(event)">
+        <input type="hidden" id="inf-id-input">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="inf-name">Nombre del Influencer *</label>
+            <input type="text" id="inf-name" class="form-input" placeholder="Ej. Juan Pérez" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="inf-instagram">Instagram Handle (sin @) *</label>
+            <input type="text" id="inf-instagram" class="form-input" placeholder="influencer_name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="inf-phone">Teléfono</label>
+            <input type="text" id="inf-phone" class="form-input" placeholder="Ej. 11 1234-5678">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeInfluencerModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Influencer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL L: MARKETING REGISTRAR ENTREGA (Canje) -->
+  <div id="mkt-delivery-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-delivery-title">Registrar Entrega de Ropa</h3>
+        <span class="modal-close-btn" onclick="closeMarketingDeliveryModal()">✕</span>
+      </div>
+      <form id="mkt-delivery-form" onsubmit="handleMarketingDeliverySubmit(event)">
+        <input type="hidden" id="mkt-delivery-id-input">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="mkt-delivery-influencer-select">Seleccionar Influencer *</label>
+            <select id="mkt-delivery-influencer-select" class="form-select" required>
+              <!-- Cargado dinámicamente -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mkt-delivery-product-select">Prenda Entregada *</label>
+            <select id="mkt-delivery-product-select" class="form-select" onchange="updateMarketingDeliverySizes()" required>
+              <option value="" disabled selected>Seleccione producto...</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="mkt-delivery-size-select">Talle *</label>
+              <select id="mkt-delivery-size-select" class="form-select" required>
+                <!-- Inyectado dinámicamente -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="mkt-delivery-quantity">Cantidad *</label>
+              <input type="number" id="mkt-delivery-quantity" class="form-input" value="1" min="1" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeMarketingDeliveryModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Entrega</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL M: MARKETING NUEVA CAMPAÑA (Ads) -->
+  <div id="mkt-campaign-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-campaign-title">Registrar Gasto Publicitario</h3>
+        <span class="modal-close-btn" onclick="closeMarketingCampaignModal()">✕</span>
+      </div>
+      <form id="mkt-campaign-form" onsubmit="handleMarketingCampaignSubmit(event)">
+        <input type="hidden" id="mkt-campaign-id-input">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="mkt-campaign-platform">Plataforma *</label>
+            <select id="mkt-campaign-platform" class="form-select" required>
+              <option value="Meta Ads">Meta Ads (Instagram / Facebook)</option>
+              <option value="Google Ads">Google Ads</option>
+              <option value="TikTok Ads">TikTok Ads</option>
+              <option value="Otro">Otro Medio</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mkt-campaign-name">Nombre de Campaña *</label>
+            <input type="text" id="mkt-campaign-name" class="form-input" placeholder="Ej. Lanzamiento Invierno" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mkt-campaign-cost">Monto Invertido ($) *</label>
+            <input type="text" id="mkt-campaign-cost" class="form-input" placeholder="0" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeMarketingCampaignModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Campaña</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CUSTOM CONFIRM MODAL -->
+  <div id="idx-confirm-modal" class="modal-backdrop">
+    <div class="modal-content max-w-sm">
+      <div class="modal-header">
+        <h3 id="confirm-modal-title" class="modal-title">Confirmar Acción</h3>
+        <span class="modal-close-btn" onclick="closeConfirmModal()">✕</span>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-modal-message" style="font-size: 0.85rem; color: var(--text-gray-light); line-height: 1.5;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="confirm-modal-cancel" class="btn btn-secondary">Cancelar</button>
+        <button type="button" id="confirm-modal-confirm" class="btn btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js?v=1.0.9"></script>
+</body>
+</html>

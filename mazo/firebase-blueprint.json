@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A product available for sale",
+      "type": "object",
+      "properties": {
+        "baseSku": { "type": "string" },
+        "sku": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "size": { "type": "string" },
+        "color": { "type": "string" },
+        "stock": { "type": "number" },
+        "cost": { "type": "number" },
+        "baseCost": { "type": "number" },
+        "margin": { "type": "number" }
+      },
+      "required": ["sku", "name"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "A completed sale",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "total": { "type": "number" },
+        "method": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["date", "total"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Products inventory"
+    },
+    "/sales/{saleId}": {
+      "schema": { "$ref": "#/entities/Sale" },
+      "description": "Sales history"
+    }
+  }
+}
