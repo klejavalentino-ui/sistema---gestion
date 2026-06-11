@@ -2,26 +2,32 @@ import json
 import os
 import requests
 
-# Buscar el archivo de configuración en la ubicación del proyecto
-possible_paths = [
-    os.path.join(os.path.dirname(__file__), 'mazo', 'firebase-applet-config.json'),
-    os.path.join(os.path.dirname(__file__), 'firebase-applet-config.json'),
-    'firebase-applet-config.json'
-]
+# 1. Intentar cargar desde variables de entorno (producción en Render)
+env_config = os.environ.get("FIREBASE_CONFIG")
+if env_config:
+    try:
+        fb_config = json.loads(env_config)
+    except Exception as e:
+        print(f"Error parseando la variable de entorno FIREBASE_CONFIG: {e}")
 
-fb_config = None
-for path in possible_paths:
-    if os.path.exists(path):
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                fb_config = json.load(f)
-            break
-        except Exception as e:
-            print(f"Error cargando {path}: {e}")
+# 2. Si no está en las variables de entorno, buscar el archivo de configuración local
+if not fb_config:
+    possible_paths = [
+        os.path.join(os.path.dirname(__file__), 'mazo', 'firebase-applet-config.json'),
+        os.path.join(os.path.dirname(__file__), 'firebase-applet-config.json'),
+        'firebase-applet-config.json'
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    fb_config = json.load(f)
+                break
+            except Exception as e:
+                print(f"Error cargando {path}: {e}")
 
 if not fb_config:
-    # Si no se encuentra en las rutas relativas locales, intentamos buscar en el directorio actual
-    raise FileNotFoundError("No se encontró el archivo 'firebase-applet-config.json' en la estructura del proyecto.")
+    raise FileNotFoundError("No se encontró la configuración de Firebase (definir FIREBASE_CONFIG o crear 'firebase-applet-config.json').")
 
 API_KEY = fb_config['apiKey']
 PROJECT_ID = fb_config['projectId']
