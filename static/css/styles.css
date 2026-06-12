@@ -1332,7 +1332,7 @@ input[type=number] {
 .logo-main {
   font-size: 1.6rem;
   font-weight: 900;
-  color: var(--accent-red);
+  color: var(--accent-blue);
   text-transform: lowercase;
   letter-spacing: -0.5px;
   margin: 0;

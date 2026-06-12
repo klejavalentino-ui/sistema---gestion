@@ -204,7 +204,7 @@ async function refreshState() {
   if (posGrid) {
     posGrid.innerHTML = `
       <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-gray);">
-        <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-red);"></i>
+        <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-blue);"></i>
         <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando datos...</p>
       </div>
     `;
@@ -213,7 +213,7 @@ async function refreshState() {
     invBody.innerHTML = `
       <tr>
         <td colspan="8" style="text-align: center; padding: 60px 20px; color: var(--text-gray);">
-          <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-red);"></i>
+          <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-blue);"></i>
           <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando datos...</p>
         </td>
       </tr>
@@ -223,33 +223,26 @@ async function refreshState() {
     costsBody.innerHTML = `
       <tr>
         <td colspan="4" style="text-align: center; padding: 60px 20px; color: var(--text-gray);">
-          <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-red);"></i>
-          <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando gastos desde Firestore...</p>
+          <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-blue);"></i>
+          <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando datos...</p>
         </td>
       </tr>
     `;
   }
 
-  // Carga paralela de peticiones
-  const promises = [
-    apiRequest("/api/categories").then(val => state.categories = val),
-    apiRequest("/api/products").then(val => state.products = val),
-    apiRequest("/api/sales").then(val => state.sales = val),
-    apiRequest("/api/suppliers").then(val => state.suppliers = val),
-    apiRequest("/api/current-accounts").then(val => state.currentAccounts = val),
-    apiRequest("/api/fixed-costs").then(val => state.fixedCosts = val),
-    apiRequest("/api/cash-transactions").then(val => state.cashTransactions = val),
-    apiRequest("/api/influencers").then(val => state.influencers = val),
-    apiRequest("/api/marketing-expenses").then(val => state.marketingExpenses = val),
-    apiRequest("/api/extras").then(val => state.extras = val),
-    apiRequest("/api/stock-intakes").then(val => state.stockIntakes = val).catch(error => {
-      console.error("Error loading stock intakes:", error);
-      state.stockIntakes = [];
-    })
-  ];
-
   try {
-    await Promise.all(promises);
+    const data = await apiRequest("/api/all-state");
+    state.categories = data.categories || [];
+    state.products = data.products || [];
+    state.sales = data.sales || [];
+    state.suppliers = data.suppliers || [];
+    state.currentAccounts = data.currentAccounts || [];
+    state.fixedCosts = data.fixedCosts || [];
+    state.cashTransactions = data.cashTransactions || [];
+    state.influencers = data.influencers || [];
+    state.marketingExpenses = data.marketingExpenses || [];
+    state.extras = data.extras || {};
+    state.stockIntakes = data.stockIntakes || [];
   } catch (error) {
     console.error("Error loading states:", error);
     showToast("Error al sincronizar con Firestore", true);
@@ -2704,15 +2697,15 @@ function openAccountDetailModal(accId) {
   const thPay = document.getElementById("th-tx-payment");
 
   if (acc.type === "proveedor") {
-    labelAmt.innerText = "Monto Cargado ($)";
-    labelPay.innerText = "Monto Entregado ($)";
+    labelAmt.innerText = "Deuda ($)";
+    labelPay.innerText = "Pago ($)";
     thAmt.innerText = "Cargado (Deuda)";
     thPay.innerText = "Entregado (Pago)";
     document.getElementById("acc-detail-balance-label").innerText = "Le debemos al proveedor";
     document.getElementById("acc-detail-balance").style.color = "#f87171";
   } else {
-    labelAmt.innerText = "Monto Cargado ($)";
-    labelPay.innerText = "Monto Entregado ($)";
+    labelAmt.innerText = "Deuda ($)";
+    labelPay.innerText = "Pago ($)";
     thAmt.innerText = "Ventas (Deuda)";
     thPay.innerText = "Entregas (Pago)";
     document.getElementById("acc-detail-balance-label").innerText = "Nos debe el cliente";
@@ -3657,19 +3650,21 @@ function renderExtrasConfig() {
           <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 6px;">
             <div>
               <span style="font-size: 0.8rem; font-weight: 700; color: #fff;">${opt.name}</span>
-              <span style="font-size: 0.75rem; color: var(--accent-red); font-weight: 700; margin-left: 8px;">$${Math.round(opt.cost).toLocaleString('es-AR')}</span>
+              <span style="font-size: 0.75rem; color: var(--accent-blue); font-weight: 700; margin-left: 8px;">$${Math.round(opt.cost).toLocaleString('es-AR')}</span>
             </div>
-            <button class="btn-action btn-delete" style="width:24px; height:24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px;" onclick="deleteExtraOption('${catKey}', '${opt.id}')">🗑️</button>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn-action" style="width:24px; height:24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); color: #3b82f6;" onclick="editExtraOption('${catKey}', '${opt.id}')">✏️</button>
+              <button class="btn-action btn-delete" style="width:24px; height:24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px;" onclick="deleteExtraOption('${catKey}', '${opt.id}')">🗑️</button>
+            </div>
           </div>
         `;
       });
     }
 
     // 2. Formulario Inline
-    const isDefaultCategory = ["estampados", "packagings", "bordados"].includes(catKey);
-    const deleteCategoryBtn = !isDefaultCategory ? `
+    const deleteCategoryBtn = `
       <button type="button" class="btn btn-secondary" style="margin-top: 15px; width: 100%; border: 1px solid var(--accent-red); color: var(--accent-red); padding: 6px 12px; font-size: 0.75rem;" onclick="deleteExtraCategory('${catKey}')">Eliminar Categoría</button>
-    ` : "";
+    `;
 
     card.innerHTML = `
       <div>
@@ -4055,6 +4050,33 @@ async function deleteExtraOption(categoryKey, optionId) {
       showToast(error.message, true);
     }
   });
+}
+
+async function editExtraOption(categoryKey, optionId) {
+  const option = state.extras[categoryKey].find(opt => opt.id === optionId);
+  if (!option) return;
+
+  const currentPrice = option.cost;
+  const newPriceStr = prompt(`Editar precio para "${option.name}":`, currentPrice);
+  if (newPriceStr === null) return; // cancelado
+  
+  const newPrice = parseFloat(newPriceStr);
+  if (isNaN(newPrice) || newPrice < 0) {
+    showToast("Precio inválido", true);
+    return;
+  }
+
+  // Actualizar precio
+  option.cost = newPrice;
+
+  try {
+    showToast("Actualizando precio...");
+    await apiRequest("/api/extras", "POST", state.extras);
+    showToast("Precio actualizado con éxito");
+    refreshState();
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 async function deleteExtraCategory(categoryKey) {

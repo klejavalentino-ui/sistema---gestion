@@ -70,7 +70,6 @@
     <header class="app-topbar">
       <div class="topbar-left">
         <div class="topbar-logo">
-          <span class="logo-sub">hecho en Argentina</span>
           <h1 class="logo-main" style="font-size: 1.6rem; letter-spacing: 0.5px;">GestioSmart.</h1>
         </div>
         <div class="topbar-divider"></div>
@@ -453,7 +452,7 @@
                 </div>
 
                 <!-- Adicionales de Ingreso Dinámicos -->
-                <div id="intake-extras-container" class="grid-2" style="gap: 12px; margin-bottom: 15px;">
+                <div id="intake-extras-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 15px;">
                   <!-- Se inyectarán dinámicamente los selectores de adicionales -->
                 </div>
 
@@ -1089,7 +1088,7 @@
           <!-- Adicionales Incorporados -->
           <div class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
             <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Adicionales Incorporados</label>
-            <div id="product-extras-container" class="grid-3" style="gap: 12px;">
+            <div id="product-extras-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
               <!-- Se inyectarán dinámicamente los selectores de adicionales -->
             </div>
           </div>
@@ -1285,11 +1284,11 @@
             </div>
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label" for="tx-amount" id="tx-amount-label">Monto Cargado ($)</label>
+                <label class="form-label" for="tx-amount" id="tx-amount-label">Deuda ($)</label>
                 <input type="text" id="tx-amount" class="form-input" placeholder="0">
               </div>
               <div class="form-group">
-                <label class="form-label" for="tx-payment" id="tx-payment-label">Monto Entregado ($)</label>
+                <label class="form-label" for="tx-payment" id="tx-payment-label">Pago ($)</label>
                 <input type="text" id="tx-payment" class="form-input" placeholder="0">
               </div>
             </div>

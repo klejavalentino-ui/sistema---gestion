@@ -171,6 +171,98 @@ def seed_db_if_empty(prefix, token):
     except Exception as e:
         print(f"Error seeding database: {e}")
 
+@app.route("/api/all-state", methods=["GET"])
+def get_all_state():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        import concurrent.futures
+        
+        # Parallel fetch from both Firestore collections
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_products = executor.submit(firebase_config.list_documents, "products", token)
+            future_sales = executor.submit(firebase_config.list_documents, "sales", token)
+            
+            all_products = future_products.result()
+            all_sales = future_sales.result()
+            
+        user_docs = filter_user_docs(all_products, prefix)
+        user_sales = filter_user_docs(all_sales, prefix)
+        
+        # Check if configurations are seeded
+        cat_config = next((d for d in user_docs if d.get("id") == "categories_config"), None)
+        extras_config = next((d for d in user_docs if d.get("id") == "extras_config"), None)
+        
+        if not cat_config:
+            cat_config = {
+                "sku": f"{prefix}categories_config",
+                "name": "Categories Configuration",
+                "cost": 0.0,
+                "stock": 0,
+                "categories": []
+            }
+            firebase_config.set_document("products", f"{prefix}categories_config", cat_config, token)
+            cat_config_copy = dict(cat_config)
+            cat_config_copy["id"] = "categories_config"
+            cat_config_copy["sku"] = "categories_config"
+            user_docs.append(cat_config_copy)
+            cat_config = cat_config_copy
+            
+        if not extras_config:
+            extras_config = {
+                "sku": f"{prefix}extras_config",
+                "name": "Extras Config",
+                "cost": 0.0,
+                "stock": 0,
+                "estampados": [],
+                "packagings": [],
+                "bordados": []
+            }
+            firebase_config.set_document("products", f"{prefix}extras_config", extras_config, token)
+            extras_config_copy = dict(extras_config)
+            extras_config_copy["id"] = "extras_config"
+            extras_config_copy["sku"] = "extras_config"
+            user_docs.append(extras_config_copy)
+            extras_config = extras_config_copy
+            
+        # Classify user documents
+        products = [d for d in user_docs if not d.get("id", "").startswith(
+            ("supplier_", "fixedcost_", "account_", "cashtransaction_", "influencer_", "marketingexpense_", "extras_config", "categories_config", "stockintake_")
+        )]
+        
+        categories = cat_config.get("categories", [])
+        extras = {k: v for k, v in extras_config.items() if k not in ("id", "sku", "name", "cost", "stock")}
+        
+        suppliers = [d for d in user_docs if d.get("id", "").startswith("supplier_")]
+        accounts = [d for d in user_docs if d.get("id", "").startswith("account_")]
+        costs = [d for d in user_docs if d.get("id", "").startswith("fixedcost_")]
+        transactions = [d for d in user_docs if d.get("id", "").startswith("cashtransaction_")]
+        influencers = [d for d in user_docs if d.get("id", "").startswith("influencer_")]
+        expenses = [d for d in user_docs if d.get("id", "").startswith("marketingexpense_")]
+        intakes = [d for d in user_docs if d.get("id", "").startswith("stockintake_")]
+        intakes.sort(key=lambda x: x.get("id", ""), reverse=True)
+        
+        return jsonify({
+            "categories": categories,
+            "products": products,
+            "sales": user_sales,
+            "suppliers": suppliers,
+            "currentAccounts": accounts,
+            "fixedCosts": costs,
+            "cashTransactions": transactions,
+            "influencers": influencers,
+            "marketingExpenses": expenses,
+            "extras": extras,
+            "stockIntakes": intakes
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # --- 1. Rutas de Productos e Inventario (Reales) ---
 
