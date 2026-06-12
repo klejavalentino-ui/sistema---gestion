@@ -136,6 +136,31 @@ def sign_up(email, password):
         raise Exception(error_msg)
     return r.json()
 
+def send_verification_email(id_token):
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={API_KEY}"
+    payload = {
+        "requestType": "VERIFY_EMAIL",
+        "idToken": id_token
+    }
+    r = requests.post(url, json=payload)
+    if not r.ok:
+        error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de verificación.")
+        raise Exception(error_msg)
+    return r.json()
+
+def get_account_info(id_token):
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={API_KEY}"
+    payload = {
+        "idToken": id_token
+    }
+    r = requests.post(url, json=payload)
+    if not r.ok:
+        error_msg = r.json().get("error", {}).get("message", "Error al obtener la información de la cuenta.")
+        raise Exception(error_msg)
+    res = r.json()
+    users = res.get("users", [])
+    return users[0] if users else None
+
 # --- Métodos de Firestore CRUD ---
 
 def get_document(collection, doc_id, id_token):

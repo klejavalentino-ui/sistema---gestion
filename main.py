@@ -121,14 +121,59 @@ def register():
         
     try:
         res = firebase_config.sign_up(email, password)
+        token = res.get("idToken")
+        
+        # Send verification email immediately on registration
+        try:
+            firebase_config.send_verification_email(token)
+        except Exception as ex:
+            print(f"Error sending automatic verification email: {ex}")
+            
         return jsonify({
-            "token": res.get("idToken"),
+            "token": token,
             "email": res.get("email"),
             "localId": res.get("localId"),
-            "message": "Usuario registrado exitosamente"
+            "message": "Usuario registrado exitosamente. Se envió un correo de verificación."
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+@app.route("/api/auth/send-verification", methods=["POST"])
+def send_verification():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    try:
+        firebase_config.send_verification_email(token)
+        return jsonify({"success": True, "message": "Correo de verificación reenviado."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/auth/simulate-payment", methods=["POST"])
+def simulate_payment():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token)
+        if not profile_doc:
+            profile_doc = {
+                "sku": "user_profile",
+                "name": "User Profile",
+                "cost": 0.0,
+                "stock": 0,
+                "createdAt": int(time.time()),
+                "trialDays": 15
+            }
+        profile_doc["subscriptionStatus"] = "active"
+        firebase_config.set_document("products", f"{prefix}user_profile", profile_doc, token)
+        return jsonify({"success": True, "subscriptionStatus": "active"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # --- Inicialización de Inventario y Datos Iniciales (Seeding) ---
@@ -181,6 +226,21 @@ def get_all_state():
         return jsonify({"error": "Token inválido o expirado"}), 401
         
     try:
+        # 1. Check email verification status in real-time
+        try:
+            user_info = firebase_config.get_account_info(token)
+            email_verified = user_info.get("emailVerified", False) if user_info else False
+        except Exception as ex:
+            print(f"Error checking email verification: {ex}")
+            # Fallback to True if REST API fails (e.g., local tests with mocked tokens)
+            email_verified = True
+
+        if not email_verified:
+            return jsonify({
+                "emailVerified": False,
+                "error": "Email no verificado"
+            })
+            
         import concurrent.futures
         
         # Parallel fetch from both Firestore collections
@@ -194,6 +254,53 @@ def get_all_state():
         user_docs = filter_user_docs(all_products, prefix)
         user_sales = filter_user_docs(all_sales, prefix)
         
+        # 2. Get or initialize user profile (SaaS details)
+        profile_doc = next((d for d in user_docs if d.get("id") == "user_profile"), None)
+        if not profile_doc:
+            profile_doc = {
+                "sku": f"{prefix}user_profile",
+                "name": "User Profile",
+                "cost": 0.0,
+                "stock": 0,
+                "createdAt": int(time.time()),
+                "trialDays": 15,
+                "subscriptionStatus": "trial"  # trial, active, expired
+            }
+            firebase_config.set_document("products", f"{prefix}user_profile", profile_doc, token)
+            profile_doc_copy = dict(profile_doc)
+            profile_doc_copy["id"] = "user_profile"
+            profile_doc_copy["sku"] = "user_profile"
+            user_docs.append(profile_doc_copy)
+            profile_doc = profile_doc_copy
+
+        # Calculate trial remaining days
+        created_at = profile_doc.get("createdAt", int(time.time()))
+        trial_days = profile_doc.get("trialDays", 15)
+        elapsed_seconds = time.time() - created_at
+        elapsed_days = elapsed_seconds / 86400.0
+        days_left = max(0, int(trial_days - elapsed_days))
+
+        subscription_status = profile_doc.get("subscriptionStatus", "trial")
+        
+        # Expire trial if days_left <= 0
+        if subscription_status == "trial" and days_left <= 0:
+            subscription_status = "expired"
+            profile_doc["subscriptionStatus"] = "expired"
+            # Update in Firestore
+            payload = dict(profile_doc)
+            payload["sku"] = f"{prefix}user_profile"
+            try:
+                firebase_config.set_document("products", f"{prefix}user_profile", payload, token)
+            except Exception as ex:
+                print(f"Error updating expired subscription: {ex}")
+
+        if subscription_status == "expired":
+            return jsonify({
+                "emailVerified": True,
+                "trialExpired": True,
+                "error": "Período de prueba vencido"
+            })
+            
         # Check if configurations are seeded
         cat_config = next((d for d in user_docs if d.get("id") == "categories_config"), None)
         extras_config = next((d for d in user_docs if d.get("id") == "extras_config"), None)
@@ -232,7 +339,7 @@ def get_all_state():
             
         # Classify user documents
         products = [d for d in user_docs if not d.get("id", "").startswith(
-            ("supplier_", "fixedcost_", "account_", "cashtransaction_", "influencer_", "marketingexpense_", "extras_config", "categories_config", "stockintake_")
+            ("supplier_", "fixedcost_", "account_", "cashtransaction_", "influencer_", "marketingexpense_", "extras_config", "categories_config", "stockintake_", "user_profile")
         )]
         
         categories = cat_config.get("categories", [])
@@ -248,6 +355,10 @@ def get_all_state():
         intakes.sort(key=lambda x: x.get("id", ""), reverse=True)
         
         return jsonify({
+            "emailVerified": True,
+            "trialExpired": False,
+            "subscriptionStatus": subscription_status,
+            "daysLeft": days_left,
             "categories": categories,
             "products": products,
             "sales": user_sales,

@@ -61,15 +61,19 @@ function showToast(message, isError = false) {
 function checkAuth() {
   const authSection = document.getElementById("auth-section");
   const appSection = document.getElementById("app-section");
+  const verifyScreen = document.getElementById("verify-email-screen");
+  const paywallScreen = document.getElementById("paywall-screen");
   
   if (state.token) {
     authSection.style.display = "none";
-    appSection.style.display = "flex";
+    // We let refreshState determine app section visibility
     document.getElementById("user-display-email").innerText = state.email;
     initApp();
   } else {
     authSection.style.display = "flex";
     appSection.style.display = "none";
+    if (verifyScreen) verifyScreen.style.display = "none";
+    if (paywallScreen) paywallScreen.style.display = "none";
   }
 }
 
@@ -132,8 +136,13 @@ async function handleRegister(e) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Error al registrarse");
     
-    showToast("Registro exitoso. ¡Iniciá sesión!");
-    toggleAuthView(false);
+    state.token = data.token;
+    state.email = data.email;
+    localStorage.setItem("gestiosmart_token", data.token);
+    localStorage.setItem("gestiosmart_email", data.email);
+    
+    showToast("Registro exitoso. Verificá tu correo.");
+    checkAuth();
   } catch (error) {
     errorDiv.innerText = error.message;
     errorDiv.style.display = "block";
@@ -232,6 +241,56 @@ async function refreshState() {
 
   try {
     const data = await apiRequest("/api/all-state");
+    
+    const verifyScreen = document.getElementById("verify-email-screen");
+    const paywallScreen = document.getElementById("paywall-screen");
+    const appSection = document.getElementById("app-section");
+    const authSection = document.getElementById("auth-section");
+    const trialBadge = document.getElementById("trial-badge-container");
+    const trialText = document.getElementById("trial-badge-text");
+
+    // 1. Check Email Verification
+    if (data.emailVerified === false) {
+      if (authSection) authSection.style.display = "none";
+      if (appSection) appSection.style.display = "none";
+      if (paywallScreen) paywallScreen.style.display = "none";
+      if (verifyScreen) verifyScreen.style.display = "flex";
+      return;
+    }
+
+    // 2. Check Trial Expiration
+    if (data.trialExpired === true) {
+      if (authSection) authSection.style.display = "none";
+      if (appSection) appSection.style.display = "none";
+      if (verifyScreen) verifyScreen.style.display = "none";
+      if (paywallScreen) paywallScreen.style.display = "flex";
+      
+      // Update WhatsApp link dynamic prefilled message
+      const waBtn = document.getElementById("paywall-wa-btn");
+      if (waBtn) {
+        const adminPhone = "542914445566"; // Simulated Admin WhatsApp Phone Number
+        const msg = encodeURIComponent(`Hola! Quiero renovar mi suscripción de GestioSmart para el correo: ${state.email}`);
+        waBtn.href = `https://wa.me/542914445566?text=${msg}`;
+      }
+      return;
+    }
+
+    // 3. Normal view (desbloqueado)
+    if (verifyScreen) verifyScreen.style.display = "none";
+    if (paywallScreen) paywallScreen.style.display = "none";
+    if (appSection) appSection.style.display = "flex";
+    if (authSection) authSection.style.display = "none";
+
+    // 4. Update Trial Countdown Badge
+    if (trialBadge && trialText) {
+      if (data.subscriptionStatus === "trial" && data.daysLeft !== undefined) {
+        trialBadge.style.display = "flex";
+        trialText.innerText = `Prueba: ${data.daysLeft} ${data.daysLeft === 1 ? 'día' : 'días'} restante${data.daysLeft === 1 ? '' : 's'}`;
+      } else {
+        trialBadge.style.display = "none";
+      }
+    }
+
     state.categories = data.categories || [];
     state.products = data.products || [];
     state.sales = data.sales || [];
@@ -245,7 +304,7 @@ async function refreshState() {
     state.stockIntakes = data.stockIntakes || [];
   } catch (error) {
     console.error("Error loading states:", error);
-    showToast("Error al sincronizar con Firestore", true);
+    showToast("Error al sincronizar con la base de datos", true);
   } finally {
     // Inicializar formulario de ingreso de stock cada vez que se refresca el estado
     setupStockIntakeForm();
@@ -4091,5 +4150,30 @@ async function deleteExtraCategory(categoryKey) {
       showToast(error.message, true);
     }
   });
+}
+
+function logout() {
+  handleLogout();
+}
+
+async function sendVerificationEmail() {
+  try {
+    showToast("Enviando correo...");
+    const data = await apiRequest("/api/auth/send-verification", "POST");
+    showToast("Correo de verificación enviado");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function simulatePayment() {
+  try {
+    showToast("Procesando pago simulado...");
+    const data = await apiRequest("/api/auth/simulate-payment", "POST");
+    showToast("¡Pago procesado con éxito!");
+    refreshState();
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 

@@ -76,6 +76,9 @@
         <div class="topbar-title">Sistema de Gestión</div>
       </div>
       <div class="topbar-right">
+        <div id="trial-badge-container" style="display: none; align-items: center; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 20px; padding: 4px 12px; margin-right: 15px;">
+          <span style="font-size: 0.7rem; font-weight: 700; color: var(--accent-blue); letter-spacing: 0.5px;" id="trial-badge-text">Prueba: 15 días restantes</span>
+        </div>
         <div class="notification-bell-container" id="bell-container">
           <button class="btn-bell" type="button" onclick="toggleNotifications(event)">
             <i class="fa-regular fa-bell"></i>
@@ -1491,6 +1494,62 @@
       </div>
     </div>
   </div>
+
+  <!-- --- PANTALLA DE VERIFICACIÓN DE EMAIL --- -->
+  <section id="verify-email-screen" style="display: none; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;">
+    <div class="idx-card" style="width: 100%; max-width: 480px; padding: 35px; background: var(--bg-dark); border-color: var(--border-color); text-align: center;">
+      <div style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
+        <i class="fas fa-envelope-open-text"></i>
+      </div>
+      <h2 style="font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 12px;">Verificá tu correo</h2>
+      <p style="color: var(--text-gray); font-size: 0.85rem; line-height: 1.6; margin-bottom: 25px;">
+        Hemos enviado un correo de verificación a tu casilla. Por favor haz clic en el enlace para habilitar tu cuenta y luego pulsa "Ya lo verifiqué".
+      </p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="btn btn-primary" onclick="refreshState()" style="width: 100%; justify-content: center; padding: 12px;">Ya lo verifiqué</button>
+        <button class="btn btn-secondary" onclick="sendVerificationEmail()" style="width: 100%; justify-content: center; padding: 12px; border: 1px solid var(--border-color); color: var(--text-gray-light); background: transparent;">Reenviar correo de verificación</button>
+        <button class="btn btn-secondary" onclick="logout()" style="width: 100%; justify-content: center; padding: 12px; border: 1px solid var(--accent-red); color: var(--accent-red); margin-top: 15px; background: transparent;">Cerrar sesión</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- --- PANTALLA DE MURO DE PAGO (PAYWALL OFFLINE) --- -->
+  <section id="paywall-screen" style="display: none; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;">
+    <div class="idx-card" style="width: 100%; max-width: 520px; padding: 35px; background: var(--bg-dark); border-color: var(--border-color); text-align: center;">
+      <div style="font-size: 3rem; color: var(--accent-red); margin-bottom: 20px;">
+        <i class="fas fa-lock"></i>
+      </div>
+      <h2 style="font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 12px;">Tu período de prueba ha vencido</h2>
+      <p style="color: var(--text-gray); font-size: 0.85rem; line-height: 1.6; margin-bottom: 20px;">
+        Tu prueba gratuita de 15 días ha finalizado. Para seguir utilizando GestioSmart y gestionar tu inventario y cobranzas, realiza la transferencia bancaria y presiona el botón para enviarnos el comprobante por WhatsApp.
+      </p>
+
+      <!-- Datos de Transferencia -->
+      <div class="idx-card" style="background: var(--bg-input); padding: 20px; border-color: var(--border-color); text-align: left; margin-bottom: 20px;">
+        <h4 style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue); letter-spacing: 0.5px; margin-bottom: 12px;">Datos de Transferencia Bancaria</h4>
+        <div style="font-size: 0.8rem; line-height: 1.8; color: #fff;">
+          <div><strong>Banco:</strong> Banco Provincia</div>
+          <div><strong>CBU:</strong> 0140411501622851419356</div>
+          <div><strong>Alias:</strong> gestiosmart.mazo</div>
+          <div><strong>Titular:</strong> GestioSmart S.A.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <!-- Botón de WhatsApp -->
+        <a id="paywall-wa-btn" href="#" target="_blank" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; background: #25d366; color: #fff; border: none; text-decoration: none; align-items: center; display: inline-flex; font-weight: bold; font-size: 0.85rem; border-radius: 8px;">
+          <i class="fab fa-whatsapp" style="font-size: 1.1rem; margin-right: 8px;"></i> Activar por WhatsApp (Enviar Comprobante)
+        </a>
+        <button class="btn btn-secondary" onclick="logout()" style="width: 100%; justify-content: center; padding: 12px; border: 1px solid var(--border-color); color: var(--text-gray-light); background: transparent;">Cerrar sesión</button>
+        
+        <!-- Dev mode bypass -->
+        <button class="btn btn-secondary" onclick="simulatePayment()" style="width: 100%; justify-content: center; padding: 8px; font-size: 0.7rem; border: 1px dashed var(--accent-purple); color: var(--accent-purple); background: transparent; margin-top: 25px;">
+          Simular Pago (Modo Prueba)
+        </button>
+      </div>
+    </div>
+  </section>
 
   <script src="/static/js/app.js?v=1.0.9"></script>
 </body>
