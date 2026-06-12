@@ -41,8 +41,20 @@ const state = {
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // --- Inicialización ---
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   setupEventListeners();
+  
+  // Fetch Firebase config and initialize client SDK
+  try {
+    const res = await fetch("/api/firebase-config");
+    if (res.ok) {
+      const config = await res.json();
+      firebase.initializeApp(config);
+    }
+  } catch (err) {
+    console.error("Error al inicializar Firebase client SDK:", err);
+  }
+  
   checkAuth();
 });
 
@@ -4174,6 +4186,27 @@ async function simulatePayment() {
     refreshState();
   } catch (error) {
     showToast(error.message, true);
+  }
+}
+
+async function loginWithGoogle() {
+  try {
+    showToast("Iniciando sesión con Google...");
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result = await firebase.auth().signInWithPopup(provider);
+    const idToken = await result.user.getIdToken();
+    const email = result.user.email;
+    
+    state.token = idToken;
+    state.email = email;
+    localStorage.setItem("gestiosmart_token", idToken);
+    localStorage.setItem("gestiosmart_email", email);
+    
+    showToast("¡Sesión iniciada con Google!");
+    checkAuth();
+  } catch (error) {
+    console.error("Google sign in error:", error);
+    showToast(error.message || "Error al iniciar sesión con Google", true);
   }
 }
 

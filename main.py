@@ -175,6 +175,14 @@ def simulate_payment():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/firebase-config", methods=["GET"])
+def get_firebase_config():
+    return jsonify({
+        "apiKey": firebase_config.API_KEY,
+        "authDomain": firebase_config.fb_config.get("authDomain", f"{firebase_config.PROJECT_ID}.firebaseapp.com"),
+        "projectId": firebase_config.PROJECT_ID
+    })
+
 
 # --- Inicialización de Inventario y Datos Iniciales (Seeding) ---
 
