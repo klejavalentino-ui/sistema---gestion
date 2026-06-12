@@ -372,7 +372,7 @@ def get_all_state():
             "stockIntakes": intakes
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return handle_error(e)
 
 
 # --- 1. Rutas de Productos e Inventario (Reales) ---
