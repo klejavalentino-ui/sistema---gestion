@@ -139,7 +139,7 @@ def seed_db_if_empty(prefix, token):
         all_docs = firebase_config.list_documents("products", token)
         user_docs = filter_user_docs(all_docs, prefix)
         
-        # 2. Categorías Iniciales
+        # 2. Categorías Iniciales (Vacías por defecto)
         cat_config = next((d for d in user_docs if d.get("id") == "categories_config"), None)
         if not cat_config:
             initial_categories = {
@@ -147,11 +147,11 @@ def seed_db_if_empty(prefix, token):
                 "name": "Categories Configuration",
                 "cost": 0.0,
                 "stock": 0,
-                "categories": ["Remeras", "Musculosas", "Buzos", "Camperas", "Accesorios"]
+                "categories": []
             }
             firebase_config.set_document("products", f"{prefix}categories_config", initial_categories, token)
 
-        # 3. Adicionales (Extras Config)
+        # 3. Adicionales (Extras Config) (Vacíos por defecto)
         extras_config = next((d for d in user_docs if d.get("id") == "extras_config"), None)
         if not extras_config:
             initial_extras = {
@@ -159,82 +159,14 @@ def seed_db_if_empty(prefix, token):
                 "name": "Extras Config",
                 "cost": 0.0,
                 "stock": 0,
-                "estampados": [
-                    { "id": "est-minorista", "name": "Minorista", "cost": 500.0 },
-                    { "id": "est-mayorista", "name": "Mayorista", "cost": 300.0 }
-                ],
-                "packagings": [
-                    { "id": "pack-bolsa-chica", "name": "Bolsa Chica", "cost": 100.0 },
-                    { "id": "pack-bolsa-mediana", "name": "Bolsa Mediana", "cost": 200.0 },
-                    { "id": "pack-bolsa-grande", "name": "Bolsa Grande", "cost": 300.0 }
-                ],
-                "bordados": [
-                    { "id": "bor-basico", "name": "Bordado Básico", "cost": 1000.0 },
-                    { "id": "bor-medio", "name": "Bordado Medio", "cost": 2000.0 },
-                    { "id": "bor-complejo", "name": "Bordado Complejo", "cost": 3000.0 }
-                ]
+                "estampados": [],
+                "packagings": [],
+                "bordados": []
             }
             firebase_config.set_document("products", f"{prefix}extras_config", initial_extras, token)
 
-        # 4. Proveedores
-        suppliers = [d for d in user_docs if d.get("id", "").startswith("supplier_")]
-        if not suppliers:
-            initial_suppliers = [
-                { "id": 1, "name": "Textil Buenos Aires", "phone": "11 4567-8901", "categories": ["REMERAS", "BUZOS"], "products": ["Remera Oversize Básica", "Buzo Hoodie Heavyweight"] },
-                { "id": 2, "name": "Gorras Arg", "phone": "11 2345-6789", "categories": ["GORRAS", "ACCESORIOS"], "products": ["Gorra Trucker Mazo"] },
-                { "id": 3, "name": "Cueros del Sur", "phone": "11 3456-7890", "categories": ["CAMPERAS DE CUERO"], "products": ["Campera Cuero Biker"] },
-                { "id": 4, "name": "Tejidos Norte", "phone": "351 456-7890", "categories": ["ACCESORIOS DE INVIERNO"], "products": ["Bufanda Tejida"] }
-            ]
-            for s in initial_suppliers:
-                s_id = s["id"]
-                s["sku"] = f"supplier_{s_id}"
-                s["cost"] = 0.0
-                s["stock"] = 0
-                firebase_config.set_document("products", f"{prefix}{s['sku']}", s, token)
-
-        # 5. Cuentas Corrientes
-        accounts = [d for d in user_docs if d.get("id", "").startswith("account_")]
-        if not accounts:
-            initial_accounts = [
-                {
-                    "id": "acc-cli-1",
-                    "entityName": "Tienda Urbana Central",
-                    "type": "cliente",
-                    "phone": "11 4455-6677",
-                    "address": "Av. San Martín 1500",
-                    "transactions": [
-                        { "id": "t1", "date": "2026-05-20T12:00:00.000Z", "description": "Venta Mayorista (50 Remeras)", "amount": 150000.0, "payment": 50000.0 },
-                        { "id": "t2", "date": "2026-05-30T15:30:00.000Z", "description": "Pago parcial", "amount": 0.0, "payment": 30000.0 }
-                    ]
-                },
-                {
-                    "id": "acc-cli-2",
-                    "entityName": "Martín Gómez (Revendedor)",
-                    "type": "cliente",
-                    "phone": "11 2233-4455",
-                    "address": "Calle Olavarría 240",
-                    "transactions": [
-                        { "id": "t3", "date": "2026-06-03T10:00:00.000Z", "description": "Buzos Boxy Fit", "amount": 45000.0, "payment": 0.0 }
-                    ]
-                },
-                {
-                    "id": "acc-cli-3",
-                    "entityName": "Boutique Elegance",
-                    "type": "cliente",
-                    "phone": "11 8899-0011",
-                    "address": "Florida 600",
-                    "transactions": [
-                        { "id": "t4", "date": "2026-05-05T09:00:00.000Z", "description": "Camperas de Cuero", "amount": 250000.0, "payment": 100000.0 }
-                    ]
-                }
-            ]
-            for a in initial_accounts:
-                a_id = a["id"]
-                a["sku"] = f"account_{a_id}"
-                a["name"] = a["entityName"]
-                a["cost"] = 0.0
-                a["stock"] = 0
-                firebase_config.set_document("products", f"{prefix}{a['sku']}", a, token)
+        # 4. Proveedores (No se siembran de ejemplo)
+        # 5. Cuentas Corrientes (No se siembran de ejemplo)
 
     except Exception as e:
         print(f"Error seeding database: {e}")
@@ -372,7 +304,7 @@ def save_categories():
         return handle_error(e)
 
 
-# --- 3. Rutas de Adicionales (Estampados, Packaging, Bordados) ---
+# --- 3. Rutas de Adicionales Dinámicas ---
 
 @app.route("/api/extras", methods=["GET"])
 def get_extras():
@@ -386,12 +318,9 @@ def get_extras():
     try:
         doc = firebase_config.get_document("products", f"{prefix}extras_config", token)
         if doc:
-            return jsonify({
-                "estampados": doc.get("estampados", []),
-                "packagings": doc.get("packagings", []),
-                "bordados": doc.get("bordados", [])
-            })
-        return jsonify({ "estampados": [], "packagings": [], "bordados": [] })
+            filtered = {k: v for k, v in doc.items() if k not in ("id", "sku", "name", "cost", "stock")}
+            return jsonify(filtered)
+        return jsonify({})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -411,13 +340,15 @@ def save_extras():
             "sku": f"{prefix}extras_config",
             "name": "Extras Config",
             "cost": 0.0,
-            "stock": 0,
-            "estampados": data.get("estampados", []),
-            "packagings": data.get("packagings", []),
-            "bordados": data.get("bordados", [])
+            "stock": 0
         }
+        for k, v in data.items():
+            if k not in ("id", "sku", "name", "cost", "stock"):
+                payload[k] = v
+                
         res = firebase_config.set_document("products", f"{prefix}extras_config", payload, token)
-        return jsonify(res)
+        filtered = {k: v for k, v in res.items() if k not in ("id", "sku", "name", "cost", "stock")}
+        return jsonify(filtered)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

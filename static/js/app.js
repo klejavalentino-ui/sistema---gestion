@@ -1,7 +1,7 @@
 // --- Estado Global ---
 const state = {
-  token: localStorage.getItem("mazo_token"),
-  email: localStorage.getItem("mazo_email"),
+  token: localStorage.getItem("gestiosmart_token"),
+  email: localStorage.getItem("gestiosmart_email"),
   categories: [],
   products: [],
   sales: [],
@@ -104,8 +104,8 @@ async function handleLogin(e) {
     
     state.token = data.token;
     state.email = data.email;
-    localStorage.setItem("mazo_token", data.token);
-    localStorage.setItem("mazo_email", data.email);
+    localStorage.setItem("gestiosmart_token", data.token);
+    localStorage.setItem("gestiosmart_email", data.email);
     
     showToast("¡Sesión iniciada!");
     checkAuth();
@@ -143,8 +143,8 @@ async function handleRegister(e) {
 function handleLogout() {
   state.token = null;
   state.email = null;
-  localStorage.removeItem("mazo_token");
-  localStorage.removeItem("mazo_email");
+  localStorage.removeItem("gestiosmart_token");
+  localStorage.removeItem("gestiosmart_email");
   showToast("Sesión cerrada");
   checkAuth();
 }
@@ -205,7 +205,7 @@ async function refreshState() {
     posGrid.innerHTML = `
       <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-gray);">
         <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-red);"></i>
-        <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando inventario desde Firestore...</p>
+        <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando datos...</p>
       </div>
     `;
   }
@@ -214,7 +214,7 @@ async function refreshState() {
       <tr>
         <td colspan="8" style="text-align: center; padding: 60px 20px; color: var(--text-gray);">
           <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; margin-bottom: 14px; color: var(--accent-red);"></i>
-          <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando inventario desde Firestore...</p>
+          <p style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;">Cargando datos...</p>
         </td>
       </tr>
     `;
@@ -1349,8 +1349,8 @@ function openCreateProductModal() {
   // Rellenar categorías
   populateProductFormCategories("");
   
-  // Rellenar adicionales selectors
-  populateExtrasSelectors("", "", "");
+  // Rellenar adicionales selectors (vacío para nuevo producto)
+  populateExtrasSelectors({});
 
   recalculateProductPrice();
   
@@ -1386,7 +1386,15 @@ function openEditProductModal(sku) {
   });
 
   populateProductFormCategories(p.category);
-  populateExtrasSelectors(p.estampadoId, p.bordadoId, p.packagingId);
+  
+  // Rellenar adicionales selectors con la configuración del producto (con fallback compatible)
+  const selectedExtras = p.extras || {
+    estampados: p.estampadoId || "",
+    packagings: p.packagingId || "",
+    bordados: p.bordadoId || ""
+  };
+  populateExtrasSelectors(selectedExtras);
+  
   recalculateProductPrice();
 
   document.getElementById("product-modal").className = "modal-overlay active";
@@ -1410,59 +1418,71 @@ function populateProductFormCategories(selected) {
   }
 }
 
-function populateExtrasSelectors(estId = "", borId = "", packId = "") {
-  const estSelect = document.getElementById("prod-estampado");
-  const borSelect = document.getElementById("prod-bordado");
-  const packSelect = document.getElementById("prod-packaging");
-  
-  // Resetear
-  estSelect.innerHTML = `<option value="">Sin estampado ($0)</option>`;
-  borSelect.innerHTML = `<option value="">Sin bordado ($0)</option>`;
-  packSelect.innerHTML = `<option value="">Sin packaging ($0)</option>`;
+function populateExtrasSelectors(selectedExtras = {}) {
+  const container = document.getElementById("product-extras-container");
+  if (!container) return;
 
-  // Estampados
-  state.extras.estampados.forEach(e => {
-    const opt = document.createElement("option");
-    opt.value = e.id;
-    opt.innerText = `${e.name} (+ $${e.cost})`;
-    estSelect.appendChild(opt);
+  container.innerHTML = "";
+
+  Object.keys(state.extras).forEach(catKey => {
+    const title = getCategoryTitle(catKey);
+    const options = state.extras[catKey] || [];
+
+    const wrapper = document.createElement("div");
+
+    const label = document.createElement("label");
+    label.className = "form-label";
+    label.style.fontSize = "0.75rem";
+    label.innerText = title;
+
+    const select = document.createElement("select");
+    select.id = `prod-extra-${catKey}`;
+    select.className = "form-select";
+    select.onchange = recalculateProductPrice;
+
+    // Opción default "Sin..."
+    const optNone = document.createElement("option");
+    optNone.value = "";
+    optNone.innerText = `Sin ${title.toLowerCase()} ($0)`;
+    select.appendChild(optNone);
+
+    options.forEach(opt => {
+      const o = document.createElement("option");
+      o.value = opt.id;
+      o.innerText = `${opt.name} (+ $${opt.cost})`;
+      select.appendChild(o);
+    });
+
+    // Establecer selección
+    const selectedVal = selectedExtras[catKey] || "";
+    select.value = selectedVal;
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(select);
+    container.appendChild(wrapper);
   });
-
-  // Bordados
-  state.extras.bordados.forEach(b => {
-    const opt = document.createElement("option");
-    opt.value = b.id;
-    opt.innerText = `${b.name} (+ $${b.cost})`;
-    borSelect.appendChild(opt);
-  });
-
-  // Packaging
-  state.extras.packagings.forEach(pk => {
-    const opt = document.createElement("option");
-    opt.value = pk.id;
-    opt.innerText = `${pk.name} (+ $${pk.cost})`;
-    packSelect.appendChild(opt);
-  });
-
-  if (estId) estSelect.value = estId;
-  if (borId) borSelect.value = borId;
-  if (packId) packSelect.value = packId;
 }
 
 function recalculateProductPrice() {
   const baseCost = parseFloat(document.getElementById("prod-cost-input").value.replace(/\D/g, "")) || 0;
   const margin = parseFloat(document.getElementById("prod-margin").value) || 0;
   
-  // Extras
-  const estId = document.getElementById("prod-estampado").value;
-  const borId = document.getElementById("prod-bordado").value;
-  const packId = document.getElementById("prod-packaging").value;
+  // Sumar costos de los adicionales seleccionados
+  let totalExtrasCost = 0;
+  Object.keys(state.extras).forEach(catKey => {
+    const el = document.getElementById(`prod-extra-${catKey}`);
+    if (el) {
+      const val = el.value;
+      if (val) {
+        const option = state.extras[catKey].find(o => o.id === val);
+        if (option) {
+          totalExtrasCost += option.cost;
+        }
+      }
+    }
+  });
 
-  const estCost = state.extras.estampados.find(e => e.id === estId)?.cost || 0;
-  const borCost = state.extras.bordados.find(b => b.id === borId)?.cost || 0;
-  const packCost = state.extras.packagings.find(pk => pk.id === packId)?.cost || 0;
-
-  const totalCost = baseCost + estCost + borCost + packCost;
+  const totalCost = baseCost + totalExtrasCost;
   const price = totalCost * (1 + margin / 100);
 
   document.getElementById("prod-total-cost-display").innerText = `$ ${Math.round(totalCost).toLocaleString()}`;
@@ -1478,14 +1498,24 @@ async function saveProductForm(e) {
   const cost = parseFloat(document.getElementById("prod-cost-input").value.replace(/\D/g, "")) || 0;
   const margin = parseFloat(document.getElementById("prod-margin").value);
   
-  const estId = document.getElementById("prod-estampado").value;
-  const borId = document.getElementById("prod-bordado").value;
-  const packId = document.getElementById("prod-packaging").value;
-
-  const estCost = state.extras.estampados.find(e => e.id === estId)?.cost || 0;
-  const borCost = state.extras.bordados.find(b => b.id === borId)?.cost || 0;
-  const packCost = state.extras.packagings.find(pk => pk.id === packId)?.cost || 0;
-  const totalCost = cost + estCost + borCost + packCost;
+  // Recolectar adicionales seleccionados
+  const extras = {};
+  let totalExtrasCost = 0;
+  Object.keys(state.extras).forEach(catKey => {
+    const el = document.getElementById(`prod-extra-${catKey}`);
+    if (el) {
+      const val = el.value || null;
+      extras[catKey] = val;
+      if (val) {
+        const option = state.extras[catKey].find(o => o.id === val);
+        if (option) {
+          totalExtrasCost += option.cost;
+        }
+      }
+    }
+  });
+  
+  const totalCost = cost + totalExtrasCost;
   
   // Parsea stock crítico dinámico
   const leadTimeVal = document.getElementById("prod-te").value.trim();
@@ -1508,7 +1538,7 @@ async function saveProductForm(e) {
   }
 
   if (variantCount === 0) {
-    showToast("Ingresá stock para al menos un talle.", true);
+    showToast("Por favor, ingresa stock para al menos un talle.", true);
     return;
   }
 
@@ -1535,9 +1565,10 @@ async function saveProductForm(e) {
       baseCost: cost,
       margin: margin,
       cost: totalCost,
-      estampadoId: estId || null,
-      bordadoId: borId || null,
-      packagingId: packId || null,
+      extras: extras,
+      estampadoId: extras.estampados || null,
+      bordadoId: extras.bordados || null,
+      packagingId: extras.packagings || null,
       leadTime: leadTime,
       securityStock: securityStock
     };
@@ -1557,9 +1588,10 @@ async function saveProductForm(e) {
         baseCost: cost,
         margin: margin,
         cost: totalCost,
-        estampadoId: estId || null,
-        bordadoId: borId || null,
-        packagingId: packId || null,
+        extras: extras,
+        estampadoId: extras.estampados || null,
+        bordadoId: extras.bordados || null,
+        packagingId: extras.packagings || null,
         leadTime: leadTime,
         securityStock: securityStock
       };
@@ -1999,9 +2031,7 @@ function selectIntakeProduct(sku) {
   document.getElementById("intake-margin").value = p.margin || 0;
   
   // Seleccionar adicionales si existen
-  document.getElementById("intake-estampado-select").value = p.estampadoId || "0";
-  document.getElementById("intake-packaging-select").value = p.packagingId || "0";
-  document.getElementById("intake-bordado-select").value = p.bordadoId || "0";
+  populateIntakeExtras(p);
   
   // Rellenar stock actual por talles
   const baseSku = p.baseSku || p.sku.split('-').slice(0, -1).join('-');
@@ -2041,15 +2071,18 @@ function recalculateIntakeCosts() {
   const baseCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
   const margin = parseFloat(document.getElementById("intake-margin").value) || 0;
   
-  const estampadoId = document.getElementById("intake-estampado-select").value;
-  const packagingId = document.getElementById("intake-packaging-select").value;
-  const bordadoId = document.getElementById("intake-bordado-select").value;
+  let totalExtrasCost = 0;
+  Object.keys(state.extras).forEach(catKey => {
+    const el = document.getElementById(`intake-extra-select-${catKey}`);
+    if (el) {
+      const val = el.value;
+      if (val && val !== "0") {
+        totalExtrasCost += getExtraCost(catKey, val);
+      }
+    }
+  });
   
-  const estCost = getExtraCost("estampados", estampadoId);
-  const packCost = getExtraCost("packagings", packagingId);
-  const borCost = getExtraCost("bordados", bordadoId);
-  
-  const totalCost = baseCost + estCost + packCost + borCost;
+  const totalCost = baseCost + totalExtrasCost;
   const salePrice = totalCost * (1 + margin / 100);
   
   document.getElementById("intake-total-cost-preview").innerText = `$ ${Math.round(totalCost).toLocaleString()}`;
@@ -2079,42 +2112,65 @@ function populateIntakeSuppliers() {
   select.value = currentVal;
 }
 
-function populateIntakeExtras() {
-  const estSelect = document.getElementById("intake-estampado-select");
-  const packSelect = document.getElementById("intake-packaging-select");
-  const borSelect = document.getElementById("intake-bordado-select");
-  
-  if (!estSelect) return;
-  
-  const currentEst = estSelect.value;
-  estSelect.innerHTML = '<option value="0">Sin estampado ($0)</option>';
-  state.extras.estampados.forEach(e => {
-    const opt = document.createElement("option");
-    opt.value = e.id;
-    opt.innerText = `${e.name} (+$${e.cost})`;
-    estSelect.appendChild(opt);
+function populateIntakeExtras(product = null) {
+  const container = document.getElementById("intake-extras-container");
+  if (!container) return;
+
+  // Save current selections
+  const currentSelections = {};
+  container.querySelectorAll("select").forEach(sel => {
+    const key = sel.id.replace("intake-extra-select-", "");
+    currentSelections[key] = sel.value;
   });
-  estSelect.value = currentEst || "0";
-  
-  const currentPack = packSelect.value;
-  packSelect.innerHTML = '<option value="0">Sin packaging ($0)</option>';
-  state.extras.packagings.forEach(p => {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.innerText = `${p.name} (+$${p.cost})`;
-    packSelect.appendChild(opt);
+
+  container.innerHTML = "";
+
+  Object.keys(state.extras).forEach(catKey => {
+    const title = getCategoryTitle(catKey);
+    const options = state.extras[catKey] || [];
+
+    const formGroup = document.createElement("div");
+    formGroup.className = "form-group";
+    formGroup.style.marginBottom = "0";
+
+    const label = document.createElement("label");
+    label.className = "form-label";
+    label.innerText = title;
+
+    const select = document.createElement("select");
+    select.id = `intake-extra-select-${catKey}`;
+    select.className = "form-select";
+    select.onchange = recalculateIntakeCosts;
+
+    // Opción default "Sin..."
+    const optNone = document.createElement("option");
+    optNone.value = "0";
+    optNone.innerText = `Sin ${title.toLowerCase()} ($0)`;
+    select.appendChild(optNone);
+
+    options.forEach(opt => {
+      const o = document.createElement("option");
+      o.value = opt.id;
+      o.innerText = `${opt.name} (+$${opt.cost})`;
+      select.appendChild(o);
+    });
+
+    // Establecer selección
+    let selectedVal = currentSelections[catKey] || "0";
+    if (product) {
+      const prodExtras = product.extras || {
+        estampados: product.estampadoId,
+        packagings: product.packagingId,
+        bordados: product.bordadoId
+      };
+      selectedVal = prodExtras[catKey] || "0";
+    }
+    select.value = selectedVal;
+
+    formGroup.appendChild(label);
+    formGroup.appendChild(select);
+    container.appendChild(formGroup);
   });
-  packSelect.value = currentPack || "0";
-  
-  const currentBor = borSelect.value;
-  borSelect.innerHTML = '<option value="0">Sin bordado ($0)</option>';
-  state.extras.bordados.forEach(b => {
-    const opt = document.createElement("option");
-    opt.value = b.id;
-    opt.innerText = `${b.name} (+$${b.cost})`;
-    borSelect.appendChild(opt);
-  });
-  borSelect.value = currentBor || "0";
 }
 
 async function handleStockIntakeSubmit(e) {
@@ -2163,15 +2219,21 @@ async function handleStockIntakeSubmit(e) {
   const baseCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
   const margin = parseFloat(document.getElementById("intake-margin").value) || 0;
   
-  const estampadoId = document.getElementById("intake-estampado-select").value;
-  const packagingId = document.getElementById("intake-packaging-select").value;
-  const bordadoId = document.getElementById("intake-bordado-select").value;
+  // Recolectar adicionales seleccionados
+  const extras = {};
+  let totalExtrasCost = 0;
+  Object.keys(state.extras).forEach(catKey => {
+    const el = document.getElementById(`intake-extra-select-${catKey}`);
+    if (el) {
+      const val = el.value || "0";
+      extras[catKey] = val !== "0" ? val : null;
+      if (val !== "0") {
+        totalExtrasCost += getExtraCost(catKey, val);
+      }
+    }
+  });
   
-  const estCost = getExtraCost("estampados", estampadoId);
-  const packCost = getExtraCost("packagings", packagingId);
-  const borCost = getExtraCost("bordados", bordadoId);
-  
-  const unitCost = baseCost + estCost + packCost + borCost;
+  const unitCost = baseCost + totalExtrasCost;
   
   let totalQuantity = 0;
   const quantitiesMap = {};
@@ -2200,9 +2262,10 @@ async function handleStockIntakeSubmit(e) {
           baseCost: baseCost,
           margin: margin,
           cost: unitCost,
-          estampadoId: estampadoId !== "0" ? estampadoId : null,
-          packagingId: packagingId !== "0" ? packagingId : null,
-          bordadoId: bordadoId !== "0" ? bordadoId : null
+          extras: extras,
+          estampadoId: extras.estampados || null,
+          packagingId: extras.packagings || null,
+          bordadoId: extras.bordados || null
         };
         batchPayload.push(updatedVariant);
       } else {
@@ -2219,9 +2282,10 @@ async function handleStockIntakeSubmit(e) {
           baseCost: baseCost,
           margin: margin,
           cost: unitCost,
-          estampadoId: estampadoId !== "0" ? estampadoId : null,
-          packagingId: packagingId !== "0" ? packagingId : null,
-          bordadoId: bordadoId !== "0" ? bordadoId : null
+          extras: extras,
+          estampadoId: extras.estampados || null,
+          packagingId: extras.packagings || null,
+          bordadoId: extras.bordados || null
         };
         batchPayload.push(newVariant);
       }
@@ -3568,91 +3632,72 @@ function deleteInfluencer(id) {
 
 // --- 9. CONFIGURACION DE ADICIONALES ---
 function renderExtrasConfig() {
-  // Estampados
-  const estMin = state.extras.estampados.find(e => e.id === "est-minorista")?.cost || 0;
-  const estMay = state.extras.estampados.find(e => e.id === "est-mayorista")?.cost || 0;
-  document.getElementById("ext-est-minorista").value = estMin ? Math.round(estMin).toLocaleString("es-AR") : "";
-  document.getElementById("ext-est-mayorista").value = estMay ? Math.round(estMay).toLocaleString("es-AR") : "";
+  const container = document.getElementById("extras-categories-container");
+  if (!container) return;
 
-  // Packaging
-  const packCh = state.extras.packagings.find(p => p.id === "pack-bolsa-chica")?.cost || 0;
-  const packMe = state.extras.packagings.find(p => p.id === "pack-bolsa-mediana")?.cost || 0;
-  const packGr = state.extras.packagings.find(p => p.id === "pack-bolsa-grande")?.cost || 0;
-  document.getElementById("ext-pack-chica").value = packCh ? Math.round(packCh).toLocaleString("es-AR") : "";
-  document.getElementById("ext-pack-mediana").value = packMe ? Math.round(packMe).toLocaleString("es-AR") : "";
-  document.getElementById("ext-pack-grande").value = packGr ? Math.round(packGr).toLocaleString("es-AR") : "";
+  container.innerHTML = "";
 
-  // Bordados
-  const borBa = state.extras.bordados.find(b => b.id === "bor-basico")?.cost || 0;
-  const borMe = state.extras.bordados.find(b => b.id === "bor-medio")?.cost || 0;
-  const borCo = state.extras.bordados.find(b => b.id === "bor-complejo")?.cost || 0;
-  document.getElementById("ext-bor-basico").value = borBa ? Math.round(borBa).toLocaleString("es-AR") : "";
-  document.getElementById("ext-bor-medio").value = borMe ? Math.round(borMe).toLocaleString("es-AR") : "";
-  document.getElementById("ext-bor-complejo").value = borCo ? Math.round(borCo).toLocaleString("es-AR") : "";
-}
+  Object.keys(state.extras).forEach(catKey => {
+    const title = getCategoryTitle(catKey);
+    const options = state.extras[catKey] || [];
 
-async function handleSaveEstampados(e) {
-  e.preventDefault();
-  const min = parseFloat(document.getElementById("ext-est-minorista").value.replace(/\D/g, "")) || 0;
-  const may = parseFloat(document.getElementById("ext-est-mayorista").value.replace(/\D/g, "")) || 0;
+    const card = document.createElement("div");
+    card.className = "idx-card";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.justifyContent = "space-between";
 
-  const estampados = [
-    { id: "est-minorista", name: "Minorista", cost: min },
-    { id: "est-mayorista", name: "Mayorista", cost: may }
-  ];
+    // 1. Título e Historial
+    let optionsHtml = "";
+    if (options.length === 0) {
+      optionsHtml = `<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 15px 0;">No hay opciones creadas.</div>`;
+    } else {
+      options.forEach(opt => {
+        optionsHtml += `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 6px;">
+            <div>
+              <span style="font-size: 0.8rem; font-weight: 700; color: #fff;">${opt.name}</span>
+              <span style="font-size: 0.75rem; color: var(--accent-red); font-weight: 700; margin-left: 8px;">$${Math.round(opt.cost).toLocaleString('es-AR')}</span>
+            </div>
+            <button class="btn-action btn-delete" style="width:24px; height:24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px;" onclick="deleteExtraOption('${catKey}', '${opt.id}')">🗑️</button>
+          </div>
+        `;
+      });
+    }
 
-  try {
-    const payload = { ...state.extras, estampados };
-    await apiRequest("/api/extras", "POST", payload);
-    showToast("Precios de estampados guardados");
-    refreshState();
-  } catch (error) {
-    showToast(error.message, true);
-  }
-}
+    // 2. Formulario Inline
+    const isDefaultCategory = ["estampados", "packagings", "bordados"].includes(catKey);
+    const deleteCategoryBtn = !isDefaultCategory ? `
+      <button type="button" class="btn btn-secondary" style="margin-top: 15px; width: 100%; border: 1px solid var(--accent-red); color: var(--accent-red); padding: 6px 12px; font-size: 0.75rem;" onclick="deleteExtraCategory('${catKey}')">Eliminar Categoría</button>
+    ` : "";
 
-async function handleSavePackagings(e) {
-  e.preventDefault();
-  const ch = parseFloat(document.getElementById("ext-pack-chica").value.replace(/\D/g, "")) || 0;
-  const me = parseFloat(document.getElementById("ext-pack-mediana").value.replace(/\D/g, "")) || 0;
-  const gr = parseFloat(document.getElementById("ext-pack-grande").value.replace(/\D/g, "")) || 0;
+    card.innerHTML = `
+      <div>
+        <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 20px; color: var(--text-white); display: flex; justify-content: space-between; align-items: center;">
+          <span>${title}</span>
+        </h3>
+        <div style="margin-bottom: 15px; max-height: 200px; overflow-y: auto;">
+          ${optionsHtml}
+        </div>
+      </div>
+      <div>
+        <form onsubmit="addExtraOption(event, '${catKey}')" style="border-top: 1px solid var(--border-color); padding-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size: 0.65rem;">Nombre de la opción</label>
+            <input type="text" id="new-opt-name-${catKey}" class="form-input" style="padding: 6px 10px; font-size: 0.8rem;" placeholder="Ej: Bolsa chica, Bolsa grande" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size: 0.65rem;">Costo ($)</label>
+            <input type="number" id="new-opt-cost-${catKey}" class="form-input" style="padding: 6px 10px; font-size: 0.8rem;" placeholder="0" min="0" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem; margin-top: 4px; width: 100%;">+ Agregar Opción</button>
+        </form>
+        ${deleteCategoryBtn}
+      </div>
+    `;
 
-  const packagings = [
-    { id: "pack-bolsa-chica", name: "Bolsa Chica", cost: ch },
-    { id: "pack-bolsa-mediana", name: "Bolsa Mediana", cost: me },
-    { id: "pack-bolsa-grande", name: "Bolsa Grande", cost: gr }
-  ];
-
-  try {
-    const payload = { ...state.extras, packagings };
-    await apiRequest("/api/extras", "POST", payload);
-    showToast("Precios de packaging guardados");
-    refreshState();
-  } catch (error) {
-    showToast(error.message, true);
-  }
-}
-
-async function handleSaveBordados(e) {
-  e.preventDefault();
-  const ba = parseFloat(document.getElementById("ext-bor-basico").value.replace(/\D/g, "")) || 0;
-  const me = parseFloat(document.getElementById("ext-bor-medio").value.replace(/\D/g, "")) || 0;
-  const co = parseFloat(document.getElementById("ext-bor-complejo").value.replace(/\D/g, "")) || 0;
-
-  const bordados = [
-    { id: "bor-basico", name: "Bordado Básico", cost: ba },
-    { id: "bor-medio", name: "Bordado Medio", cost: me },
-    { id: "bor-complejo", name: "Bordado Complejo", cost: co }
-  ];
-
-  try {
-    const payload = { ...state.extras, bordados };
-    await apiRequest("/api/extras", "POST", payload);
-    showToast("Precios de bordados guardados");
-    refreshState();
-  } catch (error) {
-    showToast(error.message, true);
-  }
+    container.appendChild(card);
+  });
 }
 
 // --- 10. MODAL DE COSTOS FIJOS EN DASHBOARD ---
@@ -3774,10 +3819,7 @@ function setupEventListeners() {
   document.getElementById("mkt-delivery-form").addEventListener("submit", handleMarketingDeliverySubmit);
   document.getElementById("mkt-campaign-form").addEventListener("submit", handleMarketingCampaignSubmit);
 
-  // Formulario de Adicionales (Extras) - Registro de submits
-  document.getElementById("extras-estampados-form").addEventListener("submit", handleSaveEstampados);
-  document.getElementById("extras-packagings-form").addEventListener("submit", handleSavePackagings);
-  document.getElementById("extras-bordados-form").addEventListener("submit", handleSaveBordados);
+
 
   // Formatear todos los montos de entrada como separadores de miles
   const currencyInputs = [
@@ -3913,3 +3955,119 @@ function updateNotifications() {
     });
   }
 }
+
+// --- DYNAMIC ADICIONALES (EXTRAS) UTILITIES ---
+
+function slugify(text) {
+  return text.toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+    .replace(/\s+/g, '_')           // Replace spaces with _
+    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+    .replace(/\-\-+/g, '_')         // Replace multiple - with single _
+    .replace(/^-+/, '')             // Trim - from start of text
+    .replace(/-+$/, '');            // Trim - from end of text
+}
+
+function getCategoryTitle(key) {
+  if (key === "estampados") return "Estampados";
+  if (key === "packagings") return "Packaging";
+  if (key === "bordados") return "Bordados";
+  return key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+function openNewExtraCategoryModal() {
+  document.getElementById("new-extra-category-input").value = "";
+  document.getElementById("extra-category-modal").className = "modal-backdrop active";
+}
+
+function closeExtraCategoryModal() {
+  document.getElementById("extra-category-modal").className = "modal-backdrop";
+}
+
+async function submitAddExtraCategory() {
+  const input = document.getElementById("new-extra-category-input");
+  const name = input.value.trim();
+  if (!name) return;
+
+  const key = slugify(name);
+  if (!key) return;
+
+  if (state.extras[key]) {
+    showToast("Esta categoría ya existe", true);
+    return;
+  }
+
+  // Agregar la categoría vacía
+  state.extras[key] = [];
+
+  try {
+    showToast("Creando categoría...");
+    await apiRequest("/api/extras", "POST", state.extras);
+    showToast("Categoría de adicional creada");
+    closeExtraCategoryModal();
+    refreshState();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function addExtraOption(e, categoryKey) {
+  e.preventDefault();
+  const nameInput = document.getElementById(`new-opt-name-${categoryKey}`);
+  const costInput = document.getElementById(`new-opt-cost-${categoryKey}`);
+  
+  const name = nameInput.value.trim();
+  const cost = parseFloat(costInput.value) || 0;
+  
+  if (!name) return;
+
+  // Generar ID único para la opción
+  const id = `${categoryKey.slice(0, 3)}-${slugify(name)}`;
+
+  // Validar duplicados
+  if (state.extras[categoryKey].some(opt => opt.id === id || opt.name.toLowerCase() === name.toLowerCase())) {
+    showToast("Esta opción ya existe en esta categoría", true);
+    return;
+  }
+
+  // Agregar opción
+  state.extras[categoryKey].push({ id, name, cost });
+
+  try {
+    showToast("Guardando opción...");
+    await apiRequest("/api/extras", "POST", state.extras);
+    showToast("Opción agregada con éxito");
+    refreshState();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function deleteExtraOption(categoryKey, optionId) {
+  showConfirmModal("¿Deseas eliminar esta opción?", async () => {
+    state.extras[categoryKey] = state.extras[categoryKey].filter(opt => opt.id !== optionId);
+    try {
+      showToast("Eliminando opción...");
+      await apiRequest("/api/extras", "POST", state.extras);
+      showToast("Opción eliminada");
+      refreshState();
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  });
+}
+
+async function deleteExtraCategory(categoryKey) {
+  showConfirmModal("¿Deseas eliminar por completo esta categoría de adicionales?", async () => {
+    delete state.extras[categoryKey];
+    try {
+      showToast("Eliminando categoría...");
+      await apiRequest("/api/extras", "POST", state.extras);
+      showToast("Categoría eliminada");
+      refreshState();
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  });
+}
+

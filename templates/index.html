@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mazo - Sistema de Gestión ERP</title>
+  <title>GestioSmart - Sistema de Gestión ERP</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/static/css/styles.css?v=1.0.5">
   <!-- Chart.js para estadísticas del Panel y Gastos -->
@@ -20,7 +20,7 @@
   <section id="auth-section" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;">
     <div class="idx-card" style="width: 100%; max-width: 400px; padding: 35px; background: var(--bg-dark); border-color: var(--border-color);">
       <div style="text-align: center; margin-bottom: 25px;">
-        <h1 style="font-size: 2.2rem; font-weight: 900; color: #fff; letter-spacing: 2px;">MAZO<span>.</span></h1>
+        <h1 style="font-size: 2.2rem; font-weight: 900; color: #fff; letter-spacing: 2px;">GestioSmart<span>.</span></h1>
         <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 5px; font-weight: 500;">Sistema de Gestión ERP</p>
       </div>
 
@@ -30,7 +30,7 @@
         <form id="login-form">
           <div class="form-group">
             <label class="form-label" for="login-email">Correo Electrónico</label>
-            <input type="email" id="login-email" class="form-input" placeholder="admin@mazo.com" required autocomplete="email">
+            <input type="email" id="login-email" class="form-input" placeholder="admin@gestiosmart.com" required autocomplete="email">
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
             <label class="form-label" for="login-password">Contraseña</label>
@@ -49,7 +49,7 @@
         <form id="register-form">
           <div class="form-group">
             <label class="form-label" for="register-email">Correo Electrónico</label>
-            <input type="email" id="register-email" class="form-input" placeholder="nuevo@mazo.com" required autocomplete="email">
+            <input type="email" id="register-email" class="form-input" placeholder="nuevo@gestiosmart.com" required autocomplete="email">
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
             <label class="form-label" for="register-password">Contraseña (mínimo 6 caracteres)</label>
@@ -71,7 +71,7 @@
       <div class="topbar-left">
         <div class="topbar-logo">
           <span class="logo-sub">hecho en Argentina</span>
-          <h1 class="logo-main">mazo.</h1>
+          <h1 class="logo-main" style="font-size: 1.6rem; letter-spacing: 0.5px;">GestioSmart.</h1>
         </div>
         <div class="topbar-divider"></div>
         <div class="topbar-title">Sistema de Gestión</div>
@@ -135,7 +135,7 @@
 
       <div class="sidebar-footer">
         <div class="sidebar-user-info">
-          <span id="user-display-email" class="sidebar-user-email">email@mazo.com</span>
+          <span id="user-display-email" class="sidebar-user-email">email@gestiosmart.com</span>
           <span class="sidebar-user-role">Administrador</span>
         </div>
         <button class="btn-logout" onclick="handleLogout()">Cerrar Sesión</button>
@@ -450,27 +450,11 @@
                       <span id="intake-materia-prima-current-val" style="color: var(--accent-emerald); font-weight: 800;">$0</span>
                     </div>
                   </div>
-                  <div class="form-group">
-                    <label class="form-label">Estampado</label>
-                    <select id="intake-estampado-select" class="form-select">
-                      <option value="0">Sin estampado ($0)</option>
-                    </select>
-                  </div>
                 </div>
 
-                <div class="grid-2">
-                  <div class="form-group">
-                    <label class="form-label">Packaging</label>
-                    <select id="intake-packaging-select" class="form-select">
-                      <option value="0">Sin packaging ($0)</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Bordado</label>
-                    <select id="intake-bordado-select" class="form-select">
-                      <option value="0">Sin bordado ($0)</option>
-                    </select>
-                  </div>
+                <!-- Adicionales de Ingreso Dinámicos -->
+                <div id="intake-extras-container" class="grid-2" style="gap: 12px; margin-bottom: 15px;">
+                  <!-- Se inyectarán dinámicamente los selectores de adicionales -->
                 </div>
 
                 <div class="grid-2">
@@ -887,69 +871,18 @@
 
       <!-- TAB 10: CONFIGURACION DE ADICIONALES -->
       <section id="extras-section" class="tab-content">
-        <div class="idx-header">
+        <div class="idx-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <div class="idx-header-info">
             <h2>Configuración de Adicionales</h2>
-            <p>Configurar costos de servicios de terceros (Estampados, Packaging, Bordados) asociados a prendas.</p>
+            <p>Configura costos y tipos de adicionales asociados a tus productos (ej. Bolsas, Caramelos, Bordados, etc.).</p>
+          </div>
+          <div class="idx-header-actions">
+            <button class="btn btn-primary" onclick="openNewExtraCategoryModal()">+ Nueva Categoría</button>
           </div>
         </div>
 
-        <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-          <!-- Estampados -->
-          <div class="idx-card">
-            <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; color: var(--text-white);">Precios de Estampados</h3>
-            <form id="extras-estampados-form" class="space-y-4">
-              <div class="form-group">
-                <label class="form-label" for="ext-est-minorista">Minorista ($)</label>
-                <input type="text" id="ext-est-minorista" class="form-input" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="ext-est-mayorista">Mayorista ($)</label>
-                <input type="text" id="ext-est-mayorista" class="form-input" required>
-              </div>
-              <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Estampados</button>
-            </form>
-          </div>
-
-          <!-- Packaging -->
-          <div class="idx-card">
-            <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; color: var(--text-white);">Precios de Packaging</h3>
-            <form id="extras-packagings-form" class="space-y-4">
-              <div class="form-group">
-                <label class="form-label" for="ext-pack-chica">Bolsa Chica ($)</label>
-                <input type="text" id="ext-pack-chica" class="form-input" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="ext-pack-mediana">Bolsa Mediana ($)</label>
-                <input type="text" id="ext-pack-mediana" class="form-input" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="ext-pack-grande">Bolsa Grande ($)</label>
-                <input type="text" id="ext-pack-grande" class="form-input" required>
-              </div>
-              <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Packaging</button>
-            </form>
-          </div>
-
-          <!-- Bordados -->
-          <div class="idx-card">
-            <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; color: var(--text-white);">Precios de Bordados</h3>
-            <form id="extras-bordados-form" class="space-y-4">
-              <div class="form-group">
-                <label class="form-label" for="ext-bor-basico">Bordado Básico ($)</label>
-                <input type="text" id="ext-bor-basico" class="form-input" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="ext-bor-medio">Bordado Medio ($)</label>
-                <input type="text" id="ext-bor-medio" class="form-input" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="ext-bor-complejo">Bordado Complejo ($)</label>
-                <input type="text" id="ext-bor-complejo" class="form-input" required>
-              </div>
-              <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Bordados</button>
-            </form>
-          </div>
+        <div id="extras-categories-container" class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+          <!-- Se inyectarán dinámicamente las tarjetas de adicionales -->
         </div>
       </section>
 
@@ -1153,28 +1086,11 @@
             <p style="font-size: 0.65rem; color: var(--text-gray); text-align: center; margin-top: 12px; font-weight: 500;">Ingresá el stock inicial de los talles que desees habilitar.</p>
           </div>
 
-          <!-- Adicionales de Prenda -->
+          <!-- Adicionales Incorporados -->
           <div class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
             <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Adicionales Incorporados</label>
-            <div class="grid-3" style="gap: 12px;">
-              <div>
-                <label class="form-label" style="font-size: 0.75rem;">Estampado</label>
-                <select id="prod-estampado" class="form-select" onchange="recalculateProductPrice()">
-                  <option value="">Sin estampado ($0)</option>
-                </select>
-              </div>
-              <div>
-                <label class="form-label" style="font-size: 0.75rem;">Bordado</label>
-                <select id="prod-bordado" class="form-select" onchange="recalculateProductPrice()">
-                  <option value="">Sin bordado ($0)</option>
-                </select>
-              </div>
-              <div>
-                <label class="form-label" style="font-size: 0.75rem;">Packaging</label>
-                <select id="prod-packaging" class="form-select" onchange="recalculateProductPrice()">
-                  <option value="">Sin packaging ($0)</option>
-                </select>
-              </div>
+            <div id="product-extras-container" class="grid-3" style="gap: 12px;">
+              <!-- Se inyectarán dinámicamente los selectores de adicionales -->
             </div>
           </div>
 
@@ -1225,6 +1141,26 @@
           <button type="submit" class="btn btn-primary">Guardar Producto</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL EXTRA CATEGORY (Gestionar Nueva Categoría de Adicional) -->
+  <div id="extra-category-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Nueva Categoría de Adicional</h3>
+        <span class="modal-close-btn" onclick="closeExtraCategoryModal()">✕</span>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div class="form-group">
+          <label class="form-label" for="new-extra-category-input">Nombre de la Categoría</label>
+          <input type="text" id="new-extra-category-input" class="form-input" placeholder="Ej: Bolsa de Caramelos, Envoltorio de Regalo...">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+          <button class="btn btn-secondary" onclick="closeExtraCategoryModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="submitAddExtraCategory()">Crear Categoría</button>
+        </div>
+      </div>
     </div>
   </div>
 
