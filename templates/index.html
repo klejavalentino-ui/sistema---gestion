@@ -33,13 +33,13 @@
             <input type="email" id="login-email" class="form-input" placeholder="admin@gestiosmart.com" required autocomplete="email">
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label class="form-label" for="login-password" style="margin-bottom: 0;">Contraseña</label>
-              <a href="#" onclick="toggleResetPasswordView(true)" style="color: var(--accent-red); font-size: 0.75rem; text-decoration: none; font-weight: 600;">¿Olvidaste tu contraseña?</a>
-            </div>
+            <label class="form-label" for="login-password">Contraseña</label>
             <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
           </div>
           <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Iniciar Sesión</button>
+          <div style="text-align: center; margin-top: 14px;">
+            <a href="#" onclick="toggleResetPasswordView(true)" style="color: var(--accent-red); font-size: 0.8rem; text-decoration: none; font-weight: 600;">¿Olvidaste tu contraseña?</a>
+          </div>
         </form>
         <div style="display: flex; align-items: center; margin: 20px 0;">
           <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
@@ -96,7 +96,7 @@
           <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Enviar Enlace</button>
         </form>
         <div style="text-align: center; margin-top: 20px; font-size: 0.8rem; color: var(--text-gray);">
-          ¿Recordaste tu contraseña? <a href="#" onclick="toggleResetPasswordView(false)" style="color: var(--accent-red); font-weight: 700; text-decoration: none;">Iniciá Sesión</a>
+          ¿Ya tenés una cuenta? <a href="#" onclick="toggleResetPasswordView(false)" style="color: var(--accent-red); font-weight: 700; text-decoration: none;">Iniciá Sesión</a>
         </div>
       </div>
     </div>
