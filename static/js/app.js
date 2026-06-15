@@ -86,18 +86,102 @@ function checkAuth() {
     appSection.style.display = "none";
     if (verifyScreen) verifyScreen.style.display = "none";
     if (paywallScreen) paywallScreen.style.display = "none";
+    toggleResetPasswordView(false);
   }
+}
+
+function translateError(msg) {
+  if (!msg || typeof msg !== "string") return "Ocurrió un error inesperado.";
+  
+  const upperMsg = msg.toUpperCase();
+  
+  if (upperMsg.includes("EMAIL_EXISTS")) {
+    return "El correo electrónico ya está registrado.";
+  }
+  if (upperMsg.includes("INVALID_LOGIN_CREDENTIALS") || upperMsg.includes("INVALID_PASSWORD") || upperMsg.includes("EMAIL_NOT_FOUND")) {
+    return "El correo o la contraseña son incorrectos.";
+  }
+  if (upperMsg.includes("WEAK_PASSWORD")) {
+    return "La contraseña debe tener al menos 6 caracteres.";
+  }
+  if (upperMsg.includes("INVALID_EMAIL")) {
+    return "El formato del correo electrónico es inválido.";
+  }
+  if (upperMsg.includes("USER_DISABLED")) {
+    return "Esta cuenta de usuario ha sido inhabilitada.";
+  }
+  if (upperMsg.includes("TOO_MANY_ATTEMPTS_TRY_LATER")) {
+    return "Demasiados intentos fallidos. Por favor, intentá más tarde.";
+  }
+  
+  return msg;
 }
 
 function toggleAuthView(showRegister) {
   const loginForm = document.getElementById("login-container");
   const registerForm = document.getElementById("register-container");
+  const resetForm = document.getElementById("reset-password-container");
+  
+  if (resetForm) resetForm.style.display = "none";
+  
   if (showRegister) {
     loginForm.style.display = "none";
     registerForm.style.display = "block";
   } else {
     loginForm.style.display = "block";
     registerForm.style.display = "none";
+  }
+}
+
+function toggleResetPasswordView(showReset) {
+  const loginForm = document.getElementById("login-container");
+  const registerForm = document.getElementById("register-container");
+  const resetForm = document.getElementById("reset-password-container");
+  
+  // Clear messages
+  const resetError = document.getElementById("reset-error");
+  const resetSuccess = document.getElementById("reset-success");
+  if (resetError) resetError.style.display = "none";
+  if (resetSuccess) resetSuccess.style.display = "none";
+  
+  const resetEmailInput = document.getElementById("reset-email");
+  if (resetEmailInput) resetEmailInput.value = "";
+  
+  if (showReset) {
+    loginForm.style.display = "none";
+    registerForm.style.display = "none";
+    if (resetForm) resetForm.style.display = "block";
+  } else {
+    loginForm.style.display = "block";
+    registerForm.style.display = "none";
+    if (resetForm) resetForm.style.display = "none";
+  }
+}
+
+async function handleResetPassword(e) {
+  e.preventDefault();
+  const email = document.getElementById("reset-email").value;
+  const errorDiv = document.getElementById("reset-error");
+  const successDiv = document.getElementById("reset-success");
+  
+  errorDiv.style.display = "none";
+  successDiv.style.display = "none";
+  
+  try {
+    const res = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error al enviar el correo de recuperación");
+    
+    successDiv.innerText = "Te enviamos un correo con las instrucciones para restablecer tu contraseña. Revisá tu bandeja de entrada o Spam.";
+    successDiv.style.display = "block";
+  } catch (error) {
+    errorDiv.innerText = translateError(error.message);
+    errorDiv.style.display = "block";
   }
 }
 
@@ -126,7 +210,7 @@ async function handleLogin(e) {
     showToast("¡Sesión iniciada!");
     checkAuth();
   } catch (error) {
-    errorDiv.innerText = error.message;
+    errorDiv.innerText = translateError(error.message);
     errorDiv.style.display = "block";
   }
 }
@@ -156,7 +240,7 @@ async function handleRegister(e) {
     showToast("Registro exitoso. Verificá tu correo.");
     checkAuth();
   } catch (error) {
-    errorDiv.innerText = error.message;
+    errorDiv.innerText = translateError(error.message);
     errorDiv.style.display = "block";
   }
 }
@@ -3859,6 +3943,11 @@ function setupEventListeners() {
   // Auth
   document.getElementById("login-form").addEventListener("submit", handleLogin);
   document.getElementById("register-form").addEventListener("submit", handleRegister);
+  
+  const resetForm = document.getElementById("reset-password-form");
+  if (resetForm) {
+    resetForm.addEventListener("submit", handleResetPassword);
+  }
   
   // Menu links
   document.querySelectorAll(".menu-item").forEach(item => {

@@ -33,7 +33,10 @@
             <input type="email" id="login-email" class="form-input" placeholder="admin@gestiosmart.com" required autocomplete="email">
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
-            <label class="form-label" for="login-password">Contraseña</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="form-label" for="login-password" style="margin-bottom: 0;">Contraseña</label>
+              <a href="#" onclick="toggleResetPasswordView(true)" style="color: var(--accent-red); font-size: 0.75rem; text-decoration: none; font-weight: 600;">¿Olvidaste tu contraseña?</a>
+            </div>
             <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
           </div>
           <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Iniciar Sesión</button>
@@ -77,6 +80,23 @@
         </button>
         <div style="text-align: center; margin-top: 20px; font-size: 0.8rem; color: var(--text-gray);">
           ¿Ya tenés una cuenta? <a href="#" onclick="toggleAuthView(false)" style="color: var(--accent-red); font-weight: 700; text-decoration: none;">Iniciá Sesión</a>
+        </div>
+      </div>
+
+      <!-- Reset Password Container -->
+      <div id="reset-password-container" style="display: none;">
+        <div id="reset-error" class="badge-red" style="display: none; width: 100%; padding: 10px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 16px; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);"></div>
+        <div id="reset-success" style="display: none; width: 100%; padding: 10px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 16px; font-weight: 600; text-align: center; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.1); color: #10b981;"></div>
+        <p style="color: var(--text-gray); font-size: 0.8rem; margin-bottom: 20px; line-height: 1.4;">Ingresá el correo electrónico asociado a tu cuenta y te enviaremos un enlace para restablecer tu contraseña.</p>
+        <form id="reset-password-form">
+          <div class="form-group" style="margin-bottom: 24px;">
+            <label class="form-label" for="reset-email">Correo Electrónico</label>
+            <input type="email" id="reset-email" class="form-input" placeholder="admin@gestiosmart.com" required autocomplete="email">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Enviar Enlace</button>
+        </form>
+        <div style="text-align: center; margin-top: 20px; font-size: 0.8rem; color: var(--text-gray);">
+          ¿Recordaste tu contraseña? <a href="#" onclick="toggleResetPasswordView(false)" style="color: var(--accent-red); font-weight: 700; text-decoration: none;">Iniciá Sesión</a>
         </div>
       </div>
     </div>

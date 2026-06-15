@@ -148,6 +148,19 @@ def send_verification_email(id_token):
         raise Exception(error_msg)
     return r.json()
 
+def send_password_reset_email(email):
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={API_KEY}"
+    payload = {
+        "requestType": "PASSWORD_RESET",
+        "email": email
+    }
+    r = requests.post(url, json=payload)
+    if not r.ok:
+        error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de restablecimiento de contraseña.")
+        raise Exception(error_msg)
+    return r.json()
+
+
 def get_account_info(id_token):
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={API_KEY}"
     payload = {

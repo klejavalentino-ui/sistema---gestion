@@ -149,6 +149,18 @@ def send_verification():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/auth/reset-password", methods=["POST"])
+def reset_password():
+    data = request.json or {}
+    email = data.get("email")
+    if not email:
+        return jsonify({"error": "El correo es requerido"}), 400
+    try:
+        firebase_config.send_password_reset_email(email)
+        return jsonify({"success": True, "message": "Enlace de restablecimiento de contraseña enviado."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 @app.route("/api/auth/simulate-payment", methods=["POST"])
 def simulate_payment():
     token = get_auth_token()
