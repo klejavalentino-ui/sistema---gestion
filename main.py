@@ -179,7 +179,8 @@ def simulate_payment():
                 "cost": 0.0,
                 "stock": 0,
                 "createdAt": int(time.time()),
-                "trialDays": 15
+                "trialDays": 15,
+                "businessType": "clothing"
             }
         profile_doc["subscriptionStatus"] = "active"
         firebase_config.set_document("products", f"{prefix}user_profile", profile_doc, token)
@@ -284,7 +285,8 @@ def get_all_state():
                 "stock": 0,
                 "createdAt": int(time.time()),
                 "trialDays": 15,
-                "subscriptionStatus": "trial"  # trial, active, expired
+                "subscriptionStatus": "trial",  # trial, active, expired
+                "businessType": "clothing"
             }
             firebase_config.set_document("products", f"{prefix}user_profile", profile_doc, token)
             profile_doc_copy = dict(profile_doc)
@@ -379,6 +381,7 @@ def get_all_state():
             "trialExpired": False,
             "subscriptionStatus": subscription_status,
             "daysLeft": days_left,
+            "businessType": profile_doc.get("businessType", "clothing"),
             "categories": categories,
             "products": products,
             "sales": user_sales,

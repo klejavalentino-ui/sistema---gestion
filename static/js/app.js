@@ -2,6 +2,7 @@
 const state = {
   token: localStorage.getItem("gestiosmart_token"),
   email: localStorage.getItem("gestiosmart_email"),
+  businessType: "clothing",
   categories: [],
   products: [],
   sales: [],
@@ -254,6 +255,184 @@ function handleLogout() {
   checkAuth();
 }
 
+// --- Importación y Configuración Excel / Multi-negocio ---
+let parsedImportProducts = [];
+
+function triggerExcelImport() {
+  document.getElementById("excel-import-input").click();
+}
+
+function closeExcelImportModal() {
+  const modal = document.getElementById("excel-import-modal");
+  if (modal) modal.classList.remove("active");
+  document.getElementById("excel-import-input").value = "";
+  parsedImportProducts = [];
+}
+
+function downloadExcelTemplate() {
+  const headers = [["SKU", "Nombre", "Categoría", "Costo", "Precio Venta", "Stock", "Talle", "Color"]];
+  const sampleData = [
+    ["PROD-001", "Coca Cola 1.5L", "Bebidas", "1200", "1800", "24", "Único", "Único"],
+    ["PROD-002", "Alfajor de Chocolate", "Kiosco", "400", "650", "50", "Único", "Único"],
+    ["REM-NEGRA-M", "Remera Algodón Negra M", "Remeras", "3000", "6000", "15", "M", "Negro"]
+  ];
+  
+  const sheetData = headers.concat(sampleData);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  XLSX.utils.book_append_sheet(wb, ws, "Plantilla_Productos");
+  XLSX.writeFile(wb, "Plantilla_Importar_Productos.xlsx");
+}
+
+function handleExcelImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+      
+      if (rows.length === 0) {
+        showToast("El archivo de Excel está vacío.", true);
+        return;
+      }
+      
+      parsedImportProducts = [];
+      
+      rows.forEach(row => {
+        const cleanRow = {};
+        Object.keys(row).forEach(key => {
+          cleanRow[key.toLowerCase().trim()] = row[key];
+        });
+        
+        const sku = String(cleanRow["sku"] || cleanRow["código"] || cleanRow["codigo"] || "").trim();
+        const name = String(cleanRow["nombre"] || cleanRow["descripción"] || cleanRow["descripcion"] || cleanRow["producto"] || "").trim();
+        const category = String(cleanRow["categoría"] || cleanRow["categoria"] || cleanRow["rubro"] || "General").trim();
+        
+        const costStr = String(cleanRow["costo"] || cleanRow["costo unitario"] || cleanRow["precio de costo"] || "0");
+        const cost = parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        
+        const priceStr = String(cleanRow["precio"] || cleanRow["precio venta"] || cleanRow["precio de venta"] || cleanRow["venta"] || "0");
+        const price = parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        
+        const stockStr = String(cleanRow["stock"] || cleanRow["cantidad"] || cleanRow["unidades"] || "0");
+        const stock = parseInt(stockStr.replace(/[^0-9]/g, "")) || 0;
+        
+        const size = String(cleanRow["talle"] || cleanRow["talla"] || cleanRow["medida"] || "Único").trim();
+        const color = String(cleanRow["color"] || cleanRow["tono"] || "Único").trim();
+        
+        const marginStr = String(cleanRow["margen"] || cleanRow["margen %"] || "");
+        let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        
+        if (price > 0 && cost > 0 && !marginStr) {
+          margin = ((price / cost) - 1) * 100;
+        }
+        
+        if (sku && name) {
+          parsedImportProducts.push({
+            sku: sku,
+            name: name,
+            category: category,
+            size: size,
+            color: color,
+            stock: stock,
+            baseCost: cost,
+            margin: Math.round(margin * 10) / 10,
+            cost: cost,
+            extras: {}
+          });
+        }
+      });
+      
+      if (parsedImportProducts.length === 0) {
+        showToast("No se encontraron productos válidos en el Excel (se requiere Código/SKU y Nombre).", true);
+        return;
+      }
+      
+      const tbody = document.getElementById("excel-preview-tbody");
+      tbody.innerHTML = "";
+      const previewRows = parsedImportProducts.slice(0, 5);
+      previewRows.forEach(p => {
+        const tr = document.createElement("tr");
+        const price = p.baseCost * (1 + p.margin / 100);
+        tr.innerHTML = `
+          <td style="font-family: monospace;">${p.sku}</td>
+          <td style="font-weight: 700; color: #fff;">${p.name}</td>
+          <td>${p.category}</td>
+          <td style="text-align: right;">$ ${Math.round(p.baseCost).toLocaleString()}</td>
+          <td style="text-align: right; color: var(--accent-emerald); font-weight: 700;">$ ${Math.round(price).toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 700;">${p.stock}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      
+      document.getElementById("excel-import-summary").innerText = `Total de productos detectados para importar: ${parsedImportProducts.length} variante(s).`;
+      
+      document.getElementById("excel-preview-area").style.display = "block";
+      document.getElementById("excel-confirm-btn").removeAttribute("disabled");
+      document.getElementById("excel-import-modal").classList.add("active");
+      
+    } catch (err) {
+      console.error(err);
+      showToast("Error al procesar el archivo de Excel.", true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function confirmExcelImport() {
+  if (parsedImportProducts.length === 0) return;
+  
+  const confirmBtn = document.getElementById("excel-confirm-btn");
+  confirmBtn.setAttribute("disabled", "true");
+  confirmBtn.innerText = "Procesando...";
+  
+  try {
+    const batchSize = 50;
+    for (let i = 0; i < parsedImportProducts.length; i += batchSize) {
+      const batch = parsedImportProducts.slice(i, i + batchSize);
+      showToast(`Importando lote ${Math.floor(i / batchSize) + 1}...`);
+      await apiRequest("/api/products", "POST", batch);
+    }
+    
+    showToast(`Se importaron ${parsedImportProducts.length} productos con éxito`);
+    closeExcelImportModal();
+    refreshState();
+  } catch (error) {
+    showToast("Error en la importación masiva: " + error.message, true);
+    confirmBtn.removeAttribute("disabled");
+    confirmBtn.innerText = "Importar Productos";
+  }
+}
+
+async function updateBusinessType(type) {
+  try {
+    showToast("Actualizando tipo de negocio...");
+    
+    const profileDoc = {
+      sku: "user_profile",
+      name: "User Profile",
+      cost: 0.0,
+      stock: 0,
+      createdAt: Math.floor(Date.now() / 1000),
+      trialDays: 15,
+      subscriptionStatus: "active",
+      businessType: type
+    };
+    
+    await apiRequest("/api/products", "POST", profileDoc);
+    showToast("Negocio actualizado. Recargando...");
+    await refreshState();
+  } catch (err) {
+    showToast("Error al guardar tipo de negocio: " + err.message, true);
+  }
+}
+
 // --- API Request Helper ---
 async function apiRequest(url, method = "GET", body = null) {
   const headers = {
@@ -398,6 +577,29 @@ async function refreshState() {
     state.marketingExpenses = data.marketingExpenses || [];
     state.extras = data.extras || {};
     state.stockIntakes = data.stockIntakes || [];
+    
+    state.businessType = data.businessType || "clothing";
+    
+    const bizSelect = document.getElementById("business-type-select");
+    if (bizSelect) {
+      bizSelect.value = state.businessType;
+    }
+    
+    document.querySelectorAll(".menu-list .menu-item").forEach(item => {
+      const tab = item.dataset.tab;
+      if (state.businessType === "kiosk") {
+        if (tab === "extras" || tab === "marketing") {
+          item.style.display = "none";
+          if (state.activeTab === tab) {
+            switchTab("sales");
+          }
+        } else {
+          item.style.display = "block";
+        }
+      } else {
+        item.style.display = "block";
+      }
+    });
   } catch (error) {
     console.error("Error loading states:", error);
     showToast("Error al sincronizar con la base de datos", true);

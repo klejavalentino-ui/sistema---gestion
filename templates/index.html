@@ -177,6 +177,10 @@
         <div class="sidebar-user-info">
           <span id="user-display-email" class="sidebar-user-email">email@gestiosmart.com</span>
           <span class="sidebar-user-role">Administrador</span>
+          <select id="business-type-select" class="form-select" style="font-size: 0.65rem; padding: 4px 8px; height: auto; background: var(--bg-input); border-color: var(--border-color); color: #fff; margin-top: 6px; border-radius: 4px;" onchange="updateBusinessType(this.value)">
+            <option value="clothing">Tienda de Ropa</option>
+            <option value="kiosk">Comercio Estándar / Kiosco</option>
+          </select>
         </div>
         <button class="btn-logout" onclick="handleLogout()">Cerrar Sesión</button>
       </div>
@@ -360,12 +364,16 @@
             <p>Control de SKU variants, talle/color, precios y niveles de existencias físicas.</p>
           </div>
           <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="triggerExcelImport()">
+              <i>📤</i> Importar Excel
+            </button>
             <button class="btn btn-secondary" onclick="exportInventoryToExcel()">
               <i>📥</i> Exportar Excel
             </button>
             <button class="btn btn-primary" onclick="openCreateProductModal()">
               <i>+</i> Nuevo Producto
             </button>
+            <input type="file" id="excel-import-input" style="display: none;" accept=".xlsx, .xls, .csv" onchange="handleExcelImport(event)">
           </div>
         </div>
 
@@ -1060,6 +1068,57 @@
         <div id="size-modal-options-grid" class="grid-3" style="gap: 10px;">
           <!-- Talles disponibles -->
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL EXCEL IMPORT -->
+  <div id="excel-import-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📥 Importar Productos</h3>
+        <span class="modal-close" onclick="closeExcelImportModal()">✕</span>
+      </div>
+      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+        <p style="font-size: 0.8rem; color: var(--text-gray); line-height: 1.4; margin-bottom: 15px;">
+          Sube un archivo de Excel (`.xlsx`, `.xls` o `.csv`) con tu lista de productos. 
+          El sistema detectará automáticamente las columnas. Puedes descargar una plantilla modelo si la necesitas.
+        </p>
+        
+        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+          <button type="button" class="btn btn-secondary" onclick="downloadExcelTemplate()" style="font-size: 0.75rem; padding: 8px 12px;">
+            <i>📥</i> Descargar Plantilla Modelo
+          </button>
+        </div>
+
+        <div id="excel-preview-area" style="display: none;">
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 10px;">Vista previa de los primeros 5 productos:</h4>
+          <div class="table-wrapper" style="margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: 6px;">
+            <table class="idx-table" style="font-size: 0.75rem;">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Nombre</th>
+                  <th>Categoría</th>
+                  <th style="text-align: right;">Costo</th>
+                  <th style="text-align: right;">Precio</th>
+                  <th style="text-align: right;">Stock</th>
+                </tr>
+              </thead>
+              <tbody id="excel-preview-tbody">
+                <!-- Inyectado dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+          
+          <div id="excel-import-summary" style="font-size: 0.8rem; color: var(--text-gray); font-weight: 600; margin-bottom: 20px; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.1); padding: 10px; border-radius: 6px;">
+            <!-- Resumen de filas a importar -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+        <button class="btn btn-secondary" onclick="closeExcelImportModal()">Cancelar</button>
+        <button id="excel-confirm-btn" class="btn btn-primary" onclick="confirmExcelImport()" disabled>Importar Productos</button>
       </div>
     </div>
   </div>
