@@ -2118,13 +2118,42 @@ function renderInventory() {
                                                     p.sku !== "extras_config" && 
                                                     p.sku !== "categories_config");
 
-  const filtered = actualProducts.filter(p => {
-    const name = p.name || "";
-    const sku = p.sku || "";
-    const category = p.category || "";
+  // Agrupar por baseSku
+  const groupedProducts = {};
+  actualProducts.forEach(p => {
+    const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
+    if (!groupedProducts[baseSku]) {
+      groupedProducts[baseSku] = {
+        baseSku: baseSku,
+        name: p.name || "",
+        category: p.category || "",
+        color: p.color || "",
+        variants: [],
+        totalStock: 0,
+        totalMinStock: 0,
+        cost: parseFloat(p.cost) || 0,
+        margin: parseFloat(p.margin) || 0,
+        editSku: p.sku
+      };
+    }
+    groupedProducts[baseSku].variants.push(p);
+    groupedProducts[baseSku].totalStock += (parseInt(p.stock) || 0);
+    groupedProducts[baseSku].totalMinStock += getProductMinStock(p, salesByProduct);
+  });
+
+  const groupedList = Object.values(groupedProducts);
+
+  // Filtrar el listado agrupado
+  const filtered = groupedList.filter(g => {
+    const name = g.name || "";
+    const baseSku = g.baseSku || "";
+    const category = g.category || "";
+    const color = g.color || "";
     const matchesSearch = name.toLowerCase().includes(searchInput) || 
-                          sku.toLowerCase().includes(searchInput) || 
-                          category.toLowerCase().includes(searchInput);
+                          baseSku.toLowerCase().includes(searchInput) || 
+                          category.toLowerCase().includes(searchInput) ||
+                          color.toLowerCase().includes(searchInput) ||
+                          g.variants.some(v => (v.sku || "").toLowerCase().includes(searchInput));
     const matchesCat = filterCat === "Todas las Categorías" || category === filterCat;
     return matchesSearch && matchesCat;
   });
@@ -2134,33 +2163,49 @@ function renderInventory() {
     return;
   }
 
-  filtered.forEach(p => {
-    const cost = parseFloat(p.cost) || 0;
-    const margin = parseFloat(p.margin) || 0;
+  filtered.forEach(g => {
+    const cost = g.cost;
+    const margin = g.margin;
     const price = cost * (1 + margin / 100);
     const tr = document.createElement("tr");
     
-    const minStock = getProductMinStock(p, salesByProduct);
-    const isCritical = (parseInt(p.stock) || 0) <= minStock;
+    // Un producto agrupado es crítico si su stock total está en o por debajo de su stock crítico total configurado
+    const isCritical = g.totalStock <= g.totalMinStock;
     const colorClass = isCritical ? '#f87171' : '#10b981';
     
+    // Ordenar los talles según el orden estándar
+    const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
+    const sortedTalles = g.variants
+      .map(v => v.size)
+      .filter(s => s)
+      .sort((a, b) => {
+        const idxA = sizeOrder.indexOf(a);
+        const idxB = sizeOrder.indexOf(b);
+        if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+        if (idxA === -1) return 1;
+        if (idxB === -1) return -1;
+        return idxA - idxB;
+      });
+
+    const tallesText = sortedTalles.join(", ");
+
     tr.innerHTML = `
       <td style="font-weight: 700;">
-        <div style="font-size: 0.85rem; color: #fff;">${p.name || ""}</div>
-        <div style="font-size: 0.65rem; color: var(--text-gray); font-family: monospace; margin-top: 2px;">${p.sku || ""}</div>
+        <div style="font-size: 0.85rem; color: #fff;">${g.name || ""}</div>
+        <div style="font-size: 0.65rem; color: var(--text-gray); font-family: monospace; margin-top: 2px;">${g.baseSku || ""}</div>
       </td>
       <td>
-        <span class="badge badge-gray">${p.category || ""}</span>
+        <span class="badge badge-gray">${g.category || ""}</span>
       </td>
       <td>
-        <div style="font-size: 0.8rem;">${p.color || "Único"}</div>
-        ${(state.businessType === "comercio" || !p.size) ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talle: ${p.size}</div>`}
+        <div style="font-size: 0.8rem;">${g.color || "Único"}</div>
+        ${(state.businessType === "comercio" || tallesText === "Único" || !tallesText) ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talles: ${tallesText}</div>`}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
-        ${parseInt(p.stock) || 0} un.
+        ${g.totalStock} un.
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
-        ${minStock} un.
+        ${g.totalMinStock} un.
       </td>
       <td style="text-align: right; color: var(--text-gray);">$ ${Math.round(cost).toLocaleString()}</td>
       <td style="text-align: right; font-weight: 700; color: #10b981;">$ ${Math.round(price).toLocaleString()}</td>
@@ -2171,8 +2216,8 @@ function renderInventory() {
       </td>
       <td>
         <div class="actions-cell">
-          <button class="btn-action" onclick="openEditProductModal('${p.sku}')">✏️</button>
-          <button class="btn-action btn-delete" onclick="deleteProduct('${p.sku}')">🗑️</button>
+          <button class="btn-action" onclick="openEditProductModal('${g.editSku}')">✏️</button>
+          <button class="btn-action btn-delete" onclick="deleteProduct('${g.editSku}')">🗑️</button>
         </div>
       </td>
     `;
@@ -2534,9 +2579,26 @@ async function saveProductForm(e) {
 }
 
 function deleteProduct(sku) {
-  showConfirmModal(`¿Estás seguro de eliminar el producto con SKU ${sku}?`, async () => {
+  const p = state.products.find(prod => prod.sku === sku);
+  if (!p) return;
+  const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
+  const variants = state.products.filter(prod => 
+    !prod.sku.startsWith("supplier_") && 
+    !prod.sku.startsWith("fixedcost_") && 
+    !prod.sku.startsWith("account_") && 
+    !prod.sku.startsWith("cashtransaction_") && 
+    !prod.sku.startsWith("influencer_") && 
+    !prod.sku.startsWith("marketingexpense_") && 
+    !prod.sku.startsWith("stockintake_") && 
+    prod.sku !== "extras_config" && 
+    prod.sku !== "categories_config" &&
+    (prod.baseSku === cleanBase || prod.sku.split("-")[0] === cleanBase)
+  );
+
+  showConfirmModal(`¿Estás seguro de eliminar el producto "${p.name}" y todas sus variantes?`, async () => {
     try {
-      await apiRequest(`/api/products/${sku}`, "DELETE");
+      showToast("Eliminando producto y variantes...");
+      await Promise.all(variants.map(v => apiRequest(`/api/products/${v.sku}`, "DELETE")));
       showToast("Producto eliminado");
       refreshState();
     } catch (error) {
