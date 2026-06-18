@@ -1872,6 +1872,12 @@ async function confirmPayment(method) {
 
     const registeredSale = await apiRequest("/api/sales", "POST", salePayload);
     const saleId = registeredSale.id || `V-${Math.floor(Math.random()*10000)}`;
+    if (registeredSale) {
+      registeredSale.id = saleId;
+      if (!state.sales.some(s => s.id === saleId)) {
+        state.sales.unshift(registeredSale);
+      }
+    }
 
     // Avanzar a step 3 (éxito)
     document.getElementById("checkout-step-method").style.display = "none";
@@ -1981,6 +1987,12 @@ async function submitCheckoutFinance() {
     // Submit venta
     const registeredSale = await apiRequest("/api/sales", "POST", salePayload);
     const saleId = registeredSale.id || `V-${Math.floor(Math.random()*10000)}`;
+    if (registeredSale) {
+      registeredSale.id = saleId;
+      if (!state.sales.some(s => s.id === saleId)) {
+        state.sales.unshift(registeredSale);
+      }
+    }
 
     // 3. Registrar la transacción en la cuenta corriente de cliente
     await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", {
@@ -3093,17 +3105,31 @@ function renderSuppliers() {
       : "";
     const productsText = s.products ? s.products.join(", ") : "Sin catálogo";
     
+    const addressHtml = s.address ? `
+      <p style="font-size: 0.72rem; color: var(--text-gray); margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+        <i class="fas fa-map-marker-alt" style="font-size: 0.65rem; color: var(--accent-red);"></i> ${s.address}
+      </p>
+    ` : "";
+    
+    const descriptionHtml = s.description ? `
+      <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; font-style: italic; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border-left: 2px solid var(--border-color);">
+        ${s.description}
+      </p>
+    ` : "";
+    
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
         <div style="display: flex; gap: 12px; align-items: center;">
           <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(229, 56, 59, 0.08); display: flex; align-items: center; justify-content: center; color: var(--accent-red); font-size: 1.2rem;">
-            <i class="fas fa-box"></i>
+            <i class="fas fa-truck"></i>
           </div>
           <div>
             <h4 style="font-size: 0.9rem; font-weight: 800; color: var(--text-white);">${s.name}</h4>
             <p style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: flex; align-items: center; gap: 6px;">
               <i class="fas fa-phone" style="font-size: 0.65rem;"></i> ${s.phone}
             </p>
+            ${addressHtml}
+            ${descriptionHtml}
           </div>
         </div>
         <div class="actions-cell" style="display: flex; gap: 6px;">
@@ -3112,11 +3138,11 @@ function renderSuppliers() {
         </div>
       </div>
       
-      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
         ${categoriesBadge}
       </div>
       
-      <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 4px; display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-gray);">
+      <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-gray);">
         <i class="fas fa-tags" style="color: var(--text-muted); font-size: 0.7rem;"></i>
         <span>${productsText}</span>
       </div>
@@ -3125,13 +3151,93 @@ function renderSuppliers() {
   });
 }
 
+function populateSupplierCategoriesCheckboxes(selectedCategories) {
+  const container = document.getElementById("supplier-categories-container");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  
+  const selectedNorm = selectedCategories.map(c => c.trim().toUpperCase());
+  
+  if (state.categories.length === 0) {
+    container.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-gray); grid-column: 1/-1;">No hay categorías creadas.</span>`;
+    return;
+  }
+  
+  state.categories.forEach(cat => {
+    const isChecked = selectedNorm.includes(cat.trim().toUpperCase());
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "6px";
+    label.style.fontSize = "0.8rem";
+    label.style.color = "#fff";
+    label.style.cursor = "pointer";
+    label.innerHTML = `
+      <input type="checkbox" name="supplier-category-checkbox" value="${cat}" ${isChecked ? 'checked' : ''} style="accent-color: var(--accent-emerald);">
+      <span>${cat}</span>
+    `;
+    container.appendChild(label);
+  });
+}
+
+function populateSupplierProductsCheckboxes(selectedProducts) {
+  const container = document.getElementById("supplier-products-container");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  
+  const uniqueProductNames = [];
+  state.products.forEach(p => {
+    if (p.name && !uniqueProductNames.includes(p.name)) {
+      uniqueProductNames.push(p.name);
+    }
+  });
+  
+  Object.keys(state.extras).forEach(catKey => {
+    const options = state.extras[catKey] || [];
+    options.forEach(opt => {
+      const extraName = `Adicional: ${opt.name}`;
+      if (!uniqueProductNames.includes(extraName)) {
+        uniqueProductNames.push(extraName);
+      }
+    });
+  });
+  
+  const selectedNorm = selectedProducts.map(p => p.trim().toLowerCase());
+  
+  if (uniqueProductNames.length === 0) {
+    container.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-gray);">No hay productos registrados en el inventario.</span>`;
+    return;
+  }
+  
+  uniqueProductNames.sort().forEach(name => {
+    const isChecked = selectedNorm.includes(name.trim().toLowerCase());
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "6px";
+    label.style.fontSize = "0.8rem";
+    label.style.color = "#fff";
+    label.style.cursor = "pointer";
+    label.innerHTML = `
+      <input type="checkbox" name="supplier-product-checkbox" value="${name}" ${isChecked ? 'checked' : ''} style="accent-color: var(--accent-emerald);">
+      <span>${name}</span>
+    `;
+    container.appendChild(label);
+  });
+}
+
 function openSupplierModal() {
   document.getElementById("modal-supplier-title").innerText = "Nuevo Proveedor";
   document.getElementById("supplier-id-input").value = "";
   document.getElementById("supplier-name").value = "";
   document.getElementById("supplier-phone").value = "";
-  document.getElementById("supplier-categories").value = "";
-  document.getElementById("supplier-products").value = "";
+  document.getElementById("supplier-address").value = "";
+  document.getElementById("supplier-description").value = "";
+  
+  populateSupplierCategoriesCheckboxes([]);
+  populateSupplierProductsCheckboxes([]);
   
   document.getElementById("supplier-modal").className = "modal-backdrop active";
 }
@@ -3144,8 +3250,11 @@ function openEditSupplierModal(sId) {
   document.getElementById("supplier-id-input").value = s.id;
   document.getElementById("supplier-name").value = s.name;
   document.getElementById("supplier-phone").value = s.phone;
-  document.getElementById("supplier-categories").value = s.categories ? s.categories.join(", ") : "";
-  document.getElementById("supplier-products").value = s.products ? s.products.join(", ") : "";
+  document.getElementById("supplier-address").value = s.address || "";
+  document.getElementById("supplier-description").value = s.description || "";
+  
+  populateSupplierCategoriesCheckboxes(s.categories || []);
+  populateSupplierProductsCheckboxes(s.products || []);
   
   document.getElementById("supplier-modal").className = "modal-backdrop active";
 }
@@ -3157,15 +3266,18 @@ function closeSupplierModal() {
 async function saveSupplierForm(e) {
   e.preventDefault();
   const sId = document.getElementById("supplier-id-input").value;
-  const name = document.getElementById("supplier-name").value;
-  const phone = document.getElementById("supplier-phone").value;
-  const categoriesStr = document.getElementById("supplier-categories").value;
-  const productsStr = document.getElementById("supplier-products").value;
+  const name = document.getElementById("supplier-name").value.trim();
+  const phone = document.getElementById("supplier-phone").value.trim();
+  const address = document.getElementById("supplier-address").value.trim();
+  const description = document.getElementById("supplier-description").value.trim();
 
-  const categories = categoriesStr.split(",").map(c => c.trim().toUpperCase()).filter(Boolean);
-  const products = productsStr.split(",").map(p => p.trim()).filter(Boolean);
+  const categoryCheckboxes = document.querySelectorAll('input[name="supplier-category-checkbox"]:checked');
+  const categories = Array.from(categoryCheckboxes).map(cb => cb.value);
 
-  const payload = { name, phone, categories, products };
+  const productCheckboxes = document.querySelectorAll('input[name="supplier-product-checkbox"]:checked');
+  const products = Array.from(productCheckboxes).map(cb => cb.value);
+
+  const payload = { name, phone, categories, products, address, description };
   if (sId) payload.id = parseInt(sId) || sId;
 
   try {
