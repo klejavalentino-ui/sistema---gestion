@@ -1932,15 +1932,20 @@ function openEditProductModal(sku) {
   document.getElementById("prod-te").value = (p.leadTime !== undefined && p.leadTime !== null) ? p.leadTime : "";
   document.getElementById("prod-ss").value = (p.securityStock !== undefined && p.securityStock !== null) ? p.securityStock : "";
 
-  // Bloquear otros talles, solo permitir stock del talle de la variante
+  // Cargar stock de todas las variantes del mismo producto (compartiendo baseSku)
+  const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
+  const variants = state.products.filter(prod => prod.baseSku === cleanBase);
+  
   ['S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
     const input = document.getElementById(`stock-${sz}`);
-    if (sz === p.size.replace("Único", "Unico")) {
-      input.value = p.stock;
-      input.readOnly = false;
+    input.readOnly = false; // Permitir editar cualquier talle
+    
+    const szVal = sz === 'Unico' ? 'Único' : sz;
+    const variant = variants.find(v => v.size === szVal);
+    if (variant) {
+      input.value = variant.stock;
     } else {
       input.value = "";
-      input.readOnly = true;
     }
   });
 
@@ -2133,30 +2138,32 @@ async function saveProductForm(e) {
   const isEditing = title.startsWith("Editar");
   
   if (isEditing) {
-    // Editar talle individual
-    const size = Object.keys(sizeStocks)[0];
-    const stock = sizeStocks[size];
-    
-    const payload = {
-      id: Date.now(),
-      baseSku: baseSku.split("-")[0] || baseSku,
-      sku: baseSku, // el baseSku ya contiene el sufijo del talle en edición
-      name: name,
-      category: category,
-      size: size,
-      color: color,
-      stock: stock,
-      baseCost: cost,
-      margin: margin,
-      cost: totalCost,
-      extras: extras,
-      estampadoId: extras.estampados || null,
-      bordadoId: extras.bordados || null,
-      packagingId: extras.packagings || null,
-      leadTime: leadTime,
-      securityStock: securityStock
-    };
-    batchPayload.push(payload);
+    // Guardar cambios para todos los talles ingresados
+    const cleanBaseSku = baseSku.split("-")[0] || baseSku;
+    for (const [size, stock] of Object.entries(sizeStocks)) {
+      const existingVariant = state.products.find(v => v.baseSku === cleanBaseSku && v.size === size);
+      
+      const payload = {
+        id: existingVariant ? existingVariant.id : Date.now() + Math.random(),
+        baseSku: cleanBaseSku,
+        sku: existingVariant ? existingVariant.sku : `${cleanBaseSku}-${size.replace("Único", "U")}`,
+        name: name,
+        category: category,
+        size: size,
+        color: color,
+        stock: stock,
+        baseCost: cost,
+        margin: margin,
+        cost: totalCost,
+        extras: extras,
+        estampadoId: extras.estampados || null,
+        bordadoId: extras.bordados || null,
+        packagingId: extras.packagings || null,
+        leadTime: leadTime,
+        securityStock: securityStock
+      };
+      batchPayload.push(payload);
+    }
   } else {
     // Crear variantes
     for (const [size, stock] of Object.entries(sizeStocks)) {
