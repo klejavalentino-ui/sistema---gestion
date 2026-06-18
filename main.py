@@ -1292,7 +1292,8 @@ def create_sale():
             "date": str(date),
             "total": safe_float(total),
             "method": str(method),
-            "items": items
+            "items": items,
+            "extras": data.get("extras", {})
         }
         
         res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)

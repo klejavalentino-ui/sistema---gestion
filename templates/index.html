@@ -479,12 +479,33 @@
               </h3>
               
               <form id="stock-intake-form" onsubmit="handleStockIntakeSubmit(event)">
+                <!-- Tipo de Ingreso -->
+                <div class="form-group">
+                  <label class="form-label">Tipo de Ingreso</label>
+                  <div style="display: flex; gap: 16px; margin-top: 6px;">
+                    <label style="font-size: 0.85rem; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                      <input type="radio" name="intake-type" value="producto" checked onchange="toggleIntakeFormType()" style="accent-color: var(--accent-emerald);"> Producto de Inventario
+                    </label>
+                    <label style="font-size: 0.85rem; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                      <input type="radio" name="intake-type" value="adicional" onchange="toggleIntakeFormType()" style="accent-color: var(--accent-emerald);"> Adicional / Insumo
+                    </label>
+                  </div>
+                </div>
+
                 <!-- Producto a Reponer -->
-                <div class="form-group" style="position: relative;">
+                <div class="form-group" style="position: relative;" id="intake-product-container">
                   <label class="form-label">Producto a Reponer</label>
                   <input type="text" id="intake-product-search" class="form-input" placeholder="🔍 Escanear código o buscar nombre.." autocomplete="off">
                   <input type="hidden" id="intake-product-sku">
                   <div id="intake-search-results" class="autocomplete-dropdown" style="display: none;"></div>
+                </div>
+
+                <!-- Adicional a Reponer -->
+                <div class="form-group" style="display: none;" id="intake-extra-container">
+                  <label class="form-label">Adicional / Insumo a Reponer</label>
+                  <select id="intake-extra-item-select" class="form-select" onchange="loadIntakeExtraDetails()">
+                    <option value="">Seleccionar adicional..</option>
+                  </select>
                 </div>
 
                 <!-- Proveedor -->
@@ -545,7 +566,7 @@
                 <!-- Adicionales Grid -->
                 <div class="grid-2">
                   <div class="form-group">
-                    <label class="form-label">Materia Prima (Opcional)</label>
+                    <label class="form-label" id="intake-materia-prima-label">Materia Prima (Opcional)</label>
                     <input type="number" id="intake-materia-prima" class="form-input" placeholder="$ 0" min="0" step="0.01">
                     <div id="intake-materia-prima-current" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; font-weight: 700; font-size: 0.75rem; color: #fff; justify-content: space-between; margin-top: 8px; align-items: center;">
                       <span style="color: var(--text-gray); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;">MATERIA PRIMA</span>
@@ -560,7 +581,7 @@
                 </div>
 
                 <div class="grid-2">
-                  <div class="form-group">
+                  <div class="form-group" id="intake-margin-container">
                     <label class="form-label">Margen (%) (Opcional)</label>
                     <input type="number" id="intake-margin" class="form-input" placeholder="% 0" min="0" step="0.1">
                   </div>
@@ -576,7 +597,7 @@
                     <span>Costo Unitario Total Calculado:</span>
                     <span id="intake-total-cost-preview" style="color: var(--accent-emerald); font-weight: 800;">$0</span>
                   </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);" id="intake-price-preview-container">
                     <span>Precio de Venta:</span>
                     <span id="intake-sale-price-preview" style="color: var(--text-white); font-weight: 800;">$0</span>
                   </div>
@@ -1086,7 +1107,15 @@
       <div id="checkout-step-success" style="display: none;" class="p-12">
         <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
           <div style="width: 60px; height: 60px; border-radius: 50%; background: var(--accent-emerald); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 20px; box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);">✓</div>
-          <h3 style="font-size: 1.6rem; font-weight: 900; color: #fff;">¡Venta Registrada!</h3>
+          <h3 style="font-size: 1.6rem; font-weight: 900; color: #fff; margin-bottom: 24px;">¡Venta Registrada!</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 280px;">
+            <button id="checkout-print-btn" class="btn btn-emerald" style="padding: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.95rem;">
+              <i class="fas fa-print"></i> Imprimir Ticket
+            </button>
+            <button class="btn btn-secondary" style="padding: 12px; font-size: 0.9rem;" onclick="closeCheckoutModalAndReset()">
+              Nueva Venta / Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>

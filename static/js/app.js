@@ -1774,6 +1774,52 @@ function closeCheckoutModal() {
   document.getElementById("checkout-modal").className = "modal-backdrop";
 }
 
+function closeCheckoutModalAndReset() {
+  closeCheckoutModal();
+  refreshState();
+}
+
+async function consumePOSExtras(cart, selectedExtras) {
+  if (!selectedExtras || Object.keys(selectedExtras).length === 0) return;
+  
+  let updated = false;
+  
+  Object.keys(selectedExtras).forEach(catKey => {
+    const extraId = selectedExtras[catKey];
+    if (extraId && extraId !== "0") {
+      // Calcular cantidad consumida
+      let consumedQty = 0;
+      cart.forEach(item => {
+        const p = item.product;
+        const extrasObj = p.extras || {};
+        let hasStatic = false;
+        if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+        else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+        else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+        
+        if (!hasStatic) {
+          consumedQty += (parseInt(item.quantity) || 0);
+        }
+      });
+      
+      if (consumedQty > 0) {
+        const options = state.extras[catKey] || [];
+        const option = options.find(o => o.id === extraId);
+        if (option) {
+          const currentStock = option.stock !== undefined && option.stock !== null ? option.stock : 0;
+          option.stock = Math.max(0, currentStock - consumedQty);
+          updated = true;
+        }
+      }
+    }
+  });
+  
+  if (updated) {
+    // Guardar en Firebase
+    await apiRequest("/api/extras", "POST", state.extras);
+  }
+}
+
 async function confirmPayment(method) {
   const total = parseFloat(document.getElementById("pos-cart-total-val").dataset.total) || 0;
   const totalUnits = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
@@ -1821,17 +1867,23 @@ async function confirmPayment(method) {
   };
 
   try {
-    await apiRequest("/api/sales", "POST", salePayload);
-    
+    // Descontar adicionales de la venta
+    await consumePOSExtras(state.cart, extras);
+
+    const registeredSale = await apiRequest("/api/sales", "POST", salePayload);
+    const saleId = registeredSale.id || `V-${Math.floor(Math.random()*10000)}`;
+
     // Avanzar a step 3 (éxito)
     document.getElementById("checkout-step-method").style.display = "none";
     document.getElementById("checkout-step-success").style.display = "block";
     
+    // Configurar botón de impresión
+    const printBtn = document.getElementById("checkout-print-btn");
+    if (printBtn) {
+      printBtn.onclick = () => printSaleTicket(saleId);
+    }
+    
     state.cart = [];
-    setTimeout(() => {
-      closeCheckoutModal();
-      refreshState();
-    }, 1500);
   } catch (error) {
     showToast(error.message, true);
   }
@@ -1923,6 +1975,9 @@ async function submitCheckoutFinance() {
       extras: extras
     };
 
+    // Descontar adicionales de la venta
+    await consumePOSExtras(state.cart, extras);
+
     // Submit venta
     const registeredSale = await apiRequest("/api/sales", "POST", salePayload);
     const saleId = registeredSale.id || `V-${Math.floor(Math.random()*10000)}`;
@@ -1939,11 +1994,13 @@ async function submitCheckoutFinance() {
     document.getElementById("checkout-step-finance").style.display = "none";
     document.getElementById("checkout-step-success").style.display = "block";
     
+    // Configurar botón de impresión
+    const printBtn = document.getElementById("checkout-print-btn");
+    if (printBtn) {
+      printBtn.onclick = () => printSaleTicket(saleId);
+    }
+    
     state.cart = [];
-    setTimeout(() => {
-      closeCheckoutModal();
-      refreshState();
-    }, 1500);
   } catch (error) {
     showToast(error.message, true);
   }
@@ -1999,13 +2056,16 @@ function openSalesHistoryModal() {
             <span style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ ${Math.round(sale.total).toLocaleString()}</span>
             <span class="badge ${badgeClass}" style="margin-left: 8px;">${sale.method}</span>
           </div>
-          <span style="font-size: 0.7rem; color: var(--text-gray); font-family: monospace;">ID: ${sale.id}</span>
+          <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="printSaleTicket('${sale.id}')">
+            <i class="fas fa-print"></i> Imprimir
+          </button>
         </div>
         <p style="font-size: 0.75rem; color: var(--text-gray); margin-bottom: 12px;">📅 ${dateStr}</p>
-        <div style="background: var(--bg-input); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.75rem; line-height: 1.5; color: var(--text-gray-light);">
+        <div style="background: var(--bg-input); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.75rem; line-height: 1.5; color: var(--text-gray-light); margin-bottom: 6px;">
           ${itemsText}
           ${extrasText}
         </div>
+        <div style="font-size: 0.7rem; color: var(--text-gray); font-family: monospace; text-align: right;">ID: ${sale.id}</div>
       `;
       list.appendChild(el);
     });
@@ -2016,6 +2076,257 @@ function openSalesHistoryModal() {
 
 function closeSalesHistoryModal() {
   document.getElementById("sales-history-modal").className = "modal-backdrop";
+}
+
+function printSaleTicket(saleId) {
+  const sale = state.sales.find(s => s.id === saleId);
+  if (!sale) {
+    showToast("Venta no encontrada para imprimir", true);
+    return;
+  }
+
+  const dateObj = new Date(sale.date);
+  const dateStr = dateObj.toLocaleDateString('es-AR');
+  const timeStr = dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+
+  // Calcular items con sus precios reales
+  let itemsHtml = "";
+  if (sale.items) {
+    sale.items.forEach(item => {
+      const p = item.product || {};
+      const extrasObj = p.extras || {};
+      let itemExtraCost = 0;
+
+      if (sale.extras) {
+        Object.keys(sale.extras).forEach(catKey => {
+          const extraId = sale.extras[catKey];
+          if (extraId && extraId !== "0") {
+            let hasStatic = false;
+            if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+            else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+            else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+            if (!hasStatic) {
+              itemExtraCost += getExtraCost(catKey, extraId);
+            }
+          }
+        });
+      }
+
+      const finalUnitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
+      const unitPrice = finalUnitCost * (1 + (parseFloat(p.margin) || 0) / 100);
+      const subtotal = unitPrice * item.quantity;
+      const variantText = (state.businessType === "comercio" || p.size === "Único" || !item.size) ? "" : ` (${item.size})`;
+
+      itemsHtml += `
+        <tr>
+          <td style="font-size: 11px;">
+            ${p.name}${variantText}
+            ${itemExtraCost > 0 ? `<br><span style="font-size: 9px; color: #555;">+ Adic. ($${Math.round(itemExtraCost * (1 + (parseFloat(p.margin) || 0) / 100))})</span>` : ""}
+          </td>
+          <td class="text-right" style="font-size: 11px;">${item.quantity}</td>
+          <td class="text-right" style="font-size: 11px;">$${Math.round(subtotal).toLocaleString('es-AR')}</td>
+        </tr>
+      `;
+    });
+  }
+
+  // Adicionales globales informativos
+  let extrasHtml = "";
+  if (sale.extras && Object.keys(sale.extras).length > 0) {
+    const parts = [];
+    Object.keys(sale.extras).forEach(catKey => {
+      const extraId = sale.extras[catKey];
+      if (extraId && extraId !== "0") {
+        const list = state.extras[catKey] || [];
+        const found = list.find(o => o.id === extraId);
+        if (found) {
+          const friendlyCat = catKey === "estampados" ? "Estampado" : catKey === "bordados" ? "Bordado" : "Packaging";
+          parts.push(`${friendlyCat}: ${found.name}`);
+        }
+      }
+    });
+    if (parts.length > 0) {
+      extrasHtml = `
+        <div class="separator"></div>
+        <div style="font-size: 10px; margin-bottom: 5px;">
+          <span class="bold">Adicionales aplicados:</span><br>
+          ${parts.map(p => `• ${p}`).join('<br>')}
+        </div>
+      `;
+    }
+  }
+
+  // Si el sector es textil, agregar ticket de cambio
+  let exchangeTicketHtml = "";
+  if (state.businessType === "textil") {
+    const limitDate = new Date(dateObj.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const limitDateStr = limitDate.toLocaleDateString('es-AR');
+    
+    let exchangeItemsList = "";
+    if (sale.items) {
+      exchangeItemsList = sale.items.map(item => `• ${item.quantity} u. x ${item.product.name} (${item.size})`).join('<br>');
+    }
+
+    exchangeTicketHtml = `
+      <div class="exchange-ticket text-center">
+        <h3 class="bold" style="font-size: 14px; margin: 0 0 5px 0; letter-spacing: 1px;">TICKET DE CAMBIO</h3>
+        <p style="font-size: 10px; margin: 0 0 10px 0;">Valido por 30 dias (Hasta el ${limitDateStr})</p>
+        <div class="separator"></div>
+        <div style="text-align: left; font-size: 11px; margin: 10px 0;">
+          <span class="bold">Detalle de prendas:</span><br>
+          ${exchangeItemsList}
+        </div>
+        <div class="separator"></div>
+        <p style="font-size: 9px; margin-top: 10px; font-style: italic;">Conserve este ticket para realizar el cambio en el local.</p>
+      </div>
+    `;
+  }
+
+  // Construir HTML final
+  const ticketHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Ticket ${sale.id}</title>
+      <style>
+        @page {
+          margin: 0;
+        }
+        body {
+          font-family: 'Courier New', Courier, monospace;
+          font-size: 12px;
+          line-height: 1.3;
+          color: #000;
+          background: #fff;
+          margin: 0;
+          padding: 10px;
+          width: 72mm;
+          box-sizing: border-box;
+        }
+        .text-center {
+          text-align: center;
+        }
+        .text-right {
+          text-align: right;
+        }
+        .bold {
+          font-weight: bold;
+        }
+        .header {
+          margin-bottom: 10px;
+        }
+        .non-fiscal {
+          font-size: 10px;
+          border: 1px solid #000;
+          padding: 4px;
+          margin: 5px 0;
+          display: inline-block;
+          font-weight: bold;
+        }
+        .separator {
+          border-top: 1px dashed #000;
+          margin: 8px 0;
+        }
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 10px 0;
+        }
+        .items-table th {
+          border-bottom: 1px dashed #000;
+          text-align: left;
+          font-weight: bold;
+          padding: 4px 0;
+        }
+        .items-table td {
+          padding: 4px 0;
+          vertical-align: top;
+        }
+        .totals {
+          margin-top: 10px;
+          font-size: 12px;
+        }
+        .totals-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 4px;
+        }
+        .footer {
+          margin-top: 15px;
+          font-size: 10px;
+        }
+        .exchange-ticket {
+          margin-top: 20px;
+          padding-top: 15px;
+          border-top: 1px dashed #000;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header text-center">
+        <div class="non-fiscal">DOCUMENTO NO VALIDO COMO FACTURA</div>
+        <h2 style="margin: 5px 0; font-size: 16px;">${state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO"}</h2>
+        <p style="margin: 2px 0; font-size: 10px;">${state.email || ""}</p>
+        <p style="margin: 2px 0; font-size: 10px;">Fecha: ${dateStr} - ${timeStr}</p>
+        <p style="margin: 2px 0; font-size: 10px; font-family: monospace;">TICKET N°: ${sale.id}</p>
+      </div>
+      
+      <div class="separator"></div>
+      
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Detalle</th>
+            <th class="text-right">Cant</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+      
+      <div class="separator"></div>
+      
+      <div class="totals">
+        <div class="totals-row">
+          <span>Metodo Pago:</span>
+          <span class="bold">${sale.method}</span>
+        </div>
+        <div class="totals-row" style="font-size: 14px; margin-top: 8px;">
+          <span class="bold">TOTAL:</span>
+          <span class="bold">$${Math.round(sale.total).toLocaleString('es-AR')}</span>
+        </div>
+      </div>
+      
+      ${extrasHtml}
+      
+      <div class="separator"></div>
+      
+      <div class="footer text-center">
+        <p style="margin: 5px 0;">¡Muchas gracias por su compra!</p>
+      </div>
+      
+      ${exchangeTicketHtml}
+    </body>
+    </html>
+  `;
+
+  // Abrir ventana e imprimir
+  const printWindow = window.open("", "_blank", "width=600,height=800");
+  if (printWindow) {
+    printWindow.document.write(ticketHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  } else {
+    showToast("Permiso de ventanas emergentes bloqueado. Por favor, habilítelo para poder imprimir.", true);
+  }
 }
 
 function exportSalesHistory() {
@@ -2900,6 +3211,17 @@ function setupStockIntakeForm() {
   
   populateIntakeSuppliers();
   populateIntakeExtras();
+  populateIntakeExtrasDropdown();
+  
+  // Resetear radios a Producto por defecto
+  const prodRadio = document.querySelector('input[name="intake-type"][value="producto"]');
+  if (prodRadio) {
+    prodRadio.checked = true;
+  }
+  const prodContainer = document.getElementById("intake-product-container");
+  if (prodContainer) prodContainer.style.display = "block";
+  const extraContainer = document.getElementById("intake-extra-container");
+  if (extraContainer) extraContainer.style.display = "none";
   
   // Listeners para recálculos
   const inputsToRecalc = [
@@ -2931,6 +3253,98 @@ function setupStockIntakeForm() {
       resultsDiv.style.display = "none";
     }
   });
+}
+
+function populateIntakeExtrasDropdown() {
+  const select = document.getElementById("intake-extra-item-select");
+  if (!select) return;
+  
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">Seleccionar adicional..</option>';
+  
+  Object.keys(state.extras).forEach(catKey => {
+    const title = getCategoryTitle(catKey);
+    const options = state.extras[catKey] || [];
+    if (options.length === 0) return;
+    
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = title;
+    
+    options.forEach(opt => {
+      const o = document.createElement("option");
+      o.value = `${catKey}:${opt.id}`;
+      o.innerText = `${opt.name} (Costo actual: $${opt.cost})`;
+      optgroup.appendChild(o);
+    });
+    select.appendChild(optgroup);
+  });
+  
+  select.value = currentVal;
+}
+
+function loadIntakeExtraDetails() {
+  const select = document.getElementById("intake-extra-item-select");
+  if (!select) return;
+  
+  const val = select.value;
+  if (!val) {
+    document.getElementById("intake-materia-prima").value = "";
+    recalculateIntakeCosts();
+    return;
+  }
+  
+  const [catKey, optionId] = val.split(":");
+  const options = state.extras[catKey] || [];
+  const option = options.find(o => o.id === optionId);
+  if (option) {
+    document.getElementById("intake-materia-prima").value = option.cost;
+  }
+  
+  recalculateIntakeCosts();
+}
+
+function toggleIntakeFormType() {
+  const typeVal = document.querySelector('input[name="intake-type"]:checked').value;
+  const isProd = (typeVal === "producto");
+  
+  document.getElementById("intake-product-container").style.display = isProd ? "block" : "none";
+  document.getElementById("intake-extra-container").style.display = isProd ? "none" : "block";
+  
+  if (isProd) {
+    const isComercio = (state.businessType === "comercio");
+    document.getElementById("intake-talles-container").style.display = isComercio ? "none" : "block";
+    document.getElementById("intake-simple-qty-container").style.display = isComercio ? "block" : "none";
+    document.getElementById("intake-extras-container").style.display = "grid";
+    document.getElementById("intake-materia-prima-label").innerText = "Materia Prima (Opcional)";
+    document.getElementById("intake-margin-container").style.display = "block";
+    document.getElementById("intake-price-preview-container").style.display = "flex";
+  } else {
+    document.getElementById("intake-talles-container").style.display = "none";
+    document.getElementById("intake-simple-qty-container").style.display = "block";
+    document.getElementById("intake-extras-container").style.display = "none";
+    document.getElementById("intake-materia-prima-label").innerText = "Costo Unitario de Compra ($)";
+    document.getElementById("intake-materia-prima-current").style.display = "none";
+    document.getElementById("intake-margin-container").style.display = "none";
+    document.getElementById("intake-price-preview-container").style.display = "none";
+  }
+  
+  document.getElementById("intake-product-sku").value = "";
+  document.getElementById("intake-product-search").value = "";
+  document.getElementById("intake-extra-item-select").value = "";
+  document.getElementById("intake-materia-prima").value = "";
+  document.getElementById("intake-margin").value = "";
+  
+  const qtySimple = document.getElementById("intake-qty-simple");
+  if (qtySimple) qtySimple.value = "";
+  
+  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'U'].forEach(sz => {
+    const el = document.getElementById(`intake-qty-${sz}`);
+    if (el) el.value = "";
+    const stEl = document.getElementById(`intake-stock-${sz}`);
+    if (stEl) stEl.style.display = "none";
+  });
+  
+  recalculateIntakeCosts();
 }
 
 function clearIntakePreviews() {
@@ -3176,17 +3590,113 @@ function populateIntakeExtras(product = null) {
 async function handleStockIntakeSubmit(e) {
   e.preventDefault();
   
-  const selectedSku = document.getElementById("intake-product-sku").value;
+  const typeEl = document.querySelector('input[name="intake-type"]:checked');
+  const type = typeEl ? typeEl.value : "producto";
+  const isProd = (type === "producto");
+  
   const supplierName = document.getElementById("intake-supplier-select").value;
   const dateVal = document.getElementById("intake-date").value;
   
-  if (!selectedSku) {
-    showToast("Por favor, selecciona un producto a reponer.", true);
+  if (!supplierName) {
+    showToast("Por favor, selecciona un proveedor.", true);
     return;
   }
   
-  if (!supplierName) {
-    showToast("Por favor, selecciona un proveedor.", true);
+  if (!isProd) {
+    // Ingreso de Adicional / Insumo
+    const extraSelect = document.getElementById("intake-extra-item-select");
+    const extraVal = extraSelect ? extraSelect.value : "";
+    if (!extraVal) {
+      showToast("Por favor, selecciona un adicional a reponer.", true);
+      return;
+    }
+    
+    const [catKey, optionId] = extraVal.split(":");
+    const qty = parseInt(document.getElementById("intake-qty-simple").value) || 0;
+    if (qty <= 0) {
+      showToast("Por favor, ingresa una cantidad mayor a 0.", true);
+      return;
+    }
+    
+    const unitCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
+    const totalCost = unitCost * qty;
+    
+    const options = state.extras[catKey] || [];
+    const option = options.find(o => o.id === optionId);
+    if (!option) {
+      showToast("Adicional no encontrado.", true);
+      return;
+    }
+    
+    // Incrementar stock físico del adicional y actualizar su costo unitario
+    option.stock = (option.stock !== undefined && option.stock !== null ? option.stock : 0) + qty;
+    option.cost = unitCost;
+    
+    try {
+      showToast("Registrando ingreso de adicional...");
+      
+      // 1. Guardar la configuración de adicionales actualizada en Firebase
+      await apiRequest("/api/extras", "POST", state.extras);
+      
+      // 2. Guardar documento de transacción de ingreso (stockintake_)
+      const intakePayload = {
+        productSku: optionId,
+        productName: `Adicional: ${option.name}`,
+        supplierName: supplierName,
+        quantities: { 'Único': qty },
+        totalQuantity: qty,
+        unitCost: unitCost,
+        totalCost: totalCost,
+        date: dateVal,
+        timestamp: Date.now(),
+        isExtra: true
+      };
+      await apiRequest("/api/stock-intakes", "POST", intakePayload);
+      
+      // 3. Registrar el egreso en Caja Diaria
+      const cajaPayload = {
+        description: `Compra de insumo: ${option.name} - ${supplierName}`,
+        type: "expense",
+        amount: totalCost,
+        date: dateVal + "T12:00:00.000Z"
+      };
+      await apiRequest("/api/cash-transactions", "POST", cajaPayload);
+      
+      showToast("¡Stock e ingreso de adicional registrados con éxito!");
+      
+      // Limpiar inputs del formulario
+      document.getElementById("stock-intake-form").reset();
+      document.getElementById("intake-product-sku").value = "";
+      document.getElementById("intake-extra-item-select").value = "";
+      document.getElementById("intake-total-cost-preview").innerText = "$0";
+      document.getElementById("intake-sale-price-preview").innerText = "$0";
+      clearIntakePreviews();
+      
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById("intake-date").value = `${yyyy}-${mm}-${dd}`;
+      
+      // Volver a vista de producto por defecto
+      const prodRadio = document.querySelector('input[name="intake-type"][value="producto"]');
+      if (prodRadio) {
+        prodRadio.checked = true;
+        toggleIntakeFormType();
+      }
+      
+      await refreshState();
+      
+    } catch (error) {
+      showToast(error.message, true);
+    }
+    return;
+  }
+  
+  // Ingreso de Producto de Inventario (Existente)
+  const selectedSku = document.getElementById("intake-product-sku").value;
+  if (!selectedSku) {
+    showToast("Por favor, selecciona un producto a reponer.", true);
     return;
   }
   
@@ -4718,11 +5228,13 @@ function renderExtrasConfig() {
       optionsHtml = `<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 15px 0;">No hay opciones creadas.</div>`;
     } else {
       options.forEach(opt => {
+        const stockVal = opt.stock !== undefined && opt.stock !== null ? opt.stock : 0;
         optionsHtml += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 6px;">
             <div>
               <span style="font-size: 0.8rem; font-weight: 700; color: #fff;">${opt.name}</span>
               <span style="font-size: 0.75rem; color: var(--accent-blue); font-weight: 700; margin-left: 8px;">$${Math.round(opt.cost).toLocaleString('es-AR')}</span>
+              <span style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700; margin-left: 8px;">Stock: ${stockVal} u.</span>
             </div>
             <div style="display: flex; gap: 4px;">
               <button class="btn-action" style="width:24px; height:24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); color: #3b82f6;" onclick="editExtraOption('${catKey}', '${opt.id}')">✏️</button>
@@ -5115,8 +5627,8 @@ async function addExtraOption(e, categoryKey) {
     return;
   }
 
-  // Agregar opción
-  state.extras[categoryKey].push({ id, name, cost });
+  // Agregar opción con stock inicial = 0
+  state.extras[categoryKey].push({ id, name, cost, stock: 0 });
 
   try {
     showToast("Guardando opción...");
@@ -5156,13 +5668,24 @@ async function editExtraOption(categoryKey, optionId) {
     return;
   }
 
-  // Actualizar precio
+  const currentStock = option.stock !== undefined && option.stock !== null ? option.stock : 0;
+  const newStockStr = prompt(`Editar stock físico para "${option.name}":`, currentStock);
+  if (newStockStr === null) return; // cancelado
+
+  const newStock = parseInt(newStockStr);
+  if (isNaN(newStock) || newStock < 0) {
+    showToast("Stock inválido", true);
+    return;
+  }
+
+  // Actualizar
   option.cost = newPrice;
+  option.stock = newStock;
 
   try {
-    showToast("Actualizando precio...");
+    showToast("Actualizando adicional...");
     await apiRequest("/api/extras", "POST", state.extras);
-    showToast("Precio actualizado con éxito");
+    showToast("Adicional actualizado con éxito");
     refreshState();
   } catch (error) {
     showToast(error.message, true);
