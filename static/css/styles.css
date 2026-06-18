@@ -495,6 +495,7 @@ input[type=number] {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .pos-cart-title {
@@ -521,7 +522,7 @@ input[type=number] {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 200px;
+  min-height: 80px;
 }
 
 .pos-cart-empty {
@@ -646,6 +647,11 @@ input[type=number] {
   padding: 16px;
   border-top: 1px solid var(--border-color);
   background: var(--bg-dark);
+  flex-shrink: 0;
+}
+
+.pos-cart-extras-container {
+  flex-shrink: 0;
 }
 
 .pos-cart-total-row {

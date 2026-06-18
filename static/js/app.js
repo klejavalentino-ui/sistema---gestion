@@ -922,21 +922,30 @@ function renderPanel() {
 
   // Resultado Operativo: Ventas - Costo Físico de Prendas Vendidas
   const totalOperativo = filteredSales.reduce((sum, sale) => {
-    let extraCostPerUnit = 0;
-    if (sale.extras) {
-      Object.keys(sale.extras).forEach(catKey => {
-        const extraId = sale.extras[catKey];
-        if (extraId && extraId !== "0") {
-          const list = state.extras[catKey] || [];
-          const found = list.find(o => o.id === extraId);
-          if (found) {
-            extraCostPerUnit += parseFloat(found.cost) || 0;
-          }
-        }
-      });
-    }
     const saleCost = sale.items ? sale.items.reduce((itemSum, item) => {
-      const itemCost = (parseFloat(item.product.cost) || 0) + extraCostPerUnit;
+      const p = item.product || {};
+      const extrasObj = p.extras || {};
+      let itemExtraCost = 0;
+      if (sale.extras) {
+        Object.keys(sale.extras).forEach(catKey => {
+          const extraId = sale.extras[catKey];
+          if (extraId && extraId !== "0") {
+            let hasStatic = false;
+            if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+            else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+            else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+            if (!hasStatic) {
+              const list = state.extras[catKey] || [];
+              const found = list.find(o => o.id === extraId);
+              if (found) {
+                itemExtraCost += parseFloat(found.cost) || 0;
+              }
+            }
+          }
+        });
+      }
+      const itemCost = (parseFloat(p.cost) || 0) + itemExtraCost;
       return itemSum + (itemCost * (parseInt(item.quantity) || 0));
     }, 0) : 0;
     return sum + (sale.total - saleCost);
@@ -1191,23 +1200,33 @@ function exportPanelToExcel() {
   // 1. Hoja: Panel
   const panelData = [];
   filteredSales.forEach(sale => {
-    let extraCostPerUnit = 0;
-    if (sale.extras) {
-      Object.keys(sale.extras).forEach(catKey => {
-        const extraId = sale.extras[catKey];
-        if (extraId && extraId !== "0") {
-          const list = state.extras[catKey] || [];
-          const found = list.find(o => o.id === extraId);
-          if (found) {
-            extraCostPerUnit += parseFloat(found.cost) || 0;
-          }
-        }
-      });
-    }
     if (sale.items) {
       sale.items.forEach(item => {
-        const cost = (parseFloat(item.product.cost) || 0) + extraCostPerUnit;
-        const margin = parseFloat(item.product.margin) || 0;
+        const p = item.product || {};
+        const extrasObj = p.extras || {};
+        let itemExtraCost = 0;
+        if (sale.extras) {
+          Object.keys(sale.extras).forEach(catKey => {
+            const extraId = sale.extras[catKey];
+            if (extraId && extraId !== "0") {
+              let hasStatic = false;
+              if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+              else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+              else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+              if (!hasStatic) {
+                const list = state.extras[catKey] || [];
+                const found = list.find(o => o.id === extraId);
+                if (found) {
+                  itemExtraCost += parseFloat(found.cost) || 0;
+                }
+              }
+            }
+          });
+        }
+
+        const cost = (parseFloat(p.cost) || 0) + itemExtraCost;
+        const margin = parseFloat(p.margin) || 0;
         const price = cost * (1 + margin / 100);
         
         const units = parseInt(item.quantity) || 0;
@@ -1217,8 +1236,8 @@ function exportPanelToExcel() {
         
         panelData.push({
           "Tiempo": formatExcelDate(sale.date),
-          "Producto": item.product.name,
-          "Variante": `${item.product.color || "Único"} - ${item.size}`,
+          "Producto": p.name,
+          "Variante": `${p.color || "Único"} - ${item.size}`,
           "Ventas T": Math.round(ventasT),
           "Unidades": units,
           "Costo O": Math.round(costoO),
@@ -1561,24 +1580,34 @@ function renderPOSCart(recalc = true) {
 
   cobrarBtn.disabled = false;
 
-  // Calcular adicionales por unidad (Textil)
-  let extraCostPerUnit = 0;
-  if (state.businessType === "textil") {
-    Object.keys(state.extras).forEach(catKey => {
-      const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
-      if (select) {
-        const val = select.value;
-        if (val && val !== "0") {
-          extraCostPerUnit += getExtraCost(catKey, val);
-        }
-      }
-    });
-  }
-
   let total = 0;
   state.cart.forEach(item => {
+    // Calcular adicionales aplicables por unidad a este producto específico
+    let itemExtraCost = 0;
+    if (state.businessType === "textil") {
+      Object.keys(state.extras).forEach(catKey => {
+        const p = item.product;
+        const extrasObj = p.extras || {};
+        let hasStatic = false;
+        if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+        else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+        else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+        // Solo sumar el costo del adicional si NO está incluido de forma estática en el inventario de este producto
+        if (!hasStatic) {
+          const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
+          if (select) {
+            const val = select.value;
+            if (val && val !== "0") {
+              itemExtraCost += getExtraCost(catKey, val);
+            }
+          }
+        }
+      });
+    }
+
     // sumar el costo adicional al del producto y aplicar margen
-    const finalUnitCost = item.product.cost + extraCostPerUnit;
+    const finalUnitCost = item.product.cost + itemExtraCost;
     const price = finalUnitCost * (1 + item.product.margin / 100);
     const itemTotal = price * (parseInt(item.quantity) || 0);
     total += itemTotal;
@@ -1624,15 +1653,37 @@ function renderPOSCartExtras() {
     return;
   }
 
-  section.style.display = "block";
-  const grid = document.getElementById("pos-cart-extras-grid");
-  if (grid.children.length > 0) return; // Ya renderizado, no sobreescribir para no perder selección
+  // Guardar selecciones anteriores antes de limpiar el contenedor
+  const previousSelections = {};
+  Object.keys(state.extras).forEach(catKey => {
+    const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
+    if (select) {
+      previousSelections[catKey] = select.value;
+    }
+  });
 
+  const grid = document.getElementById("pos-cart-extras-grid");
   grid.innerHTML = "";
+
+  let visibleCount = 0;
 
   Object.keys(state.extras).forEach(catKey => {
     const options = state.extras[catKey] || [];
     if (options.length === 0) return;
+
+    // Omitir si TODOS los productos del carrito ya lo tienen incluido estáticamente
+    const allHaveStatic = state.cart.every(item => {
+      const p = item.product;
+      const extrasObj = p.extras || {};
+      if (catKey === "estampados") return !!(p.estampadoId || extrasObj.estampados);
+      if (catKey === "packagings") return !!(p.packagingId || extrasObj.packagings);
+      if (catKey === "bordados") return !!(p.bordadoId || extrasObj.bordados);
+      return false;
+    });
+
+    if (allHaveStatic) return;
+
+    visibleCount++;
 
     const labelMap = {
       estampados: "Estampado",
@@ -1673,6 +1724,13 @@ function renderPOSCartExtras() {
       select.appendChild(o);
     });
 
+    // Restaurar valor previo si es válido
+    if (previousSelections[catKey]) {
+      select.value = previousSelections[catKey];
+    } else {
+      select.value = "0";
+    }
+
     select.addEventListener("change", () => {
       renderPOSCart(true);
     });
@@ -1681,6 +1739,12 @@ function renderPOSCartExtras() {
     formGroup.appendChild(select);
     grid.appendChild(formGroup);
   });
+
+  if (visibleCount > 0) {
+    section.style.display = "block";
+  } else {
+    section.style.display = "none";
+  }
 }
 
 // POS Checkout Modal Flow
@@ -1957,11 +2021,14 @@ function closeSalesHistoryModal() {
 function exportSalesHistory() {
   const formatted = state.sales.flatMap(s => 
     s.items ? s.items.map(item => {
-      let extraCostPerUnit = 0;
+      let itemExtraCost = 0;
       let extraEstampado = "";
       let extraBordado = "";
       let extraPackaging = "";
       
+      const p = item.product || {};
+      const extrasObj = p.extras || {};
+
       if (s.extras) {
         Object.keys(s.extras).forEach(catKey => {
           const extraId = s.extras[catKey];
@@ -1969,25 +2036,34 @@ function exportSalesHistory() {
             const list = state.extras[catKey] || [];
             const found = list.find(o => o.id === extraId);
             if (found) {
-              extraCostPerUnit += parseFloat(found.cost) || 0;
               if (catKey === "estampados") extraEstampado = found.name;
               else if (catKey === "bordados") extraBordado = found.name;
               else if (catKey === "packagings") extraPackaging = found.name;
+
+              // Solo sumar el costo del adicional si NO está incluido de forma estática en el inventario de este producto
+              let hasStatic = false;
+              if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+              else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+              else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+              if (!hasStatic) {
+                itemExtraCost += parseFloat(found.cost) || 0;
+              }
             }
           }
         });
       }
 
-      const finalUnitCost = (parseFloat(item.product.cost) || 0) + extraCostPerUnit;
-      const price = finalUnitCost * (1 + (parseFloat(item.product.margin) || 0) / 100);
+      const finalUnitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
+      const price = finalUnitCost * (1 + (parseFloat(p.margin) || 0) / 100);
       return {
         ID_Venta: s.id,
         Fecha: new Date(s.date).toLocaleDateString(),
         Metodo: s.method,
-        Producto: item.product.name,
-        Categoria: item.product.category,
+        Producto: p.name,
+        Categoria: p.category,
         Talle: item.size,
-        Color: item.product.color,
+        Color: p.color,
         Cantidad: item.quantity,
         PrecioUnitario: Math.round(price),
         Adicional_Estampado: extraEstampado,
