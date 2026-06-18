@@ -125,15 +125,7 @@ function applyBusinessTypeUIUpdates() {
     if (intakeSimple) intakeSimple.style.display = "none";
   }
   
-  // 3. Inventory Table Headers
-  const tableHeaderRow = document.querySelector(".idx-table thead tr");
-  if (tableHeaderRow) {
-    const headers = tableHeaderRow.querySelectorAll("th");
-    if (headers.length >= 4) {
-      headers[2].innerText = isComercio ? "Variante" : "Color / Talle";
-      headers[3].innerText = isComercio ? "Stock" : "Stock Actual";
-    }
-  }
+
 
   // 4. Marketing Delivery label
   const mktDeliverySizeLabel = document.querySelector("label[for='mkt-delivery-size-select']");
