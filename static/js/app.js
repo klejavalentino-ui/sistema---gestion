@@ -922,8 +922,21 @@ function renderPanel() {
 
   // Resultado Operativo: Ventas - Costo Físico de Prendas Vendidas
   const totalOperativo = filteredSales.reduce((sum, sale) => {
+    let extraCostPerUnit = 0;
+    if (sale.extras) {
+      Object.keys(sale.extras).forEach(catKey => {
+        const extraId = sale.extras[catKey];
+        if (extraId && extraId !== "0") {
+          const list = state.extras[catKey] || [];
+          const found = list.find(o => o.id === extraId);
+          if (found) {
+            extraCostPerUnit += parseFloat(found.cost) || 0;
+          }
+        }
+      });
+    }
     const saleCost = sale.items ? sale.items.reduce((itemSum, item) => {
-      const itemCost = parseFloat(item.product.cost) || 0;
+      const itemCost = (parseFloat(item.product.cost) || 0) + extraCostPerUnit;
       return itemSum + (itemCost * (parseInt(item.quantity) || 0));
     }, 0) : 0;
     return sum + (sale.total - saleCost);
@@ -1178,9 +1191,22 @@ function exportPanelToExcel() {
   // 1. Hoja: Panel
   const panelData = [];
   filteredSales.forEach(sale => {
+    let extraCostPerUnit = 0;
+    if (sale.extras) {
+      Object.keys(sale.extras).forEach(catKey => {
+        const extraId = sale.extras[catKey];
+        if (extraId && extraId !== "0") {
+          const list = state.extras[catKey] || [];
+          const found = list.find(o => o.id === extraId);
+          if (found) {
+            extraCostPerUnit += parseFloat(found.cost) || 0;
+          }
+        }
+      });
+    }
     if (sale.items) {
       sale.items.forEach(item => {
-        const cost = parseFloat(item.product.cost) || 0;
+        const cost = (parseFloat(item.product.cost) || 0) + extraCostPerUnit;
         const margin = parseFloat(item.product.margin) || 0;
         const price = cost * (1 + margin / 100);
         
@@ -1515,18 +1541,45 @@ function renderPOSCart(recalc = true) {
   const totalItemsCount = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
   countBadge.innerText = `${totalItemsCount} items`;
 
+  // Renderizar o actualizar los selectores de adicionales del pedido
+  renderPOSCartExtras();
+
   if (state.cart.length === 0) {
     container.innerHTML = `<div class="pos-cart-empty"><p>El carrito está vacío</p></div>`;
     document.getElementById("pos-cart-total-val").innerText = "$ 0";
     cobrarBtn.disabled = true;
+    
+    // Resetear adicionales al vaciar el carrito
+    if (state.businessType === "textil") {
+      Object.keys(state.extras).forEach(catKey => {
+        const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
+        if (select) select.value = "0";
+      });
+    }
     return;
   }
 
   cobrarBtn.disabled = false;
 
+  // Calcular adicionales por unidad (Textil)
+  let extraCostPerUnit = 0;
+  if (state.businessType === "textil") {
+    Object.keys(state.extras).forEach(catKey => {
+      const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
+      if (select) {
+        const val = select.value;
+        if (val && val !== "0") {
+          extraCostPerUnit += getExtraCost(catKey, val);
+        }
+      }
+    });
+  }
+
   let total = 0;
   state.cart.forEach(item => {
-    const price = item.product.cost * (1 + item.product.margin / 100);
+    // sumar el costo adicional al del producto y aplicar margen
+    const finalUnitCost = item.product.cost + extraCostPerUnit;
+    const price = finalUnitCost * (1 + item.product.margin / 100);
     const itemTotal = price * (parseInt(item.quantity) || 0);
     total += itemTotal;
 
@@ -1555,6 +1608,79 @@ function renderPOSCart(recalc = true) {
     document.getElementById("pos-cart-total-val").innerText = `$ ${Math.round(total).toLocaleString()}`;
     document.getElementById("pos-cart-total-val").dataset.total = total;
   }
+}
+
+function renderPOSCartExtras() {
+  const section = document.getElementById("pos-cart-extras-section");
+  if (!section) return;
+
+  if (state.businessType !== "textil") {
+    section.style.display = "none";
+    return;
+  }
+
+  if (state.cart.length === 0) {
+    section.style.display = "none";
+    return;
+  }
+
+  section.style.display = "block";
+  const grid = document.getElementById("pos-cart-extras-grid");
+  if (grid.children.length > 0) return; // Ya renderizado, no sobreescribir para no perder selección
+
+  grid.innerHTML = "";
+
+  Object.keys(state.extras).forEach(catKey => {
+    const options = state.extras[catKey] || [];
+    if (options.length === 0) return;
+
+    const labelMap = {
+      estampados: "Estampado",
+      packagings: "Packaging",
+      bordados: "Bordado"
+    };
+    const friendlyName = labelMap[catKey] || catKey.charAt(0).toUpperCase() + catKey.slice(1);
+
+    const formGroup = document.createElement("div");
+    formGroup.style.display = "flex";
+    formGroup.style.flexDirection = "column";
+    formGroup.style.gap = "4px";
+
+    const label = document.createElement("label");
+    label.style.fontSize = "0.7rem";
+    label.style.fontWeight = "600";
+    label.style.color = "var(--text-gray)";
+    label.innerText = friendlyName;
+
+    const select = document.createElement("select");
+    select.id = `pos-cart-extra-select-${catKey}`;
+    select.className = "form-input";
+    select.style.padding = "6px 10px";
+    select.style.fontSize = "0.8rem";
+    select.style.background = "var(--bg-card)";
+    select.style.color = "#fff";
+    select.style.borderColor = "var(--border-color)";
+    
+    const defOpt = document.createElement("option");
+    defOpt.value = "0";
+    defOpt.innerText = `Sin ${friendlyName}`;
+    select.appendChild(defOpt);
+
+    options.forEach(opt => {
+      const o = document.createElement("option");
+      o.value = opt.id;
+      o.innerText = `${opt.name} (+$${Math.round(opt.cost).toLocaleString()})`;
+      select.appendChild(o);
+    });
+
+    select.addEventListener("change", () => {
+      renderPOSCart(true);
+    });
+
+    formGroup.appendChild(label);
+    formGroup.appendChild(select);
+    grid.appendChild(formGroup);
+  });
 }
 
 // POS Checkout Modal Flow
@@ -1603,6 +1729,20 @@ async function confirmPayment(method) {
     return;
   }
 
+  // Recolectar adicionales del pedido
+  const extras = {};
+  if (state.businessType === "textil") {
+    Object.keys(state.extras).forEach(catKey => {
+      const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
+      if (select) {
+        const val = select.value;
+        if (val && val !== "0") {
+          extras[catKey] = val;
+        }
+      }
+    });
+  }
+
   // Registrar venta directa
   const salePayload = {
     date: new Date().toISOString(),
@@ -1612,7 +1752,8 @@ async function confirmPayment(method) {
       product: item.product,
       size: item.size,
       quantity: parseInt(item.quantity) || 1
-    }))
+    })),
+    extras: extras
   };
 
   try {
@@ -1690,6 +1831,20 @@ async function submitCheckoutFinance() {
       accId = account.id;
     }
 
+    // Recolectar adicionales del pedido
+    const extras = {};
+    if (state.businessType === "textil") {
+      Object.keys(state.extras).forEach(catKey => {
+        const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
+        if (select) {
+          const val = select.value;
+          if (val && val !== "0") {
+            extras[catKey] = val;
+          }
+        }
+      });
+    }
+
     // 2. Registrar venta de tipo Cta. Corriente
     const methodStr = `Cta. corriente (${paidAmount > 0 ? '$'+Math.round(paidAmount).toLocaleString()+' Pago' : 'Total'})`;
     const salePayload = {
@@ -1700,7 +1855,8 @@ async function submitCheckoutFinance() {
         product: item.product,
         size: item.size,
         quantity: parseInt(item.quantity) || 1
-      }))
+      })),
+      extras: extras
     };
 
     // Submit venta
@@ -1745,6 +1901,25 @@ function openSalesHistoryModal() {
       const itemsText = sale.items ? sale.items.map(item => `${item.quantity} un x ${item.product.name} (${item.size})`).join("<br>") : "";
       const dateStr = new Date(sale.date).toLocaleDateString('es-AR') + " " + new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       
+      let extrasText = "";
+      if (sale.extras && Object.keys(sale.extras).length > 0) {
+        const parts = [];
+        Object.keys(sale.extras).forEach(catKey => {
+          const extraId = sale.extras[catKey];
+          if (extraId && extraId !== "0") {
+            const list = state.extras[catKey] || [];
+            const found = list.find(o => o.id === extraId);
+            if (found) {
+              const friendlyCat = catKey === "estampados" ? "Estampado" : catKey === "bordados" ? "Bordado" : "Packaging";
+              parts.push(`- ${friendlyCat}: ${found.name}`);
+            }
+          }
+        });
+        if (parts.length > 0) {
+          extrasText = `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 0.7rem; color: var(--accent-blue); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Adicionales:<br>${parts.join("<br>")}</div>`;
+        }
+      }
+
       const el = document.createElement("div");
       el.style.borderBottom = "1px solid var(--border-color)";
       el.style.paddingBottom = "16px";
@@ -1765,6 +1940,7 @@ function openSalesHistoryModal() {
         <p style="font-size: 0.75rem; color: var(--text-gray); margin-bottom: 12px;">📅 ${dateStr}</p>
         <div style="background: var(--bg-input); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.75rem; line-height: 1.5; color: var(--text-gray-light);">
           ${itemsText}
+          ${extrasText}
         </div>
       `;
       list.appendChild(el);
@@ -1781,7 +1957,29 @@ function closeSalesHistoryModal() {
 function exportSalesHistory() {
   const formatted = state.sales.flatMap(s => 
     s.items ? s.items.map(item => {
-      const price = item.product.cost * (1 + item.product.margin / 100);
+      let extraCostPerUnit = 0;
+      let extraEstampado = "";
+      let extraBordado = "";
+      let extraPackaging = "";
+      
+      if (s.extras) {
+        Object.keys(s.extras).forEach(catKey => {
+          const extraId = s.extras[catKey];
+          if (extraId && extraId !== "0") {
+            const list = state.extras[catKey] || [];
+            const found = list.find(o => o.id === extraId);
+            if (found) {
+              extraCostPerUnit += parseFloat(found.cost) || 0;
+              if (catKey === "estampados") extraEstampado = found.name;
+              else if (catKey === "bordados") extraBordado = found.name;
+              else if (catKey === "packagings") extraPackaging = found.name;
+            }
+          }
+        });
+      }
+
+      const finalUnitCost = (parseFloat(item.product.cost) || 0) + extraCostPerUnit;
+      const price = finalUnitCost * (1 + (parseFloat(item.product.margin) || 0) / 100);
       return {
         ID_Venta: s.id,
         Fecha: new Date(s.date).toLocaleDateString(),
@@ -1792,6 +1990,9 @@ function exportSalesHistory() {
         Color: item.product.color,
         Cantidad: item.quantity,
         PrecioUnitario: Math.round(price),
+        Adicional_Estampado: extraEstampado,
+        Adicional_Bordado: extraBordado,
+        Adicional_Packaging: extraPackaging,
         TotalVenta: Math.round(s.total)
       };
     }) : []
