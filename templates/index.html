@@ -305,8 +305,12 @@
         <div class="idx-card" style="margin-top: 24px;">
           <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; color: var(--text-white);">Stock Crítico (Punto de Pedido)</h3>
           
+          <div id="panel-stock-critico-list" class="grid-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            <!-- Cargado dinámicamente -->
+          </div>
+
           <!-- EXPLICACIÓN PREMIUM DEL STOCK CRÍTICO -->
-          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 24px; font-size: 0.85rem; line-height: 1.6; color: var(--text-gray-light);">
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-top: 24px; font-size: 0.85rem; line-height: 1.6; color: var(--text-gray-light);">
             <p style="margin-bottom: 14px;">
               💡 <strong>¿Qué es el Stock Crítico?</strong><br>
               Es la cantidad mínima de unidades que debes tener de un producto antes de realizar un nuevo pedido de reposición al proveedor. Esto te ayuda a evitar el <strong>quiebre de stock</strong> (quedarte sin productos para vender) mientras el proveedor prepara y entrega tu pedido.
@@ -323,10 +327,6 @@
               <strong>Cálculo:</strong> (<strong style="color: #fca5a5;">2</strong> × <strong style="color: #fde047;">5</strong>) + <strong style="color: #86efac;">4</strong> = <strong style="color: var(--accent-red); font-size: 1rem;">14 unidades</strong>.<br>
               ✅ <strong>Conclusión:</strong> En el momento en que tu stock de alfajores llegue a <strong style="color: var(--accent-red);">14 unidades</strong>, debes realizar un nuevo pedido.
             </p>
-          </div>
-          
-          <div id="panel-stock-critico-list" class="grid-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-            <!-- Cargado dinámicamente -->
           </div>
         </div>
       </section>

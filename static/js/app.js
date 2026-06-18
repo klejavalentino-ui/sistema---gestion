@@ -1079,10 +1079,35 @@ function exportPanelToExcel() {
 
   const wsStock = XLSX.utils.json_to_sheet(criticalItems);
 
-  // Crear libro y añadir ambas hojas
+  // 3. Hoja: Explicación Stock Crítico
+  const explanationRows = [
+    ["Guía de Stock Crítico (Punto de Pedido)"],
+    [],
+    ["¿Qué es el Stock Crítico?"],
+    ["Es la cantidad mínima de unidades que debes tener de un producto antes de realizar un nuevo pedido de reposición al proveedor."],
+    ["Esto te ayuda a evitar el quiebre de stock (quedarte sin productos para vender) mientras el proveedor prepara y entrega tu pedido."],
+    [],
+    ["Fórmula de Cálculo:"],
+    ["Stock Crítico = (Venta Media Diaria × Tiempo de Entrega (Días)) + Stock de Seguridad"],
+    [],
+    ["Ejemplo Sencillo (Venta de Alfajores):"],
+    ["- Venta Media Diaria: 2 unidades/día (promedio vendido por día)"],
+    ["- Tiempo de Entrega del Proveedor: 5 días (tiempo en traer el pedido)"],
+    ["- Stock de Seguridad: 4 unidades (colchón extra por demoras)"],
+    [],
+    ["Cálculo:"],
+    ["(2 × 5) + 4 = 14 unidades"],
+    [],
+    ["Conclusión:"],
+    ["En el momento en que tu stock de alfajores llegue a 14 unidades, debes realizar un nuevo pedido."]
+  ];
+  const wsExplanation = XLSX.utils.aoa_to_sheet(explanationRows);
+
+  // Crear libro y añadir las tres hojas
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsPanel, "Panel");
   XLSX.utils.book_append_sheet(wb, wsStock, "Stock Critico");
+  XLSX.utils.book_append_sheet(wb, wsExplanation, "Explicacion Stock Critico");
   XLSX.writeFile(wb, `Reporte_Panel_${state.panelMonth}.xlsx`);
 }
 
