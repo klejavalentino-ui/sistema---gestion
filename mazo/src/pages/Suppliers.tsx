@@ -9,7 +9,7 @@ export default function Suppliers() {
   const availableCategories = categories;
 
   const [quantities, setQuantities] = useState<Record<string, string>>({
-    S: '', M: '', L: '', XL: '', XXL: '', 'Único': ''
+    XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': ''
   });
   const [unitCost, setUnitCost] = useState<string>('');
   const [margin, setMargin] = useState<string>('');
@@ -125,7 +125,7 @@ export default function Suppliers() {
     );
 
     // Reset form
-    setQuantities({ S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' });
+    setQuantities({ XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' });
     setUnitCost('');
     setMargin('');
     setSelectedEstampado('');
@@ -227,8 +227,8 @@ export default function Suppliers() {
               
               <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
                 <label className="block text-sm font-medium text-slate-300 mb-3">Cantidad a Ingresar por Talle</label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                  {['S', 'M', 'L', 'XL', 'XXL', 'Único'].map(sz => {
+                <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
+                  {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'].map(sz => {
                     const productForSize = selectedProduct 
                       ? products.find(p => p.baseSku === selectedProduct.baseSku && p.size === sz)
                       : null;

@@ -1938,7 +1938,7 @@ function openCreateProductModal() {
   document.getElementById("prod-ss").value = "";
   
   // Limpiar stocks de talles
-  ['S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
+  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
     document.getElementById(`stock-${sz}`).value = "";
     document.getElementById(`stock-${sz}`).readOnly = false;
   });
@@ -1991,7 +1991,7 @@ function openEditProductModal(sku) {
   const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
   const variants = state.products.filter(prod => prod.baseSku === cleanBase);
   
-  ['S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
+  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
     const input = document.getElementById(`stock-${sz}`);
     input.readOnly = false; // Permitir editar cualquier talle
     
@@ -2172,7 +2172,7 @@ async function saveProductForm(e) {
       variantCount++;
     }
   } else {
-    const talleMapping = { 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL', 'Unico': 'Único' };
+    const talleMapping = { 'XS': 'XS', 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL', 'Unico': 'Único' };
     for (const [idKey, szVal] of Object.entries(talleMapping)) {
       const inputVal = document.getElementById(`stock-${idKey}`).value;
       if (inputVal !== "") {
@@ -2595,7 +2595,7 @@ function setupStockIntakeForm() {
 }
 
 function clearIntakePreviews() {
-  ['S', 'M', 'L', 'XL', 'XXL', 'U'].forEach(key => {
+  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'U'].forEach(key => {
     const el = document.getElementById(`intake-stock-${key}`);
     if (el) {
       el.style.display = "none";
@@ -2701,6 +2701,7 @@ function selectIntakeProduct(sku) {
     }
   } else {
     const szMapping = {
+      'XS': 'XS',
       'S': 'S',
       'M': 'M',
       'L': 'L',
@@ -2857,7 +2858,7 @@ async function handleStockIntakeSubmit(e) {
   }
   
   const baseSku = selectedProduct.baseSku || 
-    (selectedProduct.sku.includes('-') && ['S','M','L','XL','XXL','U'].includes(selectedProduct.sku.split('-').pop()) 
+    (selectedProduct.sku.includes('-') && ['XS','S','M','L','XL','XXL','U'].includes(selectedProduct.sku.split('-').pop()) 
       ? selectedProduct.sku.split('-').slice(0, -1).join('-') 
       : selectedProduct.sku);
 
@@ -2867,6 +2868,7 @@ async function handleStockIntakeSubmit(e) {
     sizesInput = { 'Único': qty };
   } else {
     sizesInput = {
+      'XS': parseInt(document.getElementById("intake-qty-XS").value) || 0,
       'S': parseInt(document.getElementById("intake-qty-S").value) || 0,
       'M': parseInt(document.getElementById("intake-qty-M").value) || 0,
       'L': parseInt(document.getElementById("intake-qty-L").value) || 0,

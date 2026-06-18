@@ -488,7 +488,12 @@
                 <!-- Cantidades por Talle -->
                 <div class="form-group" id="intake-talles-container">
                   <label class="form-label">Cantidad a Ingresar por Talle</label>
-                  <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; text-align: center;">
+                  <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center;">
+                    <div>
+                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">XS</span>
+                      <input type="number" id="intake-qty-XS" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+                      <span id="intake-stock-XS" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+                    </div>
                     <div>
                       <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">S</span>
                       <input type="number" id="intake-qty-S" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
@@ -1201,7 +1206,11 @@
           <!-- Talles y Stock -->
           <div id="product-talles-card" class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
             <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Talles y Stock</label>
-            <div class="grid-3 sm:grid-6" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
+            <div class="grid-3 sm:grid-7" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
+              <div>
+                <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XS</label>
+                <input type="number" id="stock-XS" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+              </div>
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">S</label>
                 <input type="number" id="stock-S" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">

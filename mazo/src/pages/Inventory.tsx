@@ -24,7 +24,7 @@ export default function Inventory() {
   const [selectedPackaging, setSelectedPackaging] = useState<string>('');
   const [selectedBordado, setSelectedBordado] = useState<string>('');
   const [sizeStocks, setSizeStocks] = useState<Record<string, number | ''>>({
-    S: '', M: '', L: '', XL: '', XXL: '', 'Único': ''
+    XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': ''
   });
 
   // Category Modal State
@@ -63,7 +63,7 @@ export default function Inventory() {
     setSelectedEstampado('');
     setSelectedPackaging('');
     setSelectedBordado('');
-    setSizeStocks({ S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' });
+    setSizeStocks({ XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' });
     setIsModalOpen(true);
   };
 
@@ -80,7 +80,7 @@ export default function Inventory() {
     setSelectedBordado(product.bordadoId || '');
     
     const relatedProducts = products.filter(p => p.baseSku === product.baseSku);
-    const newSizeStocks: Record<string, number | ''> = { S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' };
+    const newSizeStocks: Record<string, number | ''> = { XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' };
     relatedProducts.forEach(p => {
       newSizeStocks[p.size] = p.stock;
     });
@@ -372,8 +372,8 @@ export default function Inventory() {
 
                 <div className="md:col-span-2 bg-slate-950/50 p-4 rounded-lg border border-slate-800">
                   <label className="block text-sm font-medium text-slate-300 mb-3">Talles y Stock</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
-                    {['S', 'M', 'L', 'XL', 'XXL', 'Único'].map(sz => (
+                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-4">
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'].map(sz => (
                       <div key={sz}>
                         <label className="block text-xs text-slate-500 mb-1 text-center font-medium">{sz}</label>
                         <input 
