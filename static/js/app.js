@@ -464,30 +464,38 @@ function handleExcelImport(event) {
         const name = String(cleanRow["proucto"] || "").trim();
         const category = String(cleanRow["categoria"] || "General").trim();
         
-        const costStr = String(cleanRow["costo unitario"] || "0");
-        const cost = parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        const costStr = String(cleanRow["costo unitario"] || "");
+        const cost = costStr !== "" ? (parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
         
-        const priceStr = String(cleanRow["precio de venta"] || "0");
-        const price = parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        const priceStr = String(cleanRow["precio de venta"] || "");
+        const price = priceStr !== "" ? (parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
         
-        const stockStr = String(cleanRow["stock actual"] || "0");
-        const stock = parseInt(stockStr.replace(/[^0-9]/g, "")) || 0;
+        const stockStr = String(cleanRow["stock actual"] || "");
+        const stock = stockStr !== "" ? (parseInt(stockStr.replace(/[^0-9]/g, "")) || 0) : 0;
         
-        let size = String(cleanRow["talle"] || "Único").trim();
-        let color = String(cleanRow["variante"] || "Único").trim();
+        let size = String(cleanRow["talle"] || "").trim();
+        let color = String(cleanRow["variante"] || "").trim();
         
-        const marginStr = String(cleanRow["margen (%)"] || "");
+        const marginStr = String(cleanRow["margen (%)"] || "").trim();
+        const hasPercentSign = marginStr.includes("%");
         let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        
+        if (hasPercentSign) {
+          // Si tiene %, es el valor directo (ej: 50% -> 50)
+        } else if (margin > 0 && margin <= 1.0) {
+          // Si vino como 0.5 (fracción de excel), multiplicamos por 100
+          margin = margin * 100;
+        }
         
         if (price > 0 && cost > 0 && !marginStr) {
           margin = ((price / cost) - 1) * 100;
         }
 
-        const deliveryTimeStr = String(cleanRow["tiempo de entrega (dias)"] || "");
-        const leadTime = (deliveryTimeStr !== "") ? parseInt(deliveryTimeStr.replace(/[^0-9]/g, "")) : 15;
+        const deliveryTimeStr = String(cleanRow["tiempo de entrega (dias)"] || "").trim();
+        const leadTime = (deliveryTimeStr !== "") ? parseInt(deliveryTimeStr.replace(/[^0-9]/g, "")) : "";
 
-        const securityStockStr = String(cleanRow["stock de seguridad"] || "");
-        const securityStock = (securityStockStr !== "") ? parseInt(securityStockStr.replace(/[^0-9]/g, "")) : 0;
+        const securityStockStr = String(cleanRow["stock de seguridad"] || "").trim();
+        const securityStock = (securityStockStr !== "") ? parseInt(securityStockStr.replace(/[^0-9]/g, "")) : "";
         
         let skuVal = sku;
         if (state.businessType === "comercio") {
@@ -1814,7 +1822,7 @@ function renderInventory() {
       </td>
       <td>
         <div style="font-size: 0.8rem;">${p.color || "Único"}</div>
-        ${state.businessType === "comercio" ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talle: ${p.size || ""}</div>`}
+        ${(state.businessType === "comercio" || !p.size) ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talle: ${p.size}</div>`}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
         ${parseInt(p.stock) || 0} un.
