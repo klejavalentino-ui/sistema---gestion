@@ -308,7 +308,38 @@ function handleLogout() {
 let parsedImportProducts = [];
 
 function triggerExcelImport() {
-  document.getElementById("excel-import-input").click();
+  const isComercio = state.businessType === "comercio";
+  const instructionsEl = document.getElementById("excel-import-instructions");
+  if (instructionsEl) {
+    if (isComercio) {
+      instructionsEl.innerHTML = `
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
+          ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
+          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; overflow-x: auto; white-space: nowrap; border: 1px solid var(--border-color);">
+            <strong>SKU | Proucto | Categoría | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
+          </div>
+        </div>
+      `;
+    } else {
+      instructionsEl.innerHTML = `
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
+          ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
+          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; overflow-x: auto; white-space: nowrap; border: 1px solid var(--border-color);">
+            <strong>SKU | Proucto | Categoría | Talle | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // Limpiar vista previa y resetear input
+  document.getElementById("excel-preview-area").style.display = "none";
+  document.getElementById("excel-confirm-btn").setAttribute("disabled", "true");
+  document.getElementById("excel-import-input").value = "";
+  parsedImportProducts = [];
+
+  // Mostrar el modal
+  document.getElementById("excel-import-modal").classList.add("active");
 }
 
 function closeExcelImportModal() {
@@ -321,15 +352,15 @@ function closeExcelImportModal() {
 function downloadExcelTemplate() {
   const isComercio = state.businessType === "comercio";
   const headers = isComercio 
-    ? [["SKU", "Nombre", "Categoría", "Costo", "Precio Venta", "Stock", "Variante"]]
-    : [["SKU", "Nombre", "Categoría", "Costo", "Precio Venta", "Stock", "Talle", "Color"]];
+    ? [["SKU", "Proucto", "Categoría", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]]
+    : [["SKU", "Proucto", "Categoría", "Talle", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]];
   const sampleData = isComercio
     ? [
-        ["PROD-001", "Coca Cola 1.5L", "Bebidas", "1200", "1800", "24", "Único"],
-        ["PROD-002", "Alfajor de Chocolate", "Kiosco", "400", "650", "50", "Único"]
+        ["PROD-001", "Coca Cola 1.5L", "Bebidas", "Único", "1200", "50", "1800", "24", "15", "5"],
+        ["PROD-002", "Alfajor de Chocolate", "Kiosco", "Único", "400", "62.5", "650", "50", "15", "5"]
       ]
     : [
-        ["REM-NEGRA-M", "Remera Algodón Negra M", "Remeras", "3000", "6000", "15", "M", "Negro"]
+        ["REM-NEGRA-M", "Remera Algodón Negra M", "Remeras", "M", "Negro", "3000", "100", "6000", "15", "5"]
       ];
   
   const sheetData = headers.concat(sampleData);
@@ -342,6 +373,15 @@ function downloadExcelTemplate() {
 function handleExcelImport(event) {
   const file = event.target.files[0];
   if (!file) return;
+
+  function normalizeHeader(str) {
+    if (!str) return "";
+    return str.toString()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  }
   
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -350,8 +390,63 @@ function handleExcelImport(event) {
       const workbook = XLSX.read(data, { type: "array" });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
       
+      const firstSheetRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0];
+      if (!firstSheetRow || firstSheetRow.length === 0) {
+        showToast("El archivo de Excel no contiene encabezados.", true);
+        return;
+      }
+      
+      const normalizedSheetHeaders = firstSheetRow.map(h => normalizeHeader(h));
+      const requiredHeadersTextil = [
+        "sku",
+        "proucto",
+        "categoria",
+        "talle",
+        "variante",
+        "costo unitario",
+        "margen (%)",
+        "precio de venta",
+        "stock actual",
+        "tiempo de entrega (dias)",
+        "stock de seguridad"
+      ];
+      const requiredHeadersComercio = [
+        "sku",
+        "proucto",
+        "categoria",
+        "variante",
+        "costo unitario",
+        "margen (%)",
+        "precio de venta",
+        "stock actual",
+        "tiempo de entrega (dias)",
+        "stock de seguridad"
+      ];
+      
+      const required = state.businessType === "comercio" ? requiredHeadersComercio : requiredHeadersTextil;
+      const missingHeaders = required.filter(h => !normalizedSheetHeaders.includes(h));
+      
+      if (missingHeaders.length > 0) {
+        const headerFriendlyMap = {
+          "sku": "SKU",
+          "proucto": "Proucto",
+          "categoria": "Categoría",
+          "talle": "Talle",
+          "variante": "Variante",
+          "costo unitario": "Costo Unitario",
+          "margen (%)": "Margen (%)",
+          "precio de venta": "Precio de Venta",
+          "stock actual": "Stock Actual",
+          "tiempo de entrega (dias)": "Tiempo de Entrega (días)",
+          "stock de seguridad": "Stock de seguridad"
+        };
+        const missingFriendly = missingHeaders.map(h => headerFriendlyMap[h] || h);
+        showToast(`El archivo no se puede leer. Faltan columnas: ${missingFriendly.join(", ")}`, true);
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
       if (rows.length === 0) {
         showToast("El archivo de Excel está vacío.", true);
         return;
@@ -362,37 +457,44 @@ function handleExcelImport(event) {
       rows.forEach(row => {
         const cleanRow = {};
         Object.keys(row).forEach(key => {
-          cleanRow[key.toLowerCase().trim()] = row[key];
+          cleanRow[normalizeHeader(key)] = row[key];
         });
         
-        const sku = String(cleanRow["sku"] || cleanRow["código"] || cleanRow["codigo"] || "").trim();
-        const name = String(cleanRow["nombre"] || cleanRow["descripción"] || cleanRow["descripcion"] || cleanRow["producto"] || "").trim();
-        const category = String(cleanRow["categoría"] || cleanRow["categoria"] || cleanRow["rubro"] || "General").trim();
+        const sku = String(cleanRow["sku"] || "").trim();
+        const name = String(cleanRow["proucto"] || "").trim();
+        const category = String(cleanRow["categoria"] || "General").trim();
         
-        const costStr = String(cleanRow["costo"] || cleanRow["costo unitario"] || cleanRow["precio de costo"] || "0");
+        const costStr = String(cleanRow["costo unitario"] || "0");
         const cost = parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
         
-        const priceStr = String(cleanRow["precio"] || cleanRow["precio venta"] || cleanRow["precio de venta"] || cleanRow["venta"] || "0");
+        const priceStr = String(cleanRow["precio de venta"] || "0");
         const price = parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
         
-        const stockStr = String(cleanRow["stock"] || cleanRow["cantidad"] || cleanRow["unidades"] || "0");
+        const stockStr = String(cleanRow["stock actual"] || "0");
         const stock = parseInt(stockStr.replace(/[^0-9]/g, "")) || 0;
         
-        let size = String(cleanRow["talle"] || cleanRow["talla"] || cleanRow["medida"] || "Único").trim();
-        let color = String(cleanRow["color"] || cleanRow["tono"] || cleanRow["variante"] || "Único").trim();
+        let size = String(cleanRow["talle"] || "Único").trim();
+        let color = String(cleanRow["variante"] || "Único").trim();
+        
+        const marginStr = String(cleanRow["margen (%)"] || "");
+        let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        
+        if (price > 0 && cost > 0 && !marginStr) {
+          margin = ((price / cost) - 1) * 100;
+        }
+
+        const deliveryTimeStr = String(cleanRow["tiempo de entrega (dias)"] || "");
+        const leadTime = (deliveryTimeStr !== "") ? parseInt(deliveryTimeStr.replace(/[^0-9]/g, "")) : 15;
+
+        const securityStockStr = String(cleanRow["stock de seguridad"] || "");
+        const securityStock = (securityStockStr !== "") ? parseInt(securityStockStr.replace(/[^0-9]/g, "")) : 0;
+        
         let skuVal = sku;
         if (state.businessType === "comercio") {
           size = "Único";
           if (skuVal && !skuVal.endsWith("-U")) {
             skuVal = `${skuVal}-U`;
           }
-        }
-        
-        const marginStr = String(cleanRow["margen"] || cleanRow["margen %"] || "");
-        let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
-        
-        if (price > 0 && cost > 0 && !marginStr) {
-          margin = ((price / cost) - 1) * 100;
         }
         
         if (skuVal && name) {
@@ -412,13 +514,15 @@ function handleExcelImport(event) {
             baseCost: cost,
             margin: Math.round(margin * 10) / 10,
             cost: cost,
+            leadTime: leadTime,
+            securityStock: securityStock,
             extras: {}
           });
         }
       });
       
       if (parsedImportProducts.length === 0) {
-        showToast("No se encontraron productos válidos en el Excel (se requiere Código/SKU y Nombre).", true);
+        showToast("No se encontraron productos válidos en el Excel (se requiere SKU y Proucto).", true);
         return;
       }
       
@@ -440,10 +544,8 @@ function handleExcelImport(event) {
       });
       
       document.getElementById("excel-import-summary").innerText = `Total de productos detectados para importar: ${parsedImportProducts.length} variante(s).`;
-      
       document.getElementById("excel-preview-area").style.display = "block";
       document.getElementById("excel-confirm-btn").removeAttribute("disabled");
-      document.getElementById("excel-import-modal").classList.add("active");
       
     } catch (err) {
       console.error(err);

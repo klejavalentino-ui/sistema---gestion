@@ -1125,13 +1125,13 @@
         <span class="modal-close" onclick="closeExcelImportModal()">✕</span>
       </div>
       <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
-        <p style="font-size: 0.8rem; color: var(--text-gray); line-height: 1.4; margin-bottom: 15px;">
-          Sube un archivo de Excel (`.xlsx`, `.xls` o `.csv`) con tu lista de productos. 
-          El sistema detectará automáticamente las columnas. Puedes descargar una plantilla modelo si la necesitas.
-        </p>
+        <div id="excel-import-instructions"></div>
         
-        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-          <button type="button" class="btn btn-secondary" onclick="downloadExcelTemplate()" style="font-size: 0.75rem; padding: 8px 12px;">
+        <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center;">
+          <button type="button" class="btn btn-primary" onclick="document.getElementById('excel-import-input').click()" style="font-size: 0.75rem; padding: 8px 12px; display: flex; align-items: center; gap: 6px;">
+            <i>📂</i> Seleccionar Archivo Excel
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="downloadExcelTemplate()" style="font-size: 0.75rem; padding: 8px 12px; display: flex; align-items: center; gap: 6px;">
             <i>📥</i> Descargar Plantilla Modelo
           </button>
         </div>
