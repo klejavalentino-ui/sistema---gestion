@@ -454,6 +454,19 @@ function handleExcelImport(event) {
       
       parsedImportProducts = [];
       
+      const existingSkus = new Set(
+        state.products
+          .filter(p => p.sku)
+          .map(p => p.sku.toLowerCase().trim())
+      );
+      const existingNames = new Set(
+        state.products
+          .filter(p => p.name)
+          .map(p => cleanCompareText(p.name))
+      );
+      const importedSkusInBatch = new Set();
+      let omittedCount = 0;
+      
       rows.forEach(row => {
         const cleanRow = {};
         Object.keys(row).forEach(key => {
@@ -506,6 +519,20 @@ function handleExcelImport(event) {
         }
         
         if (skuVal && name) {
+          const skuLower = skuVal.toLowerCase().trim();
+          const nameClean = cleanCompareText(name);
+          
+          if (existingSkus.has(skuLower) || existingNames.has(nameClean)) {
+            omittedCount++;
+            return;
+          }
+          if (importedSkusInBatch.has(skuLower)) {
+            omittedCount++;
+            return;
+          }
+          
+          importedSkusInBatch.add(skuLower);
+          
           const baseSku = state.businessType === "comercio"
             ? (skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal)
             : (skuVal.split("-")[0] || skuVal);
@@ -530,7 +557,7 @@ function handleExcelImport(event) {
       });
       
       if (parsedImportProducts.length === 0) {
-        showToast("No se encontraron productos válidos en el Excel (se requiere SKU y Proucto).", true);
+        showToast("No se encontraron productos válidos o nuevos para importar.", true);
         return;
       }
       
@@ -551,7 +578,11 @@ function handleExcelImport(event) {
         tbody.appendChild(tr);
       });
       
-      document.getElementById("excel-import-summary").innerText = `Total de productos detectados para importar: ${parsedImportProducts.length} variante(s).`;
+      let summaryText = `Total de productos detectados para importar: ${parsedImportProducts.length} variante(s).`;
+      if (omittedCount > 0) {
+        summaryText += ` (${omittedCount} omitido(s) por SKU o Nombre ya existente).`;
+      }
+      document.getElementById("excel-import-summary").innerText = summaryText;
       document.getElementById("excel-preview-area").style.display = "block";
       document.getElementById("excel-confirm-btn").removeAttribute("disabled");
       
@@ -571,6 +602,30 @@ async function confirmExcelImport() {
   confirmBtn.innerText = "Procesando...";
   
   try {
+    // 1. Identificar y registrar nuevas categorías
+    const existingCatsClean = state.categories.map(c => cleanCompareText(c));
+    const newCategoriesToRegister = [];
+    
+    parsedImportProducts.forEach(p => {
+      if (p.category) {
+        const catClean = cleanCompareText(p.category);
+        if (!existingCatsClean.includes(catClean)) {
+          const alreadyAddedClean = newCategoriesToRegister.map(c => cleanCompareText(c));
+          if (!alreadyAddedClean.includes(catClean)) {
+            newCategoriesToRegister.push(p.category);
+          }
+        }
+      }
+    });
+    
+    if (newCategoriesToRegister.length > 0) {
+      showToast(`Registrando ${newCategoriesToRegister.length} nueva(s) categoría(s)...`);
+      const updatedCategories = [...state.categories, ...newCategoriesToRegister];
+      await apiRequest("/api/categories", "POST", { categories: updatedCategories });
+      state.categories = updatedCategories;
+    }
+    
+    // 2. Importar productos en lotes
     const batchSize = 50;
     for (let i = 0; i < parsedImportProducts.length; i += batchSize) {
       const batch = parsedImportProducts.slice(i, i + batchSize);
@@ -4633,6 +4688,16 @@ function updateNotifications() {
 }
 
 // --- DYNAMIC ADICIONALES (EXTRAS) UTILITIES ---
+
+function cleanCompareText(str) {
+  if (!str) return "";
+  return str.toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function slugify(text) {
   return text.toString().toLowerCase()
