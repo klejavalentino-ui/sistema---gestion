@@ -308,7 +308,8 @@ def get_all_state():
                 "createdAt": int(time.time()),
                 "trialDays": 15,
                 "subscriptionStatus": "trial",  # trial, active, expired
-                "businessType": biz_type
+                "businessType": biz_type,
+                "businessName": ""
             }
             firebase_config.set_document("products", f"{prefix}user_profile", profile_doc, token)
             profile_doc_copy = dict(profile_doc)
@@ -418,6 +419,18 @@ def get_all_state():
             "subscriptionStatus": subscription_status,
             "daysLeft": days_left,
             "businessType": profile_doc.get("businessType", "clothing"),
+            "businessName": profile_doc.get("businessName", ""),
+            "userProfile": {
+                "sku": "user_profile",
+                "name": "User Profile",
+                "cost": 0.0,
+                "stock": 0,
+                "createdAt": profile_doc.get("createdAt"),
+                "trialDays": profile_doc.get("trialDays", 15),
+                "subscriptionStatus": subscription_status,
+                "businessType": profile_doc.get("businessType", "clothing"),
+                "businessName": profile_doc.get("businessName", "")
+            },
             "categories": categories,
             "products": products,
             "sales": user_sales,

@@ -3,6 +3,8 @@ const state = {
   token: localStorage.getItem("gestiosmart_token"),
   email: localStorage.getItem("gestiosmart_email"),
   businessType: localStorage.getItem("gestiosmart_business_type") || "textil",
+  businessName: localStorage.getItem("gestiosmart_business_name") || "",
+  userProfile: null,
   categories: [],
   products: [],
   sales: [],
@@ -812,6 +814,10 @@ async function refreshState() {
     state.extras = data.extras || {};
     state.stockIntakes = data.stockIntakes || [];
     
+    state.businessName = data.businessName || "";
+    state.userProfile = data.userProfile || null;
+    localStorage.setItem("gestiosmart_business_name", state.businessName);
+    
     let bizType = data.businessType || localStorage.getItem("gestiosmart_business_type") || "textil";
     if (bizType === "clothing") bizType = "textil";
     if (bizType === "kiosk") bizType = "comercio";
@@ -828,6 +834,7 @@ async function refreshState() {
   } finally {
     // Inicializar formulario de ingreso de stock cada vez que se refresca el estado
     setupStockIntakeForm();
+    checkBusinessNameSetup();
     renderAll();
   }
 }
@@ -1780,42 +1787,54 @@ function closeCheckoutModalAndReset() {
 }
 
 async function consumePOSExtras(cart, selectedExtras) {
-  if (!selectedExtras || Object.keys(selectedExtras).length === 0) return;
-  
   let updated = false;
-  
-  Object.keys(selectedExtras).forEach(catKey => {
-    const extraId = selectedExtras[catKey];
-    if (extraId && extraId !== "0") {
-      // Calcular cantidad consumida
-      let consumedQty = 0;
-      cart.forEach(item => {
-        const p = item.product;
-        const extrasObj = p.extras || {};
-        let hasStatic = false;
-        if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
-        else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
-        else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
-        
-        if (!hasStatic) {
-          consumedQty += (parseInt(item.quantity) || 0);
+
+  const consumption = {
+    estampados: {},
+    packagings: {},
+    bordados: {}
+  };
+
+  cart.forEach(item => {
+    const p = item.product;
+    const qty = parseInt(item.quantity) || 0;
+    if (qty <= 0) return;
+
+    const extrasObj = p.extras || {};
+
+    ["estampados", "packagings", "bordados"].forEach(catKey => {
+      let staticExtraId = null;
+      if (catKey === "estampados") staticExtraId = p.estampadoId || extrasObj.estampados;
+      else if (catKey === "packagings") staticExtraId = p.packagingId || extrasObj.packagings;
+      else if (catKey === "bordados") staticExtraId = p.bordadoId || extrasObj.bordados;
+
+      if (staticExtraId && staticExtraId !== "0") {
+        consumption[catKey][staticExtraId] = (consumption[catKey][staticExtraId] || 0) + qty;
+      } else {
+        const dynamicExtraId = selectedExtras ? selectedExtras[catKey] : null;
+        if (dynamicExtraId && dynamicExtraId !== "0") {
+          consumption[catKey][dynamicExtraId] = (consumption[catKey][dynamicExtraId] || 0) + qty;
         }
-      });
-      
+      }
+    });
+  });
+
+  Object.keys(consumption).forEach(catKey => {
+    Object.keys(consumption[catKey]).forEach(optionId => {
+      const consumedQty = consumption[catKey][optionId];
       if (consumedQty > 0) {
         const options = state.extras[catKey] || [];
-        const option = options.find(o => o.id === extraId);
+        const option = options.find(o => o.id === optionId);
         if (option) {
           const currentStock = option.stock !== undefined && option.stock !== null ? option.stock : 0;
           option.stock = Math.max(0, currentStock - consumedQty);
           updated = true;
         }
       }
-    }
+    });
   });
-  
+
   if (updated) {
-    // Guardar en Firebase
     await apiRequest("/api/extras", "POST", state.extras);
   }
 }
@@ -2134,7 +2153,6 @@ function printSaleTicket(saleId) {
         <tr>
           <td style="font-size: 11px;">
             ${p.name}${variantText}
-            ${itemExtraCost > 0 ? `<br><span style="font-size: 9px; color: #555;">+ Adic. ($${Math.round(itemExtraCost * (1 + (parseFloat(p.margin) || 0) / 100))})</span>` : ""}
           </td>
           <td class="text-right" style="font-size: 11px;">${item.quantity}</td>
           <td class="text-right" style="font-size: 11px;">$${Math.round(subtotal).toLocaleString('es-AR')}</td>
@@ -2143,36 +2161,10 @@ function printSaleTicket(saleId) {
     });
   }
 
-  // Adicionales globales informativos
-  let extrasHtml = "";
-  if (sale.extras && Object.keys(sale.extras).length > 0) {
-    const parts = [];
-    Object.keys(sale.extras).forEach(catKey => {
-      const extraId = sale.extras[catKey];
-      if (extraId && extraId !== "0") {
-        const list = state.extras[catKey] || [];
-        const found = list.find(o => o.id === extraId);
-        if (found) {
-          const friendlyCat = catKey === "estampados" ? "Estampado" : catKey === "bordados" ? "Bordado" : "Packaging";
-          parts.push(`${friendlyCat}: ${found.name}`);
-        }
-      }
-    });
-    if (parts.length > 0) {
-      extrasHtml = `
-        <div class="separator"></div>
-        <div style="font-size: 10px; margin-bottom: 5px;">
-          <span class="bold">Adicionales aplicados:</span><br>
-          ${parts.map(p => `• ${p}`).join('<br>')}
-        </div>
-      `;
-    }
-  }
-
   // Si el sector es textil, agregar ticket de cambio
   let exchangeTicketHtml = "";
   if (state.businessType === "textil") {
-    const limitDate = new Date(dateObj.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const limitDate = new Date(dateObj.getTime() + 15 * 24 * 60 * 60 * 1000);
     const limitDateStr = limitDate.toLocaleDateString('es-AR');
     
     let exchangeItemsList = "";
@@ -2183,7 +2175,7 @@ function printSaleTicket(saleId) {
     exchangeTicketHtml = `
       <div class="exchange-ticket text-center">
         <h3 class="bold" style="font-size: 14px; margin: 0 0 5px 0; letter-spacing: 1px;">TICKET DE CAMBIO</h3>
-        <p style="font-size: 10px; margin: 0 0 10px 0;">Valido por 30 dias (Hasta el ${limitDateStr})</p>
+        <p style="font-size: 10px; margin: 0 0 10px 0;">Válido por 15 días (Hasta el ${limitDateStr})</p>
         <div class="separator"></div>
         <div style="text-align: left; font-size: 11px; margin: 10px 0;">
           <span class="bold">Detalle de prendas:</span><br>
@@ -2279,8 +2271,7 @@ function printSaleTicket(saleId) {
     <body>
       <div class="header text-center">
         <div class="non-fiscal">DOCUMENTO NO VALIDO COMO FACTURA</div>
-        <h2 style="margin: 5px 0; font-size: 16px;">${state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO"}</h2>
-        <p style="margin: 2px 0; font-size: 10px;">${state.email || ""}</p>
+        <h2 style="margin: 5px 0; font-size: 16px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
         <p style="margin: 2px 0; font-size: 10px;">Fecha: ${dateStr} - ${timeStr}</p>
         <p style="margin: 2px 0; font-size: 10px; font-family: monospace;">TICKET N°: ${sale.id}</p>
       </div>
@@ -2312,8 +2303,6 @@ function printSaleTicket(saleId) {
           <span class="bold">$${Math.round(sale.total).toLocaleString('es-AR')}</span>
         </div>
       </div>
-      
-      ${extrasHtml}
       
       <div class="separator"></div>
       
@@ -5766,38 +5755,101 @@ async function deleteExtraOption(categoryKey, optionId) {
   });
 }
 
-async function editExtraOption(categoryKey, optionId) {
+function editExtraOption(categoryKey, optionId) {
   const option = state.extras[categoryKey].find(opt => opt.id === optionId);
   if (!option) return;
 
-  const currentPrice = option.cost;
-  const newPriceStr = prompt(`Editar precio para "${option.name}":`, currentPrice);
-  if (newPriceStr === null) return; // cancelado
-  
-  const newPrice = parseFloat(newPriceStr);
-  if (isNaN(newPrice) || newPrice < 0) {
-    showToast("Precio inválido", true);
+  document.getElementById("edit-extra-category").value = categoryKey;
+  document.getElementById("edit-extra-id").value = optionId;
+  document.getElementById("edit-extra-name").value = option.name;
+  document.getElementById("edit-extra-cost").value = option.cost;
+  document.getElementById("edit-extra-stock").value = option.stock !== undefined && option.stock !== null ? option.stock : 0;
+
+  document.getElementById("edit-extra-modal").className = "modal-backdrop active";
+}
+
+function closeEditExtraModal() {
+  document.getElementById("edit-extra-modal").className = "modal-backdrop";
+}
+
+async function saveEditExtraForm(e) {
+  e.preventDefault();
+  const categoryKey = document.getElementById("edit-extra-category").value;
+  const optionId = document.getElementById("edit-extra-id").value;
+  const name = document.getElementById("edit-extra-name").value.trim();
+  const cost = parseFloat(document.getElementById("edit-extra-cost").value);
+  const stock = parseInt(document.getElementById("edit-extra-stock").value);
+
+  if (!name) {
+    showToast("Por favor, ingrese un nombre válido", true);
+    return;
+  }
+  if (isNaN(cost) || cost < 0) {
+    showToast("Precio/costo inválido", true);
+    return;
+  }
+  if (isNaN(stock) || stock < 0) {
+    showToast("Stock físico inválido", true);
     return;
   }
 
-  const currentStock = option.stock !== undefined && option.stock !== null ? option.stock : 0;
-  const newStockStr = prompt(`Editar stock físico para "${option.name}":`, currentStock);
-  if (newStockStr === null) return; // cancelado
+  const option = state.extras[categoryKey].find(opt => opt.id === optionId);
+  if (!option) return;
 
-  const newStock = parseInt(newStockStr);
-  if (isNaN(newStock) || newStock < 0) {
-    showToast("Stock inválido", true);
-    return;
-  }
-
-  // Actualizar
-  option.cost = newPrice;
-  option.stock = newStock;
+  option.name = name;
+  option.cost = cost;
+  option.stock = stock;
 
   try {
     showToast("Actualizando adicional...");
     await apiRequest("/api/extras", "POST", state.extras);
     showToast("Adicional actualizado con éxito");
+    closeEditExtraModal();
+    refreshState();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+function checkBusinessNameSetup() {
+  if (state.token && !state.businessName) {
+    document.getElementById("business-name-modal").className = "modal-backdrop active";
+  } else {
+    const modal = document.getElementById("business-name-modal");
+    if (modal) modal.className = "modal-backdrop";
+  }
+}
+
+async function saveBusinessNameForm(e) {
+  e.preventDefault();
+  const name = document.getElementById("input-setup-business-name").value.trim();
+  if (!name) {
+    showToast("Por favor, ingresa un nombre para tu negocio", true);
+    return;
+  }
+  
+  try {
+    showToast("Configurando nombre del negocio...");
+    
+    const profilePayload = {
+      ...(state.userProfile || {
+        sku: "user_profile",
+        name: "User Profile",
+        cost: 0,
+        stock: 0,
+        businessType: state.businessType
+      }),
+      businessName: name
+    };
+    
+    await apiRequest("/api/products", "POST", profilePayload);
+    
+    state.businessName = name;
+    localStorage.setItem("gestiosmart_business_name", name);
+    
+    showToast("¡Configuración exitosa!");
+    
+    document.getElementById("business-name-modal").className = "modal-backdrop";
     refreshState();
   } catch (error) {
     showToast(error.message, true);
