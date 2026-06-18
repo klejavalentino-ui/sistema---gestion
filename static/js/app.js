@@ -2,7 +2,7 @@
 const state = {
   token: localStorage.getItem("gestiosmart_token"),
   email: localStorage.getItem("gestiosmart_email"),
-  businessType: "clothing",
+  businessType: localStorage.getItem("gestiosmart_business_type") || "textil",
   categories: [],
   products: [],
   sales: [],
@@ -80,7 +80,9 @@ function checkAuth() {
   if (state.token) {
     authSection.style.display = "none";
     // We let refreshState determine app section visibility
+    state.businessType = localStorage.getItem("gestiosmart_business_type") || "textil";
     document.getElementById("user-display-email").innerText = state.email;
+    applyBusinessTypeUIUpdates();
     initApp();
   } else {
     authSection.style.display = "flex";
@@ -88,6 +90,55 @@ function checkAuth() {
     if (verifyScreen) verifyScreen.style.display = "none";
     if (paywallScreen) paywallScreen.style.display = "none";
     toggleResetPasswordView(false);
+  }
+}
+
+function applyBusinessTypeUIUpdates() {
+  const isComercio = state.businessType === "comercio";
+  
+  // 1. Sidebar/Topbar Badge
+  const typeDisplay = document.getElementById("user-display-business-type");
+  if (typeDisplay) {
+    typeDisplay.innerText = isComercio ? "Comercio" : "Textil";
+    const parent = typeDisplay.parentElement;
+    if (parent) {
+      if (isComercio) {
+        parent.style.background = "rgba(59, 130, 246, 0.1)";
+        parent.style.borderColor = "rgba(59, 130, 246, 0.2)";
+        typeDisplay.style.color = "var(--accent-blue)";
+      } else {
+        parent.style.background = "rgba(239, 71, 111, 0.1)";
+        parent.style.borderColor = "rgba(239, 71, 111, 0.2)";
+        typeDisplay.style.color = "var(--accent-red)";
+      }
+    }
+  }
+  
+  // 2. Compras (Stock Intake) containers
+  const intakeTalles = document.getElementById("intake-talles-container");
+  const intakeSimple = document.getElementById("intake-simple-qty-container");
+  if (isComercio) {
+    if (intakeTalles) intakeTalles.style.display = "none";
+    if (intakeSimple) intakeSimple.style.display = "block";
+  } else {
+    if (intakeTalles) intakeTalles.style.display = "block";
+    if (intakeSimple) intakeSimple.style.display = "none";
+  }
+  
+  // 3. Inventory Table Headers
+  const tableHeaderRow = document.querySelector(".idx-table thead tr");
+  if (tableHeaderRow) {
+    const headers = tableHeaderRow.querySelectorAll("th");
+    if (headers.length >= 4) {
+      headers[2].innerText = isComercio ? "Variante" : "Color / Talle";
+      headers[3].innerText = isComercio ? "Stock" : "Stock Actual";
+    }
+  }
+
+  // 4. Marketing Delivery label
+  const mktDeliverySizeLabel = document.querySelector("label[for='mkt-delivery-size-select']");
+  if (mktDeliverySizeLabel) {
+    mktDeliverySizeLabel.innerText = isComercio ? "Variante *" : "Talle *";
   }
 }
 
@@ -205,8 +256,11 @@ async function handleLogin(e) {
     
     state.token = data.token;
     state.email = data.email;
+    const bizType = document.getElementById("login-business-type").value || "textil";
+    state.businessType = bizType;
     localStorage.setItem("gestiosmart_token", data.token);
     localStorage.setItem("gestiosmart_email", data.email);
+    localStorage.setItem("gestiosmart_business_type", bizType);
     
     showToast("¡Sesión iniciada!");
     checkAuth();
@@ -235,8 +289,11 @@ async function handleRegister(e) {
     
     state.token = data.token;
     state.email = data.email;
+    const bizType = document.getElementById("register-business-type").value || "textil";
+    state.businessType = bizType;
     localStorage.setItem("gestiosmart_token", data.token);
     localStorage.setItem("gestiosmart_email", data.email);
+    localStorage.setItem("gestiosmart_business_type", bizType);
     
     showToast("Registro exitoso. Verificá tu correo.");
     checkAuth();
@@ -270,12 +327,18 @@ function closeExcelImportModal() {
 }
 
 function downloadExcelTemplate() {
-  const headers = [["SKU", "Nombre", "Categoría", "Costo", "Precio Venta", "Stock", "Talle", "Color"]];
-  const sampleData = [
-    ["PROD-001", "Coca Cola 1.5L", "Bebidas", "1200", "1800", "24", "Único", "Único"],
-    ["PROD-002", "Alfajor de Chocolate", "Kiosco", "400", "650", "50", "Único", "Único"],
-    ["REM-NEGRA-M", "Remera Algodón Negra M", "Remeras", "3000", "6000", "15", "M", "Negro"]
-  ];
+  const isComercio = state.businessType === "comercio";
+  const headers = isComercio 
+    ? [["SKU", "Nombre", "Categoría", "Costo", "Precio Venta", "Stock", "Variante"]]
+    : [["SKU", "Nombre", "Categoría", "Costo", "Precio Venta", "Stock", "Talle", "Color"]];
+  const sampleData = isComercio
+    ? [
+        ["PROD-001", "Coca Cola 1.5L", "Bebidas", "1200", "1800", "24", "Único"],
+        ["PROD-002", "Alfajor de Chocolate", "Kiosco", "400", "650", "50", "Único"]
+      ]
+    : [
+        ["REM-NEGRA-M", "Remera Algodón Negra M", "Remeras", "3000", "6000", "15", "M", "Negro"]
+      ];
   
   const sheetData = headers.concat(sampleData);
   const wb = XLSX.utils.book_new();
@@ -323,8 +386,15 @@ function handleExcelImport(event) {
         const stockStr = String(cleanRow["stock"] || cleanRow["cantidad"] || cleanRow["unidades"] || "0");
         const stock = parseInt(stockStr.replace(/[^0-9]/g, "")) || 0;
         
-        const size = String(cleanRow["talle"] || cleanRow["talla"] || cleanRow["medida"] || "Único").trim();
-        const color = String(cleanRow["color"] || cleanRow["tono"] || "Único").trim();
+        let size = String(cleanRow["talle"] || cleanRow["talla"] || cleanRow["medida"] || "Único").trim();
+        let color = String(cleanRow["color"] || cleanRow["tono"] || cleanRow["variante"] || "Único").trim();
+        let skuVal = sku;
+        if (state.businessType === "comercio") {
+          size = "Único";
+          if (skuVal && !skuVal.endsWith("-U")) {
+            skuVal = `${skuVal}-U`;
+          }
+        }
         
         const marginStr = String(cleanRow["margen"] || cleanRow["margen %"] || "");
         let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
@@ -333,9 +403,15 @@ function handleExcelImport(event) {
           margin = ((price / cost) - 1) * 100;
         }
         
-        if (sku && name) {
+        if (skuVal && name) {
+          const baseSku = state.businessType === "comercio"
+            ? (skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal)
+            : (skuVal.split("-")[0] || skuVal);
+            
           parsedImportProducts.push({
-            sku: sku,
+            id: Date.now() + Math.random(),
+            baseSku: baseSku,
+            sku: skuVal,
             name: name,
             category: category,
             size: size,
@@ -436,7 +512,8 @@ async function updateBusinessType(type) {
 // --- API Request Helper ---
 async function apiRequest(url, method = "GET", body = null) {
   const headers = {
-    "Authorization": `Bearer ${state.token}`
+    "Authorization": `Bearer ${state.token}`,
+    "X-Business-Type": state.businessType || "textil"
   };
   if (body) {
     headers["Content-Type"] = "application/json";
@@ -578,27 +655,15 @@ async function refreshState() {
     state.extras = data.extras || {};
     state.stockIntakes = data.stockIntakes || [];
     
-    state.businessType = data.businessType || "clothing";
+    let bizType = data.businessType || localStorage.getItem("gestiosmart_business_type") || "textil";
+    if (bizType === "clothing") bizType = "textil";
+    if (bizType === "kiosk") bizType = "comercio";
+    state.businessType = bizType;
     
-    const bizSelect = document.getElementById("business-type-select");
-    if (bizSelect) {
-      bizSelect.value = state.businessType;
-    }
+    applyBusinessTypeUIUpdates();
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
-      const tab = item.dataset.tab;
-      if (state.businessType === "kiosk") {
-        if (tab === "extras" || tab === "marketing") {
-          item.style.display = "none";
-          if (state.activeTab === tab) {
-            switchTab("sales");
-          }
-        } else {
-          item.style.display = "block";
-        }
-      } else {
-        item.style.display = "block";
-      }
+      item.style.display = "block";
     });
   } catch (error) {
     console.error("Error loading states:", error);
@@ -1081,7 +1146,7 @@ function renderSalesPOS() {
     const uniqueBaseProducts = Object.values(baseProductsMap);
 
     if (uniqueBaseProducts.length === 0) {
-      container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-gray); font-size: 0.8rem; padding: 40px;">No se encontraron prendas.</div>`;
+      container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-gray); font-size: 0.8rem; padding: 40px;">${state.businessType === "comercio" ? "No se encontraron productos." : "No se encontraron prendas."}</div>`;
       renderPOSCategoryPills(selectedCat);
       return;
     }
@@ -1144,7 +1209,7 @@ function renderPOSCategoryPills(selectedCat) {
 function handlePOSProductClick(bp) {
   const totalStock = bp.variants.reduce((acc, curr) => acc + curr.stock, 0);
   if (totalStock <= 0) {
-    showToast("Prenda sin stock disponible.", true);
+    showToast(state.businessType === "comercio" ? "Producto sin stock disponible." : "Prenda sin stock disponible.", true);
     return;
   }
 
@@ -1630,7 +1695,7 @@ function renderInventory() {
       </td>
       <td>
         <div style="font-size: 0.8rem;">${p.color || "Único"}</div>
-        <div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talle: ${p.size || ""}</div>
+        ${state.businessType === "comercio" ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talle: ${p.size || ""}</div>`}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
         ${parseInt(p.stock) || 0} un.
@@ -1696,6 +1761,23 @@ function openCreateProductModal() {
     document.getElementById(`stock-${sz}`).readOnly = false;
   });
 
+  const isComercio = state.businessType === "comercio";
+  document.getElementById("prod-color-label").innerText = isComercio ? "Variante" : "Color";
+  document.getElementById("prod-color").placeholder = isComercio ? "Ej. Chocolate, Pack x3, etc." : "Ej. Negro";
+  
+  document.getElementById("prod-stock-simple").value = "";
+  document.getElementById("prod-stock-simple").readOnly = false;
+  
+  const talleCard = document.getElementById("product-talles-card");
+  const simpleStockContainer = document.getElementById("product-simple-stock-container");
+  if (isComercio) {
+    if (talleCard) talleCard.style.display = "none";
+    if (simpleStockContainer) simpleStockContainer.style.display = "block";
+  } else {
+    if (talleCard) talleCard.style.display = "block";
+    if (simpleStockContainer) simpleStockContainer.style.display = "none";
+  }
+
   // Rellenar categorías
   populateProductFormCategories("");
   
@@ -1734,6 +1816,22 @@ function openEditProductModal(sku) {
       input.readOnly = true;
     }
   });
+
+  const isComercio = state.businessType === "comercio";
+  document.getElementById("prod-color-label").innerText = isComercio ? "Variante" : "Color";
+  document.getElementById("prod-color").placeholder = isComercio ? "Ej. Chocolate, Pack x3, etc." : "Ej. Negro";
+  
+  const talleCard = document.getElementById("product-talles-card");
+  const simpleStockContainer = document.getElementById("product-simple-stock-container");
+  if (isComercio) {
+    if (talleCard) talleCard.style.display = "none";
+    if (simpleStockContainer) simpleStockContainer.style.display = "block";
+    document.getElementById("prod-stock-simple").value = p.stock;
+    document.getElementById("prod-stock-simple").readOnly = false;
+  } else {
+    if (talleCard) talleCard.style.display = "block";
+    if (simpleStockContainer) simpleStockContainer.style.display = "none";
+  }
 
   populateProductFormCategories(p.category);
   
@@ -1877,19 +1975,28 @@ async function saveProductForm(e) {
   const sizeStocks = {};
   let variantCount = 0;
   
-  const talleMapping = { 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL', 'Unico': 'Único' };
-  
-  for (const [idKey, szVal] of Object.entries(talleMapping)) {
-    const inputVal = document.getElementById(`stock-${idKey}`).value;
+  if (state.businessType === "comercio") {
+    const inputVal = document.getElementById("prod-stock-simple").value;
     if (inputVal !== "") {
-      sizeStocks[szVal] = parseInt(inputVal);
+      sizeStocks["Único"] = parseInt(inputVal) || 0;
+      variantCount++;
+    } else {
+      sizeStocks["Único"] = 0;
       variantCount++;
     }
-  }
-
-  if (variantCount === 0) {
-    showToast("Por favor, ingresa stock para al menos un talle.", true);
-    return;
+  } else {
+    const talleMapping = { 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL', 'Unico': 'Único' };
+    for (const [idKey, szVal] of Object.entries(talleMapping)) {
+      const inputVal = document.getElementById(`stock-${idKey}`).value;
+      if (inputVal !== "") {
+        sizeStocks[szVal] = parseInt(inputVal);
+        variantCount++;
+      }
+    }
+    if (variantCount === 0) {
+      showToast("Por favor, ingresa stock para al menos un talle.", true);
+      return;
+    }
   }
 
   // Preparar variantes en lote
@@ -2306,6 +2413,11 @@ function clearIntakePreviews() {
       el.innerText = "Stock: 0";
     }
   });
+  const elSimple = document.getElementById("intake-stock-simple-display");
+  if (elSimple) {
+    elSimple.style.display = "none";
+    elSimple.innerText = "Stock Actual: 0";
+  }
   const matPrima = document.getElementById("intake-materia-prima-current");
   if (matPrima) {
     matPrima.style.display = "none";
@@ -2390,24 +2502,33 @@ function selectIntakeProduct(sku) {
     return pBase.toLowerCase() === baseSku.toLowerCase();
   });
   
-  const szMapping = {
-    'S': 'S',
-    'M': 'M',
-    'L': 'L',
-    'XL': 'XL',
-    'XXL': 'XXL',
-    'U': 'Único'
-  };
-  
-  Object.entries(szMapping).forEach(([key, sizeName]) => {
-    const variant = variants.find(v => v.size === sizeName);
+  if (state.businessType === "comercio") {
+    const variant = variants.find(v => v.size === "Único");
     const stock = variant ? parseInt(variant.stock) || 0 : 0;
-    const el = document.getElementById(`intake-stock-${key}`);
-    if (el) {
-      el.innerText = `Stock: ${stock}`;
-      el.style.display = "inline-block";
+    const elSimple = document.getElementById("intake-stock-simple-display");
+    if (elSimple) {
+      elSimple.innerText = `Stock Actual: ${stock}`;
+      elSimple.style.display = "inline-block";
     }
-  });
+  } else {
+    const szMapping = {
+      'S': 'S',
+      'M': 'M',
+      'L': 'L',
+      'XL': 'XL',
+      'XXL': 'XXL',
+      'U': 'Único'
+    };
+    Object.entries(szMapping).forEach(([key, sizeName]) => {
+      const variant = variants.find(v => v.size === sizeName);
+      const stock = variant ? parseInt(variant.stock) || 0 : 0;
+      const el = document.getElementById(`intake-stock-${key}`);
+      if (el) {
+        el.innerText = `Stock: ${stock}`;
+        el.style.display = "inline-block";
+      }
+    });
+  }
   
   // Mostrar Materia Prima actual
   const currentBaseCost = p.baseCost || p.cost || 0;
@@ -2551,18 +2672,24 @@ async function handleStockIntakeSubmit(e) {
       ? selectedProduct.sku.split('-').slice(0, -1).join('-') 
       : selectedProduct.sku);
 
-  const sizesInput = {
-    'S': parseInt(document.getElementById("intake-qty-S").value) || 0,
-    'M': parseInt(document.getElementById("intake-qty-M").value) || 0,
-    'L': parseInt(document.getElementById("intake-qty-L").value) || 0,
-    'XL': parseInt(document.getElementById("intake-qty-XL").value) || 0,
-    'XXL': parseInt(document.getElementById("intake-qty-XXL").value) || 0,
-    'Único': parseInt(document.getElementById("intake-qty-U").value) || 0
-  };
+  let sizesInput = {};
+  if (state.businessType === "comercio") {
+    const qty = parseInt(document.getElementById("intake-qty-simple").value) || 0;
+    sizesInput = { 'Único': qty };
+  } else {
+    sizesInput = {
+      'S': parseInt(document.getElementById("intake-qty-S").value) || 0,
+      'M': parseInt(document.getElementById("intake-qty-M").value) || 0,
+      'L': parseInt(document.getElementById("intake-qty-L").value) || 0,
+      'XL': parseInt(document.getElementById("intake-qty-XL").value) || 0,
+      'XXL': parseInt(document.getElementById("intake-qty-XXL").value) || 0,
+      'Único': parseInt(document.getElementById("intake-qty-U").value) || 0
+    };
+  }
   
   const sizesToUpdate = Object.entries(sizesInput).filter(([_, qty]) => qty > 0);
   if (sizesToUpdate.length === 0) {
-    showToast("Por favor, ingresa una cantidad mayor a 0 en al menos un talle.", true);
+    showToast(state.businessType === "comercio" ? "Por favor, ingresa una cantidad mayor a 0." : "Por favor, ingresa una cantidad mayor a 0 en al menos un talle.", true);
     return;
   }
   
@@ -3496,6 +3623,62 @@ function exportFixedCostsToExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Gastos Fijos");
   XLSX.writeFile(wb, `Gastos_Mensuales_${state.viewCostsMonth}.xlsx`);
+}
+
+function exportStockIntakesToExcel() {
+  if (!state.stockIntakes || state.stockIntakes.length === 0) {
+    showToast("No hay movimientos de compras para exportar.", true);
+    return;
+  }
+  
+  const formatted = state.stockIntakes.map(item => {
+    const qtyStr = Object.entries(item.quantities || {})
+      .filter(([_, qty]) => qty > 0)
+      .map(([size, qty]) => `${qty} un. (${size})`)
+      .join(", ");
+      
+    return {
+      Fecha: item.date || "",
+      Producto: item.productName || "",
+      SKU: item.productSku || "",
+      Proveedor: item.supplierName || "",
+      Cantidades: qtyStr,
+      "Total Cantidad": item.totalQuantity || 0,
+      "Costo Unitario": item.unitCost || 0,
+      "Costo Total": item.totalCost || 0
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(formatted);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Historial_Compras");
+  XLSX.writeFile(wb, "Historial_Compras.xlsx");
+}
+
+function exportCashTransactionsToExcel() {
+  if (!state.cashTransactions || state.cashTransactions.length === 0) {
+    showToast("No hay movimientos de caja para exportar.", true);
+    return;
+  }
+
+  const sorted = [...state.cashTransactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  const formatted = sorted.map(tx => {
+    const val = parseFloat(tx.amount) || 0;
+    const dateObj = new Date(tx.date);
+    const dateStr = dateObj.toLocaleDateString('es-AR') + " " + dateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    return {
+      "Fecha y Hora": dateStr,
+      Concepto: tx.description || "",
+      Tipo: tx.type === "income" ? "Ingreso" : "Egreso",
+      Monto: val
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(formatted);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Caja_Diaria");
+  XLSX.writeFile(wb, "Movimientos_Caja.xlsx");
 }// --- 8. MARKETING ---
 function switchMarketingSubTab(subTabId) {
   state.activeMarketingSubTab = subTabId;
@@ -3699,7 +3882,7 @@ function openMarketingDeliveryModal() {
     prodSelect.appendChild(opt);
   });
 
-  document.getElementById("mkt-delivery-size-select").innerHTML = `<option value="" disabled selected>Seleccione talle...</option>`;
+  document.getElementById("mkt-delivery-size-select").innerHTML = `<option value="" disabled selected>${state.businessType === "comercio" ? "Seleccione variante..." : "Seleccione talle..."}</option>`;
   document.getElementById("mkt-delivery-quantity").value = "1";
   document.getElementById("mkt-delivery-modal").className = "modal-backdrop active";
 }
@@ -3721,7 +3904,9 @@ function updateMarketingDeliverySizes(selectedSku = null) {
   variants.forEach(v => {
     const opt = document.createElement("option");
     opt.value = v.sku;
-    opt.innerText = `${v.size} (Stock: ${v.stock})`;
+    opt.innerText = state.businessType === "comercio"
+      ? `Stock: ${v.stock}`
+      : `${v.size} (Stock: ${v.stock})`;
     if (v.sku === selectedSku) {
       opt.selected = true;
     }
@@ -3737,7 +3922,7 @@ async function handleMarketingDeliverySubmit(e) {
   const qty = parseInt(document.getElementById("mkt-delivery-quantity").value) || 1;
 
   if (!infId || !sku) {
-    showToast("Seleccione el influencer y la variante de talle.", true);
+    showToast(state.businessType === "comercio" ? "Seleccione el influencer y la variante." : "Seleccione el influencer y la variante de talle.", true);
     return;
   }
 
@@ -4329,6 +4514,9 @@ function getCategoryTitle(key) {
   if (key === "estampados") return "Estampados";
   if (key === "packagings") return "Packaging";
   if (key === "bordados") return "Bordados";
+  if (key === "bolsas_caramelos") return "Bolsa de caramelos";
+  if (key === "envoltorios_regalo") return "Envoltorio de regalo";
+  if (key === "adicionales_kiosco") return "Otros adicionales";
   return key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
@@ -4490,8 +4678,11 @@ async function loginWithGoogle() {
     
     state.token = idToken;
     state.email = email;
+    const bizType = document.getElementById("login-business-type")?.value || "textil";
+    state.businessType = bizType;
     localStorage.setItem("gestiosmart_token", idToken);
     localStorage.setItem("gestiosmart_email", email);
+    localStorage.setItem("gestiosmart_business_type", bizType);
     
     showToast("¡Sesión iniciada con Google!");
     checkAuth();

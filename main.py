@@ -70,7 +70,12 @@ def get_uid_from_token(token):
 
 def get_user_prefix(token):
     uid = get_uid_from_token(token)
-    return f"{uid}_" if uid else None
+    if not uid:
+        return None
+    biz_type = request.headers.get("X-Business-Type", "textil")
+    if biz_type not in ["textil", "comercio"]:
+        biz_type = "textil"
+    return f"{uid}_{biz_type}_"
 
 def filter_user_docs(all_docs, prefix):
     user_docs = []
@@ -220,15 +225,29 @@ def seed_db_if_empty(prefix, token):
         # 3. Adicionales (Extras Config) (Vacíos por defecto)
         extras_config = next((d for d in user_docs if d.get("id") == "extras_config"), None)
         if not extras_config:
-            initial_extras = {
-                "sku": f"{prefix}extras_config",
-                "name": "Extras Config",
-                "cost": 0.0,
-                "stock": 0,
-                "estampados": [],
-                "packagings": [],
-                "bordados": []
-            }
+            biz_type = request.headers.get("X-Business-Type", "textil")
+            if biz_type not in ["textil", "comercio"]:
+                biz_type = "textil"
+            if biz_type == "comercio":
+                initial_extras = {
+                    "sku": f"{prefix}extras_config",
+                    "name": "Extras Config",
+                    "cost": 0.0,
+                    "stock": 0,
+                    "bolsas_caramelos": [],
+                    "envoltorios_regalo": [],
+                    "adicionales_kiosco": []
+                }
+            else:
+                initial_extras = {
+                    "sku": f"{prefix}extras_config",
+                    "name": "Extras Config",
+                    "cost": 0.0,
+                    "stock": 0,
+                    "estampados": [],
+                    "packagings": [],
+                    "bordados": []
+                }
             firebase_config.set_document("products", f"{prefix}extras_config", initial_extras, token)
 
         # 4. Proveedores (No se siembran de ejemplo)
@@ -278,6 +297,9 @@ def get_all_state():
         # 2. Get or initialize user profile (SaaS details)
         profile_doc = next((d for d in user_docs if d.get("id") == "user_profile"), None)
         if not profile_doc:
+            biz_type = request.headers.get("X-Business-Type", "textil")
+            if biz_type not in ["textil", "comercio"]:
+                biz_type = "textil"
             profile_doc = {
                 "sku": f"{prefix}user_profile",
                 "name": "User Profile",
@@ -286,7 +308,7 @@ def get_all_state():
                 "createdAt": int(time.time()),
                 "trialDays": 15,
                 "subscriptionStatus": "trial",  # trial, active, expired
-                "businessType": "clothing"
+                "businessType": biz_type
             }
             firebase_config.set_document("products", f"{prefix}user_profile", profile_doc, token)
             profile_doc_copy = dict(profile_doc)
@@ -343,15 +365,29 @@ def get_all_state():
             cat_config = cat_config_copy
             
         if not extras_config:
-            extras_config = {
-                "sku": f"{prefix}extras_config",
-                "name": "Extras Config",
-                "cost": 0.0,
-                "stock": 0,
-                "estampados": [],
-                "packagings": [],
-                "bordados": []
-            }
+            biz_type = request.headers.get("X-Business-Type", "textil")
+            if biz_type not in ["textil", "comercio"]:
+                biz_type = "textil"
+            if biz_type == "comercio":
+                extras_config = {
+                    "sku": f"{prefix}extras_config",
+                    "name": "Extras Config",
+                    "cost": 0.0,
+                    "stock": 0,
+                    "bolsas_caramelos": [],
+                    "envoltorios_regalo": [],
+                    "adicionales_kiosco": []
+                }
+            else:
+                extras_config = {
+                    "sku": f"{prefix}extras_config",
+                    "name": "Extras Config",
+                    "cost": 0.0,
+                    "stock": 0,
+                    "estampados": [],
+                    "packagings": [],
+                    "bordados": []
+                }
             firebase_config.set_document("products", f"{prefix}extras_config", extras_config, token)
             extras_config_copy = dict(extras_config)
             extras_config_copy["id"] = "extras_config"

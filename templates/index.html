@@ -36,6 +36,13 @@
             <label class="form-label" for="login-password">Contraseña</label>
             <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
           </div>
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label class="form-label" for="login-business-type">Tipo de Negocio</label>
+            <select id="login-business-type" class="form-select">
+              <option value="textil">Textil</option>
+              <option value="comercio">Comercio</option>
+            </select>
+          </div>
           <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Iniciar Sesión</button>
           <div style="text-align: center; margin-top: 14px;">
             <a href="#" onclick="toggleResetPasswordView(true)" style="color: var(--accent-red); font-size: 0.8rem; text-decoration: none; font-weight: 600;">¿Olvidaste tu contraseña?</a>
@@ -66,6 +73,13 @@
           <div class="form-group" style="margin-bottom: 24px;">
             <label class="form-label" for="register-password">Contraseña (mínimo 6 caracteres)</label>
             <input type="password" id="register-password" class="form-input" placeholder="••••••••" required autocomplete="new-password">
+          </div>
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label class="form-label" for="register-business-type">Tipo de Negocio</label>
+            <select id="register-business-type" class="form-select">
+              <option value="textil">Textil</option>
+              <option value="comercio">Comercio</option>
+            </select>
           </div>
           <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem;">Crear Cuenta</button>
         </form>
@@ -114,6 +128,9 @@
         <div class="topbar-title">Sistema de Gestión</div>
       </div>
       <div class="topbar-right">
+        <div id="topbar-business-type-container" style="display: flex; align-items: center; background: rgba(239, 71, 111, 0.1); border: 1px solid rgba(239, 71, 111, 0.2); border-radius: 20px; padding: 4px 12px; margin-right: 15px;">
+          <span style="font-size: 0.7rem; font-weight: 800; color: var(--accent-red); letter-spacing: 0.5px; text-transform: uppercase;" id="user-display-business-type">Textil</span>
+        </div>
         <div id="trial-badge-container" style="display: none; align-items: center; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 20px; padding: 4px 12px; margin-right: 15px;">
           <span style="font-size: 0.7rem; font-weight: 700; color: var(--accent-blue); letter-spacing: 0.5px;" id="trial-badge-text">Prueba: 15 días restantes</span>
         </div>
@@ -177,10 +194,6 @@
         <div class="sidebar-user-info">
           <span id="user-display-email" class="sidebar-user-email">email@gestiosmart.com</span>
           <span class="sidebar-user-role">Administrador</span>
-          <select id="business-type-select" class="form-select" style="font-size: 0.65rem; padding: 4px 8px; height: auto; background: var(--bg-input); border-color: var(--border-color); color: #fff; margin-top: 6px; border-radius: 4px;" onchange="updateBusinessType(this.value)">
-            <option value="clothing">Tienda de Ropa</option>
-            <option value="kiosk">Comercio Estándar / Kiosco</option>
-          </select>
         </div>
         <button class="btn-logout" onclick="handleLogout()">Cerrar Sesión</button>
       </div>
@@ -290,7 +303,28 @@
 
         <!-- Stock Crítico Section -->
         <div class="idx-card" style="margin-top: 24px;">
-          <h3 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 16px; color: var(--text-white);">Stock Crítico (Bajo Mínimo de Pedido)</h3>
+          <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; color: var(--text-white);">Stock Crítico (Punto de Pedido)</h3>
+          
+          <!-- EXPLICACIÓN PREMIUM DEL STOCK CRÍTICO -->
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 24px; font-size: 0.85rem; line-height: 1.6; color: var(--text-gray-light);">
+            <p style="margin-bottom: 14px;">
+              💡 <strong>¿Qué es el Stock Crítico?</strong><br>
+              Es la cantidad mínima de unidades que debes tener de un producto antes de realizar un nuevo pedido de reposición al proveedor. Esto te ayuda a evitar el <strong>quiebre de stock</strong> (quedarte sin productos para vender) mientras el proveedor prepara y entrega tu pedido.
+            </p>
+            <div style="background: var(--bg-input); border-left: 4px solid var(--accent-blue); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-family: monospace; font-size: 0.9rem; font-weight: 700; color: #fff; width: fit-content;">
+              Fórmula: <span style="color: #60a5fa;">Stock Crítico</span> = (<span style="color: #fca5a5;">Venta Media Diaria</span> × <span style="color: #fde047;">Tiempo de Entrega (Días)</span>) + <span style="color: #86efac;">Stock de Seguridad</span>
+            </div>
+            <p style="margin-bottom: 0;">
+              📝 <strong>Ejemplo sencillo:</strong><br>
+              Supongamos que tienes un comercio y vendes alfajores:<br>
+              • Vendes en promedio <strong style="color: #fca5a5;">2 unidades por día</strong> (Venta Media Diaria).<br>
+              • Tu proveedor tarda <strong style="color: #fde047;">5 días</strong> en traerte el pedido (Tiempo de Entrega).<br>
+              • Decides mantener un colchón extra de <strong style="color: #86efac;">4 unidades</strong> por si se demora el camión o aumenta la demanda (Stock de Seguridad).<br>
+              <strong>Cálculo:</strong> (<strong style="color: #fca5a5;">2</strong> × <strong style="color: #fde047;">5</strong>) + <strong style="color: #86efac;">4</strong> = <strong style="color: var(--accent-red); font-size: 1rem;">14 unidades</strong>.<br>
+              ✅ <strong>Conclusión:</strong> En el momento en que tu stock de alfajores llegue a <strong style="color: var(--accent-red);">14 unidades</strong>, debes realizar un nuevo pedido.
+            </p>
+          </div>
+          
           <div id="panel-stock-critico-list" class="grid-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             <!-- Cargado dinámicamente -->
           </div>
@@ -452,7 +486,7 @@
                 </div>
 
                 <!-- Cantidades por Talle -->
-                <div class="form-group">
+                <div class="form-group" id="intake-talles-container">
                   <label class="form-label">Cantidad a Ingresar por Talle</label>
                   <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; text-align: center;">
                     <div>
@@ -486,6 +520,11 @@
                       <span id="intake-stock-U" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
                     </div>
                   </div>
+                </div>
+                <div class="form-group" id="intake-simple-qty-container" style="display: none;">
+                  <label class="form-label">Cantidad a Ingresar</label>
+                  <input type="number" id="intake-qty-simple" class="form-input" placeholder="Ej. 10" min="0">
+                  <span id="intake-stock-simple-display" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 10px; border-radius: 4px; margin-top: 6px; width: fit-content;">Stock Actual: 0</span>
                 </div>
 
                 <!-- Adicionales Grid -->
@@ -534,9 +573,12 @@
 
             <!-- CARD 2: HISTORIAL DE INGRESOS -->
             <div class="idx-card">
-              <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-                <i class="fas fa-history" style="color: var(--text-gray);"></i> Historial de Ingresos
-              </h3>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 10px; margin: 0;">
+                  <i class="fas fa-history" style="color: var(--text-gray);"></i> Historial de Ingresos
+                </h3>
+                <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="exportStockIntakesToExcel()">Exportar Excel</button>
+              </div>
               <div id="stock-intakes-list" class="space-y-4" style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
                 <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px 0;">No hay movimientos recientes.</p>
               </div>
@@ -649,6 +691,9 @@
           </div>
           <div style="display: flex; gap: 12px; align-items: center;">
             <div class="badge badge-emerald" style="padding: 10px 16px; font-size: 0.9rem;" id="cash-neto-badge">Caja Neta: $ 0</div>
+            <button type="button" class="btn btn-secondary" onclick="exportCashTransactionsToExcel()">
+              Exportar Excel
+            </button>
             <button class="btn btn-primary" onclick="openCashTransactionModal()">
               <i>+</i> Registrar Movimiento
             </button>
@@ -1149,12 +1194,12 @@
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label" for="prod-color">Color</label>
+            <label id="prod-color-label" class="form-label" for="prod-color">Color</label>
             <input type="text" id="prod-color" class="form-input" placeholder="Ej. Negro" required>
           </div>
 
           <!-- Talles y Stock -->
-          <div class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
+          <div id="product-talles-card" class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
             <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Talles y Stock</label>
             <div class="grid-3 sm:grid-6" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
               <div>
@@ -1183,6 +1228,12 @@
               </div>
             </div>
             <p style="font-size: 0.65rem; color: var(--text-gray); text-align: center; margin-top: 12px; font-weight: 500;">Ingresá el stock inicial de los talles que desees habilitar.</p>
+          </div>
+
+          <!-- Stock Simple para Comercio -->
+          <div class="form-group" id="product-simple-stock-container" style="display: none;">
+            <label class="form-label" for="prod-stock-simple">Stock Inicial</label>
+            <input type="number" id="prod-stock-simple" class="form-input" placeholder="Ej. 100" min="0">
           </div>
 
           <!-- Adicionales Incorporados -->
