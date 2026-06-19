@@ -2054,7 +2054,7 @@ async function submitCheckoutFinance() {
     // 3. Registrar la transacción en la cuenta corriente de cliente
     await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", {
       description: `Venta Cta. corriente ${saleId}`,
-      amount: debtAmount,
+      amount: total,
       payment: paidAmount, // registrar entrega parcial si existe
       date: salePayload.date
     });
@@ -3383,6 +3383,17 @@ function setupStockIntakeForm() {
       }
     }
   });
+
+  const cashValInput = document.getElementById("intake-pay-cash-val");
+  if (cashValInput) {
+    cashValInput.removeEventListener("input", handleCashSplitInput);
+    cashValInput.addEventListener("input", handleCashSplitInput);
+  }
+  const debtValInput = document.getElementById("intake-pay-debt-val");
+  if (debtValInput) {
+    debtValInput.removeEventListener("input", handleDebtSplitInput);
+    debtValInput.addEventListener("input", handleDebtSplitInput);
+  }
   
   // Autocomplete search
   searchInput.removeEventListener("input", handleProductSearchInput);
@@ -3643,7 +3654,7 @@ function recalculateIntakeCosts() {
   document.getElementById("intake-total-cost-preview").innerText = `$ ${Math.round(totalCost).toLocaleString()}`;
   document.getElementById("intake-sale-price-preview").innerText = `$ ${Math.round(salePrice).toLocaleString()}`;
   
-  updateIntakePaymentSplit();
+  updateIntakePaymentSplit('init');
 }
 
 function getIntakeTotalCostAndQuantity() {
@@ -3686,37 +3697,46 @@ function getIntakeTotalCostAndQuantity() {
   };
 }
 
-function updateIntakePaymentSplit(isDebtChange = false) {
-  const cashPctInput = document.getElementById("intake-pay-cash-pct");
-  const debtPctInput = document.getElementById("intake-pay-debt-pct");
-  if (!cashPctInput || !debtPctInput) return;
-  
-  let cashPct = parseFloat(cashPctInput.value);
-  let debtPct = parseFloat(debtPctInput.value);
-  
-  if (isNaN(cashPct)) cashPct = 100;
-  if (isNaN(debtPct)) debtPct = 0;
-  
-  if (isDebtChange) {
-    if (debtPct < 0) debtPct = 0;
-    if (debtPct > 100) debtPct = 100;
-    cashPct = 100 - debtPct;
-    cashPctInput.value = cashPct;
-    debtPctInput.value = debtPct;
-  } else {
-    if (cashPct < 0) cashPct = 0;
-    if (cashPct > 100) cashPct = 100;
-    debtPct = 100 - cashPct;
-    cashPctInput.value = cashPct;
-    debtPctInput.value = debtPct;
-  }
+function updateIntakePaymentSplit(source = '') {
+  const cashValInput = document.getElementById("intake-pay-cash-val");
+  const debtValInput = document.getElementById("intake-pay-debt-val");
+  if (!cashValInput || !debtValInput) return;
   
   const { totalCost } = getIntakeTotalCostAndQuantity();
-  const cashAmount = totalCost * (cashPct / 100);
-  const debtAmount = totalCost * (debtPct / 100);
   
-  document.getElementById("intake-cash-amount-display").innerText = `$ ${Math.round(cashAmount).toLocaleString('es-AR')}`;
-  document.getElementById("intake-debt-amount-display").innerText = `$ ${Math.round(debtAmount).toLocaleString('es-AR')}`;
+  if (source === 'init') {
+    cashValInput.value = Math.round(totalCost);
+    debtValInput.value = 0;
+    return;
+  }
+  
+  let cashVal = parseFloat(cashValInput.value);
+  let debtVal = parseFloat(debtValInput.value);
+  
+  if (isNaN(cashVal)) cashVal = 0;
+  if (isNaN(debtVal)) debtVal = 0;
+  
+  if (source === 'debt') {
+    if (debtVal < 0) debtVal = 0;
+    if (debtVal > totalCost) debtVal = totalCost;
+    cashVal = Math.max(0, totalCost - debtVal);
+  } else {
+    // source === 'cash'
+    if (cashVal < 0) cashVal = 0;
+    if (cashVal > totalCost) cashVal = totalCost;
+    debtVal = Math.max(0, totalCost - cashVal);
+  }
+  
+  cashValInput.value = Math.round(cashVal);
+  debtValInput.value = Math.round(debtVal);
+}
+
+function handleCashSplitInput() {
+  updateIntakePaymentSplit('cash');
+}
+
+function handleDebtSplitInput() {
+  updateIntakePaymentSplit('debt');
 }
 
 function getExtraCost(category, id) {
@@ -3870,14 +3890,12 @@ async function handleStockIntakeSubmit(e) {
       await apiRequest("/api/stock-intakes", "POST", intakePayload);
       
       // 3. Registrar el egreso en Caja Diaria / Cuentas a Pagar
-      const cashPct = parseFloat(document.getElementById("intake-pay-cash-pct").value) || 0;
-      const debtPct = parseFloat(document.getElementById("intake-pay-debt-pct").value) || 0;
-      const cashAmount = totalCost * (cashPct / 100);
-      const debtAmount = totalCost * (debtPct / 100);
+      const cashAmount = parseFloat(document.getElementById("intake-pay-cash-val").value) || 0;
+      const debtAmount = parseFloat(document.getElementById("intake-pay-debt-val").value) || 0;
 
       if (cashAmount > 0) {
         const cajaPayload = {
-          description: `Compra de insumo (${cashPct}% efec.): ${option.name} - ${supplierName}`,
+          description: `Compra de insumo (Efectivo): ${option.name} - ${supplierName}`,
           type: "expense",
           amount: cashAmount,
           date: dateVal + "T12:00:00.000Z"
@@ -3898,7 +3916,7 @@ async function handleStockIntakeSubmit(e) {
           accId = newAcc.id;
         }
         await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", {
-          description: `Compra insumo (${debtPct}% deuda): ${option.name}`,
+          description: `Compra insumo (A pagar): ${option.name}`,
           amount: debtAmount,
           payment: 0,
           date: dateVal + "T12:00:00.000Z"
@@ -4070,14 +4088,12 @@ async function handleStockIntakeSubmit(e) {
     await apiRequest("/api/stock-intakes", "POST", intakePayload);
     
     // Registrar el egreso en Caja Diaria / Cuentas a Pagar
-    const cashPct = parseFloat(document.getElementById("intake-pay-cash-pct").value) || 0;
-    const debtPct = parseFloat(document.getElementById("intake-pay-debt-pct").value) || 0;
-    const cashAmount = totalCost * (cashPct / 100);
-    const debtAmount = totalCost * (debtPct / 100);
+    const cashAmount = parseFloat(document.getElementById("intake-pay-cash-val").value) || 0;
+    const debtAmount = parseFloat(document.getElementById("intake-pay-debt-val").value) || 0;
 
     if (cashAmount > 0) {
       const cajaPayload = {
-        description: `Compra de mercadería (${cashPct}% efec.) - ${supplierName}`,
+        description: `Compra de mercadería (Efectivo) - ${supplierName}`,
         type: "expense",
         amount: cashAmount,
         date: dateVal + "T12:00:00.000Z"
@@ -4098,7 +4114,7 @@ async function handleStockIntakeSubmit(e) {
         accId = newAcc.id;
       }
       await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", {
-        description: `Compra de mercadería (${debtPct}% deuda)`,
+        description: `Compra de mercadería (A pagar)`,
         amount: debtAmount,
         payment: 0,
         date: dateVal + "T12:00:00.000Z"
@@ -4274,7 +4290,10 @@ function renderCollections() {
   const clientes = state.currentAccounts.filter(a => a.type === "cliente" && a.entityName.toLowerCase().includes(searchVal));
 
   // Calcular total a cobrar de clientes
-  const total = clientes.reduce((sum, acc) => sum + (acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0), 0);
+  const total = clientes.reduce((sum, acc) => {
+    const bal = acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0;
+    return sum + Math.max(0, bal);
+  }, 0);
   const kpiVal = document.getElementById("collections-kpi-val");
   if (kpiVal) kpiVal.innerText = `$ ${Math.round(total).toLocaleString()}`;
 
@@ -4284,7 +4303,7 @@ function renderCollections() {
   }
 
   clientes.forEach(acc => {
-    const balance = acc.transactions ? acc.transactions.reduce((sum, tx) => sum + (tx.amount - tx.payment), 0) : 0;
+    const balance = Math.max(0, acc.transactions ? acc.transactions.reduce((sum, tx) => sum + (tx.amount - tx.payment), 0) : 0);
     
     let txRows = "";
     if (!acc.transactions || acc.transactions.length === 0) {

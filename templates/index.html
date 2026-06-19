@@ -599,17 +599,13 @@
                   <label class="form-label">Condición de Pago (Compra)</label>
                   <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px;">
                     <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-                      <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">% Efectivo:</span>
-                      <input type="number" id="intake-pay-cash-pct" class="form-input" min="0" max="100" value="100" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit()">
+                      <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">Efectivo ($):</span>
+                      <input type="number" id="intake-pay-cash-val" class="form-input" min="0" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit('cash')">
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-                      <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">% A Pagar:</span>
-                      <input type="number" id="intake-pay-debt-pct" class="form-input" min="0" max="100" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit(true)">
+                      <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">A Pagar ($):</span>
+                      <input type="number" id="intake-pay-debt-val" class="form-input" min="0" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit('debt')">
                     </div>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-gray); margin-top: 6px;">
-                    <span>Pago al instante: <strong id="intake-cash-amount-display" style="color: #10b981;">$0</strong></span>
-                    <span>Deuda en Cta. Pagar: <strong id="intake-debt-amount-display" style="color: #f87171;">$0</strong></span>
                   </div>
                 </div>
 
@@ -1070,7 +1066,7 @@
             <span style="font-size: 1.2rem; margin-right: 12px;">📱</span> <strong>Transferencia</strong>
           </button>
           <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Financiado')">
-            <span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas (Cta. Corriente)</strong>
+            <span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas</strong>
           </button>
         </div>
       </div>
@@ -1078,7 +1074,7 @@
       <!-- Step 2: Current Account Client Registration -->
       <div id="checkout-step-finance" style="display: none;" class="p-6">
         <div class="modal-header" style="border: none; padding: 0 0 20px 0;">
-          <h3 class="modal-title">Cobranzas (Cta. Corriente)</h3>
+          <h3 class="modal-title">Cobranzas</h3>
           <span class="modal-close-btn" onclick="closeCheckoutModal()">✕</span>
         </div>
 
@@ -1112,7 +1108,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label" for="chk-client-paid">Monto Entregado (Entrega inicial)</label>
+            <label class="form-label" for="chk-client-paid">Monto Pagado</label>
             <input type="text" id="chk-client-paid" class="form-input" placeholder="$ 0" oninput="formatCheckoutPaidAmount()">
           </div>
 
