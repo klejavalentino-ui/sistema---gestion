@@ -318,7 +318,7 @@ function triggerExcelImport() {
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
           ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
           <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; overflow-x: auto; white-space: nowrap; border: 1px solid var(--border-color);">
-            <strong>SKU | Proucto | Categoría | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
+            <strong>SKU | Producto | Categoría | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
           </div>
         </div>
       `;
@@ -327,7 +327,7 @@ function triggerExcelImport() {
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
           ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
           <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; overflow-x: auto; white-space: nowrap; border: 1px solid var(--border-color);">
-            <strong>SKU | Proucto | Categoría | Talle | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
+            <strong>SKU | Producto | Categoría | Talle | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
           </div>
         </div>
       `;
@@ -354,15 +354,20 @@ function closeExcelImportModal() {
 function downloadExcelTemplate() {
   const isComercio = state.businessType === "comercio";
   const headers = isComercio 
-    ? [["SKU", "Proucto", "Categoría", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]]
-    : [["SKU", "Proucto", "Categoría", "Talle", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]];
+    ? [["SKU", "Producto", "Categoría", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]]
+    : [["SKU", "Producto", "Categoría", "Talle", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]];
   const sampleData = isComercio
     ? [
         ["PROD-001", "Coca Cola 1.5L", "Bebidas", "Único", "1200", "50", "1800", "24", "15", "5"],
-        ["PROD-002", "Alfajor de Chocolate", "Kiosco", "Único", "400", "62.5", "650", "50", "15", "5"]
+        ["PROD-002", "Alfajor de Chocolate", "Kiosco", "Único", "400", "62.5", "650", "50", "15", "5"],
+        ["PROD-003", "Yerba Mate 1Kg", "Almacén", "Único", "2500", "40", "3500", "30", "10", "8"],
+        ["PROD-004", "Galletitas Dulces", "Almacén", "Único", "800", "50", "1200", "60", "10", "12"]
       ]
     : [
-        ["REM-NEGRA-M", "Remera Algodón Negra M", "Remeras", "M", "Negro", "3000", "100", "6000", "15", "5"]
+        ["REM-NEGRA-M", "Remera Algodón Negra", "Remeras", "M", "Negro", "3000", "100", "6000", "15", "5"],
+        ["REM-NEGRA-S", "Remera Algodón Negra", "Remeras", "S", "Negro", "3000", "100", "6000", "15", "3"],
+        ["JEAN-AZUL-42", "Pantalón Jean Azul", "Pantalones", "42", "Azul", "8000", "80", "14400", "20", "15", "4"],
+        ["BUZO-GRIS-L", "Buzo Canguro Gris", "Abrigos", "L", "Gris Melange", "12000", "90", "22800", "8", "20", "2"]
       ];
   
   const sheetData = headers.concat(sampleData);
@@ -402,7 +407,7 @@ function handleExcelImport(event) {
       const normalizedSheetHeaders = firstSheetRow.map(h => normalizeHeader(h));
       const requiredHeadersTextil = [
         "sku",
-        "proucto",
+        "producto",
         "categoria",
         "talle",
         "variante",
@@ -415,7 +420,7 @@ function handleExcelImport(event) {
       ];
       const requiredHeadersComercio = [
         "sku",
-        "proucto",
+        "producto",
         "categoria",
         "variante",
         "costo unitario",
@@ -432,7 +437,7 @@ function handleExcelImport(event) {
       if (missingHeaders.length > 0) {
         const headerFriendlyMap = {
           "sku": "SKU",
-          "proucto": "Proucto",
+          "producto": "Producto",
           "categoria": "Categoría",
           "talle": "Talle",
           "variante": "Variante",
@@ -476,7 +481,7 @@ function handleExcelImport(event) {
         });
         
         const sku = String(cleanRow["sku"] || "").trim();
-        const name = String(cleanRow["proucto"] || "").trim();
+        const name = String(cleanRow["producto"] || "").trim();
         const category = String(cleanRow["categoria"] || "General").trim();
         
         const costStr = String(cleanRow["costo unitario"] || "");
@@ -2608,11 +2613,17 @@ function openCreateProductModal() {
   // Limpiar stock dinámico
   document.getElementById("prod-te").value = "";
   document.getElementById("prod-ss").value = "";
+  document.getElementById("prod-te-textil").value = "";
   
-  // Limpiar stocks de talles
+  // Limpiar stocks y stocks de seguridad de talles
   ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
     document.getElementById(`stock-${sz}`).value = "";
     document.getElementById(`stock-${sz}`).readOnly = false;
+    const ssEl = document.getElementById(`ss-${sz}`);
+    if (ssEl) {
+      ssEl.value = "";
+      ssEl.readOnly = false;
+    }
   });
 
   const isComercio = state.businessType === "comercio";
@@ -2624,12 +2635,27 @@ function openCreateProductModal() {
   
   const talleCard = document.getElementById("product-talles-card");
   const simpleStockContainer = document.getElementById("product-simple-stock-container");
+  
+  const globalSsContainer = document.getElementById("prod-stock-critico-global-inputs");
+  const talleSsContainer = document.getElementById("product-talles-ss-container");
+  const explanationExample = document.getElementById("prod-ss-explanation-example");
+
   if (isComercio) {
     if (talleCard) talleCard.style.display = "none";
     if (simpleStockContainer) simpleStockContainer.style.display = "block";
+    if (globalSsContainer) globalSsContainer.style.display = "grid";
+    if (talleSsContainer) talleSsContainer.style.display = "none";
+    if (explanationExample) {
+      explanationExample.innerHTML = "<strong>Ejemplo (Comercio):</strong> Si vendes 5 latas de un producto por día y el proveedor tarda 7 días en reponer, un stock de seguridad de 10 unidades evita que te quedes sin stock ante demoras.";
+    }
   } else {
     if (talleCard) talleCard.style.display = "block";
     if (simpleStockContainer) simpleStockContainer.style.display = "none";
+    if (globalSsContainer) globalSsContainer.style.display = "none";
+    if (talleSsContainer) talleSsContainer.style.display = "block";
+    if (explanationExample) {
+      explanationExample.innerHTML = "<strong>Ejemplo (Textil):</strong> Si del talle <strong>L</strong> vendes más que del talle <strong>XS</strong>, puedes definir un stock de seguridad mayor para el <strong>L</strong> (ej. 15 prendas) y uno menor para el <strong>XS</strong> (ej. 3 prendas).";
+    }
   }
 
   // Rellenar categorías
@@ -2655,24 +2681,26 @@ function openEditProductModal(sku) {
   document.getElementById("prod-cost-input").value = Math.round(p.baseCost || p.cost).toLocaleString("es-AR");
   document.getElementById("prod-margin").value = p.margin;
   
-  // Cargar stock dinámico
-  document.getElementById("prod-te").value = (p.leadTime !== undefined && p.leadTime !== null) ? p.leadTime : "";
-  document.getElementById("prod-ss").value = (p.securityStock !== undefined && p.securityStock !== null) ? p.securityStock : "";
-
   // Cargar stock de todas las variantes del mismo producto (compartiendo baseSku)
   const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
   const variants = state.products.filter(prod => prod.baseSku === cleanBase);
   
+  // Limpiar y cargar stock/seguridad por talles
   ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
     const input = document.getElementById(`stock-${sz}`);
+    const ssInput = document.getElementById(`ss-${sz}`);
+    
     input.readOnly = false; // Permitir editar cualquier talle
+    if (ssInput) ssInput.readOnly = false;
     
     const szVal = sz === 'Unico' ? 'Único' : sz;
     const variant = variants.find(v => v.size === szVal);
     if (variant) {
       input.value = variant.stock;
+      if (ssInput) ssInput.value = (variant.securityStock !== undefined && variant.securityStock !== null && variant.securityStock !== "") ? variant.securityStock : "";
     } else {
       input.value = "";
+      if (ssInput) ssInput.value = "";
     }
   });
 
@@ -2682,14 +2710,36 @@ function openEditProductModal(sku) {
   
   const talleCard = document.getElementById("product-talles-card");
   const simpleStockContainer = document.getElementById("product-simple-stock-container");
+  
+  const globalSsContainer = document.getElementById("prod-stock-critico-global-inputs");
+  const talleSsContainer = document.getElementById("product-talles-ss-container");
+  const explanationExample = document.getElementById("prod-ss-explanation-example");
+
   if (isComercio) {
     if (talleCard) talleCard.style.display = "none";
     if (simpleStockContainer) simpleStockContainer.style.display = "block";
     document.getElementById("prod-stock-simple").value = p.stock;
     document.getElementById("prod-stock-simple").readOnly = false;
+    
+    if (globalSsContainer) globalSsContainer.style.display = "grid";
+    if (talleSsContainer) talleSsContainer.style.display = "none";
+    document.getElementById("prod-ss").value = (p.securityStock !== undefined && p.securityStock !== null) ? p.securityStock : "";
+    document.getElementById("prod-te").value = (p.leadTime !== undefined && p.leadTime !== null) ? p.leadTime : "";
+    
+    if (explanationExample) {
+      explanationExample.innerHTML = "<strong>Ejemplo (Comercio):</strong> Si vendes 5 latas de un producto por día y el proveedor tarda 7 días en reponer, un stock de seguridad de 10 unidades evita que te quedes sin stock ante demoras.";
+    }
   } else {
     if (talleCard) talleCard.style.display = "block";
     if (simpleStockContainer) simpleStockContainer.style.display = "none";
+    
+    if (globalSsContainer) globalSsContainer.style.display = "none";
+    if (talleSsContainer) talleSsContainer.style.display = "block";
+    document.getElementById("prod-te-textil").value = (p.leadTime !== undefined && p.leadTime !== null) ? p.leadTime : "";
+    
+    if (explanationExample) {
+      explanationExample.innerHTML = "<strong>Ejemplo (Textil):</strong> Si del talle <strong>L</strong> vendes más que del talle <strong>XS</strong>, puedes definir un stock de seguridad mayor para el <strong>L</strong> (ej. 15 prendas) y uno menor para el <strong>XS</strong> (ej. 3 prendas).";
+    }
   }
 
   populateProductFormCategories(p.category);
@@ -2824,17 +2874,34 @@ async function saveProductForm(e) {
   
   const totalCost = cost + totalExtrasCost;
   
+  const isComercio = state.businessType === "comercio";
+  
   // Parsea stock crítico dinámico
-  const leadTimeVal = document.getElementById("prod-te").value.trim();
-  const leadTime = leadTimeVal !== "" ? parseInt(leadTimeVal) || 0 : null;
-  const securityStockVal = document.getElementById("prod-ss").value.trim();
-  const securityStock = securityStockVal !== "" ? parseInt(securityStockVal) || 0 : null;
+  let leadTime = null;
+  let globalSecurityStock = null;
+  const sizeSecurityStocks = {};
+  
+  if (isComercio) {
+    const leadTimeVal = document.getElementById("prod-te").value.trim();
+    leadTime = leadTimeVal !== "" ? parseInt(leadTimeVal) || 0 : null;
+    const securityStockVal = document.getElementById("prod-ss").value.trim();
+    globalSecurityStock = securityStockVal !== "" ? parseInt(securityStockVal) || 0 : null;
+  } else {
+    const leadTimeVal = document.getElementById("prod-te-textil").value.trim();
+    leadTime = leadTimeVal !== "" ? parseInt(leadTimeVal) || 0 : null;
+    
+    const talleMapping = { 'XS': 'XS', 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL', 'Unico': 'Único' };
+    for (const [idKey, szVal] of Object.entries(talleMapping)) {
+      const ssInputVal = document.getElementById(`ss-${idKey}`).value.trim();
+      sizeSecurityStocks[szVal] = ssInputVal !== "" ? parseInt(ssInputVal) || 0 : null;
+    }
+  }
 
   // Recolectar stock por talles
   const sizeStocks = {};
   let variantCount = 0;
   
-  if (state.businessType === "comercio") {
+  if (isComercio) {
     const inputVal = document.getElementById("prod-stock-simple").value;
     if (inputVal !== "") {
       sizeStocks["Único"] = parseInt(inputVal) || 0;
@@ -2869,6 +2936,7 @@ async function saveProductForm(e) {
     const cleanBaseSku = baseSku.split("-")[0] || baseSku;
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const existingVariant = state.products.find(v => v.baseSku === cleanBaseSku && v.size === size);
+      const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       
       const payload = {
         id: existingVariant ? existingVariant.id : Date.now() + Math.random(),
@@ -2887,13 +2955,14 @@ async function saveProductForm(e) {
         bordadoId: extras.bordados || null,
         packagingId: extras.packagings || null,
         leadTime: leadTime,
-        securityStock: securityStock
+        securityStock: variantSecurityStock
       };
       batchPayload.push(payload);
     }
   } else {
     // Crear variantes
     for (const [size, stock] of Object.entries(sizeStocks)) {
+      const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       const payload = {
         id: Date.now() + Math.random(),
         baseSku: baseSku,
@@ -2911,7 +2980,7 @@ async function saveProductForm(e) {
         bordadoId: extras.bordados || null,
         packagingId: extras.packagings || null,
         leadTime: leadTime,
-        securityStock: securityStock
+        securityStock: variantSecurityStock
       };
       batchPayload.push(payload);
     }

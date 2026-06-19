@@ -1316,17 +1316,68 @@
           <!-- Stock Crítico Dinámico (Punto de Pedido) -->
           <div class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
             <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Stock Crítico Dinámico (Punto de Pedido)</label>
-            <div class="grid-2" style="gap: 12px;">
+            
+            <div class="grid-2" style="gap: 12px;" id="prod-stock-critico-global-inputs">
               <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label" style="font-size: 0.75rem;" for="prod-te">Tiempo de Entrega (días)</label>
                 <input type="number" id="prod-te" class="form-input" placeholder="Por defecto: 15" min="0">
               </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="font-size: 0.75rem;" for="prod-ss">Stock de Seguridad (uds)</label>
+              <div class="form-group" style="margin-bottom: 0;" id="prod-ss-global-container">
+                <label class="form-label" style="font-size: 0.75rem;" for="prod-ss">Stock de Seguridad</label>
                 <input type="number" id="prod-ss" class="form-input" placeholder="Colchón para imprevistos" min="0">
               </div>
             </div>
-            <p style="font-size: 0.65rem; color: var(--text-gray); text-align: center; margin-top: 12px; font-weight: 500;">
+
+            <!-- Talles Safety Stock Grid for Textil -->
+            <div id="product-talles-ss-container" style="display: none; margin-top: 0;">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label" style="font-size: 0.75rem;" for="prod-te-textil">Tiempo de Entrega (días)</label>
+                <input type="number" id="prod-te-textil" class="form-input" placeholder="Por defecto: 15" min="0" style="max-width: 200px;">
+              </div>
+              
+              <label class="form-label" style="font-size: 0.75rem; margin-bottom: 8px;">Stock de Seguridad por Talle</label>
+              <div class="grid-3 sm:grid-7" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 12px;">
+                <div>
+                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XS</label>
+                  <input type="number" id="ss-XS" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                </div>
+                <div>
+                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">S</label>
+                  <input type="number" id="ss-S" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                </div>
+                <div>
+                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">M</label>
+                  <input type="number" id="ss-M" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                </div>
+                <div>
+                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">L</label>
+                  <input type="number" id="ss-L" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                </div>
+                <div>
+                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XL</label>
+                  <input type="number" id="ss-XL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                </div>
+                <div>
+                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XXL</label>
+                  <input type="number" id="ss-XXL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                </div>
+                <div>
+                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">Único</label>
+                  <input type="number" id="ss-Unico" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Explicación del Stock de Seguridad -->
+            <div style="margin-top: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); padding: 12px; border-radius: 6px; font-size: 0.7rem; line-height: 1.45;">
+              <strong style="color: #60a5fa; display: block; margin-bottom: 4px;">¿Qué es el Stock de Seguridad?</strong>
+              Es la reserva mínima ("colchón" de stock) que mantienes para evitar quedarte sin mercadería si hay retrasos del taller/proveedor o picos inesperados de venta.
+              <span id="prod-ss-explanation-example" style="display: block; margin-top: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.1); padding-top: 6px; color: var(--text-gray-light);">
+                <strong>Ejemplo (Textil):</strong> Si del talle <strong>L</strong> vendes más que del talle <strong>XS</strong>, puedes definir un stock de seguridad mayor para el <strong>L</strong> (ej. 15 prendas) y uno menor para el <strong>XS</strong> (ej. 3 prendas).
+              </span>
+            </div>
+
+            <p style="font-size: 0.65rem; color: var(--text-gray); text-align: center; margin-top: 12px; font-weight: 500; margin-bottom: 0;">
               Fórmula: PP = (Venta Media Diaria × Tiempo de Entrega) + Stock de Seguridad.
             </p>
           </div>
