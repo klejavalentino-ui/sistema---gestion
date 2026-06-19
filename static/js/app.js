@@ -824,6 +824,7 @@ async function refreshState() {
     state.businessType = bizType;
     
     applyBusinessTypeUIUpdates();
+    await syncSuppliersWithCurrentAccounts();
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
       item.style.display = "block";
@@ -836,6 +837,43 @@ async function refreshState() {
     setupStockIntakeForm();
     checkBusinessNameSetup();
     renderAll();
+  }
+}
+
+async function syncSuppliersWithCurrentAccounts() {
+  if (!state.token) return;
+  const suppliers = state.suppliers || [];
+  const currentAccounts = state.currentAccounts || [];
+  let hasChanges = false;
+  
+  for (const s of suppliers) {
+    const exists = currentAccounts.some(acc => acc.type === "proveedor" && acc.entityName.toLowerCase() === s.name.toLowerCase());
+    if (!exists) {
+      const payload = {
+        entityName: s.name,
+        type: "proveedor",
+        phone: s.phone || "",
+        address: s.address || ""
+      };
+      try {
+        console.log(`Syncing supplier "${s.name}" to Cuentas a Pagar...`);
+        await apiRequest("/api/current-accounts", "POST", payload);
+        hasChanges = true;
+      } catch (err) {
+        console.error(`Failed to sync supplier "${s.name}":`, err);
+      }
+    }
+  }
+  
+  if (hasChanges) {
+    try {
+      const response = await apiRequest("/api/current-accounts", "GET");
+      if (response) {
+        state.currentAccounts = response;
+      }
+    } catch (e) {
+      console.error("Failed to reload current accounts after sync", e);
+    }
   }
 }
 
@@ -3327,6 +3365,8 @@ function setupStockIntakeForm() {
   // Listeners para recálculos
   const inputsToRecalc = [
     "intake-materia-prima", "intake-margin",
+    "intake-qty-simple",
+    "intake-qty-XS", "intake-qty-S", "intake-qty-M", "intake-qty-L", "intake-qty-XL", "intake-qty-XXL", "intake-qty-U",
     "intake-estampado-select", "intake-packaging-select", "intake-bordado-select"
   ];
   inputsToRecalc.forEach(id => {
@@ -3602,6 +3642,81 @@ function recalculateIntakeCosts() {
   
   document.getElementById("intake-total-cost-preview").innerText = `$ ${Math.round(totalCost).toLocaleString()}`;
   document.getElementById("intake-sale-price-preview").innerText = `$ ${Math.round(salePrice).toLocaleString()}`;
+  
+  updateIntakePaymentSplit();
+}
+
+function getIntakeTotalCostAndQuantity() {
+  const typeEl = document.querySelector('input[name="intake-type"]:checked');
+  const type = typeEl ? typeEl.value : "producto";
+  const isProd = (type === "producto");
+  
+  let unitCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
+  let totalQuantity = 0;
+  
+  if (isProd) {
+    let totalExtrasCost = 0;
+    Object.keys(state.extras).forEach(catKey => {
+      const el = document.getElementById(`intake-extra-select-${catKey}`);
+      if (el) {
+        const val = el.value;
+        if (val && val !== "0") {
+          totalExtrasCost += getExtraCost(catKey, val);
+        }
+      }
+    });
+    unitCost += totalExtrasCost;
+    
+    if (state.businessType === "comercio") {
+      totalQuantity = parseInt(document.getElementById("intake-qty-simple").value) || 0;
+    } else {
+      const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'U'];
+      sizes.forEach(sz => {
+        totalQuantity += parseInt(document.getElementById(`intake-qty-${sz}`).value) || 0;
+      });
+    }
+  } else {
+    totalQuantity = parseInt(document.getElementById("intake-qty-simple").value) || 0;
+  }
+  
+  return {
+    unitCost: unitCost,
+    totalQuantity: totalQuantity,
+    totalCost: unitCost * totalQuantity
+  };
+}
+
+function updateIntakePaymentSplit(isDebtChange = false) {
+  const cashPctInput = document.getElementById("intake-pay-cash-pct");
+  const debtPctInput = document.getElementById("intake-pay-debt-pct");
+  if (!cashPctInput || !debtPctInput) return;
+  
+  let cashPct = parseFloat(cashPctInput.value);
+  let debtPct = parseFloat(debtPctInput.value);
+  
+  if (isNaN(cashPct)) cashPct = 100;
+  if (isNaN(debtPct)) debtPct = 0;
+  
+  if (isDebtChange) {
+    if (debtPct < 0) debtPct = 0;
+    if (debtPct > 100) debtPct = 100;
+    cashPct = 100 - debtPct;
+    cashPctInput.value = cashPct;
+    debtPctInput.value = debtPct;
+  } else {
+    if (cashPct < 0) cashPct = 0;
+    if (cashPct > 100) cashPct = 100;
+    debtPct = 100 - cashPct;
+    cashPctInput.value = cashPct;
+    debtPctInput.value = debtPct;
+  }
+  
+  const { totalCost } = getIntakeTotalCostAndQuantity();
+  const cashAmount = totalCost * (cashPct / 100);
+  const debtAmount = totalCost * (debtPct / 100);
+  
+  document.getElementById("intake-cash-amount-display").innerText = `$ ${Math.round(cashAmount).toLocaleString('es-AR')}`;
+  document.getElementById("intake-debt-amount-display").innerText = `$ ${Math.round(debtAmount).toLocaleString('es-AR')}`;
 }
 
 function getExtraCost(category, id) {
@@ -3754,14 +3869,41 @@ async function handleStockIntakeSubmit(e) {
       };
       await apiRequest("/api/stock-intakes", "POST", intakePayload);
       
-      // 3. Registrar el egreso en Caja Diaria
-      const cajaPayload = {
-        description: `Compra de insumo: ${option.name} - ${supplierName}`,
-        type: "expense",
-        amount: totalCost,
-        date: dateVal + "T12:00:00.000Z"
-      };
-      await apiRequest("/api/cash-transactions", "POST", cajaPayload);
+      // 3. Registrar el egreso en Caja Diaria / Cuentas a Pagar
+      const cashPct = parseFloat(document.getElementById("intake-pay-cash-pct").value) || 0;
+      const debtPct = parseFloat(document.getElementById("intake-pay-debt-pct").value) || 0;
+      const cashAmount = totalCost * (cashPct / 100);
+      const debtAmount = totalCost * (debtPct / 100);
+
+      if (cashAmount > 0) {
+        const cajaPayload = {
+          description: `Compra de insumo (${cashPct}% efec.): ${option.name} - ${supplierName}`,
+          type: "expense",
+          amount: cashAmount,
+          date: dateVal + "T12:00:00.000Z"
+        };
+        await apiRequest("/api/cash-transactions", "POST", cajaPayload);
+      }
+
+      if (debtAmount > 0) {
+        const supplierAccount = state.currentAccounts.find(a => a.type === "proveedor" && a.entityName.toLowerCase() === supplierName.toLowerCase());
+        let accId = supplierAccount ? supplierAccount.id : null;
+        if (!accId) {
+          const newAcc = await apiRequest("/api/current-accounts", "POST", {
+            entityName: supplierName,
+            type: "proveedor",
+            phone: "",
+            address: ""
+          });
+          accId = newAcc.id;
+        }
+        await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", {
+          description: `Compra insumo (${debtPct}% deuda): ${option.name}`,
+          amount: debtAmount,
+          payment: 0,
+          date: dateVal + "T12:00:00.000Z"
+        });
+      }
       
       showToast("¡Stock e ingreso de adicional registrados con éxito!");
       
@@ -3772,6 +3914,7 @@ async function handleStockIntakeSubmit(e) {
       document.getElementById("intake-total-cost-preview").innerText = "$0";
       document.getElementById("intake-sale-price-preview").innerText = "$0";
       clearIntakePreviews();
+      updateIntakePaymentSplit();
       
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -3926,14 +4069,41 @@ async function handleStockIntakeSubmit(e) {
     };
     await apiRequest("/api/stock-intakes", "POST", intakePayload);
     
-    // Registrar el egreso en Caja Diaria
-    const cajaPayload = {
-      description: `Compra de mercadería - ${supplierName}`,
-      type: "expense",
-      amount: totalCost,
-      date: dateVal + "T12:00:00.000Z"
-    };
-    await apiRequest("/api/cash-transactions", "POST", cajaPayload);
+    // Registrar el egreso en Caja Diaria / Cuentas a Pagar
+    const cashPct = parseFloat(document.getElementById("intake-pay-cash-pct").value) || 0;
+    const debtPct = parseFloat(document.getElementById("intake-pay-debt-pct").value) || 0;
+    const cashAmount = totalCost * (cashPct / 100);
+    const debtAmount = totalCost * (debtPct / 100);
+
+    if (cashAmount > 0) {
+      const cajaPayload = {
+        description: `Compra de mercadería (${cashPct}% efec.) - ${supplierName}`,
+        type: "expense",
+        amount: cashAmount,
+        date: dateVal + "T12:00:00.000Z"
+      };
+      await apiRequest("/api/cash-transactions", "POST", cajaPayload);
+    }
+
+    if (debtAmount > 0) {
+      const supplierAccount = state.currentAccounts.find(a => a.type === "proveedor" && a.entityName.toLowerCase() === supplierName.toLowerCase());
+      let accId = supplierAccount ? supplierAccount.id : null;
+      if (!accId) {
+        const newAcc = await apiRequest("/api/current-accounts", "POST", {
+          entityName: supplierName,
+          type: "proveedor",
+          phone: "",
+          address: ""
+        });
+        accId = newAcc.id;
+      }
+      await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", {
+        description: `Compra de mercadería (${debtPct}% deuda)`,
+        amount: debtAmount,
+        payment: 0,
+        date: dateVal + "T12:00:00.000Z"
+      });
+    }
     
     showToast("¡Stock e ingreso registrados con éxito!");
     
@@ -3943,6 +4113,7 @@ async function handleStockIntakeSubmit(e) {
     document.getElementById("intake-total-cost-preview").innerText = "$0";
     document.getElementById("intake-sale-price-preview").innerText = "$0";
     clearIntakePreviews();
+    updateIntakePaymentSplit();
     
     const today = new Date();
     const yyyy = today.getFullYear();

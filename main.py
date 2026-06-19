@@ -44,6 +44,21 @@ def add_header(r):
     r.headers["Pragma"] = "no-cache"
     r.headers["Expires"] = "0"
     r.headers['Cache-Control'] = 'public, max-age=0'
+    
+    # Intercept 500 error responses containing Firestore 401 client error
+    if r.status_code == 500:
+        try:
+            data = json.loads(r.get_data(as_text=True))
+            if data and "error" in data:
+                err_str = str(data["error"])
+                if "401" in err_str or "unauthorized" in err_str.lower():
+                    # Modify response to be 401 Unauthorized
+                    r.status_code = 401
+                    r.set_data(json.dumps({"error": "Sesión inválida o expirada. Por favor inicie sesión."}))
+                    r.headers["Content-Type"] = "application/json"
+        except Exception:
+            pass
+            
     return r
 
 # --- Middleware para obtener Token de Auth y UIDs ---
