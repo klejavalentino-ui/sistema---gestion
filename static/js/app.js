@@ -3705,13 +3705,17 @@ function updateIntakePaymentSplit(source = '') {
   const { totalCost } = getIntakeTotalCostAndQuantity();
   
   if (source === 'init') {
-    cashValInput.value = Math.round(totalCost);
-    debtValInput.value = 0;
+    cashValInput.value = totalCost ? Math.round(totalCost).toLocaleString("es-AR") : "0";
+    debtValInput.value = "0";
+    const totalToPayEl = document.getElementById("intake-payment-total-to-pay");
+    if (totalToPayEl) {
+      totalToPayEl.innerText = `Total a pagar: $ ${Math.round(totalCost).toLocaleString("es-AR")}`;
+    }
     return;
   }
   
-  let cashVal = parseFloat(cashValInput.value);
-  let debtVal = parseFloat(debtValInput.value);
+  let cashVal = parseFloat(cashValInput.value.replace(/\D/g, ""));
+  let debtVal = parseFloat(debtValInput.value.replace(/\D/g, ""));
   
   if (isNaN(cashVal)) cashVal = 0;
   if (isNaN(debtVal)) debtVal = 0;
@@ -3727,8 +3731,13 @@ function updateIntakePaymentSplit(source = '') {
     debtVal = Math.max(0, totalCost - cashVal);
   }
   
-  cashValInput.value = Math.round(cashVal);
-  debtValInput.value = Math.round(debtVal);
+  cashValInput.value = cashVal ? Math.round(cashVal).toLocaleString("es-AR") : "0";
+  debtValInput.value = debtVal ? Math.round(debtVal).toLocaleString("es-AR") : "0";
+  
+  const totalToPayEl = document.getElementById("intake-payment-total-to-pay");
+  if (totalToPayEl) {
+    totalToPayEl.innerText = `Total a pagar: $ ${Math.round(totalCost).toLocaleString("es-AR")}`;
+  }
 }
 
 function handleCashSplitInput() {
@@ -3890,8 +3899,8 @@ async function handleStockIntakeSubmit(e) {
       await apiRequest("/api/stock-intakes", "POST", intakePayload);
       
       // 3. Registrar el egreso en Caja Diaria / Cuentas a Pagar
-      const cashAmount = parseFloat(document.getElementById("intake-pay-cash-val").value) || 0;
-      const debtAmount = parseFloat(document.getElementById("intake-pay-debt-val").value) || 0;
+      const cashAmount = parseFloat(document.getElementById("intake-pay-cash-val").value.replace(/\D/g, "")) || 0;
+      const debtAmount = parseFloat(document.getElementById("intake-pay-debt-val").value.replace(/\D/g, "")) || 0;
 
       if (cashAmount > 0) {
         const cajaPayload = {
@@ -4088,8 +4097,8 @@ async function handleStockIntakeSubmit(e) {
     await apiRequest("/api/stock-intakes", "POST", intakePayload);
     
     // Registrar el egreso en Caja Diaria / Cuentas a Pagar
-    const cashAmount = parseFloat(document.getElementById("intake-pay-cash-val").value) || 0;
-    const debtAmount = parseFloat(document.getElementById("intake-pay-debt-val").value) || 0;
+    const cashAmount = parseFloat(document.getElementById("intake-pay-cash-val").value.replace(/\D/g, "")) || 0;
+    const debtAmount = parseFloat(document.getElementById("intake-pay-debt-val").value.replace(/\D/g, "")) || 0;
 
     if (cashAmount > 0) {
       const cajaPayload = {

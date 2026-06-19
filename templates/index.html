@@ -600,12 +600,15 @@
                   <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px;">
                     <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
                       <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">Efectivo ($):</span>
-                      <input type="number" id="intake-pay-cash-val" class="form-input" min="0" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit('cash')">
+                      <input type="text" id="intake-pay-cash-val" class="form-input" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit('cash')">
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
                       <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">A Pagar ($):</span>
-                      <input type="number" id="intake-pay-debt-val" class="form-input" min="0" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit('debt')">
+                      <input type="text" id="intake-pay-debt-val" class="form-input" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit('debt')">
                     </div>
+                  </div>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
+                    <span id="intake-payment-total-to-pay" style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700;">Total a pagar: $0</span>
                   </div>
                 </div>
 
