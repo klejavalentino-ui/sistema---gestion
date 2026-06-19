@@ -3394,6 +3394,11 @@ function setupStockIntakeForm() {
     debtValInput.removeEventListener("input", handleDebtSplitInput);
     debtValInput.addEventListener("input", handleDebtSplitInput);
   }
+  const mpInput = document.getElementById("intake-materia-prima");
+  if (mpInput) {
+    mpInput.removeEventListener("input", formatIntakeMateriaPrima);
+    mpInput.addEventListener("input", formatIntakeMateriaPrima);
+  }
   
   // Autocomplete search
   searchInput.removeEventListener("input", handleProductSearchInput);
@@ -3449,7 +3454,7 @@ function loadIntakeExtraDetails() {
   const options = state.extras[catKey] || [];
   const option = options.find(o => o.id === optionId);
   if (option) {
-    document.getElementById("intake-materia-prima").value = option.cost;
+    document.getElementById("intake-materia-prima").value = option.cost ? Math.round(option.cost).toLocaleString("es-AR") : "";
   }
   
   recalculateIntakeCosts();
@@ -3583,7 +3588,8 @@ function selectIntakeProduct(sku) {
   document.getElementById("intake-search-results").style.display = "none";
   
   // Rellenar costo base y margen
-  document.getElementById("intake-materia-prima").value = p.baseCost || p.cost || 0;
+  const baseCostVal = p.baseCost || p.cost || 0;
+  document.getElementById("intake-materia-prima").value = baseCostVal ? Math.round(baseCostVal).toLocaleString("es-AR") : "0";
   document.getElementById("intake-margin").value = p.margin || 0;
   
   // Seleccionar adicionales si existen
@@ -3634,7 +3640,7 @@ function selectIntakeProduct(sku) {
 }
 
 function recalculateIntakeCosts() {
-  const baseCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
+  const baseCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
   const margin = parseFloat(document.getElementById("intake-margin").value) || 0;
   
   let totalExtrasCost = 0;
@@ -3662,7 +3668,7 @@ function getIntakeTotalCostAndQuantity() {
   const type = typeEl ? typeEl.value : "producto";
   const isProd = (type === "producto");
   
-  let unitCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
+  let unitCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
   let totalQuantity = 0;
   
   if (isProd) {
@@ -3695,6 +3701,13 @@ function getIntakeTotalCostAndQuantity() {
     totalQuantity: totalQuantity,
     totalCost: unitCost * totalQuantity
   };
+}
+
+function formatIntakeMateriaPrima() {
+  const input = document.getElementById("intake-materia-prima");
+  if (!input) return;
+  const raw = input.value.replace(/\D/g, "");
+  input.value = raw ? parseInt(raw).toLocaleString("es-AR") : "";
 }
 
 function updateIntakePaymentSplit(source = '') {
@@ -3863,7 +3876,7 @@ async function handleStockIntakeSubmit(e) {
       return;
     }
     
-    const unitCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
+    const unitCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
     const totalCost = unitCost * qty;
     
     const options = state.extras[catKey] || [];
@@ -4004,7 +4017,7 @@ async function handleStockIntakeSubmit(e) {
     return;
   }
   
-  const baseCost = parseFloat(document.getElementById("intake-materia-prima").value) || 0;
+  const baseCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
   const margin = parseFloat(document.getElementById("intake-margin").value) || 0;
   
   // Recolectar adicionales seleccionados
