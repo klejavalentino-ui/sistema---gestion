@@ -851,6 +851,7 @@ async function syncSuppliersWithCurrentAccounts() {
   const currentAccounts = state.currentAccounts || [];
   let hasChanges = false;
   
+  // 1. Sincronizar de Proveedores a Cuentas a Pagar (Crear faltantes)
   for (const s of suppliers) {
     const exists = currentAccounts.some(acc => acc.type === "proveedor" && acc.entityName.toLowerCase() === s.name.toLowerCase());
     if (!exists) {
@@ -861,11 +862,28 @@ async function syncSuppliersWithCurrentAccounts() {
         address: s.address || ""
       };
       try {
-        console.log(`Syncing supplier "${s.name}" to Cuentas a Pagar...`);
+        console.log(`Sincronizando proveedor "${s.name}" a Cuentas a Pagar...`);
         await apiRequest("/api/current-accounts", "POST", payload);
         hasChanges = true;
       } catch (err) {
-        console.error(`Failed to sync supplier "${s.name}":`, err);
+        console.error(`Error al sincronizar proveedor "${s.name}":`, err);
+      }
+    }
+  }
+  
+  // 2. Eliminar cuentas corrientes de tipo "proveedor" que ya no existan en el directorio de proveedores
+  const supplierNamesLower = suppliers.map(s => s.name.toLowerCase());
+  for (const acc of currentAccounts) {
+    if (acc.type === "proveedor") {
+      const existsInSuppliers = supplierNamesLower.includes(acc.entityName.toLowerCase());
+      if (!existsInSuppliers) {
+        try {
+          console.log(`Eliminando cuenta corriente del proveedor eliminado "${acc.entityName}"...`);
+          await apiRequest(`/api/current-accounts/${acc.id}`, "DELETE");
+          hasChanges = true;
+        } catch (err) {
+          console.error(`Error al eliminar cuenta corriente huérfana "${acc.entityName}":`, err);
+        }
       }
     }
   }
@@ -4334,8 +4352,6 @@ function renderSupplierAccounts() {
         <div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <h3 style="font-size: 1rem; font-weight: 800; color: #fff;">${acc.entityName}</h3>
-            <button class="btn-action" style="border: none; background: transparent; padding: 2px; color: var(--text-gray); cursor: pointer;" onclick="editAccount('${acc.id}')">✏️</button>
-            <button class="btn-action btn-delete" style="border: none; background: transparent; padding: 2px; color: var(--text-gray); cursor: pointer;" onclick="deleteAccount('${acc.id}')">🗑️</button>
           </div>
           <div style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap;">
             <span>📞 ${acc.phone || "-"}</span>
