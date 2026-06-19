@@ -3668,7 +3668,8 @@ function getIntakeTotalCostAndQuantity() {
   const type = typeEl ? typeEl.value : "producto";
   const isProd = (type === "producto");
   
-  let unitCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
+  const baseCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
+  let unitCost = baseCost;
   let totalQuantity = 0;
   
   if (isProd) {
@@ -3696,10 +3697,12 @@ function getIntakeTotalCostAndQuantity() {
     totalQuantity = parseInt(document.getElementById("intake-qty-simple").value) || 0;
   }
   
+  const totalCost = isProd ? (baseCost * totalQuantity) : (unitCost * totalQuantity);
+  
   return {
     unitCost: unitCost,
     totalQuantity: totalQuantity,
-    totalCost: unitCost * totalQuantity
+    totalCost: totalCost
   };
 }
 
@@ -4043,7 +4046,7 @@ async function handleStockIntakeSubmit(e) {
     quantitiesMap[size] = qty;
   });
   
-  const totalCost = unitCost * totalQuantity;
+  const totalCost = baseCost * totalQuantity;
   
   try {
     showToast("Registrando ingreso de mercadería...");
