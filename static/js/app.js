@@ -317,7 +317,7 @@ function triggerExcelImport() {
       instructionsEl.innerHTML = `
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
           ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
-          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; overflow-x: auto; white-space: nowrap; border: 1px solid var(--border-color);">
+          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; border: 1px solid var(--border-color); line-height: 1.5; word-break: break-word;">
             <strong>SKU | Producto | Categoría | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
           </div>
         </div>
@@ -326,7 +326,7 @@ function triggerExcelImport() {
       instructionsEl.innerHTML = `
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
           ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
-          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; overflow-x: auto; white-space: nowrap; border: 1px solid var(--border-color);">
+          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; border: 1px solid var(--border-color); line-height: 1.5; word-break: break-word;">
             <strong>SKU | Producto | Categoría | Talle | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
           </div>
         </div>
@@ -349,6 +349,396 @@ function closeExcelImportModal() {
   if (modal) modal.classList.remove("active");
   document.getElementById("excel-import-input").value = "";
   parsedImportProducts = [];
+}
+
+// --- PDF Remito Import logic ---
+let parsedPdfData = null;
+
+async function handlePdfImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== "application/pdf") {
+    showToast("Por favor selecciona un archivo PDF.", true);
+    event.target.value = '';
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  showToast("Procesando archivo PDF...");
+  try {
+    const res = await fetch('/api/import-remito', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${state.token}`,
+        'X-Business-Type': state.businessType || 'textil'
+      },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Error al procesar el PDF.");
+    }
+    event.target.value = '';
+    openPdfImportModal(data);
+  } catch (err) {
+    event.target.value = '';
+    showToast(err.message, true);
+  }
+}
+
+function openPdfImportModal(data) {
+  parsedPdfData = data;
+  
+  // Populate supplier select
+  const select = document.getElementById("pdf-import-supplier-select");
+  select.innerHTML = "";
+  
+  let matchFound = false;
+  state.suppliers.forEach(s => {
+    const option = document.createElement("option");
+    option.value = s.name;
+    option.innerText = s.name;
+    if (s.name.toLowerCase() === data.supplierName.toLowerCase()) {
+      option.selected = true;
+      matchFound = true;
+    }
+    select.appendChild(option);
+  });
+  
+  if (!matchFound && data.supplierName) {
+    const option = document.createElement("option");
+    option.value = "__NEW__";
+    option.innerText = `➕ Crear nuevo: ${data.supplierName}`;
+    option.selected = true;
+    select.appendChild(option);
+  }
+  
+  // Pre-fill date
+  document.getElementById("pdf-import-date").value = data.date || "";
+  
+  // Render products
+  const prodTbody = document.getElementById("pdf-import-products-tbody");
+  prodTbody.innerHTML = "";
+  data.products.forEach(p => {
+    const tr = document.createElement("tr");
+    const total = p.quantity * p.unitCost;
+    tr.innerHTML = `
+      <td style="font-weight: 700; color: #fff;">${p.name}</td>
+      <td>${p.color}</td>
+      <td style="text-align: center;"><span class="badge badge-gray">${p.size}</span></td>
+      <td style="text-align: right; font-weight: 600;">${p.quantity}</td>
+      <td style="text-align: right;">$ ${Math.round(p.unitCost).toLocaleString("es-AR")}</td>
+      <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$ ${Math.round(total).toLocaleString("es-AR")}</td>
+    `;
+    prodTbody.appendChild(tr);
+  });
+  
+  // Render extras
+  const extrasTbody = document.getElementById("pdf-import-extras-tbody");
+  extrasTbody.innerHTML = "";
+  const containerDiv = document.getElementById("pdf-import-extras-container-div");
+  if (data.extras && data.extras.length > 0) {
+    containerDiv.style.display = "block";
+    data.extras.forEach(e => {
+      const tr = document.createElement("tr");
+      const total = e.quantity * e.unitCost;
+      tr.innerHTML = `
+        <td style="font-weight: 700; color: #fff;">${e.name}</td>
+        <td style="text-align: right; font-weight: 600;">${e.quantity}</td>
+        <td style="text-align: right;">$ ${Math.round(e.unitCost).toLocaleString("es-AR")}</td>
+        <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$ ${Math.round(total).toLocaleString("es-AR")}</td>
+      `;
+      extrasTbody.appendChild(tr);
+    });
+  } else {
+    containerDiv.style.display = "none";
+  }
+  
+  // Calculate total invoice cost
+  const prodTotal = data.products.reduce((sum, p) => sum + (p.quantity * p.unitCost), 0);
+  const extraTotal = (data.extras || []).reduce((sum, e) => sum + (e.quantity * e.unitCost), 0);
+  const totalCost = prodTotal + extraTotal;
+  
+  state.lastParsedPdfTotal = totalCost;
+  
+  // Pre-fill payment split
+  updatePdfImportPaymentSplit('init');
+  
+  // Show modal
+  document.getElementById("pdf-import-modal").classList.add("active");
+}
+
+function closePdfImportModal() {
+  document.getElementById("pdf-import-modal").classList.remove("active");
+  parsedPdfData = null;
+  state.lastParsedPdfTotal = 0;
+}
+
+function updatePdfImportPaymentSplit(source = '') {
+  const cashValInput = document.getElementById("pdf-import-pay-cash");
+  const debtValInput = document.getElementById("pdf-import-pay-debt");
+  if (!cashValInput || !debtValInput) return;
+  
+  const totalCost = state.lastParsedPdfTotal || 0;
+  
+  if (source === 'init') {
+    cashValInput.value = totalCost ? Math.round(totalCost).toLocaleString("es-AR") : "0";
+    debtValInput.value = "0";
+    document.getElementById("pdf-import-total-label").innerText = `Total Factura: $ ${Math.round(totalCost).toLocaleString("es-AR")}`;
+    return;
+  }
+  
+  let cashVal = parseFloat(cashValInput.value.replace(/\D/g, ""));
+  let debtVal = parseFloat(debtValInput.value.replace(/\D/g, ""));
+  
+  if (isNaN(cashVal)) cashVal = 0;
+  if (isNaN(debtVal)) debtVal = 0;
+  
+  if (source === 'debt') {
+    if (debtVal < 0) debtVal = 0;
+    if (debtVal > totalCost) debtVal = totalCost;
+    cashVal = Math.max(0, totalCost - debtVal);
+  } else {
+    // source === 'cash'
+    if (cashVal < 0) cashVal = 0;
+    if (cashVal > totalCost) cashVal = totalCost;
+    debtVal = Math.max(0, totalCost - cashVal);
+  }
+  
+  cashValInput.value = cashVal ? Math.round(cashVal).toLocaleString("es-AR") : "0";
+  debtValInput.value = debtVal ? Math.round(debtVal).toLocaleString("es-AR") : "0";
+  document.getElementById("pdf-import-total-label").innerText = `Total Factura: $ ${Math.round(totalCost).toLocaleString("es-AR")}`;
+}
+
+async function confirmPdfImport() {
+  if (!parsedPdfData) return;
+  
+  const selectVal = document.getElementById("pdf-import-supplier-select").value;
+  const dateVal = document.getElementById("pdf-import-date").value;
+  
+  if (!selectVal) {
+    showToast("Por favor selecciona un proveedor.", true);
+    return;
+  }
+  
+  if (!dateVal) {
+    showToast("Por favor selecciona una fecha.", true);
+    return;
+  }
+  
+  showToast("Importando remito...");
+  try {
+    // 1. Resolve Supplier
+    let supplierName = parsedPdfData.supplierName;
+    if (selectVal === "__NEW__") {
+      showToast("Creando proveedor...");
+      await apiRequest("/api/suppliers", "POST", {
+        name: parsedPdfData.supplierName,
+        phone: "",
+        categories: [],
+        products: [],
+        address: "",
+        description: "Creado automáticamente vía Importador de PDF"
+      });
+      supplierName = parsedPdfData.supplierName;
+    } else {
+      supplierName = selectVal;
+    }
+    
+    // 2. Process Products and update stock
+    // Group parsed products by name and color
+    const groups = {};
+    parsedPdfData.products.forEach(p => {
+      const key = `${p.name.trim().toLowerCase()}|${p.color.trim().toLowerCase()}`;
+      if (!groups[key]) {
+        groups[key] = {
+          name: p.name,
+          color: p.color,
+          items: []
+        };
+      }
+      groups[key].items.push(p);
+    });
+    
+    // For each product group, find matching inventory product and build update payload
+    for (const key of Object.keys(groups)) {
+      const group = groups[key];
+      
+      const matchingProduct = state.products.find(p => 
+        p.name.trim().toLowerCase() === group.name.trim().toLowerCase() &&
+        (p.color || '').trim().toLowerCase() === group.color.trim().toLowerCase()
+      );
+      
+      if (!matchingProduct) {
+        throw new Error(`El producto "${group.name} (${group.color})" no existe en tu inventario. Cárgalo primero en la pestaña de Inventario.`);
+      }
+      
+      const baseSku = matchingProduct.baseSku || 
+        (matchingProduct.sku.includes('-') && ['XS','S','M','L','XL','XXL','U'].includes(matchingProduct.sku.split('-').pop()) 
+          ? matchingProduct.sku.split('-').slice(0, -1).join('-') 
+          : matchingProduct.sku);
+          
+      const batchPayload = [];
+      const quantitiesMap = {
+        'XS': 0, 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, 'Único': 0
+      };
+      
+      let totalQty = 0;
+      let unitCost = 0;
+      
+      group.items.forEach(item => {
+        quantitiesMap[item.size] = item.quantity;
+        totalQty += item.quantity;
+        unitCost = item.unitCost; // Use parsed materia prima price
+      });
+      
+      // Update each size variant
+      const sizesToUpdate = Object.entries(quantitiesMap).filter(([_, qty]) => qty > 0);
+      for (const [size, qty] of sizesToUpdate) {
+        let existing = state.products.find(p => 
+          (p.baseSku === baseSku || p.sku.startsWith(baseSku)) && 
+          p.size === size
+        );
+        
+        if (existing) {
+          const updatedVariant = {
+            ...existing,
+            stock: (existing.stock || 0) + qty,
+            baseCost: unitCost,
+            margin: existing.margin || 0,
+            cost: unitCost + (parseFloat(existing.cost || 0) - parseFloat(existing.baseCost || 0)), // Maintain existing extras cost if any
+            sku: existing.sku
+          };
+          batchPayload.push(updatedVariant);
+        } else {
+          const sizeSkuSuffix = size === 'Único' ? 'U' : size;
+          const newVariant = {
+            id: Date.now() + Math.random(),
+            baseSku: baseSku,
+            sku: `${baseSku}-${sizeSkuSuffix}`,
+            name: matchingProduct.name,
+            category: matchingProduct.category,
+            size: size,
+            color: matchingProduct.color || 'Único',
+            stock: qty,
+            baseCost: unitCost,
+            margin: matchingProduct.margin || 0,
+            cost: unitCost
+          };
+          batchPayload.push(newVariant);
+        }
+      }
+      
+      // Save updates to Firestore
+      await apiRequest("/api/products", "POST", batchPayload);
+      
+      // Save stock intake record for product
+      const intakePayload = {
+        productSku: baseSku,
+        productName: matchingProduct.name,
+        supplierName: supplierName,
+        quantities: quantitiesMap,
+        totalQuantity: totalQty,
+        unitCost: unitCost,
+        totalCost: unitCost * totalQty,
+        materiaPrima: unitCost,
+        adicionales: 0,
+        date: dateVal,
+        timestamp: Date.now()
+      };
+      await apiRequest("/api/stock-intakes", "POST", intakePayload);
+    }
+    
+    // 3. Process Extras and update extras stock
+    if (parsedPdfData.extras && parsedPdfData.extras.length > 0) {
+      for (const extra of parsedPdfData.extras) {
+        let extraCategory = "packagings";
+        if (!state.extras[extraCategory]) {
+          extraCategory = Object.keys(state.extras)[0] || "packagings";
+        }
+        if (!state.extras[extraCategory]) {
+          state.extras[extraCategory] = [];
+        }
+        
+        let option = state.extras[extraCategory].find(o => o.name.toLowerCase() === extra.name.toLowerCase());
+        if (!option) {
+          option = {
+            id: "extra_" + Date.now() + "_" + Math.floor(Math.random()*1000),
+            name: extra.name,
+            cost: extra.unitCost,
+            stock: extra.quantity
+          };
+          state.extras[extraCategory].push(option);
+        } else {
+          option.stock = (option.stock || 0) + extra.quantity;
+          option.cost = extra.unitCost;
+        }
+        
+        // Save dynamic extras configuration
+        await apiRequest("/api/extras", "POST", state.extras);
+        
+        // Save stock intake record for extra
+        const extraIntakePayload = {
+          productSku: option.id,
+          productName: `Adicional: ${option.name}`,
+          supplierName: supplierName,
+          quantities: { 'Único': extra.quantity },
+          totalQuantity: extra.quantity,
+          unitCost: extra.unitCost,
+          totalCost: extra.unitCost * extra.quantity,
+          materiaPrima: 0,
+          adicionales: 0,
+          date: dateVal,
+          timestamp: Date.now(),
+          isExtra: true
+        };
+        await apiRequest("/api/stock-intakes", "POST", extraIntakePayload);
+      }
+    }
+    
+    // 4. Save Caja egreso / Cuentas a Pagar debt
+    const cashAmount = parseFloat(document.getElementById("pdf-import-pay-cash").value.replace(/\D/g, "")) || 0;
+    const debtAmount = parseFloat(document.getElementById("pdf-import-pay-debt").value.replace(/\D/g, "")) || 0;
+    
+    if (cashAmount > 0) {
+      const cajaPayload = {
+        description: `Compra de mercadería (Efectivo PDF) - ${supplierName}`,
+        type: "expense",
+        amount: cashAmount,
+        date: dateVal + "T12:00:00.000Z"
+      };
+      await apiRequest("/api/cash-transactions", "POST", cajaPayload);
+    }
+    
+    if (debtAmount > 0) {
+      const supplierAccount = state.currentAccounts.find(a => a.type === "proveedor" && a.entityName.toLowerCase() === supplierName.toLowerCase());
+      let accId = supplierAccount ? supplierAccount.id : null;
+      if (!accId) {
+        const newAcc = await apiRequest("/api/current-accounts", "POST", {
+          entityName: supplierName,
+          type: "proveedor",
+          phone: "",
+          address: ""
+        });
+        accId = newAcc.id;
+      }
+      await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", {
+        description: `Compra de mercadería (A pagar PDF)`,
+        amount: debtAmount,
+        payment: 0,
+        date: dateVal + "T12:00:00.000Z"
+      });
+    }
+    
+    showToast("¡Remito importado y stock actualizado con éxito!");
+    closePdfImportModal();
+    await refreshState();
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 function downloadExcelTemplate() {

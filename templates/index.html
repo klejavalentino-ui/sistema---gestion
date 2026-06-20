@@ -474,6 +474,10 @@
             <button class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px;" onclick="exportStockIntakesToExcel()">
               <i>📥</i> Exportar Excel
             </button>
+            <button class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;" onclick="document.getElementById('pdf-import-input').click()">
+              <i>📄</i> Importar Remito (PDF)
+            </button>
+            <input type="file" id="pdf-import-input" accept=".pdf" style="display: none;" onchange="handlePdfImport(event)">
           </div>
         </div>
 
@@ -1230,6 +1234,94 @@
       <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 15px; border-top: 1px solid var(--border-color);">
         <button class="btn btn-secondary" onclick="closeExcelImportModal()">Cancelar</button>
         <button id="excel-confirm-btn" class="btn btn-primary" onclick="confirmExcelImport()" disabled>Importar Productos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PDF IMPORT CONFIRMATION -->
+  <div id="pdf-import-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📄 Confirmar Importación de Remito</h3>
+        <span class="modal-close" onclick="closePdfImportModal()">✕</span>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        
+        <div class="grid-2" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label class="form-label">Proveedor</label>
+            <select id="pdf-import-supplier-select" class="form-select">
+              <!-- Se cargará dinámicamente -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fecha de Ingreso</label>
+            <input type="date" id="pdf-import-date" class="form-input">
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Productos a Reponer:</h4>
+          <div class="table-wrapper" style="border: 1px solid var(--border-color); border-radius: 6px;">
+            <table class="idx-table" style="font-size: 0.75rem;">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Variante / Color</th>
+                  <th>Talle</th>
+                  <th style="text-align: right;">Cantidad</th>
+                  <th style="text-align: right;">Costo (Materia Prima)</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody id="pdf-import-products-tbody">
+                <!-- Inyectado dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;" id="pdf-import-extras-container-div">
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Adicionales a Reponer:</h4>
+          <div class="table-wrapper" style="border: 1px solid var(--border-color); border-radius: 6px;">
+            <table class="idx-table" style="font-size: 0.75rem;">
+              <thead>
+                <tr>
+                  <th>Adicional</th>
+                  <th style="text-align: right;">Cantidad</th>
+                  <th style="text-align: right;">Costo Unitario</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody id="pdf-import-extras-tbody">
+                <!-- Inyectado dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pago Split -->
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+          <label class="form-label">Condición de Pago (Importación)</label>
+          <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px;">
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
+              <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">Efectivo ($):</span>
+              <input type="text" id="pdf-import-pay-cash" class="form-input" style="padding: 6px 8px; text-align: right;" oninput="updatePdfImportPaymentSplit('cash')">
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
+              <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">A Pagar ($):</span>
+              <input type="text" id="pdf-import-pay-debt" class="form-input" style="padding: 6px 8px; text-align: right;" oninput="updatePdfImportPaymentSplit('debt')">
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+            <span id="pdf-import-total-label" style="font-size: 0.8rem; color: var(--accent-emerald); font-weight: 700;">Total Factura: $0</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+        <button class="btn btn-secondary" onclick="closePdfImportModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmPdfImport()">Confirmar e Ingresar Stock</button>
       </div>
     </div>
   </div>

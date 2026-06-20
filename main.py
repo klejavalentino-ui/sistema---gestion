@@ -1375,5 +1375,157 @@ def delete_sale(sale_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/import-remito", methods=["POST"])
+def import_remito():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    if 'file' not in request.files:
+        return jsonify({"error": "No se subió ningún archivo"}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Nombre de archivo vacío"}), 400
+        
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({"error": "El archivo debe ser un PDF"}), 400
+        
+    def parse_es_number(s):
+        s = s.strip().replace("$", "").strip()
+        s = s.replace(".", "").replace(",", ".")
+        try:
+            return float(s)
+        except ValueError:
+            return None
+            
+    try:
+        import pypdf
+        import re
+        import time
+        
+        reader = pypdf.PdfReader(file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+            
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        
+        # 1. Parse Supplier
+        supplier = "Crear Textiles"
+        for line in lines:
+            if "Crear Textiles" in line:
+                supplier = "Crear Textiles"
+                break
+                
+        # 2. Parse Date
+        date_val = None
+        for idx, line in enumerate(lines):
+            if "Fecha de factura" in line and idx + 1 < len(lines):
+                date_val = lines[idx+1]
+                break
+                
+        if date_val:
+            parts = date_val.split("/")
+            if len(parts) == 3:
+                date_val = f"{parts[2]}-{parts[1]}-{parts[0]}"
+        else:
+            date_val = time.strftime("%Y-%m-%d", time.gmtime())
+            
+        # 3. Parse Items and Extras
+        items = []
+        extras = []
+        
+        prod_regex = re.compile(r"^(.+?)\s*\((.+?),\s*(TALLE\s*\d+|Talle\s*\d+)\)$", re.IGNORECASE)
+        extra_regex = re.compile(r"^\[EXTRA\]\s*(.+)$", re.IGNORECASE)
+        
+        idx = 0
+        while idx < len(lines):
+            line = lines[idx]
+            prod_match = prod_regex.match(line)
+            extra_match = extra_regex.match(line)
+            
+            if prod_match:
+                name = prod_match.group(1).strip()
+                color = prod_match.group(2).strip()
+                talle_str = prod_match.group(3).strip().upper()
+                
+                size = "Único"
+                if "TALLE 1" in talle_str:
+                    size = "S"
+                elif "TALLE 2" in talle_str:
+                    size = "M"
+                elif "TALLE 3" in talle_str:
+                    size = "L"
+                    
+                # Scan for first two numbers
+                qty = None
+                price = None
+                scan_idx = idx + 1
+                numbers_found = []
+                while scan_idx < len(lines) and len(numbers_found) < 2:
+                    if prod_regex.match(lines[scan_idx]) or extra_regex.match(lines[scan_idx]):
+                        break
+                    num = parse_es_number(lines[scan_idx])
+                    if num is not None:
+                        numbers_found.append(num)
+                    scan_idx += 1
+                    
+                if len(numbers_found) == 2:
+                    qty = numbers_found[0]
+                    price = numbers_found[1]
+                    
+                items.append({
+                    "name": name,
+                    "color": color,
+                    "size": size,
+                    "quantity": qty or 0.0,
+                    "unitCost": price or 0.0
+                })
+                idx = scan_idx - 1
+                
+            elif extra_match:
+                extra_name = extra_match.group(1).strip()
+                if "Colocacin" in extra_name:
+                    extra_name = "Colocación de Etiquetas"
+                    
+                # Scan for first two numbers
+                qty = None
+                price = None
+                scan_idx = idx + 1
+                numbers_found = []
+                while scan_idx < len(lines) and len(numbers_found) < 2:
+                    if prod_regex.match(lines[scan_idx]) or extra_regex.match(lines[scan_idx]):
+                        break
+                    num = parse_es_number(lines[scan_idx])
+                    if num is not None:
+                        numbers_found.append(num)
+                    scan_idx += 1
+                    
+                if len(numbers_found) == 2:
+                    qty = numbers_found[0]
+                    price = numbers_found[1]
+                    
+                extras.append({
+                    "name": extra_name,
+                    "quantity": qty or 0.0,
+                    "unitCost": price or 0.0
+                })
+                idx = scan_idx - 1
+                
+            idx += 1
+            
+        return jsonify({
+            "supplierName": supplier,
+            "date": date_val,
+            "products": items,
+            "extras": extras
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
