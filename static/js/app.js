@@ -3995,6 +3995,8 @@ async function handleStockIntakeSubmit(e) {
         totalQuantity: qty,
         unitCost: unitCost,
         totalCost: totalCost,
+        materiaPrima: 0,
+        adicionales: 0,
         date: dateVal,
         timestamp: Date.now(),
         isExtra: true
@@ -4194,6 +4196,8 @@ async function handleStockIntakeSubmit(e) {
       totalQuantity: totalQuantity,
       unitCost: unitCost,
       totalCost: totalCost,
+      materiaPrima: baseCost,
+      adicionales: totalExtrasCost,
       date: dateVal,
       timestamp: Date.now()
     };
@@ -5078,13 +5082,18 @@ function exportStockIntakesToExcel() {
       .map(([size, qty]) => `${qty} un. (${size})`)
       .join(", ");
       
+    const materiaPrimaVal = item.materiaPrima !== undefined ? item.materiaPrima : (item.isExtra ? 0 : (item.totalQuantity ? item.totalCost / item.totalQuantity : 0));
+    const adicionalesVal = item.adicionales !== undefined ? item.adicionales : (item.isExtra ? 0 : Math.max(0, (item.unitCost || 0) - materiaPrimaVal));
+
     return {
       Fecha: item.date || "",
       Producto: item.productName || "",
       SKU: item.productSku || "",
       Proveedor: item.supplierName || "",
       Cantidades: qtyStr,
-      "Total Cantidad": item.totalQuantity || 0,
+      "Cantidad Total": item.totalQuantity || 0,
+      "Materia Prima": materiaPrimaVal,
+      "Adicionales": adicionalesVal,
       "Costo Unitario": item.unitCost || 0,
       "Costo Total": item.totalCost || 0
     };

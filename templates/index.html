@@ -470,6 +470,11 @@
             <h2>Compras e Ingresos</h2>
             <p>Gestiona tus proveedores y registra la entrada de mercadería.</p>
           </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px;" onclick="exportStockIntakesToExcel()">
+              <i>📥</i> Exportar Excel
+            </button>
+          </div>
         </div>
 
         <div class="compras-layout">
@@ -583,6 +588,18 @@
                   <!-- Se inyectarán dinámicamente los selectores de adicionales -->
                 </div>
 
+                <!-- Preview Area -->
+                <div style="border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 16px 0; margin: 16px 0; display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);">
+                    <span>Costo Unitario Total Calculado:</span>
+                    <span id="intake-total-cost-preview" style="color: var(--accent-emerald); font-weight: 800;">$0</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);" id="intake-price-preview-container">
+                    <span>Precio de Venta:</span>
+                    <span id="intake-sale-price-preview" style="color: var(--text-white); font-weight: 800;">$0</span>
+                  </div>
+                </div>
+
                 <div class="grid-2">
                   <div class="form-group" id="intake-margin-container">
                     <label class="form-label">Margen (%) (Opcional)</label>
@@ -595,7 +612,7 @@
                 </div>
 
                 <!-- Condición de Pago de Compra -->
-                <div class="form-group" style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                <div class="form-group" style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-bottom: 16px;">
                   <label class="form-label">Condición de Pago (Compra)</label>
                   <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px;">
                     <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
@@ -612,18 +629,6 @@
                   </div>
                 </div>
 
-                <!-- Preview Area -->
-                <div style="border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 16px 0; margin: 16px 0; display: flex; flex-direction: column; gap: 8px;">
-                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);">
-                    <span>Costo Unitario Total Calculado:</span>
-                    <span id="intake-total-cost-preview" style="color: var(--accent-emerald); font-weight: 800;">$0</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-gray);" id="intake-price-preview-container">
-                    <span>Precio de Venta:</span>
-                    <span id="intake-sale-price-preview" style="color: var(--text-white); font-weight: 800;">$0</span>
-                  </div>
-                </div>
-
                 <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">+ Actualizar Stock</button>
               </form>
             </div>
@@ -634,7 +639,6 @@
                 <h3 style="font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 10px; margin: 0;">
                   <i class="fas fa-history" style="color: var(--text-gray);"></i> Historial de Ingresos
                 </h3>
-                <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; display: flex; align-items: center; gap: 6px;" onclick="exportStockIntakesToExcel()"><i>📥</i> Exportar Excel</button>
               </div>
               <div id="stock-intakes-list" class="space-y-4" style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
                 <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px 0;">No hay movimientos recientes.</p>
@@ -671,9 +675,6 @@
           <div style="display: flex; gap: 12px; align-items: center;">
             <button class="btn btn-secondary" onclick="exportSupplierAccountsToExcel()">
               <i>📥</i> Exportar Excel
-            </button>
-            <button class="btn btn-primary" onclick="openAccountModal('proveedor')">
-              + Nuevo Proveedor
             </button>
           </div>
         </div>
