@@ -16,6 +16,7 @@ import Marketing from './pages/Marketing';
 import SupplierDebt from './pages/SupplierDebt';
 import Collections from './pages/Collections';
 import Cash from './pages/Cash';
+import Integrations from './pages/Integrations';
 
 // Placeholder components for other routes
 const Placeholder = ({ title }: { title: string }) => (
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="cash" element={<Cash />} />
             <Route path="services" element={<ServicesAndExtras />} />
             <Route path="panel" element={<Panel />} />
+            <Route path="integrations" element={<Integrations />} />
           </Route>
         </Routes>
       </BrowserRouter>

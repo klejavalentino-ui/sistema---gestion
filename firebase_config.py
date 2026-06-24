@@ -1,6 +1,26 @@
 import json
 import os
 import requests
+import firebase_admin
+from firebase_admin import credentials, auth
+
+# Inicializar firebase-admin de forma segura
+if not firebase_admin._apps:
+    try:
+        service_account_info = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+        if service_account_info:
+            cred_dict = json.loads(service_account_info)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+        else:
+            local_service_account = 'firebase-service-account.json'
+            if os.path.exists(local_service_account):
+                cred = credentials.Certificate(local_service_account)
+                firebase_admin.initialize_app(cred)
+            else:
+                firebase_admin.initialize_app()
+    except Exception as e:
+        print(f"Advertencia inicializando Firebase Admin SDK: {e}")
 
 fb_config = None
 
@@ -176,8 +196,49 @@ def get_account_info(id_token):
 
 # --- Métodos de Firestore CRUD ---
 
+def verify_id_token(id_token):
+    if not id_token:
+        return None
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        return decoded_token.get("uid")
+    except Exception as e:
+        print(f"Error verificando ID Token usando firebase-admin: {e}")
+        # En desarrollo local o pruebas, si se permite usar tokens mock decodificados
+        if os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_MOCK_TOKENS") == "true":
+            try:
+                import base64
+                parts = id_token.split(".")
+                if len(parts) == 3:
+                    payload = parts[1]
+                    payload += "=" * ((4 - len(payload) % 4) % 4)
+                    decoded = base64.urlsafe_b64decode(payload).decode("utf-8")
+                    data = json.loads(decoded)
+                    return data.get("user_id") or data.get("sub")
+            except Exception:
+                pass
+        return None
+
+def resolve_collection_path(collection, uid):
+    if not uid:
+        raise Exception("UID inválido al resolver la colección de base de datos.")
+    if collection.startswith("users/"):
+        return collection
+    if collection == "products":
+        return f"users/{uid}/products"
+    elif collection == "sales":
+        return f"users/{uid}/sales"
+    elif collection == "integrations":
+        return f"users/{uid}/integrations"
+    else:
+        return f"users/{uid}/{collection}"
+
 def get_document(collection, doc_id, id_token):
-    url = f"{BASE_URL}/{collection}/{doc_id}"
+    uid = verify_id_token(id_token)
+    if not uid:
+        raise Exception("Token de autenticación inválido o expirado.")
+    resolved_path = resolve_collection_path(collection, uid)
+    url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     r = requests.get(url, headers=headers)
     if r.status_code == 404:
@@ -186,11 +247,24 @@ def get_document(collection, doc_id, id_token):
     return from_firestore_document(r.json())
 
 def list_documents(collection, id_token):
-    url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{DATABASE_ID}/documents:runQuery"
+    uid = verify_id_token(id_token)
+    if not uid:
+        raise Exception("Token de autenticación inválido o expirado.")
+    resolved_path = resolve_collection_path(collection, uid)
+    
+    parts = resolved_path.split("/")
+    if len(parts) >= 2:
+        parent_path = "/".join(parts[:-1])
+        collection_id = parts[-1]
+        url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{DATABASE_ID}/documents/{parent_path}:runQuery"
+    else:
+        collection_id = resolved_path
+        url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{DATABASE_ID}/documents:runQuery"
+        
     headers = {"Authorization": f"Bearer {id_token}"}
     payload = {
         "structuredQuery": {
-            "from": [{"collectionId": collection}]
+            "from": [{"collectionId": collection_id}]
         }
     }
     r = requests.post(url, json=payload, headers=headers)
@@ -206,7 +280,11 @@ def list_documents(collection, id_token):
     return documents
 
 def set_document(collection, doc_id, data, id_token):
-    url = f"{BASE_URL}/{collection}/{doc_id}"
+    uid = verify_id_token(id_token)
+    if not uid:
+        raise Exception("Token de autenticación inválido o expirado.")
+    resolved_path = resolve_collection_path(collection, uid)
+    url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     payload = to_firestore_fields(data)
     r = requests.patch(url, json=payload, headers=headers)
@@ -214,7 +292,11 @@ def set_document(collection, doc_id, data, id_token):
     return from_firestore_document(r.json())
 
 def delete_document(collection, doc_id, id_token):
-    url = f"{BASE_URL}/{collection}/{doc_id}"
+    uid = verify_id_token(id_token)
+    if not uid:
+        raise Exception("Token de autenticación inválido o expirado.")
+    resolved_path = resolve_collection_path(collection, uid)
+    url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     r = requests.delete(url, headers=headers)
     if r.status_code == 404:

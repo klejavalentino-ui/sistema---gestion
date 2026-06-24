@@ -71,26 +71,18 @@ def get_auth_token():
 def get_uid_from_token(token):
     if not token:
         return None
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        payload = parts[1]
-        payload += "=" * ((4 - len(payload) % 4) % 4)
-        decoded = base64.urlsafe_b64decode(payload).decode("utf-8")
-        data = json.loads(decoded)
-        return data.get("user_id") or data.get("sub")
-    except Exception:
-        return None
+    return firebase_config.verify_id_token(token)
 
 def get_user_prefix(token):
-    uid = get_uid_from_token(token)
-    if not uid:
-        return None
+    # En el modelo multi-tenant, los datos del usuario se aíslan
+    # mediante la ruta de subcolección (ej. users/{uid}/products).
+    # Para conservar compatibilidad con los tipos de negocio
+    # (textil vs comercio), usamos f"{biz_type}_" como prefijo local
+    # del documento en lugar de incluir el UID.
     biz_type = request.headers.get("X-Business-Type", "textil")
     if biz_type not in ["textil", "comercio"]:
         biz_type = "textil"
-    return f"{uid}_{biz_type}_"
+    return f"{biz_type}_"
 
 def filter_user_docs(all_docs, prefix):
     user_docs = []
@@ -1374,6 +1366,40 @@ def delete_sale(sale_id):
         return jsonify({"success": deleted})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/integrations", methods=["GET"])
+def get_integrations():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    uid = get_uid_from_token(token)
+    if not uid:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        docs = firebase_config.list_documents("integrations", token)
+        integrations_dict = {}
+        for doc in docs:
+            doc_id = doc.get("id")
+            if doc_id:
+                integrations_dict[doc_id] = doc
+        return jsonify(integrations_dict)
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/integrations/<integration_id>", methods=["POST"])
+def save_integration(integration_id):
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    uid = get_uid_from_token(token)
+    if not uid:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    data = request.json or {}
+    try:
+        res = firebase_config.set_document("integrations", integration_id, data, token)
+        return jsonify(res)
+    except Exception as e:
+        return handle_error(e)
 
 @app.route("/api/import-remito", methods=["POST"])
 def import_remito():
