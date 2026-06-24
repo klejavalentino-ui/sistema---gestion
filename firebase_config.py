@@ -5,24 +5,7 @@ import jwt
 import time
 import firebase_admin
 from firebase_admin import credentials, auth
-
-# Inicializar firebase-admin de forma segura
-if not firebase_admin._apps:
-    try:
-        service_account_info = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
-        if service_account_info:
-            cred_dict = json.loads(service_account_info)
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred)
-        else:
-            local_service_account = 'firebase-service-account.json'
-            if os.path.exists(local_service_account):
-                cred = credentials.Certificate(local_service_account)
-                firebase_admin.initialize_app(cred)
-            else:
-                firebase_admin.initialize_app()
-    except Exception as e:
-        print(f"Advertencia inicializando Firebase Admin SDK: {e}")
+from cryptography.x509 import load_pem_x509_certificate
 
 fb_config = None
 
@@ -57,6 +40,24 @@ API_KEY = fb_config['apiKey']
 PROJECT_ID = fb_config['projectId']
 DATABASE_ID = fb_config.get('firestoreDatabaseId', '(default)')
 BASE_URL = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{DATABASE_ID}/documents"
+
+# Inicializar firebase-admin de forma segura
+if not firebase_admin._apps:
+    try:
+        service_account_info = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+        if service_account_info:
+            cred_dict = json.loads(service_account_info)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+        else:
+            local_service_account = 'firebase-service-account.json'
+            if os.path.exists(local_service_account):
+                cred = credentials.Certificate(local_service_account)
+                firebase_admin.initialize_app(cred)
+            else:
+                firebase_admin.initialize_app(options={'projectId': PROJECT_ID})
+    except Exception as e:
+        print(f"Advertencia inicializando Firebase Admin SDK: {e}")
 
 # --- Conversores de Tipos Firestore REST (Protobuf JSON) a Python ---
 
@@ -229,10 +230,8 @@ def verify_id_token(id_token):
             decoded_token = auth.verify_id_token(id_token)
             return decoded_token.get("uid")
         except Exception as e:
-            err_str = str(e).lower()
-            if "credentials" not in err_str and "default" not in err_str:
-                print(f"Error verificando ID Token usando firebase-admin: {e}")
-                return None
+            # Fallback a verificación manual por PyJWT en cualquier error de firebase-admin
+            print(f"firebase-admin falló (se intentará PyJWT): {e}")
 
     # 2. Si firebase-admin no tiene credenciales válidas, realizar la verificación criptográfica manual con PyJWT
     try:
@@ -248,9 +247,11 @@ def verify_id_token(id_token):
             print(f"No se encontró la llave pública de Google para el kid: {kid}")
             return None
             
+        cert_obj = load_pem_x509_certificate(cert_pem.encode('utf-8'))
+        public_key = cert_obj.public_key()
         decoded = jwt.decode(
             id_token,
-            cert_pem,
+            public_key,
             algorithms=["RS256"],
             audience=PROJECT_ID,
             issuer=f"https://securetoken.google.com/{PROJECT_ID}"
