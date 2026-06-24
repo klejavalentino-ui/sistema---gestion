@@ -1,6 +1,8 @@
 import json
 import os
 import requests
+import jwt
+import time
 import firebase_admin
 from firebase_admin import credentials, auth
 
@@ -196,14 +198,66 @@ def get_account_info(id_token):
 
 # --- Métodos de Firestore CRUD ---
 
+GOOGLE_PUBLIC_KEYS_CACHE = {
+    "keys": None,
+    "expires_at": 0
+}
+
+def get_google_public_keys():
+    global GOOGLE_PUBLIC_KEYS_CACHE
+    now = time.time()
+    if GOOGLE_PUBLIC_KEYS_CACHE["keys"] and GOOGLE_PUBLIC_KEYS_CACHE["expires_at"] > now:
+        return GOOGLE_PUBLIC_KEYS_CACHE["keys"]
+        
+    url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+    r = requests.get(url)
+    r.raise_for_status()
+    keys = r.json()
+    
+    # Cachear en memoria por 1 hora
+    GOOGLE_PUBLIC_KEYS_CACHE["keys"] = keys
+    GOOGLE_PUBLIC_KEYS_CACHE["expires_at"] = now + 3600
+    return keys
+
 def verify_id_token(id_token):
     if not id_token:
         return None
+        
+    # 1. Intentar verificar usando firebase-admin si está inicializado con credenciales válidas
+    if firebase_admin._apps:
+        try:
+            decoded_token = auth.verify_id_token(id_token)
+            return decoded_token.get("uid")
+        except Exception as e:
+            err_str = str(e).lower()
+            if "credentials" not in err_str and "default" not in err_str:
+                print(f"Error verificando ID Token usando firebase-admin: {e}")
+                return None
+
+    # 2. Si firebase-admin no tiene credenciales válidas, realizar la verificación criptográfica manual con PyJWT
     try:
-        decoded_token = auth.verify_id_token(id_token)
-        return decoded_token.get("uid")
+        unverified_header = jwt.get_unverified_header(id_token)
+        kid = unverified_header.get("kid")
+        if not kid:
+            print("Token no contiene 'kid' en la cabecera.")
+            return None
+            
+        public_keys = get_google_public_keys()
+        cert_pem = public_keys.get(kid)
+        if not cert_pem:
+            print(f"No se encontró la llave pública de Google para el kid: {kid}")
+            return None
+            
+        decoded = jwt.decode(
+            id_token,
+            cert_pem,
+            algorithms=["RS256"],
+            audience=PROJECT_ID,
+            issuer=f"https://securetoken.google.com/{PROJECT_ID}"
+        )
+        return decoded.get("user_id") or decoded.get("sub")
     except Exception as e:
-        print(f"Error verificando ID Token usando firebase-admin: {e}")
+        print(f"Error en verificación manual de ID Token: {e}")
         # En desarrollo local o pruebas, si se permite usar tokens mock decodificados
         if os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_MOCK_TOKENS") == "true":
             try:
@@ -212,8 +266,8 @@ def verify_id_token(id_token):
                 if len(parts) == 3:
                     payload = parts[1]
                     payload += "=" * ((4 - len(payload) % 4) % 4)
-                    decoded = base64.urlsafe_b64decode(payload).decode("utf-8")
-                    data = json.loads(decoded)
+                    decoded_mock = base64.urlsafe_b64decode(payload).decode("utf-8")
+                    data = json.loads(decoded_mock)
                     return data.get("user_id") or data.get("sub")
             except Exception:
                 pass
