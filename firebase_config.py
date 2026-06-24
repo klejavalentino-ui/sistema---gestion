@@ -41,23 +41,28 @@ PROJECT_ID = fb_config['projectId']
 DATABASE_ID = fb_config.get('firestoreDatabaseId', '(default)')
 BASE_URL = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{DATABASE_ID}/documents"
 
+HAS_SERVICE_ACCOUNT = False
+
 # Inicializar firebase-admin de forma segura
-if not firebase_admin._apps:
-    try:
-        service_account_info = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+try:
+    service_account_info = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+    local_service_account = 'firebase-service-account.json'
+    
+    if service_account_info or os.path.exists(local_service_account):
+        HAS_SERVICE_ACCOUNT = True
+        
+    if not firebase_admin._apps:
         if service_account_info:
             cred_dict = json.loads(service_account_info)
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
+        elif os.path.exists(local_service_account):
+            cred = credentials.Certificate(local_service_account)
+            firebase_admin.initialize_app(cred)
         else:
-            local_service_account = 'firebase-service-account.json'
-            if os.path.exists(local_service_account):
-                cred = credentials.Certificate(local_service_account)
-                firebase_admin.initialize_app(cred)
-            else:
-                firebase_admin.initialize_app(options={'projectId': PROJECT_ID})
-    except Exception as e:
-        print(f"Advertencia inicializando Firebase Admin SDK: {e}")
+            firebase_admin.initialize_app(options={'projectId': PROJECT_ID})
+except Exception as e:
+    print(f"Advertencia inicializando Firebase Admin SDK: {e}")
 
 # --- Conversores de Tipos Firestore REST (Protobuf JSON) a Python ---
 
@@ -140,7 +145,7 @@ def sign_in(email, password):
         "password": password,
         "returnSecureToken": True
     }
-    r = requests.post(url, json=payload)
+    r = requests.post(url, json=payload, timeout=10)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error desconocido en inicio de sesión.")
         raise Exception(error_msg)
@@ -153,7 +158,7 @@ def sign_up(email, password):
         "password": password,
         "returnSecureToken": True
     }
-    r = requests.post(url, json=payload)
+    r = requests.post(url, json=payload, timeout=10)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error desconocido en el registro.")
         raise Exception(error_msg)
@@ -165,7 +170,7 @@ def send_verification_email(id_token):
         "requestType": "VERIFY_EMAIL",
         "idToken": id_token
     }
-    r = requests.post(url, json=payload)
+    r = requests.post(url, json=payload, timeout=10)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de verificación.")
         raise Exception(error_msg)
@@ -177,7 +182,7 @@ def send_password_reset_email(email):
         "requestType": "PASSWORD_RESET",
         "email": email
     }
-    r = requests.post(url, json=payload)
+    r = requests.post(url, json=payload, timeout=10)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de restablecimiento de contraseña.")
         raise Exception(error_msg)
@@ -189,7 +194,7 @@ def get_account_info(id_token):
     payload = {
         "idToken": id_token
     }
-    r = requests.post(url, json=payload)
+    r = requests.post(url, json=payload, timeout=10)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al obtener la información de la cuenta.")
         raise Exception(error_msg)
@@ -211,7 +216,7 @@ def get_google_public_keys():
         return GOOGLE_PUBLIC_KEYS_CACHE["keys"]
         
     url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-    r = requests.get(url)
+    r = requests.get(url, timeout=10)
     r.raise_for_status()
     keys = r.json()
     
@@ -224,8 +229,8 @@ def verify_id_token(id_token):
     if not id_token:
         return None
         
-    # 1. Intentar verificar usando firebase-admin si está inicializado con credenciales válidas
-    if firebase_admin._apps:
+    # 1. Intentar verificar usando firebase-admin si se cuenta con Service Account y está inicializado
+    if HAS_SERVICE_ACCOUNT and firebase_admin._apps:
         try:
             decoded_token = auth.verify_id_token(id_token)
             return decoded_token.get("uid")
@@ -254,7 +259,8 @@ def verify_id_token(id_token):
             public_key,
             algorithms=["RS256"],
             audience=PROJECT_ID,
-            issuer=f"https://securetoken.google.com/{PROJECT_ID}"
+            issuer=f"https://securetoken.google.com/{PROJECT_ID}",
+            leeway=60
         )
         return decoded.get("user_id") or decoded.get("sub")
     except Exception as e:
@@ -295,7 +301,7 @@ def get_document(collection, doc_id, id_token):
     resolved_path = resolve_collection_path(collection, uid)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, timeout=10)
     if r.status_code == 404:
         return None
     r.raise_for_status()
@@ -322,7 +328,7 @@ def list_documents(collection, id_token):
             "from": [{"collectionId": collection_id}]
         }
     }
-    r = requests.post(url, json=payload, headers=headers)
+    r = requests.post(url, json=payload, headers=headers, timeout=10)
     if r.status_code == 404:
         return []
     r.raise_for_status()
@@ -342,7 +348,7 @@ def set_document(collection, doc_id, data, id_token):
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     payload = to_firestore_fields(data)
-    r = requests.patch(url, json=payload, headers=headers)
+    r = requests.patch(url, json=payload, headers=headers, timeout=10)
     r.raise_for_status()
     return from_firestore_document(r.json())
 
@@ -353,7 +359,7 @@ def delete_document(collection, doc_id, id_token):
     resolved_path = resolve_collection_path(collection, uid)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
-    r = requests.delete(url, headers=headers)
+    r = requests.delete(url, headers=headers, timeout=10)
     if r.status_code == 404:
         return False
     r.raise_for_status()
