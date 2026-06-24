@@ -8,6 +8,9 @@ from flask import Flask, request, jsonify, render_template, session
 import firebase_config
 
 def handle_error(e):
+    err_str = str(e)
+    if "autenticación" in err_str or "expirado" in err_str or "Sesión" in err_str or "token" in err_str.lower():
+        return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
     if isinstance(e, requests.exceptions.HTTPError):
         status = e.response.status_code if e.response is not None else 500
         if status in [401, 403]:
@@ -76,6 +79,10 @@ def get_uid_from_token(token):
 def get_user_prefix(token):
     # En el modelo multi-tenant, los datos del usuario se aíslan
     # mediante la ruta de subcolección (ej. users/{uid}/products).
+    # Primero verificamos la validez del token para retornar 401 si expiró.
+    uid = get_uid_from_token(token)
+    if not uid:
+        return None
     # Para conservar compatibilidad con los tipos de negocio
     # (textil vs comercio), usamos f"{biz_type}_" como prefijo local
     # del documento en lugar de incluir el UID.
