@@ -1441,6 +1441,95 @@ function renderPanel() {
   }
   netEl.style.color = netResult >= 0 ? "#10b981" : "#ef4444";
 
+  // Calcular desglose de canales (Local vs Tiendanube)
+  let localRevenue = 0;
+  let localUnits = 0;
+  let localCost = 0;
+
+  let tnRevenueGross = 0;
+  let tnUnits = 0;
+  let tnCost = 0;
+  let tnFees = 0;
+  let tnRevenueNet = 0;
+
+  filteredSales.forEach(sale => {
+    const origin = sale.origen || "local";
+    
+    // Calcular costo de la venta
+    const saleCost = sale.items ? sale.items.reduce((itemSum, item) => {
+      const p = item.product || {};
+      const extrasObj = p.extras || {};
+      let itemExtraCost = 0;
+      if (sale.extras) {
+        Object.keys(sale.extras).forEach(catKey => {
+          const extraId = sale.extras[catKey];
+          if (extraId && extraId !== "0") {
+            let hasStatic = false;
+            if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+            else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+            else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+            if (!hasStatic) {
+              const list = state.extras[catKey] || [];
+              const found = list.find(o => o.id === extraId);
+              if (found) {
+                itemExtraCost += parseFloat(found.cost) || 0;
+              }
+            }
+          }
+        });
+      }
+      const itemCost = (parseFloat(p.cost) || 0) + itemExtraCost;
+      return itemSum + (itemCost * (parseInt(item.quantity) || 0));
+    }, 0) : 0;
+
+    const unitsSold = sale.items ? sale.items.reduce((itemSum, item) => itemSum + (parseInt(item.quantity) || 0), 0) : 0;
+
+    if (origin === "tiendanube") {
+      tnRevenueGross += (sale.total || 0);
+      tnUnits += unitsSold;
+      tnCost += saleCost;
+      
+      const fixedFee = sale.fee_fijo_tn !== undefined ? parseFloat(sale.fee_fijo_tn) : 300;
+      const pctFee = sale.comision_pasarela_pago !== undefined ? parseFloat(sale.comision_pasarela_pago) : 5;
+      const saleFees = fixedFee + (pctFee / 100 * (sale.total || 0));
+      tnFees += saleFees;
+      tnRevenueNet += (sale.total_neto !== undefined ? parseFloat(sale.total_neto) : (sale.total - saleFees));
+    } else {
+      localRevenue += (sale.total || 0);
+      localUnits += unitsSold;
+      localCost += saleCost;
+    }
+  });
+
+  const localProfit = localRevenue - localCost;
+  const tnProfit = tnRevenueNet - tnCost;
+
+  // Actualizar elementos en el DOM
+  const localRevEl = document.getElementById("channel-local-revenue");
+  if (localRevEl) localRevEl.innerText = `$ ${Math.round(localRevenue).toLocaleString()}`;
+  
+  const localUnitsEl = document.getElementById("channel-local-units");
+  if (localUnitsEl) localUnitsEl.innerText = `${localUnits} u.`;
+  
+  const localCostEl = document.getElementById("channel-local-cost");
+  if (localCostEl) localCostEl.innerText = `$ ${Math.round(localCost).toLocaleString()}`;
+  
+  const localProfitEl = document.getElementById("channel-local-profit");
+  if (localProfitEl) localProfitEl.innerText = `$ ${Math.round(localProfit).toLocaleString()}`;
+
+  const tnRevEl = document.getElementById("channel-tn-revenue-gross");
+  if (tnRevEl) tnRevEl.innerText = `$ ${Math.round(tnRevenueGross).toLocaleString()}`;
+  
+  const tnUnitsEl = document.getElementById("channel-tn-units");
+  if (tnUnitsEl) tnUnitsEl.innerText = `${tnUnits} u.`;
+  
+  const tnFeesEl = document.getElementById("channel-tn-fees");
+  if (tnFeesEl) tnFeesEl.innerText = `$ ${Math.round(tnFees).toLocaleString()}`;
+  
+  const tnProfitEl = document.getElementById("channel-tn-profit");
+  if (tnProfitEl) tnProfitEl.innerText = `$ ${Math.round(tnProfit).toLocaleString()}`;
+
   // Renderizar Gráficos y Stock Crítico
   renderPanelCharts(filteredSales);
   renderPanelStockCritico();
@@ -6837,6 +6926,91 @@ async function renderIntegrationsStatus() {
       if (disconnectBtn) disconnectBtn.style.display = "none";
       if (syncBtn) syncBtn.style.display = "none";
     }
+
+    // Calcular métricas de Tiendanube para el reporte adicional
+    const tnSales = state.sales.filter(s => s.origen === "tiendanube");
+    let tnGross = 0;
+    let tnFees = 0;
+    let tnNet = 0;
+    
+    let tnSalesHTML = "";
+    tnSales.forEach(s => {
+      const grossVal = s.total || 0;
+      const fixedFee = s.fee_fijo_tn !== undefined ? parseFloat(s.fee_fijo_tn) : 300;
+      const pctFee = s.comision_pasarela_pago !== undefined ? parseFloat(s.comision_pasarela_pago) : 5;
+      const sFees = fixedFee + (pctFee / 100 * grossVal);
+      const sNet = s.total_neto !== undefined ? parseFloat(s.total_neto) : (grossVal - sFees);
+      
+      tnGross += grossVal;
+      tnFees += sFees;
+      tnNet += sNet;
+      
+      const formattedDate = new Date(s.date).toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      
+      tnSalesHTML += `
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 6px 0;">
+          <div>
+            <strong style="color: #fff;">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
+          </div>
+          <div style="text-align: right;">
+            <span style="color: #fff;">Bruto: $${Math.round(grossVal).toLocaleString()}</span> | 
+            <span style="color: var(--accent-emerald); font-weight: bold;">Neto: $${Math.round(sNet).toLocaleString()}</span>
+          </div>
+        </div>
+      `;
+    });
+    
+    if (tnSales.length === 0) {
+      tnSalesHTML = `<div style="text-align: center; color: var(--text-gray); padding: 10px;">No hay ventas registradas con origen Tiendanube.</div>`;
+    }
+    
+    const tnReportGrossEl = document.getElementById("tn-report-gross");
+    if (tnReportGrossEl) tnReportGrossEl.innerText = `$ ${Math.round(tnGross).toLocaleString()}`;
+    
+    const tnReportFeesEl = document.getElementById("tn-report-fees");
+    if (tnReportFeesEl) tnReportFeesEl.innerText = `$ ${Math.round(tnFees).toLocaleString()}`;
+    
+    const tnReportNetEl = document.getElementById("tn-report-net");
+    if (tnReportNetEl) tnReportNetEl.innerText = `$ ${Math.round(tnNet).toLocaleString()}`;
+    
+    const tnSalesLogEl = document.getElementById("tn-sales-log");
+    if (tnSalesLogEl) tnSalesLogEl.innerHTML = tnSalesHTML;
+
+    // Renderizar ARCA Config
+    const arca = integrations?.arca;
+    const arcaBadge = document.getElementById("arca-status-badge");
+    const cuitInput = document.getElementById("arca-cuit");
+    const condicionSelect = document.getElementById("arca-condicion-iva");
+    const posInput = document.getElementById("arca-pos");
+    
+    if (arca && arca.activo) {
+      if (arcaBadge) {
+        arcaBadge.innerText = "Configurado - Modo Simulación";
+        arcaBadge.className = "badge-green";
+        arcaBadge.style.borderColor = "rgba(16, 185, 129, 0.2)";
+        arcaBadge.style.background = "var(--bg-dark)";
+      }
+      if (cuitInput) cuitInput.value = arca.cuit || "";
+      if (condicionSelect) condicionSelect.value = arca.condicion_iva || "monotributo";
+      if (posInput) posInput.value = arca.pos || "0002";
+    } else {
+      if (arcaBadge) {
+        arcaBadge.innerText = "Simulación Activa";
+        arcaBadge.className = "badge-blue";
+        arcaBadge.style.borderColor = "rgba(96, 165, 250, 0.2)";
+        arcaBadge.style.background = "var(--bg-dark)";
+      }
+    }
+    
+    // Cargar historial de Facturas ARCA
+    await loadArcaInvoices();
+
   } catch (error) {
     console.error("Error al obtener integraciones:", error);
   }
@@ -6896,6 +7070,87 @@ async function syncTiendanubeCatalog() {
     await refreshState();
   } catch (error) {
     showToast("Error en sincronización: " + error.message, true);
+  }
+}
+
+async function saveArcaConfig(event) {
+  event.preventDefault();
+  const cuit = document.getElementById("arca-cuit").value;
+  const condicion = document.getElementById("arca-condicion-iva").value;
+  const pos = document.getElementById("arca-pos").value;
+  
+  try {
+    showToast("Guardando configuración fiscal de ARCA...");
+    const payload = {
+      cuit: cuit,
+      condicion_iva: condicion,
+      pos: pos,
+      activo: true
+    };
+    
+    await apiRequest("/api/integrations/arca", "POST", payload);
+    showToast("¡Configuración fiscal guardada con éxito!");
+    await renderIntegrationsStatus();
+  } catch (error) {
+    showToast("Error al guardar configuración: " + error.message, true);
+  }
+}
+
+async function simulateInvoicingForLastSale() {
+  try {
+    showToast("Generando factura electrónica en ARCA...");
+    const res = await apiRequest("/api/invoices/simulate", "POST");
+    showToast(`¡Factura ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
+    await renderIntegrationsStatus();
+  } catch (error) {
+    showToast("Error al facturar: " + error.message, true);
+  }
+}
+
+async function loadArcaInvoices() {
+  try {
+    const invoices = await apiRequest("/api/invoices");
+    const tbody = document.getElementById("arca-invoices-log");
+    if (!tbody) return;
+    
+    if (!invoices || invoices.length === 0) {
+      tbody.innerHTML = `
+        <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
+          <td colspan="6" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
+        </tr>
+      `;
+      return;
+    }
+    
+    // Ordenar facturas por fecha descendente
+    invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    tbody.innerHTML = invoices.map(inv => {
+      const formattedDate = new Date(inv.date).toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+      return `
+        <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
+          <td style="padding: 8px; font-weight: 700; color: #fff;">${inv.type || "Factura C"}</td>
+          <td style="padding: 8px;">${inv.invoice_number || "-"}</td>
+          <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
+          <td style="padding: 8px; text-align: right; font-weight: 700; color: #fff;">$ ${Math.round(inv.total || 0).toLocaleString()}</td>
+          <td style="padding: 8px;">
+            <div>CAE: ${inv.cae || "-"}</div>
+            <div style="font-size: 0.65rem; color: var(--text-gray);">Vto: ${inv.cae_due || "-"}</div>
+          </td>
+          <td style="padding: 8px; text-align: center;">
+            <span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">
+              ✓ ${inv.status || "Aprobado"}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  } catch (error) {
+    console.error("Error al cargar facturas de ARCA:", error);
   }
 }
 

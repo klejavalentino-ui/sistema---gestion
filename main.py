@@ -2076,5 +2076,90 @@ def import_remito():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/invoices", methods=["GET"])
+def get_invoices():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    uid = get_uid_from_token(token)
+    if not uid:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        # Recuperar facturas del usuario desde la subcolección invoices
+        docs = firebase_config.list_documents("invoices", token)
+        return jsonify(docs)
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/invoices/simulate", methods=["POST"])
+def simulate_invoice():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    uid = get_uid_from_token(token)
+    if not uid:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    
+    try:
+        # 1. Recuperar última venta del inquilino
+        sales = firebase_config.list_documents("sales", token)
+        if not sales:
+            return jsonify({"error": "No hay ventas registradas en el sistema para facturar."}), 400
+            
+        # Ordenar ventas por fecha descendente
+        sales.sort(key=lambda s: s.get("date", ""), reverse=True)
+        last_sale = sales[0]
+        sale_id = last_sale.get("id", "V-MOCK")
+        total = safe_float(last_sale.get("total", 0.0))
+        
+        # 2. Recuperar configuración de ARCA
+        arca_config = firebase_config.get_document("integrations", "arca", token) or {}
+        pos = arca_config.get("pos", "0002")
+        condicion_iva = arca_config.get("condicion_iva", "monotributo")
+        cuit_emisor = arca_config.get("cuit", "20-35689124-9")
+        
+        # Determinar tipo factura
+        if condicion_iva == "inscripto":
+            invoice_type = "Factura B"  # Por defecto a consumidor final
+        else:
+            invoice_type = "Factura C"
+            
+        # 3. Generar número secuencial contando las existentes
+        existing_invoices = firebase_config.list_documents("invoices", token)
+        next_num = len(existing_invoices) + 1
+        invoice_number = f"{str(pos).zfill(4)}-{str(next_num).zfill(8)}"
+        
+        # 4. Generar CAE ficticio y vencimiento
+        import random
+        cae = "".join([str(random.randint(0, 9)) for _ in range(14)])
+        from datetime import datetime, timedelta
+        cae_due = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+        
+        # Mock de cliente CUIT
+        client_cuit = "20-99999999-9"
+        
+        invoice_data = {
+            "sale_id": sale_id,
+            "type": invoice_type,
+            "invoice_number": invoice_number,
+            "cuit_emisor": cuit_emisor,
+            "client_cuit": client_cuit,
+            "total": total,
+            "cae": cae,
+            "cae_due": cae_due,
+            "status": "Aprobado",
+            "date": datetime.now().isoformat()
+        }
+        
+        # Guardar factura
+        invoice_id = f"FC-{invoice_number}"
+        res = firebase_config.set_document("invoices", invoice_id, invoice_data, token)
+        if res:
+            res["id"] = invoice_id
+        return jsonify(res)
+        
+    except Exception as e:
+        return handle_error(e)
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

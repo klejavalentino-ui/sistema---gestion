@@ -279,6 +279,66 @@
           </div>
         </div>
 
+        <!-- Desglose de Canales (Local vs Tiendanube) -->
+        <div id="dashboard-channels-breakdown" class="idx-card" style="margin-top: 24px; padding: 20px;">
+          <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; color: var(--text-white); display: flex; align-items: center; gap: 8px;">
+            📊 Desglose de Rendimiento por Canal de Venta
+          </h3>
+          <div class="grid-2" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <!-- Tarjeta Local -->
+            <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span style="font-weight: 700; color: #fff; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">🏪 Local Físico</span>
+                <span class="badge-blue" style="font-size: 0.65rem; padding: 2px 6px;">Mostrador</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Facturado</p>
+                  <p id="channel-local-revenue" style="font-size: 1.1rem; font-weight: 800; color: #fff;">$0</p>
+                </div>
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas</p>
+                  <p id="channel-local-units" style="font-size: 1.1rem; font-weight: 800; color: #fff;">0 u.</p>
+                </div>
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costo de Mercadería</p>
+                  <p id="channel-local-cost" style="font-size: 1.1rem; font-weight: 800; color: var(--text-gray-light);">$0</p>
+                </div>
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Rentabilidad Neta</p>
+                  <p id="channel-local-profit" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-emerald); font-weight: bold;">$0</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tarjeta Tiendanube -->
+            <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span style="font-weight: 700; color: #fff; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">☁️ Tiendanube Online</span>
+                <span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px;">E-Commerce</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Facturado Bruto</p>
+                  <p id="channel-tn-revenue-gross" style="font-size: 1.1rem; font-weight: 800; color: #fff;">$0</p>
+                </div>
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas</p>
+                  <p id="channel-tn-units" style="font-size: 1.1rem; font-weight: 800; color: #fff;">0 u.</p>
+                </div>
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros</p>
+                  <p id="channel-tn-fees" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-red);">$0</p>
+                </div>
+                <div>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Rentabilidad Neta</p>
+                  <p id="channel-tn-profit" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-emerald); font-weight: bold;">$0</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Charts Row -->
         <div class="charts-grid">
           <!-- Line Chart: Evolución de Ventas -->
@@ -1065,28 +1125,161 @@
           </div>
         </div>
 
-        <div class="idx-card" style="padding: 25px;">
-          <!-- TIENDANUBE CARD -->
-          <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; margin-bottom: 20px;">
+        <!-- INFO INTRODUCCIÓN INTEGRACIONES (Requisito 1) -->
+        <div class="idx-card" style="padding: 20px; background: linear-gradient(135deg, rgba(96, 165, 250, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; gap: 20px;">
+          <div style="font-size: 2.2rem; filter: drop-shadow(0 0 6px rgba(96,165,250,0.5));">🔌</div>
+          <div>
+            <h4 style="margin: 0 0 6px 0; color: #fff; font-size: 1rem; font-weight: 800;">Potenciá tu Negocio con Integraciones Inteligentes</h4>
+            <p style="margin: 0 0 8px 0; font-size: 0.8rem; color: var(--text-gray-light); line-height: 1.5;">
+              En <strong>GestioSmart</strong> te ayudamos a automatizar tus canales de venta y obligaciones fiscales. Sincronizá tus existencias con <strong>Tiendanube</strong>, emití facturas electrónicas de forma directa con <strong>ARCA (ex-AFIP)</strong> y controlá tus pasarelas de cobro desde un solo panel.
+            </p>
+            <p style="margin: 0; font-size: 0.8rem; color: var(--accent-blue); font-weight: 700;">
+              📧 Para soporte de facturación ARCA, habilitación de puntos de venta o integraciones a medida, contáctanos en: <a href="mailto:gestiosmart.ss@gmail.com" style="color: #60a5fa; text-decoration: underline;">gestiosmart.ss@gmail.com</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="idx-card" style="padding: 25px; display: flex; flex-direction: column; gap: 24px;">
+          
+          <!-- SECCIÓN DE TIENDANUBE -->
+          <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-              <h3 style="margin: 0; color: #fff;">☁️ Tiendanube</h3>
+              <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">☁️ Tiendanube</h3>
               <span id="tiendanube-status-badge" class="badge-red" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);">Desconectado</span>
             </div>
             <form id="tiendanube-config-form" onsubmit="saveTiendanubeConfig(event)">
-              <div class="form-group" style="margin-bottom: 15px;">
-                <label class="form-label" for="tiendanube-user-id">User ID</label>
-                <input type="text" id="tiendanube-user-id" class="form-input" placeholder="Ingresa tu User ID de Tiendanube" required>
-              </div>
-              <div class="form-group" style="margin-bottom: 20px;">
-                <label class="form-label" for="tiendanube-access-token">Access Token</label>
-                <input type="password" id="tiendanube-access-token" class="form-input" placeholder="Ingresa tu Access Token de Tiendanube" required>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="tiendanube-user-id">User ID</label>
+                  <input type="text" id="tiendanube-user-id" class="form-input" placeholder="Ingresa tu User ID de Tiendanube" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="tiendanube-access-token">Access Token</label>
+                  <input type="password" id="tiendanube-access-token" class="form-input" placeholder="Ingresa tu Access Token de Tiendanube" required>
+                </div>
               </div>
               <div style="display: flex; gap: 10px;">
                 <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Credenciales</button>
                 <button type="button" id="tiendanube-disconnect-btn" class="btn" style="background: var(--accent-red); color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectTiendanube()">Desconectar</button>
               </div>
             </form>
+
+            <!-- REPORTE DE RENDIMIENTO ADICIONAL - TIENDANUBE (Requisito 2) -->
+            <div id="tiendanube-reports-box" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+              <h4 style="color: #fff; margin: 0 0 12px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
+              
+              <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ventas Brutas TN</span>
+                  <p id="tn-report-gross" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">$0</p>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros TN</span>
+                  <p id="tn-report-fees" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-red); margin-top: 4px;">$0</p>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ganancia Neta TN</span>
+                  <p id="tn-report-net" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-emerald); margin-top: 4px;">$0</p>
+                </div>
+              </div>
+
+              <!-- Listado de Ventas Recientes de Tiendanube -->
+              <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; max-height: 180px; overflow-y: auto;">
+                <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Ventas Recientes Online</p>
+                <div id="tn-sales-log" style="font-size: 0.75rem; color: var(--text-gray-light);">
+                  No hay ventas registradas con origen Tiendanube.
+                </div>
+              </div>
+            </div>
           </div>
+
+          <!-- SECCIÓN DE ARCA (ex-AFIP) - FACTURACIÓN ELECTRÓNICA (Requisito 2 & 4 & 5) -->
+          <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">🧾 ARCA (ex-AFIP) Facturación</h3>
+              <span id="arca-status-badge" class="badge-blue" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(96, 165, 250, 0.2);">Simulación Activa</span>
+            </div>
+            
+            <form id="arca-config-form" onsubmit="saveArcaConfig(event)">
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="arca-cuit">CUIT del Emisor</label>
+                  <input type="text" id="arca-cuit" class="form-input" placeholder="Ej: 20-35689124-9" value="20-35689124-9">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="arca-condicion-iva">Condición Frente al IVA</label>
+                  <select id="arca-condicion-iva" class="form-input">
+                    <option value="monotributo">Monotributista</option>
+                    <option value="inscripto">Responsable Inscripto</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="arca-pos">Punto de Venta</label>
+                  <input type="text" id="arca-pos" class="form-input" placeholder="Ej: 0002" value="0002">
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Certificado Digital (.crt)</label>
+                  <input type="file" id="arca-cert-file" class="form-input" style="padding: 4px 10px; font-size: 0.75rem; height: auto;">
+                  <small style="font-size: 0.6rem; color: var(--text-gray);">Certificado de Delegación obtenido desde la web de ARCA.</small>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Clave Privada (.key)</label>
+                  <input type="file" id="arca-key-file" class="form-input" style="padding: 4px 10px; font-size: 0.75rem; height: auto;">
+                  <small style="font-size: 0.6rem; color: var(--text-gray);">Clave generada localmente para encriptar solicitudes wsaa.</small>
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Configuración Fiscal</button>
+              </div>
+            </form>
+
+            <!-- PANEL DE FACTURACIÓN ELECTRÓNICA SIMULADA -->
+            <div style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="color: #fff; margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📄 Historial de Comprobantes Electrónicos Emitidos</h4>
+                <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.7rem; height: auto;" onclick="simulateInvoicingForLastSale()">
+                  ⚡ Facturar Última Venta
+                </button>
+              </div>
+
+              <!-- Listado de Facturas Emitidas -->
+              <div style="overflow-x: auto;">
+                <table class="inventory-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
+                      <th style="padding: 8px;">Tipo</th>
+                      <th style="padding: 8px;">Número de Factura</th>
+                      <th style="padding: 8px;">Cliente CUIT</th>
+                      <th style="padding: 8px; text-align: right;">Total Facturado</th>
+                      <th style="padding: 8px;">CAE / Vencimiento</th>
+                      <th style="padding: 8px; text-align: center;">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="arca-invoices-log">
+                    <!-- Inyectado dinámicamente -->
+                    <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
+                      <td colspan="6" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- EXPLICACIÓN PASO A PASO PREMIUM PARA EL CLIENTE (Requisito 5) -->
+              <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-top: 20px; font-size: 0.75rem; line-height: 1.5; color: var(--text-gray-light);">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #fff;">💡 Guía Rápida para Habilitar Facturación Electrónica en ARCA:</p>
+                <ol style="margin: 0; padding-left: 16px;">
+                  <li style="margin-bottom: 6px;"><strong>Generar Clave Privada y CSR</strong>: Desde tu servidor o con ayuda de nuestro soporte, generá una clave privada y un archivo de solicitud de certificado (CSR).</li>
+                  <li style="margin-bottom: 6px;"><strong>Obtener Certificado Digital (.crt)</strong>: Entrá a la web de ARCA con Clave Fiscal al servicio <i>"Administración de Certificados Digitales"</i> y cargá el archivo CSR para descargar tu Certificado .crt.</li>
+                  <li style="margin-bottom: 6px;"><strong>Crear Punto de Venta</strong>: Entrá en ARCA al servicio <i>"Regímenes de facturación y registración (REAR/RECE/RFI)"</i> y agregá un punto de venta tipo <strong>"Factura Electrónica - Web Services"</strong>.</li>
+                  <li style="margin-bottom: 6px;"><strong>Asociar Computador Fiscal</strong>: Vinculá el punto de venta con el servicio de Facturación Electrónica mediante el <i>"Administrador de Relaciones de Clave Fiscal"</i>.</li>
+                  <li style="margin-bottom: 0;"><strong>Cargar Certificados en GestioSmart</strong>: Subí el archivo `.crt` y tu `.key` arriba, ¡y empezá a facturar de forma automática en cada venta!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
