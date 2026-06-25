@@ -1458,7 +1458,7 @@ def create_sale():
         # Flujo especial para ARCA Pago
         if method == "ARCA":
             email = get_email_from_token(token)
-            if email != "klejavalentino@gmail.com":
+            if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
                 return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
             sale_data["status"] = "pendiente"
             res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
@@ -1663,7 +1663,7 @@ def save_integration(integration_id):
     try:
         if integration_id == "arca":
             email = get_email_from_token(token)
-            if email != "klejavalentino@gmail.com":
+            if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
                 return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
         res = firebase_config.set_document("integrations", integration_id, data, token)
         return jsonify(res)
@@ -2102,7 +2102,7 @@ def get_invoices():
     if not token:
         return jsonify({"error": "No autorizado"}), 401
     email = get_email_from_token(token)
-    if email != "klejavalentino@gmail.com":
+    if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
         return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
     try:
         # Recuperar facturas del usuario desde la subcolección invoices
@@ -2117,7 +2117,7 @@ def simulate_invoice():
     if not token:
         return jsonify({"error": "No autorizado"}), 401
     email = get_email_from_token(token)
-    if email != "klejavalentino@gmail.com":
+    if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
         return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
     
     try:

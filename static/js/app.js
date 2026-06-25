@@ -1230,7 +1230,7 @@ async function refreshState() {
           item.style.display = "none";
         }
       } else if (item.id === "sidebar-arca-item") {
-        if (state.email === "klejavalentino@gmail.com") {
+        if (state.email === "klejavalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
           item.style.display = "block";
         } else {
           item.style.display = "none";
@@ -2440,7 +2440,7 @@ function openCheckoutModal() {
 
   const arcaBtn = document.getElementById("checkout-arca-btn");
   if (arcaBtn) {
-    const hasArcaAccess = (state.email === "klejavalentino@gmail.com");
+    const hasArcaAccess = (state.email === "klejavalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com");
     arcaBtn.style.display = hasArcaAccess ? "block" : "none";
   }
 
