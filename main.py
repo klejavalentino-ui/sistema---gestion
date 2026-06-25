@@ -4,12 +4,16 @@ import time
 import requests
 import base64
 import json
+import hmac
+import hashlib
+import concurrent.futures
 from flask import Flask, request, jsonify, render_template, session
 import firebase_config
 from flask_cors import CORS
 from flask_compress import Compress
 from cachetools import TTLCache
 from functools import wraps
+from arca_client import create_arca_payment
 
 def handle_error(e):
     err_str = str(e)
@@ -51,6 +55,15 @@ Compress(app)
 
 # Caché en memoria para perfiles de usuario (TTL de 5 minutos, tamaño máximo de 1000 perfiles)
 profile_cache = TTLCache(maxsize=1000, ttl=300)
+
+# Inicializar cliente Firestore administrativo para uso en Webhooks
+db_admin = None
+if firebase_config.HAS_SERVICE_ACCOUNT:
+    try:
+        from firebase_admin import firestore
+        db_admin = firestore.client()
+    except Exception as ex:
+        print(f"Advertencia: no se pudo inicializar firestore.client() para Webhooks: {ex}")
 
 @app.after_request
 def add_header(r):
@@ -127,6 +140,65 @@ def filter_user_docs(all_docs, prefix):
                 doc_copy["sku"] = str(doc_copy["sku"])[len(prefix):]
             user_docs.append(doc_copy)
     return user_docs
+
+def sync_stock_to_tiendanube(uid, items, token=None, db_client=None, prefix=None):
+    try:
+        if db_client:
+            config_doc = db_client.collection("users").document(uid).collection("integrations").document("tiendanube").get()
+            config = config_doc.to_dict() if config_doc.exists else None
+        else:
+            config = firebase_config.get_document("integrations", "tiendanube", token)
+            
+        if not config or not config.get("activo"):
+            return
+            
+        user_id = config.get("user_id")
+        access_token = config.get("access_token")
+        
+        headers = {
+            "Authentication": f"bearer {access_token}",
+            "Content-Type": "application/json",
+            "User-Agent": "GestioSmart (klejavalentino@gmail.com)"
+        }
+        
+        if not prefix:
+            biz_type = request.headers.get("X-Business-Type", "textil") if request else "textil"
+            prefix = f"{biz_type}_"
+            
+        def update_single_variant_stock(item):
+            prod_info = item.get("product", {})
+            sku = prod_info.get("sku")
+            qty = safe_int(item.get("quantity", 0))
+            if not sku or qty <= 0:
+                return
+                
+            if db_client:
+                prod_doc = db_client.collection("users").document(uid).collection("products").document(f"{prefix}{sku}").get()
+                prod = prod_doc.to_dict() if prod_doc.exists else None
+            else:
+                prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
+                
+            if not prod:
+                return
+                
+            p_id = prod.get("tiendanube_product_id")
+            v_id = prod.get("tiendanube_variant_id")
+            new_stock = safe_int(prod.get("stock", 0))
+            
+            if p_id and v_id:
+                url = f"https://api.tiendanube.com/v1/{user_id}/products/{p_id}/variants/{v_id}"
+                payload = {"stock": new_stock}
+                r = requests.put(url, json=payload, headers=headers, timeout=15)
+                if r.ok:
+                    print(f"[TIENDANUBE] Stock sincronizado para SKU {sku}: {new_stock} unidades.")
+                else:
+                    print(f"[TIENDANUBE ERROR] Error al sincronizar SKU {sku}: {r.text}")
+                    
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            executor.map(update_single_variant_stock, items)
+            
+    except Exception as e:
+        print(f"Advertencia al sincronizar stock con Tiendanube: {e}")
 
 # --- Ruta Principal (SPA) ---
 @app.route("/")
@@ -1317,18 +1389,28 @@ def create_sale():
         return jsonify({"error": "Campos obligatorios faltantes"}), 400
         
     try:
-        for cart_item in items:
+        # 1. Recuperar productos en paralelo para validar stock
+        def get_single_prod(cart_item):
             prod_info = cart_item.get("product", {})
             sku = prod_info.get("sku")
             qty = safe_int(cart_item.get("quantity", 0))
-            
             if sku and qty > 0:
                 prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
-                if not prod:
-                    return jsonify({"error": f"Producto con SKU {sku} no encontrado en inventario"}), 400
-                current_stock = safe_int(prod.get("stock", 0))
-                if current_stock < qty:
-                    return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}' (Talle {prod.get('size')}). Disponible: {current_stock}, Solicitado: {qty}"}), 400
+                return sku, qty, prod
+            return None, 0, None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            prods_data = list(executor.map(get_single_prod, items))
+
+        # Validar stock
+        for sku, qty, prod in prods_data:
+            if not sku or qty <= 0:
+                continue
+            if not prod:
+                return jsonify({"error": f"Producto con SKU {sku} no encontrado en inventario"}), 400
+            current_stock = safe_int(prod.get("stock", 0))
+            if current_stock < qty:
+                return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}' (Talle {prod.get('size')}). Disponible: {current_stock}, Solicitado: {qty}"}), 400
 
         sale_id = f"V-{time.strftime('%H%M%S', time.localtime())}"
         
@@ -1347,22 +1429,57 @@ def create_sale():
             "items": items,
             "extras": data.get("extras", {})
         }
-        
+
+        # Flujo especial para ARCA Pago
+        if method == "ARCA":
+            sale_data["status"] = "pendiente"
+            res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
+            
+            try:
+                host_url = request.url_root.rstrip('/')
+                webhook_url = f"{host_url}/api/webhooks/arca"
+                return_url = f"{host_url}/"
+                
+                uid = get_uid_from_token(token)
+                arca_res = create_arca_payment(
+                    sale_id=sale_id,
+                    amount=total,
+                    return_url=return_url,
+                    webhook_url=webhook_url,
+                    tenant_uid=uid
+                )
+                
+                payment_url = arca_res.get("payment_url") or arca_res.get("init_point") or arca_res.get("checkout_url") or arca_res.get("url")
+                
+                sale_data["arca_payment_id"] = arca_res.get("id")
+                sale_data["payment_url"] = payment_url
+                firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
+                
+                if res:
+                    res["id"] = res["id"][len(prefix):]
+                    res["payment_url"] = payment_url
+                return jsonify(res)
+                
+            except Exception as arca_err:
+                print(f"Error al crear pago ARCA: {arca_err}")
+                return jsonify({"error": f"Error al generar link de pago ARCA: {str(arca_err)}"}), 500
+
+        # Registro normal de venta (Efectivo/Tarjeta/Transferencia/Financiado)
         res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
         
-        for cart_item in items:
-            prod_info = cart_item.get("product", {})
-            sku = prod_info.get("sku") # ya está limpio
-            qty = safe_int(cart_item.get("quantity", 0))
-            
-            if sku and qty > 0:
-                prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
-                if prod:
-                    current_stock = safe_int(prod.get("stock", 0))
-                    prod["stock"] = max(0, current_stock - qty)
-                    prod["sku"] = f"{prefix}{sku}"
-                    firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
+        # Descontar stock local en paralelo
+        def update_local_stock(prod_data):
+            sku, qty, prod = prod_data
+            if sku and qty > 0 and prod:
+                current_stock = safe_int(prod.get("stock", 0))
+                prod["stock"] = max(0, current_stock - qty)
+                prod["sku"] = f"{prefix}{sku}"
+                firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            executor.map(update_local_stock, prods_data)
                     
+        # Registrar en la caja diaria si corresponde
         if method in ["Efectivo", "Transferencia"]:
             caja_payload = {
                 "description": f"Venta {method} - {sale_id}",
@@ -1378,6 +1495,10 @@ def create_sale():
             caja_payload["id"] = str(caja_id)
             firebase_config.set_document("products", f"{prefix}{caja_payload['sku']}", caja_payload, token)
             
+        # Sincronización automática con Tiendanube si está configurada y activa
+        uid = get_uid_from_token(token)
+        sync_stock_to_tiendanube(uid, items, token=token, prefix=prefix)
+
         if res:
             res["id"] = res["id"][len(prefix):]
         return jsonify(res)
@@ -1503,6 +1624,261 @@ def save_integration(integration_id):
         return jsonify(res)
     except Exception as e:
         return handle_error(e)
+
+@app.route("/api/integrations/tiendanube/sync", methods=["POST"])
+def sync_tiendanube_catalog_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    uid = get_uid_from_token(token)
+    
+    try:
+        # 1. Fetch credentials
+        config = firebase_config.get_document("integrations", "tiendanube", token)
+        if not config or not config.get("activo"):
+            return jsonify({"error": "La integración con Tiendanube no está activa o no está configurada."}), 400
+            
+        user_id = config.get("user_id")
+        access_token = config.get("access_token")
+        
+        headers = {
+            "Authentication": f"bearer {access_token}",
+            "User-Agent": "GestioSmart (klejavalentino@gmail.com)",
+            "Content-Type": "application/json"
+        }
+        
+        # 2. Get all products from Tiendanube (with pagination)
+        all_tn_products = []
+        page = 1
+        while True:
+            url = f"https://api.tiendanube.com/v1/{user_id}/products?page={page}&limit=100"
+            r = requests.get(url, headers=headers, timeout=30)
+            if not r.ok:
+                return jsonify({"error": f"Error de Tiendanube API: {r.text}"}), 400
+            data = r.json()
+            if not data:
+                break
+            all_tn_products.extend(data)
+            if len(data) < 100:
+                break
+            page += 1
+            
+        # 3. Get existing products from Firestore to map & update
+        existing_docs = firebase_config.list_documents("products", token)
+        existing_products_by_sku = {}
+        for d in existing_docs:
+            doc_id = d.get("id", "")
+            if doc_id.startswith(prefix) and not doc_id.startswith((
+                "supplier_", "fixedcost_", "account_", "cashtransaction_", "influencer_", "marketingexpense_", "extras_config", "categories_config", "stockintake_"
+            )):
+                clean_sku = doc_id[len(prefix):].upper()
+                existing_products_by_sku[clean_sku] = d
+                
+        # 4. Prepare updates/creates
+        biz_type = request.headers.get("X-Business-Type", "textil")
+        if biz_type not in ["textil", "comercio"]:
+            biz_type = "textil"
+            
+        products_to_save = []
+        
+        for tn_prod in all_tn_products:
+            p_id = tn_prod.get("id")
+            p_name_dict = tn_prod.get("name", {})
+            p_name = p_name_dict.get("es", p_name_dict.get("en", next(iter(p_name_dict.values())) if p_name_dict.values() else "Sin Nombre"))
+            attributes = tn_prod.get("attributes", [])
+            
+            for variant in tn_prod.get("variants", []):
+                v_id = variant.get("id")
+                raw_sku = variant.get("sku")
+                if not raw_sku:
+                    continue
+                
+                sku = str(raw_sku).strip().upper()
+                if biz_type == "comercio" and not sku.endswith("-U"):
+                    sku = f"{sku}-U"
+                    
+                stock = safe_int(variant.get("stock"))
+                price = safe_float(variant.get("price"))
+                
+                # Parse talle y color
+                size = "Único"
+                color = ""
+                values = variant.get("values", [])
+                for attr, val in zip(attributes, values):
+                    attr_name = ""
+                    if isinstance(attr, dict):
+                        attr_name = attr.get("es", attr.get("en", "")).lower()
+                    elif isinstance(attr, str):
+                        attr_name = attr.lower()
+                    
+                    val_str = ""
+                    if isinstance(val, dict):
+                        val_str = val.get("es", val.get("en", next(iter(val.values())) if val.values() else ""))
+                    elif isinstance(val, str):
+                        val_str = val
+                        
+                    if "tall" in attr_name or "size" in attr_name:
+                        size = val_str
+                    elif "color" in attr_name or "variant" in attr_name or "opci" in attr_name:
+                        color = val_str
+                    else:
+                        if val_str.upper() in ["XS", "S", "M", "L", "XL", "XXL", "U", "ÚNICO"]:
+                            size = val_str
+                        else:
+                            if not color:
+                                color = val_str
+                            else:
+                                color += f" - {val_str}"
+                                
+                if biz_type == "comercio":
+                    size = "Único"
+                    
+                baseSku = sku.split("-")[0] if "-" in sku else sku
+                
+                if sku in existing_products_by_sku:
+                    existing_prod = existing_products_by_sku[sku]
+                    existing_prod["stock"] = stock
+                    existing_prod["tiendanube_product_id"] = p_id
+                    existing_prod["tiendanube_variant_id"] = v_id
+                    existing_prod["stock"] = safe_int(existing_prod.get("stock", 0))
+                    existing_prod["cost"] = safe_float(existing_prod.get("cost", 0.0))
+                    existing_prod["margin"] = safe_float(existing_prod.get("margin", 0.0))
+                    products_to_save.append(existing_prod)
+                else:
+                    new_prod = {
+                        "id": f"{prefix}{sku}",
+                        "sku": f"{prefix}{sku}",
+                        "baseSku": baseSku,
+                        "name": p_name,
+                        "category": "General",
+                        "size": size,
+                        "color": color,
+                        "stock": stock,
+                        "baseCost": price,
+                        "cost": price,
+                        "margin": 0.0,
+                        "tiendanube_product_id": p_id,
+                        "tiendanube_variant_id": v_id
+                    }
+                    products_to_save.append(new_prod)
+                    
+        # 5. Save products concurrently
+        def save_one_product(prod):
+            sku_with_prefix = prod.get("sku")
+            firebase_config.set_document("products", sku_with_prefix, prod, token)
+            
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            executor.map(save_one_product, products_to_save)
+            
+        return jsonify({"success": True, "count": len(products_to_save)})
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/webhooks/arca", methods=["POST"])
+def arca_webhook():
+    signature = request.headers.get("X-Arca-Signature")
+    webhook_secret = os.environ.get("ARCA_WEBHOOK_SECRET")
+    
+    if webhook_secret:
+        if not signature:
+            return jsonify({"error": "Firma faltante"}), 400
+        computed_sig = hmac.new(
+            webhook_secret.encode("utf-8"),
+            request.data,
+            hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(computed_sig, signature):
+            return jsonify({"error": "Firma inválida"}), 400
+            
+    data = request.json or {}
+    status = data.get("status")
+    sale_id = data.get("external_reference")
+    metadata = data.get("metadata", {})
+    tenant_uid = metadata.get("tenant_uid")
+    
+    if not sale_id or not tenant_uid:
+        return jsonify({"error": "Parámetros obligatorios faltantes en webhook"}), 400
+        
+    if db_admin is None:
+        print(f"Advertencia: db_admin no está inicializado. Ignorando confirmación de venta {sale_id}")
+        return jsonify({"warning": "Firestore admin no configurado, actualización pendiente"}), 200
+        
+    try:
+        # Obtener tipo de negocio para determinar el prefijo
+        user_ref = db_admin.collection("users").document(tenant_uid)
+        user_doc = user_ref.get()
+        biz_type = "textil"
+        if user_doc.exists:
+            biz_type = user_doc.to_dict().get("businessType", "textil")
+        prefix = f"{biz_type}_"
+        
+        # Obtener venta
+        sale_ref = db_admin.collection("users").document(tenant_uid).collection("sales").document(f"{prefix}{sale_id}")
+        sale_doc = sale_ref.get()
+        if not sale_doc.exists:
+            return jsonify({"error": "Venta no encontrada"}), 404
+            
+        sale_data = sale_doc.to_dict()
+        if sale_data.get("status") == "completado":
+            return jsonify({"message": "La venta ya fue procesada"}), 200
+            
+        # Si es aprobado o confirmado, procesar
+        if status in ["approved", "success"]:
+            # 1. Completar estado de la venta
+            sale_ref.update({"status": "completado"})
+            
+            items = sale_data.get("items", [])
+            
+            # 2. Descontar stock local en paralelo usando db_admin
+            def update_item_stock(item):
+                try:
+                    prod_info = item.get("product", {})
+                    sku = prod_info.get("sku")
+                    qty = safe_int(item.get("quantity", 0))
+                    if sku and qty > 0:
+                        prod_ref = db_admin.collection("users").document(tenant_uid).collection("products").document(f"{prefix}{sku}")
+                        prod_doc = prod_ref.get()
+                        if prod_doc.exists:
+                            prod = prod_doc.to_dict()
+                            current_stock = safe_int(prod.get("stock", 0))
+                            new_stock = max(0, current_stock - qty)
+                            prod_ref.update({"stock": new_stock})
+                except Exception as ex:
+                    print(f"Error actualizando stock para SKU {sku} en webhook: {ex}")
+                    
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                executor.map(update_item_stock, items)
+                
+            # 3. Registrar en Caja Diaria
+            total = sale_data.get("total", 0)
+            date = sale_data.get("date")
+            caja_payload = {
+                "description": f"Venta ARCA - {sale_id}",
+                "type": "income",
+                "amount": safe_float(total),
+                "date": date
+            }
+            caja_id = int(time.time() * 1000)
+            caja_payload["sku"] = f"cashtransaction_{caja_id}"
+            caja_payload["name"] = caja_payload["description"]
+            caja_payload["cost"] = caja_payload["amount"]
+            caja_payload["stock"] = 0
+            caja_payload["id"] = str(caja_id)
+            
+            caja_ref = db_admin.collection("users").document(tenant_uid).collection("products").document(f"{prefix}{caja_payload['sku']}")
+            caja_ref.set(caja_payload)
+            
+            # 4. Sincronizar stock con Tiendanube
+            sync_stock_to_tiendanube(tenant_uid, items, db_client=db_admin, prefix=prefix)
+            
+        return jsonify({"success": True})
+        
+    except Exception as e:
+        print(f"Error procesando webhook de ARCA: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/import-remito", methods=["POST"])
 def import_remito():

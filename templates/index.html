@@ -188,6 +188,9 @@
         <li class="menu-item" data-tab="panel">
           <a href="#" class="menu-link"><i>📊</i> Panel</a>
         </li>
+        <li class="menu-item" data-tab="integrations">
+          <a href="#" class="menu-link"><i>🔌</i> Integraciones</a>
+        </li>
       </ul>
 
       <div class="sidebar-footer">
@@ -411,6 +414,9 @@
             <p>Control de SKU variants, talle/color, precios y niveles de existencias físicas.</p>
           </div>
           <div style="display: flex; gap: 12px; align-items: center;">
+            <button id="tiendanube-sync-btn" class="btn" style="background: #3b82f6; color: white; display: none;" onclick="syncTiendanubeCatalog()">
+              <i>☁️</i> Sincronizar Tiendanube
+            </button>
             <button class="btn btn-secondary" onclick="triggerExcelImport()">
               <i>📤</i> Importar Excel
             </button>
@@ -1041,6 +1047,40 @@
         </div>
       </section>
 
+      <!-- TAB 11: INTEGRACIONES -->
+      <section id="integrations-section" class="tab-content" style="display: none;">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Configuración de Integraciones</h2>
+            <p>Conecta tu ERP con plataformas externas para mantener sincronizado tu negocio.</p>
+          </div>
+        </div>
+
+        <div class="idx-card" style="padding: 25px;">
+          <!-- TIENDANUBE CARD -->
+          <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <h3 style="margin: 0; color: #fff;">☁️ Tiendanube</h3>
+              <span id="tiendanube-status-badge" class="badge-red" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);">Desconectado</span>
+            </div>
+            <form id="tiendanube-config-form" onsubmit="saveTiendanubeConfig(event)">
+              <div class="form-group" style="margin-bottom: 15px;">
+                <label class="form-label" for="tiendanube-user-id">User ID</label>
+                <input type="text" id="tiendanube-user-id" class="form-input" placeholder="Ingresa tu User ID de Tiendanube" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 20px;">
+                <label class="form-label" for="tiendanube-access-token">Access Token</label>
+                <input type="password" id="tiendanube-access-token" class="form-input" placeholder="Ingresa tu Access Token de Tiendanube" required>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Credenciales</button>
+                <button type="button" id="tiendanube-disconnect-btn" class="btn" style="background: var(--accent-red); color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectTiendanube()">Desconectar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
     </main>
   </section>
 
@@ -1075,6 +1115,9 @@
           </button>
           <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Financiado')">
             <span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas</strong>
+          </button>
+          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('ARCA')">
+            <span style="font-size: 1.2rem; margin-right: 12px;">🔗</span> <strong>ARCA Pago</strong>
           </button>
         </div>
       </div>

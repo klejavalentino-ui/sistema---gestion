@@ -1220,6 +1220,7 @@ async function refreshState() {
     
     applyBusinessTypeUIUpdates();
     await syncSuppliersWithCurrentAccounts();
+    await renderIntegrationsStatus();
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
       item.style.display = "block";
@@ -2347,6 +2348,11 @@ async function confirmPayment(method) {
       if (!state.sales.some(s => s.id === saleId)) {
         state.sales.unshift(registeredSale);
       }
+    }
+
+    if (method === "ARCA" && registeredSale.payment_url) {
+      showToast("Redirigiendo a pasarela de pago ARCA...");
+      window.open(registeredSale.payment_url, "_blank");
     }
 
     // Avanzar a step 3 (éxito)
@@ -6615,6 +6621,104 @@ async function loginWithGoogle() {
   } catch (error) {
     console.error("Google sign in error:", error);
     showToast(error.message || "Error al iniciar sesión con Google", true);
+  }
+}
+
+// --- Integraciones (Tiendanube, etc.) ---
+async function renderIntegrationsStatus() {
+  if (!state.token) return;
+  try {
+    const integrations = await apiRequest("/api/integrations");
+    const tiendanube = integrations?.tiendanube;
+    
+    const badge = document.getElementById("tiendanube-status-badge");
+    const userIdInput = document.getElementById("tiendanube-user-id");
+    const tokenInput = document.getElementById("tiendanube-access-token");
+    const disconnectBtn = document.getElementById("tiendanube-disconnect-btn");
+    const syncBtn = document.getElementById("tiendanube-sync-btn");
+    
+    if (tiendanube && tiendanube.activo) {
+      if (badge) {
+        badge.innerText = "Conectado";
+        badge.className = "badge-green";
+        badge.style.borderColor = "rgba(16, 185, 129, 0.2)";
+        badge.style.background = "var(--bg-dark)";
+      }
+      if (userIdInput) userIdInput.value = tiendanube.user_id || "";
+      if (tokenInput) tokenInput.value = "••••••••";
+      if (disconnectBtn) disconnectBtn.style.display = "block";
+      if (syncBtn) syncBtn.style.display = "block";
+    } else {
+      if (badge) {
+        badge.innerText = "Desconectado";
+        badge.className = "badge-red";
+        badge.style.borderColor = "rgba(229, 56, 59, 0.2)";
+        badge.style.background = "var(--bg-dark)";
+      }
+      if (userIdInput && !tiendanube) userIdInput.value = "";
+      if (tokenInput && !tiendanube) tokenInput.value = "";
+      if (disconnectBtn) disconnectBtn.style.display = "none";
+      if (syncBtn) syncBtn.style.display = "none";
+    }
+  } catch (error) {
+    console.error("Error al obtener integraciones:", error);
+  }
+}
+
+async function saveTiendanubeConfig(event) {
+  event.preventDefault();
+  const userId = document.getElementById("tiendanube-user-id").value;
+  const accessToken = document.getElementById("tiendanube-access-token").value;
+  
+  if (!userId || !accessToken) {
+    showToast("Por favor completa todos los campos.", true);
+    return;
+  }
+  
+  try {
+    showToast("Guardando credenciales de Tiendanube...");
+    const payload = {
+      user_id: userId,
+      access_token: accessToken,
+      activo: true
+    };
+    
+    await apiRequest("/api/integrations/tiendanube", "POST", payload);
+    showToast("¡Tiendanube conectada con éxito!");
+    await renderIntegrationsStatus();
+  } catch (error) {
+    showToast("Error al guardar credenciales: " + error.message, true);
+  }
+}
+
+async function disconnectTiendanube() {
+  if (!confirm("¿Seguro que deseas desconectar Tiendanube?")) return;
+  try {
+    showToast("Desconectando...");
+    const payload = {
+      activo: false
+    };
+    await apiRequest("/api/integrations/tiendanube", "POST", payload);
+    showToast("Tiendanube desconectada.");
+    
+    // Limpiar campos
+    document.getElementById("tiendanube-user-id").value = "";
+    document.getElementById("tiendanube-access-token").value = "";
+    
+    await renderIntegrationsStatus();
+  } catch (error) {
+    showToast("Error al desconectar: " + error.message, true);
+  }
+}
+
+async function syncTiendanubeCatalog() {
+  try {
+    showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
+    const result = await apiRequest("/api/integrations/tiendanube/sync", "POST");
+    showToast(`Sincronización completada. ${result.synced_count || 0} variantes procesadas.`);
+    await refreshState();
+  } catch (error) {
+    showToast("Error en sincronización: " + error.message, true);
   }
 }
 
