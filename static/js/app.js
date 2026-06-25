@@ -1223,7 +1223,15 @@ async function refreshState() {
     await renderIntegrationsStatus();
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
-      item.style.display = "block";
+      if (item.id === "sidebar-tiendanube-item") {
+        if (state.email === "matiascuchettidiaz@gmail.com") {
+          item.style.display = "block";
+        } else {
+          item.style.display = "none";
+        }
+      } else {
+        item.style.display = "block";
+      }
     });
   } catch (error) {
     console.error("Error loading states:", error);
@@ -6450,6 +6458,7 @@ function switchTab(tabId) {
   if (tabId === "sales") renderSalesPOS();
   if (tabId === "fixed-costs") renderFixedCosts();
   if (tabId === "marketing") switchMarketingSubTab(state.activeMarketingSubTab || "summary");
+  if (tabId === "tiendanube") renderIntegrationsStatus();
 }
 
 // --- Asignación de Listeners ---

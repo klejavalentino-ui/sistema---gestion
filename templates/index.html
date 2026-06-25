@@ -188,6 +188,9 @@
         <li class="menu-item" data-tab="panel">
           <a href="#" class="menu-link"><i>📊</i> Panel</a>
         </li>
+        <li class="menu-item" data-tab="tiendanube" id="sidebar-tiendanube-item" style="display: none;">
+          <a href="#" class="menu-link"><i>☁️</i> TiendaNube</a>
+        </li>
         <li class="menu-item" data-tab="integrations">
           <a href="#" class="menu-link"><i>🔌</i> Integraciones</a>
         </li>
@@ -1116,6 +1119,70 @@
         </div>
       </section>
 
+      <!-- TAB 12: TIENDANUBE (Solo para matiascuchettidiaz@gmail.com) -->
+      <section id="tiendanube-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>TiendaNube</h2>
+            <p>Monitoreá y configurá la sincronización de tu canal de venta online.</p>
+          </div>
+        </div>
+
+        <div class="idx-card" style="padding: 25px;">
+          <!-- SECCIÓN DE TIENDANUBE -->
+          <div id="tiendanube-integration-card" class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">☁️ Tiendanube</h3>
+              <span id="tiendanube-status-badge" class="badge-red" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);">Desconectado</span>
+            </div>
+            <form id="tiendanube-config-form" onsubmit="saveTiendanubeConfig(event)">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="tiendanube-user-id">User ID</label>
+                  <input type="text" id="tiendanube-user-id" class="form-input" placeholder="Ingresa tu User ID de Tiendanube" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="tiendanube-access-token">Access Token</label>
+                  <input type="password" id="tiendanube-access-token" class="form-input" placeholder="Ingresa tu Access Token de Tiendanube" required>
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Credenciales</button>
+                <button type="button" id="tiendanube-disconnect-btn" class="btn" style="background: var(--accent-red); color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectTiendanube()">Desconectar</button>
+              </div>
+            </form>
+
+            <!-- REPORTE DE RENDIMIENTO ADICIONAL - TIENDANUBE -->
+            <div id="tiendanube-reports-box" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+              <h4 style="color: #fff; margin: 0 0 12px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
+              
+              <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ventas Brutas TN</span>
+                  <p id="tn-report-gross" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">$0</p>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros TN</span>
+                  <p id="tn-report-fees" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-red); margin-top: 4px;">$0</p>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ganancia Neta TN</span>
+                  <p id="tn-report-net" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-emerald); margin-top: 4px;">$0</p>
+                </div>
+              </div>
+
+              <!-- Listado de Ventas Recientes de Tiendanube -->
+              <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; max-height: 180px; overflow-y: auto;">
+                <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Ventas Recientes Online</p>
+                <div id="tn-sales-log" style="font-size: 0.75rem; color: var(--text-gray-light);">
+                  No hay ventas registradas con origen Tiendanube.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- TAB 11: INTEGRACIONES -->
       <section id="integrations-section" class="tab-content">
         <div class="idx-header">
@@ -1153,8 +1220,8 @@
               <span style="font-size: 0.75rem; color: var(--text-gray-light);">Conectores autónomos para e-commerce propios que centralizan tus pedidos web en la facturación del local.</span>
             </div>
             <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛵 PedidosYa / Rappi</strong>
-              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Integración de menús gastronómicos y despacho automático de órdenes directo a comandas.</span>
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🚚 Andreani / OCA (Logística)</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Cálculo automático de costos de envío, generación de etiquetas de despacho y seguimiento de envíos físicos.</span>
             </div>
           </div>
 
@@ -1168,58 +1235,6 @@
 
         <div class="idx-card" style="padding: 25px; display: flex; flex-direction: column; gap: 24px;">
           
-          <!-- SECCIÓN DE TIENDANUBE -->
-          <div id="tiendanube-integration-card" class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-              <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">☁️ Tiendanube</h3>
-              <span id="tiendanube-status-badge" class="badge-red" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);">Desconectado</span>
-            </div>
-            <form id="tiendanube-config-form" onsubmit="saveTiendanubeConfig(event)">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                <div class="form-group" style="margin-bottom: 0;">
-                  <label class="form-label" for="tiendanube-user-id">User ID</label>
-                  <input type="text" id="tiendanube-user-id" class="form-input" placeholder="Ingresa tu User ID de Tiendanube" required>
-                </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                  <label class="form-label" for="tiendanube-access-token">Access Token</label>
-                  <input type="password" id="tiendanube-access-token" class="form-input" placeholder="Ingresa tu Access Token de Tiendanube" required>
-                </div>
-              </div>
-              <div style="display: flex; gap: 10px;">
-                <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Credenciales</button>
-                <button type="button" id="tiendanube-disconnect-btn" class="btn" style="background: var(--accent-red); color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectTiendanube()">Desconectar</button>
-              </div>
-            </form>
-
-            <!-- REPORTE DE RENDIMIENTO ADICIONAL - TIENDANUBE (Requisito 2) -->
-            <div id="tiendanube-reports-box" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-              <h4 style="color: #fff; margin: 0 0 12px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
-              
-              <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
-                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ventas Brutas TN</span>
-                  <p id="tn-report-gross" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">$0</p>
-                </div>
-                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros TN</span>
-                  <p id="tn-report-fees" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-red); margin-top: 4px;">$0</p>
-                </div>
-                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ganancia Neta TN</span>
-                  <p id="tn-report-net" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-emerald); margin-top: 4px;">$0</p>
-                </div>
-              </div>
-
-              <!-- Listado de Ventas Recientes de Tiendanube -->
-              <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; max-height: 180px; overflow-y: auto;">
-                <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Ventas Recientes Online</p>
-                <div id="tn-sales-log" style="font-size: 0.75rem; color: var(--text-gray-light);">
-                  No hay ventas registradas con origen Tiendanube.
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- SECCIÓN DE ARCA (ex-AFIP) - FACTURACIÓN ELECTRÓNICA (Requisito 2 & 4 & 5) -->
           <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">

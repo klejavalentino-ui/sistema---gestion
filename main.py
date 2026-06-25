@@ -1518,7 +1518,13 @@ def create_sale():
         # Sincronización automática con Tiendanube si está configurada, activa y es venta local
         if origen == "local":
             uid = get_uid_from_token(token)
-            sync_stock_to_tiendanube(uid, items, token=token, prefix=prefix)
+            import threading
+            threading.Thread(
+                target=sync_stock_to_tiendanube,
+                args=(uid, items),
+                kwargs={"token": token, "prefix": prefix},
+                daemon=True
+            ).start()
 
         if res:
             res["id"] = res["id"][len(prefix):]

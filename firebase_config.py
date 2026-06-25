@@ -2,6 +2,8 @@ import json
 import os
 import requests
 import jwt
+
+_session = requests.Session()
 import time
 import firebase_admin
 from firebase_admin import credentials, auth
@@ -145,7 +147,7 @@ def sign_in(email, password):
         "password": password,
         "returnSecureToken": True
     }
-    r = requests.post(url, json=payload, timeout=30)
+    r = _session.post(url, json=payload, timeout=30)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error desconocido en inicio de sesión.")
         raise Exception(error_msg)
@@ -158,7 +160,7 @@ def sign_up(email, password):
         "password": password,
         "returnSecureToken": True
     }
-    r = requests.post(url, json=payload, timeout=30)
+    r = _session.post(url, json=payload, timeout=30)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error desconocido en el registro.")
         raise Exception(error_msg)
@@ -170,7 +172,7 @@ def send_verification_email(id_token):
         "requestType": "VERIFY_EMAIL",
         "idToken": id_token
     }
-    r = requests.post(url, json=payload, timeout=30)
+    r = _session.post(url, json=payload, timeout=30)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de verificación.")
         raise Exception(error_msg)
@@ -182,7 +184,7 @@ def send_password_reset_email(email):
         "requestType": "PASSWORD_RESET",
         "email": email
     }
-    r = requests.post(url, json=payload, timeout=30)
+    r = _session.post(url, json=payload, timeout=30)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de restablecimiento de contraseña.")
         raise Exception(error_msg)
@@ -194,7 +196,7 @@ def get_account_info(id_token):
     payload = {
         "idToken": id_token
     }
-    r = requests.post(url, json=payload, timeout=30)
+    r = _session.post(url, json=payload, timeout=30)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al obtener la información de la cuenta.")
         raise Exception(error_msg)
@@ -216,7 +218,7 @@ def get_google_public_keys():
         return GOOGLE_PUBLIC_KEYS_CACHE["keys"]
         
     url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-    r = requests.get(url, timeout=30)
+    r = _session.get(url, timeout=30)
     r.raise_for_status()
     keys = r.json()
     
@@ -303,7 +305,7 @@ def get_document(collection, doc_id, id_token):
     resolved_path = resolve_collection_path(collection, uid)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
-    r = requests.get(url, headers=headers, timeout=30)
+    r = _session.get(url, headers=headers, timeout=30)
     if r.status_code == 404:
         return None
     r.raise_for_status()
@@ -330,7 +332,7 @@ def list_documents(collection, id_token):
             "from": [{"collectionId": collection_id}]
         }
     }
-    r = requests.post(url, json=payload, headers=headers, timeout=30)
+    r = _session.post(url, json=payload, headers=headers, timeout=30)
     if r.status_code == 404:
         return []
     r.raise_for_status()
@@ -350,7 +352,7 @@ def set_document(collection, doc_id, data, id_token):
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     payload = to_firestore_fields(data)
-    r = requests.patch(url, json=payload, headers=headers, timeout=30)
+    r = _session.patch(url, json=payload, headers=headers, timeout=30)
     r.raise_for_status()
     return from_firestore_document(r.json())
 
@@ -361,7 +363,7 @@ def delete_document(collection, doc_id, id_token):
     resolved_path = resolve_collection_path(collection, uid)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
-    r = requests.delete(url, headers=headers, timeout=30)
+    r = _session.delete(url, headers=headers, timeout=30)
     if r.status_code == 404:
         return False
     r.raise_for_status()
