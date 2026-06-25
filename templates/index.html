@@ -305,7 +305,7 @@
                   <p id="channel-local-cost" style="font-size: 1.1rem; font-weight: 800; color: var(--text-gray-light);">$0</p>
                 </div>
                 <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Rentabilidad Neta</p>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Resultado Operativo</p>
                   <p id="channel-local-profit" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-emerald); font-weight: bold;">$0</p>
                 </div>
               </div>
@@ -331,7 +331,7 @@
                   <p id="channel-tn-fees" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-red);">$0</p>
                 </div>
                 <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Rentabilidad Neta</p>
+                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Resultado Operativo</p>
                   <p id="channel-tn-profit" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-emerald); font-weight: bold;">$0</p>
                 </div>
               </div>
@@ -1117,24 +1117,51 @@
       </section>
 
       <!-- TAB 11: INTEGRACIONES -->
-      <section id="integrations-section" class="tab-content" style="display: none;">
+      <section id="integrations-section" class="tab-content">
         <div class="idx-header">
           <div class="idx-header-info">
             <h2>Configuración de Integraciones</h2>
-            <p>Conecta tu ERP con plataformas externas para mantener sincronizado tu negocio.</p>
+            <p>Conectá tu ERP con plataformas externas para automatizar tus ventas, facturación y envíos.</p>
           </div>
         </div>
 
-        <!-- INFO INTRODUCCIÓN INTEGRACIONES (Requisito 1) -->
-        <div class="idx-card" style="padding: 20px; background: linear-gradient(135deg, rgba(96, 165, 250, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; gap: 20px;">
-          <div style="font-size: 2.2rem; filter: drop-shadow(0 0 6px rgba(96,165,250,0.5));">🔌</div>
-          <div>
-            <h4 style="margin: 0 0 6px 0; color: #fff; font-size: 1rem; font-weight: 800;">Potenciá tu Negocio con Integraciones Inteligentes</h4>
-            <p style="margin: 0 0 8px 0; font-size: 0.8rem; color: var(--text-gray-light); line-height: 1.5;">
-              En <strong>GestioSmart</strong> te ayudamos a automatizar tus canales de venta y obligaciones fiscales. Sincronizá tus existencias con <strong>Tiendanube</strong>, emití facturas electrónicas de forma directa con <strong>ARCA (ex-AFIP)</strong> y controlá tus pasarelas de cobro desde un solo panel.
-            </p>
-            <p style="margin: 0; font-size: 0.8rem; color: var(--accent-blue); font-weight: 700;">
-              📧 Para soporte de facturación ARCA, habilitación de puntos de venta o integraciones a medida, contáctanos en: <a href="mailto:gestiosmart.ss@gmail.com" style="color: #60a5fa; text-decoration: underline;">gestiosmart.ss@gmail.com</a>
+        <!-- INFO INTRODUCCIÓN INTEGRACIONES (Conexiones soportadas e info de contacto) -->
+        <div class="idx-card" style="padding: 24px; background: linear-gradient(135deg, rgba(96, 165, 250, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+            <div style="font-size: 2.2rem; filter: drop-shadow(0 0 6px rgba(96,165,250,0.5));">🔌</div>
+            <div>
+              <h4 style="margin: 0; color: #fff; font-size: 1.1rem; font-weight: 900;">Catálogo de Conexiones de GestioSmart</h4>
+              <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-gray);">Automatizaciones omnicanal a medida para optimizar la administración de tu negocio.</p>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">☁️ Tiendanube</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Sincronización bidireccional en tiempo real de catálogo de productos, precios y stocks separados (local vs taller).</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🧾 ARCA (ex-AFIP)</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Emisión automatizada de facturas electrónicas (A, B y C) mediante Web Services en cada venta concretada.</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛍️ Mercado Libre</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Vinculación directa de stock físico con tus publicaciones activas y automatización de etiquetas de Mercado Envíos.</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛒 WooCommerce / Shopify</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Conectores autónomos para e-commerce propios que centralizan tus pedidos web en la facturación del local.</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛵 PedidosYa / Rappi</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Integración de menús gastronómicos y despacho automático de órdenes directo a comandas.</span>
+            </div>
+          </div>
+
+          <div style="background: rgba(96, 165, 250, 0.05); border: 1px solid rgba(96, 165, 250, 0.2); padding: 14px; border-radius: 8px; text-align: center;">
+            <p style="margin: 0; font-size: 0.8rem; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <span>📧 ¿Deseas activar una integración, configurar ARCA o solicitar soporte? Escribinos a:</span>
+              <a href="mailto:gestiosmart.ss@gmail.com" style="color: var(--accent-blue); text-decoration: underline; font-size: 0.85rem; font-weight: 800;">gestiosmart.ss@gmail.com</a>
             </p>
           </div>
         </div>
@@ -1142,7 +1169,7 @@
         <div class="idx-card" style="padding: 25px; display: flex; flex-direction: column; gap: 24px;">
           
           <!-- SECCIÓN DE TIENDANUBE -->
-          <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
+          <div id="tiendanube-integration-card" class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
               <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">☁️ Tiendanube</h3>
               <span id="tiendanube-status-badge" class="badge-red" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);">Desconectado</span>

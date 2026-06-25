@@ -1422,10 +1422,14 @@ function renderPanel() {
   const totalSalesNetValue = filteredSales.reduce((sum, s) => sum + (s.total_neto !== undefined ? parseFloat(s.total_neto) : s.total || 0), 0);
 
   // Actualizar KPIs en el HTML
-  document.getElementById("panel-stat-revenue").innerHTML = `
-    <div style="font-size: 1.3rem; color: #fff;">$ ${Math.round(totalSalesValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Bruto)</span></div>
-    <div style="font-size: 0.95rem; color: var(--accent-emerald); font-weight: 700; margin-top: 2px;">$ ${Math.round(totalSalesNetValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Neto)</span></div>
-  `;
+  if (state.email === "matiascuchettidiaz@gmail.com") {
+    document.getElementById("panel-stat-revenue").innerHTML = `
+      <div style="font-size: 1.3rem; color: #fff;">$ ${Math.round(totalSalesValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Bruto)</span></div>
+      <div style="font-size: 0.95rem; color: var(--accent-emerald); font-weight: 700; margin-top: 2px;">$ ${Math.round(totalSalesNetValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Neto)</span></div>
+    `;
+  } else {
+    document.getElementById("panel-stat-revenue").innerText = `$ ${Math.round(totalSalesValue).toLocaleString()}`;
+  }
   document.getElementById("panel-stat-ticket").innerText = `$ ${Math.round(averageTicket).toLocaleString()}`;
   document.getElementById("panel-stat-units").innerText = totalItemsSold;
   document.getElementById("panel-stat-operativo").innerText = `$ ${Math.round(totalOperativo).toLocaleString()}`;
@@ -1506,29 +1510,38 @@ function renderPanel() {
   const tnProfit = tnRevenueNet - tnCost;
 
   // Actualizar elementos en el DOM
-  const localRevEl = document.getElementById("channel-local-revenue");
-  if (localRevEl) localRevEl.innerText = `$ ${Math.round(localRevenue).toLocaleString()}`;
-  
-  const localUnitsEl = document.getElementById("channel-local-units");
-  if (localUnitsEl) localUnitsEl.innerText = `${localUnits} u.`;
-  
-  const localCostEl = document.getElementById("channel-local-cost");
-  if (localCostEl) localCostEl.innerText = `$ ${Math.round(localCost).toLocaleString()}`;
-  
-  const localProfitEl = document.getElementById("channel-local-profit");
-  if (localProfitEl) localProfitEl.innerText = `$ ${Math.round(localProfit).toLocaleString()}`;
+  const channelsBreakdownDiv = document.getElementById("dashboard-channels-breakdown");
+  if (channelsBreakdownDiv) {
+    if (state.email === "matiascuchettidiaz@gmail.com") {
+      channelsBreakdownDiv.style.display = "block";
+      
+      const localRevEl = document.getElementById("channel-local-revenue");
+      if (localRevEl) localRevEl.innerText = `$ ${Math.round(localRevenue).toLocaleString()}`;
+      
+      const localUnitsEl = document.getElementById("channel-local-units");
+      if (localUnitsEl) localUnitsEl.innerText = `${localUnits} u.`;
+      
+      const localCostEl = document.getElementById("channel-local-cost");
+      if (localCostEl) localCostEl.innerText = `$ ${Math.round(localCost).toLocaleString()}`;
+      
+      const localProfitEl = document.getElementById("channel-local-profit");
+      if (localProfitEl) localProfitEl.innerText = `$ ${Math.round(localProfit).toLocaleString()}`;
 
-  const tnRevEl = document.getElementById("channel-tn-revenue-gross");
-  if (tnRevEl) tnRevEl.innerText = `$ ${Math.round(tnRevenueGross).toLocaleString()}`;
-  
-  const tnUnitsEl = document.getElementById("channel-tn-units");
-  if (tnUnitsEl) tnUnitsEl.innerText = `${tnUnits} u.`;
-  
-  const tnFeesEl = document.getElementById("channel-tn-fees");
-  if (tnFeesEl) tnFeesEl.innerText = `$ ${Math.round(tnFees).toLocaleString()}`;
-  
-  const tnProfitEl = document.getElementById("channel-tn-profit");
-  if (tnProfitEl) tnProfitEl.innerText = `$ ${Math.round(tnProfit).toLocaleString()}`;
+      const tnRevEl = document.getElementById("channel-tn-revenue-gross");
+      if (tnRevEl) tnRevEl.innerText = `$ ${Math.round(tnRevenueGross).toLocaleString()}`;
+      
+      const tnUnitsEl = document.getElementById("channel-tn-units");
+      if (tnUnitsEl) tnUnitsEl.innerText = `${tnUnits} u.`;
+      
+      const tnFeesEl = document.getElementById("channel-tn-fees");
+      if (tnFeesEl) tnFeesEl.innerText = `$ ${Math.round(tnFees).toLocaleString()}`;
+      
+      const tnProfitEl = document.getElementById("channel-tn-profit");
+      if (tnProfitEl) tnProfitEl.innerText = `$ ${Math.round(tnProfit).toLocaleString()}`;
+    } else {
+      channelsBreakdownDiv.style.display = "none";
+    }
+  }
 
   // Renderizar Gráficos y Stock Crítico
   renderPanelCharts(filteredSales);
@@ -6896,6 +6909,16 @@ async function renderIntegrationsStatus() {
   try {
     const integrations = await apiRequest("/api/integrations");
     const tiendanube = integrations?.tiendanube;
+    
+    // Controlar visibilidad de Tiendanube para el usuario específico
+    const tnCard = document.getElementById("tiendanube-integration-card");
+    if (tnCard) {
+      if (state.email === "matiascuchettidiaz@gmail.com") {
+        tnCard.style.display = "block";
+      } else {
+        tnCard.style.display = "none";
+      }
+    }
     
     const badge = document.getElementById("tiendanube-status-badge");
     const userIdInput = document.getElementById("tiendanube-user-id");
