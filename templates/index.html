@@ -1213,16 +1213,32 @@
             </div>
             
             <form id="arca-config-form" onsubmit="saveArcaConfig(event)">
-              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 15px;">
                 <div class="form-group" style="margin-bottom: 0;">
                   <label class="form-label" for="arca-cuit">CUIT del Emisor</label>
                   <input type="text" id="arca-cuit" class="form-input" placeholder="Ej: 20-35689124-9" value="20-35689124-9">
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                   <label class="form-label" for="arca-condicion-iva">Condición Frente al IVA</label>
-                  <select id="arca-condicion-iva" class="form-input">
+                  <select id="arca-condicion-iva" class="form-input" onchange="toggleArcaCondicionFields()">
                     <option value="monotributo">Monotributista</option>
                     <option value="inscripto">Responsable Inscripto</option>
+                  </select>
+                </div>
+                <div class="form-group" id="arca-categoria-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="arca-categoria-monotributo">Categoría Monotributo</label>
+                  <select id="arca-categoria-monotributo" class="form-input" onchange="updateMonotributoTrackerUI()">
+                    <option value="A">Categoría A ($6.450.000)</option>
+                    <option value="B">Categoría B ($9.640.000)</option>
+                    <option value="C">Categoría C ($13.250.000)</option>
+                    <option value="D">Categoría D ($16.450.000)</option>
+                    <option value="E">Categoría E ($19.350.000)</option>
+                    <option value="F">Categoría F ($24.250.000)</option>
+                    <option value="G">Categoría G ($29.000.000)</option>
+                    <option value="H">Categoría H ($44.000.000)</option>
+                    <option value="I">Categoría I ($49.250.000)</option>
+                    <option value="J">Categoría J ($56.400.000)</option>
+                    <option value="K">Categoría K ($68.000.000)</option>
                   </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
@@ -1247,15 +1263,78 @@
               </div>
             </form>
 
+            <!-- TARJETAS DE CONTROL TRIBUTARIO -->
+            <div id="arca-monotributo-tracker-card" class="idx-card" style="margin-top: 20px; padding: 16px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.01); border-radius: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">🔍 Control de Facturación / Recategorización</span>
+                <span id="arca-monotributo-alert-badge" class="badge-blue" style="font-size: 0.65rem; padding: 2px 6px;">Cargando...</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                <span style="font-size: 0.75rem; color: var(--text-gray-light);">Facturación acumulada (últimos 12 meses):</span>
+                <span style="font-size: 1.1rem; font-weight: 900; color: #fff;" id="arca-monotributo-accumulated">$0 / $0</span>
+              </div>
+              <div style="width: 100%; height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
+                <div id="arca-monotributo-progressbar" style="width: 0%; height: 100%; background: var(--accent-emerald); transition: width 0.3s ease;"></div>
+              </div>
+              <div id="arca-monotributo-info-msg" style="font-size: 0.65rem; color: var(--text-gray); line-height: 1.3;">
+                Cargando datos de facturación...
+              </div>
+            </div>
+
+            <div id="arca-inscripto-info-card" class="idx-card" style="margin-top: 20px; padding: 16px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.01); border-radius: 8px; display: none;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.5rem;">🏢</span>
+                <div>
+                  <strong style="color: #fff; font-size: 0.8rem;">Responsable Inscripto - Régimen General</strong>
+                  <p style="margin: 4px 0 0 0; font-size: 0.65rem; color: var(--text-gray-light); line-height: 1.3;">
+                    Perfil activo para emitir Factura clase A (con discriminación de IVA) y clase B (a consumidores finales). No sujeto a topes anuales de Monotributo.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <!-- PANEL DE FACTURACIÓN ELECTRÓNICA SIMULADA -->
             <div style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="color: #fff; margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📄 Historial de Comprobantes Electrónicos Emitidos</h4>
-                <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.7rem; height: auto;" onclick="simulateInvoicingForLastSale()">
-                  ⚡ Facturar Última Venta
-                </button>
-              </div>
+              <h4 style="color: #fff; margin: 0 0 15px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📄 Facturación de Comprobantes Oficiales</h4>
+              
+              <!-- Formulario de Simulación/Emisión de Comprobante -->
+              <form id="arca-invoicing-form" onsubmit="emitArcaInvoice(event)" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="arca-invoice-type">Tipo de Comprobante</label>
+                    <select id="arca-invoice-type" class="form-input" onchange="toggleArcaAssociatedInvoiceField()">
+                      <!-- Inyectado dinámicamente en JS -->
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="arca-invoice-concept">Concepto</label>
+                    <select id="arca-invoice-concept" class="form-input">
+                      <option value="bienes">Venta de Productos (Bienes Muebles)</option>
+                      <option value="servicios">Prestación de Servicios</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="arca-invoice-date">Fecha de Facturación</label>
+                    <input type="date" id="arca-invoice-date" class="form-input">
+                  </div>
+                  <div class="form-group" id="arca-associated-invoice-group" style="margin-bottom: 0; display: none;">
+                    <label class="form-label" for="arca-associated-invoice">Comprobante Asociado (Factura de Origen) *</label>
+                    <input type="text" id="arca-associated-invoice" class="form-input" placeholder="Ej: 0002-00000001">
+                    <small style="font-size: 0.6rem; color: var(--text-gray);">RG 4540: Obligatorio vincular Notas de Crédito/Débito al comprobante original.</small>
+                  </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 15px;">
+                  <button type="submit" class="btn btn-emerald" style="padding: 8px 16px; font-size: 0.75rem; height: auto;">
+                    ⚡ Emitir Comprobante
+                  </button>
+                </div>
+              </form>
 
+              <h5 style="color: var(--text-gray); margin: 0 0 10px 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">Historial de Comprobantes Emitidos</h5>
               <!-- Listado de Facturas Emitidas -->
               <div style="overflow-x: auto;">
                 <table class="inventory-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left;">

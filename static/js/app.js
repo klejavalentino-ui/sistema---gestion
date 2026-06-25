@@ -7040,6 +7040,13 @@ async function renderIntegrationsStatus() {
     const cuitInput = document.getElementById("arca-cuit");
     const condicionSelect = document.getElementById("arca-condicion-iva");
     const posInput = document.getElementById("arca-pos");
+    const categoriaSelect = document.getElementById("arca-categoria-monotributo");
+    
+    // Establecer fecha por defecto a hoy en el input del formulario de facturación
+    const dateInput = document.getElementById("arca-invoice-date");
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().substring(0, 10);
+    }
     
     if (arca && arca.activo) {
       if (arcaBadge) {
@@ -7050,6 +7057,7 @@ async function renderIntegrationsStatus() {
       }
       if (cuitInput) cuitInput.value = arca.cuit || "";
       if (condicionSelect) condicionSelect.value = arca.condicion_iva || "monotributo";
+      if (categoriaSelect) categoriaSelect.value = arca.categoria_monotributo || "A";
       if (posInput) posInput.value = arca.pos || "0002";
     } else {
       if (arcaBadge) {
@@ -7061,67 +7069,177 @@ async function renderIntegrationsStatus() {
     }
     
     // Cargar historial de Facturas ARCA
-    await loadArcaInvoices();
+    const invoices = await loadArcaInvoices();
+    
+    // Configurar campos dinámicos
+    toggleArcaCondicionFields();
+    
+    // Actualizar barra de progreso del Monotributo si corresponde
+    if (condicionSelect && condicionSelect.value === "monotributo") {
+      await updateMonotributoTrackerUI(invoices);
+    }
 
   } catch (error) {
     console.error("Error al obtener integraciones:", error);
   }
 }
 
-async function saveTiendanubeConfig(event) {
-  event.preventDefault();
-  const userId = document.getElementById("tiendanube-user-id").value;
-  const accessToken = document.getElementById("tiendanube-access-token").value;
+const MONOTRIBUTO_LIMITS_2026 = {
+  'A': 6450000,
+  'B': 9640000,
+  'C': 13250000,
+  'D': 16450000,
+  'E': 19350000,
+  'F': 24250000,
+  'G': 29000000,
+  'H': 44000000, // Tope máximo para servicios
+  'I': 49250000, // Tope cosas muebles
+  'J': 56400000, // Tope cosas muebles
+  'K': 68000000  // Tope cosas muebles
+};
+
+function toggleArcaCondicionFields() {
+  const selectCondicion = document.getElementById("arca-condicion-iva");
+  if (!selectCondicion) return;
   
-  if (!userId || !accessToken) {
-    showToast("Por favor completa todos los campos.", true);
-    return;
+  const condicion = selectCondicion.value;
+  const catGroup = document.getElementById("arca-categoria-group");
+  const monoCard = document.getElementById("arca-monotributo-tracker-card");
+  const insCard = document.getElementById("arca-inscripto-info-card");
+  
+  if (condicion === "monotributo") {
+    if (catGroup) catGroup.style.display = "block";
+    if (monoCard) monoCard.style.display = "block";
+    if (insCard) insCard.style.display = "none";
+  } else {
+    if (catGroup) catGroup.style.display = "none";
+    if (monoCard) monoCard.style.display = "none";
+    if (insCard) insCard.style.display = "block";
   }
   
-  try {
-    showToast("Guardando credenciales de Tiendanube...");
-    const payload = {
-      user_id: userId,
-      access_token: accessToken,
-      activo: true
-    };
-    
-    await apiRequest("/api/integrations/tiendanube", "POST", payload);
-    showToast("¡Tiendanube conectada con éxito!");
-    await renderIntegrationsStatus();
-  } catch (error) {
-    showToast("Error al guardar credenciales: " + error.message, true);
+  populateArcaInvoiceTypes(condicion);
+}
+
+function populateArcaInvoiceTypes(condicion) {
+  const select = document.getElementById("arca-invoice-type");
+  if (!select) return;
+  
+  select.innerHTML = "";
+  let options = [];
+  
+  if (condicion === "monotributo") {
+    options = [
+      { value: "Factura C", text: "Factura C (Mercado Interno)" },
+      { value: "Factura E", text: "Factura E (Exportación)" },
+      { value: "Nota de Crédito C", text: "Nota de Crédito C" },
+      { value: "Nota de Débito C", text: "Nota de Débito C" }
+    ];
+  } else {
+    options = [
+      { value: "Factura A", text: "Factura A (Resp. Inscripto a Resp. Inscripto)" },
+      { value: "Factura B", text: "Factura B (Consumidor Final / Exento)" },
+      { value: "Factura E", text: "Factura E (Exportación)" },
+      { value: "Nota de Crédito A", text: "Nota de Crédito A" },
+      { value: "Nota de Crédito B", text: "Nota de Crédito B" },
+      { value: "Nota de Débito A", text: "Nota de Débito A" },
+      { value: "Nota de Débito B", text: "Nota de Débito B" }
+    ];
+  }
+  
+  options.forEach(opt => {
+    const el = document.createElement("option");
+    el.value = opt.value;
+    el.innerText = opt.text;
+    select.appendChild(el);
+  });
+  
+  toggleArcaAssociatedInvoiceField();
+}
+
+function toggleArcaAssociatedInvoiceField() {
+  const select = document.getElementById("arca-invoice-type");
+  const group = document.getElementById("arca-associated-invoice-group");
+  if (!select || !group) return;
+  
+  const type = select.value;
+  if (type.startsWith("Nota de Crédito") || type.startsWith("Nota de Débito")) {
+    group.style.display = "block";
+  } else {
+    group.style.display = "none";
   }
 }
 
-async function disconnectTiendanube() {
-  if (!confirm("¿Seguro que deseas desconectar Tiendanube?")) return;
-  try {
-    showToast("Desconectando...");
-    const payload = {
-      activo: false
-    };
-    await apiRequest("/api/integrations/tiendanube", "POST", payload);
-    showToast("Tiendanube desconectada.");
-    
-    // Limpiar campos
-    document.getElementById("tiendanube-user-id").value = "";
-    document.getElementById("tiendanube-access-token").value = "";
-    
-    await renderIntegrationsStatus();
-  } catch (error) {
-    showToast("Error al desconectar: " + error.message, true);
+async function updateMonotributoTrackerUI(invoicesList) {
+  const selectCondicion = document.getElementById("arca-condicion-iva");
+  if (!selectCondicion || selectCondicion.value !== "monotributo") return;
+  
+  const categorySelect = document.getElementById("arca-categoria-monotributo");
+  const category = categorySelect ? categorySelect.value : "A";
+  const limit = MONOTRIBUTO_LIMITS_2026[category] || 6450000;
+  
+  let invoices = invoicesList;
+  if (!invoices) {
+    try {
+      invoices = await apiRequest("/api/invoices") || [];
+    } catch (e) {
+      console.error(e);
+      invoices = [];
+    }
   }
-}
-
-async function syncTiendanubeCatalog() {
-  try {
-    showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
-    const result = await apiRequest("/api/integrations/tiendanube/sync", "POST");
-    showToast(`Sincronización completada. ${result.synced_count || 0} variantes procesadas.`);
-    await refreshState();
-  } catch (error) {
-    showToast("Error en sincronización: " + error.message, true);
+  
+  // Sumar la facturación de los últimos 12 meses corridos (365 días)
+  const oneYearAgo = new Date();
+  oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+  
+  let accumulated = 0;
+  invoices.forEach(inv => {
+    const invDate = new Date(inv.date);
+    if (invDate >= oneYearAgo && inv.status === "Aprobado") {
+      accumulated += parseFloat(inv.total) || 0;
+    }
+  });
+  
+  const accEl = document.getElementById("arca-monotributo-accumulated");
+  const pbEl = document.getElementById("arca-monotributo-progressbar");
+  const badgeEl = document.getElementById("arca-monotributo-alert-badge");
+  const msgEl = document.getElementById("arca-monotributo-info-msg");
+  
+  if (accEl) {
+    accEl.innerText = `$ ${Math.round(accumulated).toLocaleString("es-AR")} / $ ${Math.round(limit).toLocaleString("es-AR")}`;
+  }
+  
+  const percent = limit > 0 ? Math.min(100, (accumulated / limit) * 100) : 0;
+  if (pbEl) {
+    pbEl.style.width = `${percent}%`;
+    if (percent < 80) {
+      pbEl.style.backgroundColor = "var(--accent-emerald)";
+    } else if (percent < 95) {
+      pbEl.style.backgroundColor = "#f59e0b"; // Naranja
+    } else {
+      pbEl.style.backgroundColor = "var(--accent-red)"; // Rojo
+    }
+  }
+  
+  if (badgeEl && msgEl) {
+    if (percent >= 100) {
+      badgeEl.innerText = "CRÍTICO - EXCLUIDO";
+      badgeEl.className = "badge-red";
+      badgeEl.style.borderColor = "rgba(229, 56, 59, 0.2)";
+      badgeEl.style.background = "var(--bg-dark)";
+      msgEl.innerHTML = `<strong>🚨 Límite de Categoría Excedido (${percent.toFixed(1)}%)</strong>: Has superado el tope de $${limit.toLocaleString("es-AR")} anual de la Categoría ${category}. ARCA podría excluirte de oficio. Deberás recategorizarte o inscribirte en el Régimen General.`;
+    } else if (percent >= 85) {
+      badgeEl.innerText = "ALERTA LÍMITE";
+      badgeEl.className = "badge-red";
+      badgeEl.style.borderColor = "rgba(229, 56, 59, 0.2)";
+      badgeEl.style.background = "var(--bg-dark)";
+      msgEl.innerHTML = `<strong>⚠️ Recategorización Próxima (${percent.toFixed(1)}%)</strong>: Estás cerca del límite de tu Categoría ${category}. Evaluá la facturación para las ventanas obligatorias (Febrero y Agosto) para planificar cambios.`;
+    } else {
+      badgeEl.innerText = "Control Saludable";
+      badgeEl.className = "badge-green";
+      badgeEl.style.borderColor = "rgba(16, 185, 129, 0.2)";
+      badgeEl.style.background = "var(--bg-dark)";
+      msgEl.innerHTML = `<strong>✓ Control al Día (${percent.toFixed(1)}%)</strong>: Tu facturación anual acumulada está dentro de los límites saludables para la Categoría ${category}.`;
+    }
   }
 }
 
@@ -7130,12 +7248,14 @@ async function saveArcaConfig(event) {
   const cuit = document.getElementById("arca-cuit").value;
   const condicion = document.getElementById("arca-condicion-iva").value;
   const pos = document.getElementById("arca-pos").value;
+  const categoria = document.getElementById("arca-categoria-monotributo").value;
   
   try {
     showToast("Guardando configuración fiscal de ARCA...");
     const payload = {
       cuit: cuit,
       condicion_iva: condicion,
+      categoria_monotributo: categoria,
       pos: pos,
       activo: true
     };
@@ -7148,14 +7268,70 @@ async function saveArcaConfig(event) {
   }
 }
 
-async function simulateInvoicingForLastSale() {
+async function emitArcaInvoice(event) {
+  event.preventDefault();
+  const type = document.getElementById("arca-invoice-type").value;
+  const concepto = document.getElementById("arca-invoice-concept").value;
+  const dateStr = document.getElementById("arca-invoice-date").value;
+  const associated = document.getElementById("arca-associated-invoice").value.trim();
+  
+  if (!dateStr) {
+    showToast("Por favor selecciona una fecha para el comprobante.", true);
+    return;
+  }
+  
+  // Validación de Comprobante Asociado para NC y ND
+  const isAdjustmentNote = type.startsWith("Nota de Crédito") || type.startsWith("Nota de Débito");
+  if (isAdjustmentNote && !associated) {
+    showToast("Para emitir una Nota de Crédito/Débito es obligatorio indicar el número del comprobante de origen (RG 4540).", true);
+    return;
+  }
+  
+  // Validación de límites de fecha
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const selectedDate = new Date(dateStr + "T00:00:00");
+  const diffTime = today - selectedDate;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (concepto === "bienes") {
+    if (diffDays > 5) {
+      showToast("Límite excedido: ARCA solo permite facturar venta de bienes hasta 5 días hacia atrás.", true);
+      return;
+    }
+    if (diffDays < -5) {
+      showToast("Límite excedido: ARCA solo permite facturar venta de bienes hasta 5 días hacia adelante.", true);
+      return;
+    }
+  } else if (concepto === "servicios") {
+    if (diffDays > 10) {
+      showToast("Límite excedido: ARCA solo permite facturar servicios hasta 10 días hacia atrás.", true);
+      return;
+    }
+    if (diffDays < -10) {
+      showToast("Límite excedido: ARCA solo permite facturar servicios hasta 10 días hacia adelante.", true);
+      return;
+    }
+  }
+  
   try {
-    showToast("Generando factura electrónica en ARCA...");
-    const res = await apiRequest("/api/invoices/simulate", "POST");
-    showToast(`¡Factura ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
+    showToast("Generando comprobante oficial en ARCA...");
+    const payload = {
+      type: type,
+      concepto: concepto,
+      date: dateStr,
+      associated_invoice: associated
+    };
+    
+    const res = await apiRequest("/api/invoices/simulate", "POST", payload);
+    showToast(`¡Comprobante ${res.invoice_number} emitido con éxito! CAE: ${res.cae}`);
+    
+    // Limpiar input de comprobante asociado
+    document.getElementById("arca-associated-invoice").value = "";
+    
     await renderIntegrationsStatus();
   } catch (error) {
-    showToast("Error al facturar: " + error.message, true);
+    showToast("Error al emitir comprobante: " + error.message, true);
   }
 }
 
@@ -7163,7 +7339,7 @@ async function loadArcaInvoices() {
   try {
     const invoices = await apiRequest("/api/invoices");
     const tbody = document.getElementById("arca-invoices-log");
-    if (!tbody) return;
+    if (!tbody) return invoices || [];
     
     if (!invoices || invoices.length === 0) {
       tbody.innerHTML = `
@@ -7171,7 +7347,7 @@ async function loadArcaInvoices() {
           <td colspan="6" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
         </tr>
       `;
-      return;
+      return [];
     }
     
     // Ordenar facturas por fecha descendente
@@ -7183,9 +7359,13 @@ async function loadArcaInvoices() {
         month: "2-digit",
         year: "numeric"
       });
+      const assocText = inv.associated_invoice ? `<div style="font-size: 0.65rem; color: var(--text-gray);">Asoc: ${inv.associated_invoice}</div>` : "";
       return `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
-          <td style="padding: 8px; font-weight: 700; color: #fff;">${inv.type || "Factura C"}</td>
+          <td style="padding: 8px; font-weight: 700; color: #fff;">
+            <div>${inv.type || "Factura C"}</div>
+            ${assocText}
+          </td>
           <td style="padding: 8px;">${inv.invoice_number || "-"}</td>
           <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
           <td style="padding: 8px; text-align: right; font-weight: 700; color: #fff;">$ ${Math.round(inv.total || 0).toLocaleString()}</td>
@@ -7201,8 +7381,10 @@ async function loadArcaInvoices() {
         </tr>
       `;
     }).join("");
+    return invoices;
   } catch (error) {
     console.error("Error al cargar facturas de ARCA:", error);
+    return [];
   }
 }
 

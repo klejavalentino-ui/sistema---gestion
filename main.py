@@ -2138,21 +2138,71 @@ def simulate_invoice():
         condicion_iva = arca_config.get("condicion_iva", "monotributo")
         cuit_emisor = arca_config.get("cuit", "20-35689124-9")
         
-        # Determinar tipo factura
-        if condicion_iva == "inscripto":
-            invoice_type = "Factura B"  # Por defecto a consumidor final
+        # Parsear datos de simulación provistos por el cliente
+        data = request.json or {}
+        custom_type = data.get("type")
+        concepto = data.get("concepto", "bienes")
+        custom_date_str = data.get("date")
+        associated_invoice = data.get("associated_invoice", "").strip()
+        
+        # Determinar tipo factura por defecto si no es provisto
+        if not custom_type:
+            if condicion_iva == "inscripto":
+                invoice_type = "Factura B"
+            else:
+                invoice_type = "Factura C"
         else:
-            invoice_type = "Factura C"
+            invoice_type = str(custom_type)
             
+        # Validar compatibilidad de factura con la condición frente al IVA
+        if condicion_iva == "monotributo":
+            incompatible_types = ["Factura A", "Factura B", "Nota de Crédito A", "Nota de Crédito B", "Nota de Débito A", "Nota de Débito B"]
+            if invoice_type in incompatible_types:
+                return jsonify({"error": "Inconsistencia Fiscal: Un Monotributista no puede emitir comprobantes clase A o B bajo ninguna circunstancia."}), 400
+        elif condicion_iva == "inscripto":
+            incompatible_types = ["Factura C", "Nota de Crédito C", "Nota de Débito C"]
+            if invoice_type in incompatible_types:
+                return jsonify({"error": "Inconsistencia Fiscal: Un Responsable Inscripto no puede emitir comprobantes clase C."}), 400
+                
+        # Validar enlace obligatorio de notas de ajuste (RG 4540)
+        is_adjustment_note = invoice_type.startswith("Nota de Crédito") or invoice_type.startswith("Nota de Débito")
+        if is_adjustment_note and not associated_invoice:
+            return jsonify({"error": "Falta Comprobante Asociado: Según la RG 4540, es obligatorio vincular las Notas de Crédito/Débito al número de la Factura original."}), 400
+            
+        # Parsear fecha y validar límites
+        from datetime import datetime, date as pydate, timedelta
+        import random
+        
+        if custom_date_str:
+            try:
+                clean_date_str = custom_date_str.split("T")[0]
+                invoice_date = datetime.strptime(clean_date_str, "%Y-%m-%d").date()
+            except Exception:
+                invoice_date = pydate.today()
+        else:
+            invoice_date = pydate.today()
+            
+        today = pydate.today()
+        diff_days = (today - invoice_date).days
+        
+        if concepto == "bienes":
+            if diff_days > 5:
+                return jsonify({"error": "Límite de fecha: ARCA solo permite facturar venta de bienes hasta 5 días hacia atrás."}), 400
+            if diff_days < -5:
+                return jsonify({"error": "Límite de fecha: ARCA solo permite facturar venta de bienes hasta 5 días hacia adelante."}), 400
+        elif concepto == "servicios":
+            if diff_days > 10:
+                return jsonify({"error": "Límite de fecha: ARCA solo permite facturar servicios hasta 10 días hacia atrás."}), 400
+            if diff_days < -10:
+                return jsonify({"error": "Límite de fecha: ARCA solo permite facturar servicios hasta 10 días hacia adelante."}), 400
+
         # 3. Generar número secuencial contando las existentes
         existing_invoices = firebase_config.list_documents("invoices", token)
         next_num = len(existing_invoices) + 1
         invoice_number = f"{str(pos).zfill(4)}-{str(next_num).zfill(8)}"
         
         # 4. Generar CAE ficticio y vencimiento
-        import random
         cae = "".join([str(random.randint(0, 9)) for _ in range(14)])
-        from datetime import datetime, timedelta
         cae_due = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
         
         # Mock de cliente CUIT
@@ -2168,7 +2218,8 @@ def simulate_invoice():
             "cae": cae,
             "cae_due": cae_due,
             "status": "Aprobado",
-            "date": datetime.now().isoformat()
+            "date": invoice_date.isoformat(),
+            "associated_invoice": associated_invoice if is_adjustment_note else ""
         }
         
         # Guardar factura
