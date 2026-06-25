@@ -2,3 +2,6 @@ flask
 requests
 gunicorn
 firebase-admin
+cachetools
+Flask-Compress
+Flask-CORS

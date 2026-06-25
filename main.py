@@ -6,6 +6,10 @@ import base64
 import json
 from flask import Flask, request, jsonify, render_template, session
 import firebase_config
+from flask_cors import CORS
+from flask_compress import Compress
+from cachetools import TTLCache
+from functools import wraps
 
 def handle_error(e):
     err_str = str(e)
@@ -41,6 +45,13 @@ def safe_int(val, default=0):
 app = Flask(__name__)
 app.secret_key = "mazo_clothing_secret_key_secure_idx"
 
+# Habilitar CORS y Compresión
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+Compress(app)
+
+# Caché en memoria para perfiles de usuario (TTL de 5 minutos, tamaño máximo de 1000 perfiles)
+profile_cache = TTLCache(maxsize=1000, ttl=300)
+
 @app.after_request
 def add_header(r):
     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -75,6 +86,20 @@ def get_uid_from_token(token):
     if not token:
         return None
     return firebase_config.verify_id_token(token)
+
+def require_firebase_auth(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = get_auth_token()
+        if not token:
+            return jsonify({"error": "No autorizado. Falta el token de autenticación."}), 401
+        uid = get_uid_from_token(token)
+        if not uid:
+            return jsonify({"error": "No autorizado. Token inválido o expirado."}), 401
+        request.token = token
+        request.uid = uid
+        return f(*args, **kwargs)
+    return decorated_function
 
 def get_user_prefix(token):
     # En el modelo multi-tenant, los datos del usuario se aíslan
@@ -1373,6 +1398,77 @@ def delete_sale(sale_id):
         return jsonify({"success": deleted})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/user/profile", methods=["GET"])
+@require_firebase_auth
+def get_user_profile():
+    uid = request.uid
+    token = request.token
+    
+    # 1. Intentar obtener de la caché en memoria
+    cached_profile = profile_cache.get(uid)
+    if cached_profile:
+        print(f"[CACHE HIT] Perfil de usuario devuelto desde la caché para UID: {uid}")
+        return jsonify(cached_profile)
+        
+    print(f"[CACHE MISS] Consultando perfil en Firestore para UID: {uid}")
+    try:
+        profile = firebase_config.get_document("users", uid, token)
+        if not profile:
+            # Inicializar perfil por defecto para nuevos inquilinos
+            profile = {
+                "name": "Mi Tienda GestioSmart",
+                "branding": {
+                    "color_primario": "#10b981"
+                },
+                "integraciones": {
+                    "tiendanube": {
+                        "activo": False
+                    }
+                }
+            }
+            # Guardar el perfil inicial en Firestore
+            firebase_config.set_document("users", uid, profile, token)
+            
+        # Guardar en la caché en memoria
+        profile_cache[uid] = profile
+        return jsonify(profile)
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/user/profile", methods=["POST"])
+@require_firebase_auth
+def update_user_profile():
+    uid = request.uid
+    token = request.token
+    data = request.json or {}
+    
+    # Validar campos básicos
+    allowed_keys = ["name", "branding", "integraciones"]
+    updated_fields = {k: v for k, v in data.items() if k in allowed_keys}
+    
+    try:
+        # Obtener perfil existente para fusionar datos
+        existing = profile_cache.get(uid)
+        if not existing:
+            existing = firebase_config.get_document("users", uid, token) or {}
+            
+        # Fusionar datos nuevos
+        for k, v in updated_fields.items():
+            if isinstance(v, dict) and k in existing and isinstance(existing[k], dict):
+                existing[k].update(v)
+            else:
+                existing[k] = v
+                
+        # Guardar en Firestore
+        firebase_config.set_document("users", uid, existing, token)
+        
+        # Invalidar/actualizar la caché en memoria
+        profile_cache[uid] = existing
+        
+        return jsonify(existing)
+    except Exception as e:
+        return handle_error(e)
 
 @app.route("/api/integrations", methods=["GET"])
 def get_integrations():
