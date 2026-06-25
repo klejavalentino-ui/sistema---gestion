@@ -1384,6 +1384,7 @@ def create_sale():
     total = data.get("total")
     items = data.get("items")
     method = data.get("method", "Efectivo")
+    origen = data.get("origen", "local")
     
     if not date or total is None or items is None:
         return jsonify({"error": "Campos obligatorios faltantes"}), 400
@@ -1402,15 +1403,16 @@ def create_sale():
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             prods_data = list(executor.map(get_single_prod, items))
 
-        # Validar stock
-        for sku, qty, prod in prods_data:
-            if not sku or qty <= 0:
-                continue
-            if not prod:
-                return jsonify({"error": f"Producto con SKU {sku} no encontrado en inventario"}), 400
-            current_stock = safe_int(prod.get("stock", 0))
-            if current_stock < qty:
-                return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}' (Talle {prod.get('size')}). Disponible: {current_stock}, Solicitado: {qty}"}), 400
+        # Validar stock (sólo para origen local)
+        if origen == "local":
+            for sku, qty, prod in prods_data:
+                if not sku or qty <= 0:
+                    continue
+                if not prod:
+                    return jsonify({"error": f"Producto con SKU {sku} no encontrado en inventario"}), 400
+                current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                if current_stock < qty:
+                    return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}' (Talle {prod.get('size')}). Disponible: {current_stock}, Solicitado: {qty}"}), 400
 
         sale_id = f"V-{time.strftime('%H%M%S', time.localtime())}"
         
@@ -1427,11 +1429,27 @@ def create_sale():
             "total": safe_float(total),
             "method": str(method),
             "items": items,
-            "extras": data.get("extras", {})
+            "extras": data.get("extras", {}),
+            "origen": origen
         }
+
+        # Calcular ganancias netas si el origen es Tiendanube
+        if origen == "tiendanube":
+            fee_fijo = safe_float(data.get("fee_fijo_tn", 300.0))
+            comision = safe_float(data.get("comision_pasarela_pago", 5.0))
+            costos_fin = fee_fijo + (comision / 100.0 * safe_float(total))
+            total_neto = max(0.0, safe_float(total) - costos_fin)
+            sale_data["fee_fijo_tn"] = fee_fijo
+            sale_data["comision_pasarela_pago"] = comision
+            sale_data["total_neto"] = total_neto
+        else:
+            sale_data["total_neto"] = safe_float(total)
 
         # Flujo especial para ARCA Pago
         if method == "ARCA":
+            uid = get_uid_from_token(token)
+            if uid == "usXFvKuxSggjuHyLwjoFHDI9daG3":
+                return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
             sale_data["status"] = "pendiente"
             res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
             
@@ -1467,17 +1485,19 @@ def create_sale():
         # Registro normal de venta (Efectivo/Tarjeta/Transferencia/Financiado)
         res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
         
-        # Descontar stock local en paralelo
-        def update_local_stock(prod_data):
-            sku, qty, prod = prod_data
-            if sku and qty > 0 and prod:
-                current_stock = safe_int(prod.get("stock", 0))
-                prod["stock"] = max(0, current_stock - qty)
-                prod["sku"] = f"{prefix}{sku}"
-                firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
+        # Descontar stock local en paralelo (sólo para origen local)
+        if origen == "local":
+            def update_local_stock(prod_data):
+                sku, qty, prod = prod_data
+                if sku and qty > 0 and prod:
+                    current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                    prod["stock_local"] = max(0, current_stock - qty)
+                    prod["stock"] = prod["stock_local"]
+                    prod["sku"] = f"{prefix}{sku}"
+                    firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            executor.map(update_local_stock, prods_data)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                executor.map(update_local_stock, prods_data)
                     
         # Registrar en la caja diaria si corresponde
         if method in ["Efectivo", "Transferencia"]:
@@ -1495,9 +1515,14 @@ def create_sale():
             caja_payload["id"] = str(caja_id)
             firebase_config.set_document("products", f"{prefix}{caja_payload['sku']}", caja_payload, token)
             
-        # Sincronización automática con Tiendanube si está configurada y activa
-        uid = get_uid_from_token(token)
-        sync_stock_to_tiendanube(uid, items, token=token, prefix=prefix)
+        # Sincronización automática con Tiendanube si está configurada, activa y es venta local
+        if origen == "local":
+            uid = get_uid_from_token(token)
+            sync_stock_to_tiendanube(uid, items, token=token, prefix=prefix)
+
+        if res:
+            res["id"] = res["id"][len(prefix):]
+        return jsonify(res)
 
         if res:
             res["id"] = res["id"][len(prefix):]
@@ -1738,14 +1763,27 @@ def sync_tiendanube_catalog_route():
                     
                 baseSku = sku.split("-")[0] if "-" in sku else sku
                 
+                images = tn_prod.get("images", [])
+                image_url = images[0].get("src") if images else ""
+
                 if sku in existing_products_by_sku:
                     existing_prod = existing_products_by_sku[sku]
-                    existing_prod["stock"] = stock
+                    existing_prod["name"] = p_name
+                    if image_url:
+                        existing_prod["image_url"] = image_url
+                    existing_prod["price_tiendanube"] = price
                     existing_prod["tiendanube_product_id"] = p_id
                     existing_prod["tiendanube_variant_id"] = v_id
-                    existing_prod["stock"] = safe_int(existing_prod.get("stock", 0))
+                    
+                    # Preservar stock_local original
+                    s_local = existing_prod.get("stock_local", existing_prod.get("stock", 0))
+                    existing_prod["stock_local"] = safe_int(s_local)
+                    existing_prod["stock"] = safe_int(s_local)
+                    existing_prod["stock_taller"] = existing_prod.get("stock_taller", "infinito")
                     existing_prod["cost"] = safe_float(existing_prod.get("cost", 0.0))
                     existing_prod["margin"] = safe_float(existing_prod.get("margin", 0.0))
+                    existing_prod["price_local"] = existing_prod.get("price_local", existing_prod.get("price", existing_prod["cost"] * (1 + existing_prod["margin"]/100)))
+                    
                     products_to_save.append(existing_prod)
                 else:
                     new_prod = {
@@ -1756,10 +1794,16 @@ def sync_tiendanube_catalog_route():
                         "category": "General",
                         "size": size,
                         "color": color,
-                        "stock": stock,
+                        "stock": 0,
+                        "stock_local": 0,
+                        "stock_taller": "infinito",
                         "baseCost": price,
                         "cost": price,
                         "margin": 0.0,
+                        "price": price,
+                        "price_local": price,
+                        "price_tiendanube": price,
+                        "image_url": image_url,
                         "tiendanube_product_id": p_id,
                         "tiendanube_variant_id": v_id
                     }

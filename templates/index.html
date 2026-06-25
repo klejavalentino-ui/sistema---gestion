@@ -235,7 +235,7 @@
               <div class="kpi-icon emerald">💵</div>
             </div>
             <div id="panel-stat-revenue" class="kpi-value">$0</div>
-            <div class="kpi-desc">Facturación Bruta</div>
+            <div class="kpi-desc">Facturación Bruta / Neto</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-header">
@@ -378,6 +378,15 @@
               <span id="pos-cart-count-badge" class="pos-cart-badge">0 items</span>
             </div>
 
+            <!-- Selector de Origen de Venta -->
+            <div style="padding: 8px 14px; background: rgba(255, 255, 255, 0.02); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Origen de Venta</span>
+              <select id="pos-sale-origin" class="form-input" style="width: auto; padding: 4px 8px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" onchange="renderPOSCart()">
+                <option value="local">Local</option>
+                <option value="tiendanube">Tiendanube</option>
+              </select>
+            </div>
+
             <!-- Contenedor scrollable intermedio para asegurar que el pie de página con el botón Cobrar nunca se oculte -->
             <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0;">
               <div id="pos-cart-items-container" class="pos-cart-items" style="flex-grow: 1; overflow-y: visible; min-height: auto;">
@@ -453,10 +462,10 @@
                   <th>SKU / Producto</th>
                   <th>Categoría</th>
                   <th>Variante</th>
-                  <th style="text-align: right;">Stock Actual</th>
+                  <th style="text-align: right;">Stock (Local/Taller)</th>
                   <th style="text-align: right;">Unidades de Stock Critico</th>
                   <th style="text-align: right;">Costo Unit.</th>
-                  <th style="text-align: right;">Precio Venta</th>
+                  <th style="text-align: right;">Precio (Local/Web)</th>
                   <th style="text-align: right;">Margen</th>
                   <th style="text-align: right; width: 80px;">Acciones</th>
                 </tr>
@@ -1103,6 +1112,21 @@
           <p id="checkout-total-display" style="font-size: 1.8rem; font-weight: 900; color: #fff; margin-top: 4px;">$ 0</p>
         </div>
 
+        <!-- Contenedor de Costos Financieros Tiendanube -->
+        <div id="checkout-tn-costs" style="display: none; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 20px; text-align: left;">
+          <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Costos de Tiendanube</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label class="form-label" style="font-size: 0.65rem;" for="chk-fee-fijo">Fee Fijo ($)</label>
+              <input type="number" id="chk-fee-fijo" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="300">
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 0.65rem;" for="chk-comision">Comisión Pago (%)</label>
+              <input type="number" id="chk-comision" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="5">
+            </div>
+          </div>
+        </div>
+
         <div style="display: flex; flex-direction: column; gap: 10px;">
           <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Efectivo')">
             <span style="font-size: 1.2rem; margin-right: 12px;">💵</span> <strong>Efectivo</strong>
@@ -1116,7 +1140,7 @@
           <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Financiado')">
             <span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas</strong>
           </button>
-          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('ARCA')">
+          <button id="checkout-arca-btn" class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('ARCA')">
             <span style="font-size: 1.2rem; margin-right: 12px;">🔗</span> <strong>ARCA Pago</strong>
           </button>
         </div>
@@ -1539,6 +1563,21 @@
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px; margin-top: 16px; border: 1px solid var(--border-color);">
               <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-gray);">Costo Unitario Total:</span>
               <span id="prod-total-cost-display" style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ 0</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Precio Local ($)</label>
+                <input type="text" id="prod-price-local" class="form-input" placeholder="0">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Precio Tiendanube ($)</label>
+                <input type="text" id="prod-price-tiendanube" class="form-input" placeholder="0">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Stock Taller</label>
+                <input type="text" id="prod-stock-taller" class="form-input" value="infinito">
+              </div>
             </div>
           </div>
         </div>

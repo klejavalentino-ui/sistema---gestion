@@ -1407,7 +1407,8 @@ function renderPanel() {
       const itemCost = (parseFloat(p.cost) || 0) + itemExtraCost;
       return itemSum + (itemCost * (parseInt(item.quantity) || 0));
     }, 0) : 0;
-    return sum + (sale.total - saleCost);
+    const saleRevenue = sale.total_neto !== undefined ? parseFloat(sale.total_neto) : sale.total;
+    return sum + (saleRevenue - saleCost);
   }, 0);
 
   // Costos Fijos Mensuales del mes actual (Gastos Fijos)
@@ -1417,8 +1418,14 @@ function renderPanel() {
   // Resultado Neto: Operativo - Costos Fijos
   const netResult = totalOperativo - totalCosts;
 
+  // Facturación Neta (restando comisiones de Tiendanube)
+  const totalSalesNetValue = filteredSales.reduce((sum, s) => sum + (s.total_neto !== undefined ? parseFloat(s.total_neto) : s.total || 0), 0);
+
   // Actualizar KPIs en el HTML
-  document.getElementById("panel-stat-revenue").innerText = `$ ${Math.round(totalSalesValue).toLocaleString()}`;
+  document.getElementById("panel-stat-revenue").innerHTML = `
+    <div style="font-size: 1.3rem; color: #fff;">$ ${Math.round(totalSalesValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Bruto)</span></div>
+    <div style="font-size: 0.95rem; color: var(--accent-emerald); font-weight: 700; margin-top: 2px;">$ ${Math.round(totalSalesNetValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Neto)</span></div>
+  `;
   document.getElementById("panel-stat-ticket").innerText = `$ ${Math.round(averageTicket).toLocaleString()}`;
   document.getElementById("panel-stat-units").innerText = totalItemsSold;
   document.getElementById("panel-stat-operativo").innerText = `$ ${Math.round(totalOperativo).toLocaleString()}`;
@@ -1942,15 +1949,44 @@ function closeSizeModal() {
 
 function addVariantToCart(variant) {
   const existingIndex = state.cart.findIndex(item => item.product.sku === variant.sku);
+  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
   
   if (existingIndex > -1) {
     const currentQty = state.cart[existingIndex].quantity;
-    if (currentQty + 1 > variant.stock) {
-      showToast(`Solo quedan ${variant.stock} unidades en stock.`, true);
-      return;
+    if (origin === "local") {
+      const stockLocalVal = variant.stock_local !== undefined ? variant.stock_local : variant.stock;
+      if (currentQty + 1 > stockLocalVal) {
+        showToast(`Solo quedan ${stockLocalVal} unidades en el stock local.`, true);
+        return;
+      }
+    } else if (origin === "tiendanube") {
+      const stockTallerVal = variant.stock_taller;
+      if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
+        const tVal = parseInt(stockTallerVal) || 0;
+        if (currentQty + 1 > tVal) {
+          showToast(`Solo quedan ${tVal} unidades en el taller.`, true);
+          return;
+        }
+      }
     }
     state.cart[existingIndex].quantity += 1;
   } else {
+    if (origin === "local") {
+      const stockLocalVal = variant.stock_local !== undefined ? variant.stock_local : variant.stock;
+      if (stockLocalVal < 1) {
+        showToast("No hay stock local disponible para este producto.", true);
+        return;
+      }
+    } else if (origin === "tiendanube") {
+      const stockTallerVal = variant.stock_taller;
+      if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
+        const tVal = parseInt(stockTallerVal) || 0;
+        if (tVal < 1) {
+          showToast("No hay stock en el taller para este producto.", true);
+          return;
+        }
+      }
+    }
     state.cart.push({
       product: variant,
       size: variant.size,
@@ -1968,13 +2004,26 @@ function updatePOSCartQty(sku, delta) {
   
   const item = state.cart[idx];
   const newQty = item.quantity + delta;
+  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
   
   if (newQty < 1) {
     state.cart.splice(idx, 1);
   } else {
-    if (newQty > item.product.stock) {
-      showToast(`Solo quedan ${item.product.stock} unidades en stock.`, true);
-      return;
+    if (origin === "local") {
+      const stockLocalVal = item.product.stock_local !== undefined ? item.product.stock_local : item.product.stock;
+      if (newQty > stockLocalVal) {
+        showToast(`Solo quedan ${stockLocalVal} unidades en el stock local.`, true);
+        return;
+      }
+    } else if (origin === "tiendanube") {
+      const stockTallerVal = item.product.stock_taller;
+      if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
+        const tVal = parseInt(stockTallerVal) || 0;
+        if (newQty > tVal) {
+          showToast(`Solo quedan ${tVal} unidades en el taller.`, true);
+          return;
+        }
+      }
     }
     state.cart[idx].quantity = newQty;
   }
@@ -1994,10 +2043,29 @@ function setPOSCartExactQty(sku, val) {
   
   let newQty = parseInt(val) || 1;
   newQty = Math.max(1, newQty);
+  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
   
-  if (newQty > item.product.stock) {
-    showToast(`Solo quedan ${item.product.stock} unidades en stock.`, true);
-    item.quantity = item.product.stock;
+  if (origin === "local") {
+    const stockLocalVal = item.product.stock_local !== undefined ? item.product.stock_local : item.product.stock;
+    if (newQty > stockLocalVal) {
+      showToast(`Solo quedan ${stockLocalVal} unidades en el stock local.`, true);
+      item.quantity = stockLocalVal;
+    } else {
+      item.quantity = newQty;
+    }
+  } else if (origin === "tiendanube") {
+    const stockTallerVal = item.product.stock_taller;
+    if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
+      const tVal = parseInt(stockTallerVal) || 0;
+      if (newQty > tVal) {
+        showToast(`Solo quedan ${tVal} unidades en el taller.`, true);
+        item.quantity = tVal;
+      } else {
+        item.quantity = newQty;
+      }
+    } else {
+      item.quantity = newQty;
+    }
   } else {
     item.quantity = newQty;
   }
@@ -2040,6 +2108,8 @@ function renderPOSCart(recalc = true) {
   cobrarBtn.disabled = false;
 
   let total = 0;
+  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
+  
   state.cart.forEach(item => {
     // Calcular adicionales aplicables por unidad a este producto específico
     let itemExtraCost = 0;
@@ -2065,11 +2135,31 @@ function renderPOSCart(recalc = true) {
       });
     }
 
-    // sumar el costo adicional al del producto y aplicar margen
-    const finalUnitCost = item.product.cost + itemExtraCost;
-    const price = finalUnitCost * (1 + item.product.margin / 100);
+    // Calcular precio unitario base según origen
+    let basePrice = 0;
+    if (origin === "tiendanube") {
+      basePrice = parseFloat(item.product.price_tiendanube) || 0;
+      if (basePrice <= 0) {
+        basePrice = parseFloat(item.product.price_local) || parseFloat(item.product.price) || 0;
+      }
+    } else {
+      basePrice = parseFloat(item.product.price_local) || parseFloat(item.product.price) || 0;
+    }
+    
+    let price = 0;
+    if (basePrice > 0) {
+      price = basePrice + (itemExtraCost * (1 + (parseFloat(item.product.margin) || 0) / 100));
+    } else {
+      const finalUnitCost = item.product.cost + itemExtraCost;
+      price = finalUnitCost * (1 + item.product.margin / 100);
+    }
+
     const itemTotal = price * (parseInt(item.quantity) || 0);
     total += itemTotal;
+
+    const stockLocalVal = item.product.stock_local !== undefined ? item.product.stock_local : item.product.stock;
+    const stockTallerVal = item.product.stock_taller !== undefined ? item.product.stock_taller : "infinito";
+    const stockText = origin === "local" ? `Local: ${stockLocalVal}` : `Taller: ${stockTallerVal}`;
 
     const el = document.createElement("div");
     el.className = "pos-cart-item";
@@ -2086,7 +2176,7 @@ function renderPOSCart(recalc = true) {
           <input type="number" class="pos-qty-input" value="${item.quantity}" oninput="setPOSCartExactQty('${item.product.sku}', this.value)" onblur="if(this.value==='') setPOSCartExactQty('${item.product.sku}', '1')">
           <button class="pos-qty-btn" onclick="updatePOSCartQty('${item.product.sku}', 1)">+</button>
         </div>
-        <span class="pos-qty-stock-alert">Stock: ${item.product.stock}</span>
+        <span class="pos-qty-stock-alert">Stock: ${stockText}</span>
       </div>
     `;
     container.appendChild(el);
@@ -2226,6 +2316,18 @@ function openCheckoutModal() {
   document.getElementById("checkout-step-finance").style.display = "none";
   document.getElementById("checkout-step-success").style.display = "none";
 
+  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
+  const tnCostsDiv = document.getElementById("checkout-tn-costs");
+  if (tnCostsDiv) {
+    tnCostsDiv.style.display = origin === "tiendanube" ? "block" : "none";
+  }
+
+  const arcaBtn = document.getElementById("checkout-arca-btn");
+  if (arcaBtn) {
+    const isTargetUser = (state.email === "matiascuchettidiaz@gmail.com");
+    arcaBtn.style.display = isTargetUser ? "none" : "block";
+  }
+
   document.getElementById("checkout-modal").className = "modal-backdrop active";
 }
 
@@ -2324,6 +2426,8 @@ async function confirmPayment(method) {
     });
   }
 
+  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
+
   // Registrar venta directa
   const salePayload = {
     date: new Date().toISOString(),
@@ -2334,8 +2438,14 @@ async function confirmPayment(method) {
       size: item.size,
       quantity: parseInt(item.quantity) || 1
     })),
-    extras: extras
+    extras: extras,
+    origen: origin
   };
+
+  if (origin === "tiendanube") {
+    salePayload.fee_fijo_tn = parseFloat(document.getElementById("chk-fee-fijo").value) || 0;
+    salePayload.comision_pasarela_pago = parseFloat(document.getElementById("chk-comision").value) || 0;
+  }
 
   try {
     // Descontar adicionales de la venta
@@ -2445,6 +2555,7 @@ async function submitCheckoutFinance() {
 
     // 2. Registrar venta de tipo Cta. Corriente
     const methodStr = `Cta. corriente (${paidAmount > 0 ? '$'+Math.round(paidAmount).toLocaleString()+' Pago' : 'Total'})`;
+    const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
     const salePayload = {
       date: new Date().toISOString(),
       total: total,
@@ -2454,8 +2565,14 @@ async function submitCheckoutFinance() {
         size: item.size,
         quantity: parseInt(item.quantity) || 1
       })),
-      extras: extras
+      extras: extras,
+      origen: origin
     };
+
+    if (origin === "tiendanube") {
+      salePayload.fee_fijo_tn = parseFloat(document.getElementById("chk-fee-fijo").value) || 0;
+      salePayload.comision_pasarela_pago = parseFloat(document.getElementById("chk-comision").value) || 0;
+    }
 
     // Descontar adicionales de la venta
     await consumePOSExtras(state.cart, extras);
@@ -2906,7 +3023,8 @@ function renderInventory() {
       };
     }
     groupedProducts[baseSku].variants.push(p);
-    groupedProducts[baseSku].totalStock += (parseInt(p.stock) || 0);
+    const stockLocalVal = p.stock_local !== undefined ? p.stock_local : p.stock;
+    groupedProducts[baseSku].totalStock += (parseInt(stockLocalVal) || 0);
     groupedProducts[baseSku].totalMinStock += getProductMinStock(p, salesByProduct);
   });
 
@@ -2958,6 +3076,17 @@ function renderInventory() {
 
     const tallesText = sortedTalles.join(", ");
 
+    const firstVar = g.variants[0] || {};
+    const priceLocal = firstVar.price_local !== undefined ? parseFloat(firstVar.price_local) : price;
+    const priceTiendanube = firstVar.price_tiendanube !== undefined ? parseFloat(firstVar.price_tiendanube) : 0;
+
+    const hasInfiniteTaller = g.variants.some(v => v.stock_taller === "infinito" || !v.stock_taller);
+    const totalTaller = g.variants.reduce((sum, v) => sum + (parseInt(v.stock_taller) || 0), 0);
+    const stockTallerText = hasInfiniteTaller ? "∞" : `${totalTaller} u.`;
+
+    const priceLocalText = `$ ${Math.round(priceLocal).toLocaleString()}`;
+    const priceTiendanubeText = priceTiendanube > 0 ? `$ ${Math.round(priceTiendanube).toLocaleString()}` : "-";
+
     tr.innerHTML = `
       <td style="font-weight: 700;">
         <div style="font-size: 0.85rem; color: #fff;">${g.name || ""}</div>
@@ -2971,13 +3100,17 @@ function renderInventory() {
         ${(state.businessType === "comercio" || tallesText === "Único" || !tallesText) ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talles: ${tallesText}</div>`}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
-        ${g.totalStock} un.
+        <div style="font-size: 0.8rem; color: #fff;">${g.totalStock} u. <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Local)</span></div>
+        <div style="font-size: 0.75rem; color: var(--accent-blue);">${stockTallerText} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Taller)</span></div>
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
         ${g.totalMinStock} un.
       </td>
       <td style="text-align: right; color: var(--text-gray);">$ ${Math.round(cost).toLocaleString()}</td>
-      <td style="text-align: right; font-weight: 700; color: #10b981;">$ ${Math.round(price).toLocaleString()}</td>
+      <td style="text-align: right; font-weight: 700;">
+        <div style="font-size: 0.8rem; color: #10b981;">${priceLocalText} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Local)</span></div>
+        <div style="font-size: 0.75rem; color: var(--accent-blue);">${priceTiendanubeText} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Web)</span></div>
+      </td>
       <td style="text-align: right; color: var(--text-gray-light);">
         <span style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
           ${margin}%
@@ -3023,6 +3156,18 @@ function openCreateProductModal() {
   document.getElementById("prod-color").value = "";
   document.getElementById("prod-cost-input").value = "";
   document.getElementById("prod-margin").value = 50;
+  
+  document.getElementById("prod-price-local").value = "";
+  document.getElementById("prod-price-tiendanube").value = "";
+  document.getElementById("prod-stock-taller").value = "infinito";
+  
+  const priceLocalInput = document.getElementById("prod-price-local");
+  if (priceLocalInput) {
+    priceLocalInput.dataset.auto = "true";
+    priceLocalInput.oninput = () => {
+      priceLocalInput.dataset.auto = "false";
+    };
+  }
   
   // Limpiar stock dinámico
   document.getElementById("prod-te").value = "";
@@ -3094,6 +3239,18 @@ function openEditProductModal(sku) {
   document.getElementById("prod-color").value = p.color;
   document.getElementById("prod-cost-input").value = Math.round(p.baseCost || p.cost).toLocaleString("es-AR");
   document.getElementById("prod-margin").value = p.margin;
+  
+  document.getElementById("prod-price-local").value = p.price_local !== undefined ? p.price_local : "";
+  document.getElementById("prod-price-tiendanube").value = p.price_tiendanube !== undefined ? p.price_tiendanube : "";
+  document.getElementById("prod-stock-taller").value = p.stock_taller !== undefined ? p.stock_taller : "infinito";
+  
+  const priceLocalInput = document.getElementById("prod-price-local");
+  if (priceLocalInput) {
+    priceLocalInput.dataset.auto = (p.price_local === undefined || p.price_local === "") ? "true" : "false";
+    priceLocalInput.oninput = () => {
+      priceLocalInput.dataset.auto = "false";
+    };
+  }
   
   // Cargar stock de todas las variantes del mismo producto (compartiendo baseSku)
   const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
@@ -3258,6 +3415,12 @@ function recalculateProductPrice() {
 
   document.getElementById("prod-total-cost-display").innerText = `$ ${Math.round(totalCost).toLocaleString()}`;
   document.getElementById("prod-price-preview").innerText = `$ ${Math.round(price).toLocaleString()}`;
+
+  const priceLocalInput = document.getElementById("prod-price-local");
+  if (priceLocalInput && (!priceLocalInput.value || priceLocalInput.dataset.auto === "true")) {
+    priceLocalInput.value = Math.round(price);
+    priceLocalInput.dataset.auto = "true";
+  }
 }
 
 async function saveProductForm(e) {
@@ -3339,6 +3502,10 @@ async function saveProductForm(e) {
     }
   }
 
+  const priceLocal = parseFloat(document.getElementById("prod-price-local").value) || 0;
+  const priceTiendanube = parseFloat(document.getElementById("prod-price-tiendanube").value) || 0;
+  const stockTaller = document.getElementById("prod-stock-taller").value || "infinito";
+
   // Preparar variantes en lote
   const batchPayload = [];
   
@@ -3361,6 +3528,11 @@ async function saveProductForm(e) {
         size: size,
         color: color,
         stock: stock,
+        stock_local: stock,
+        stock_taller: stockTaller,
+        price_local: priceLocal,
+        price_tiendanube: priceTiendanube,
+        price: priceLocal, // Compatibility fallback
         baseCost: cost,
         margin: margin,
         cost: totalCost,
@@ -3386,6 +3558,11 @@ async function saveProductForm(e) {
         size: size,
         color: color,
         stock: stock,
+        stock_local: stock,
+        stock_taller: stockTaller,
+        price_local: priceLocal,
+        price_tiendanube: priceTiendanube,
+        price: priceLocal, // Compatibility fallback
         baseCost: cost,
         margin: margin,
         cost: totalCost,
