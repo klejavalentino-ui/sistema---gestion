@@ -100,6 +100,16 @@ def get_uid_from_token(token):
         return None
     return firebase_config.verify_id_token(token)
 
+def get_email_from_token(token):
+    if not token:
+        return None
+    try:
+        import jwt
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        return decoded.get("email")
+    except Exception:
+        return None
+
 def require_firebase_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -1447,8 +1457,8 @@ def create_sale():
 
         # Flujo especial para ARCA Pago
         if method == "ARCA":
-            uid = get_uid_from_token(token)
-            if uid == "usXFvKuxSggjuHyLwjoFHDI9daG3":
+            email = get_email_from_token(token)
+            if email != "klejavalentino@gmail.com":
                 return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
             sale_data["status"] = "pendiente"
             res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
@@ -1651,6 +1661,10 @@ def save_integration(integration_id):
         return jsonify({"error": "Token inválido o expirado"}), 401
     data = request.json or {}
     try:
+        if integration_id == "arca":
+            email = get_email_from_token(token)
+            if email != "klejavalentino@gmail.com":
+                return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
         res = firebase_config.set_document("integrations", integration_id, data, token)
         return jsonify(res)
     except Exception as e:
@@ -2087,9 +2101,9 @@ def get_invoices():
     token = get_auth_token()
     if not token:
         return jsonify({"error": "No autorizado"}), 401
-    uid = get_uid_from_token(token)
-    if not uid:
-        return jsonify({"error": "Token inválido o expirado"}), 401
+    email = get_email_from_token(token)
+    if email != "klejavalentino@gmail.com":
+        return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
     try:
         # Recuperar facturas del usuario desde la subcolección invoices
         docs = firebase_config.list_documents("invoices", token)
@@ -2102,9 +2116,9 @@ def simulate_invoice():
     token = get_auth_token()
     if not token:
         return jsonify({"error": "No autorizado"}), 401
-    uid = get_uid_from_token(token)
-    if not uid:
-        return jsonify({"error": "Token inválido o expirado"}), 401
+    email = get_email_from_token(token)
+    if email != "klejavalentino@gmail.com":
+        return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
     
     try:
         # 1. Recuperar última venta del inquilino

@@ -191,6 +191,9 @@
         <li class="menu-item" data-tab="tiendanube" id="sidebar-tiendanube-item" style="display: none;">
           <a href="#" class="menu-link"><i>☁️</i> TiendaNube</a>
         </li>
+        <li class="menu-item" data-tab="arca" id="sidebar-arca-item" style="display: none;">
+          <a href="#" class="menu-link"><i>🧾</i> Facturación ARCA</a>
+        </li>
         <li class="menu-item" data-tab="integrations">
           <a href="#" class="menu-link"><i>🔌</i> Integraciones</a>
         </li>
@@ -1156,7 +1159,7 @@
             <div id="tiendanube-reports-box" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
               <h4 style="color: #fff; margin: 0 0 12px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
               
-              <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+              <div class="grid-5" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px;">
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ventas Brutas TN</span>
                   <p id="tn-report-gross" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">$0</p>
@@ -1168,6 +1171,14 @@
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ganancia Neta TN</span>
                   <p id="tn-report-net" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-emerald); margin-top: 4px;">$0</p>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ticket Promedio TN</span>
+                  <p id="tn-report-ticket" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-blue); margin-top: 4px;">$0</p>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas TN</span>
+                  <p id="tn-report-units" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">0 u.</p>
                 </div>
               </div>
 
@@ -1183,59 +1194,18 @@
         </div>
       </section>
 
-      <!-- TAB 11: INTEGRACIONES -->
-      <section id="integrations-section" class="tab-content">
+      <!-- TAB 13: ARCA (Solo para klejavalentino@gmail.com) -->
+      <section id="arca-section" class="tab-content">
         <div class="idx-header">
           <div class="idx-header-info">
-            <h2>Configuración de Integraciones</h2>
-            <p>Conectá tu ERP con plataformas externas para automatizar tus ventas, facturación y envíos.</p>
+            <h2>Facturación Electrónica ARCA</h2>
+            <p>Configurá las credenciales de AFIP y emití comprobantes oficiales.</p>
           </div>
         </div>
 
-        <!-- INFO INTRODUCCIÓN INTEGRACIONES (Conexiones soportadas e info de contacto) -->
-        <div class="idx-card" style="padding: 24px; background: linear-gradient(135deg, rgba(96, 165, 250, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px;">
-          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-            <div style="font-size: 2.2rem; filter: drop-shadow(0 0 6px rgba(96,165,250,0.5));">🔌</div>
-            <div>
-              <h4 style="margin: 0; color: #fff; font-size: 1.1rem; font-weight: 900;">Catálogo de Conexiones de GestioSmart</h4>
-              <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-gray);">Automatizaciones omnicanal a medida para optimizar la administración de tu negocio.</p>
-            </div>
-          </div>
+        <div class="idx-card" style="padding: 25px;">
           
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
-            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">☁️ Tiendanube</strong>
-              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Sincronización bidireccional en tiempo real de catálogo de productos, precios y stocks separados (local vs taller).</span>
-            </div>
-            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🧾 ARCA (ex-AFIP)</strong>
-              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Emisión automatizada de facturas electrónicas (A, B y C) mediante Web Services en cada venta concretada.</span>
-            </div>
-            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛍️ Mercado Libre</strong>
-              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Vinculación directa de stock físico con tus publicaciones activas y automatización de etiquetas de Mercado Envíos.</span>
-            </div>
-            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛒 WooCommerce / Shopify</strong>
-              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Conectores autónomos para e-commerce propios que centralizan tus pedidos web en la facturación del local.</span>
-            </div>
-            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🚚 Andreani / OCA (Logística)</strong>
-              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Cálculo automático de costos de envío, generación de etiquetas de despacho y seguimiento de envíos físicos.</span>
-            </div>
-          </div>
-
-          <div style="background: rgba(96, 165, 250, 0.05); border: 1px solid rgba(96, 165, 250, 0.2); padding: 14px; border-radius: 8px; text-align: center;">
-            <p style="margin: 0; font-size: 0.8rem; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
-              <span>📧 ¿Deseas activar una integración, configurar ARCA o solicitar soporte? Escribinos a:</span>
-              <a href="mailto:gestiosmart.ss@gmail.com" style="color: var(--accent-blue); text-decoration: underline; font-size: 0.85rem; font-weight: 800;">gestiosmart.ss@gmail.com</a>
-            </p>
-          </div>
-        </div>
-
-        <div class="idx-card" style="padding: 25px; display: flex; flex-direction: column; gap: 24px;">
-          
-          <!-- SECCIÓN DE ARCA (ex-AFIP) - FACTURACIÓN ELECTRÓNICA (Requisito 2 & 4 & 5) -->
+          <!-- SECCIÓN DE ARCA (ex-AFIP) - FACTURACIÓN ELECTRÓNICA -->
           <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
               <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">🧾 ARCA (ex-AFIP) Facturación</h3>
@@ -1308,7 +1278,7 @@
                 </table>
               </div>
 
-              <!-- EXPLICACIÓN PASO A PASO PREMIUM PARA EL CLIENTE (Requisito 5) -->
+              <!-- EXPLICACIÓN PASO A PASO PREMIUM PARA EL CLIENTE -->
               <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-top: 20px; font-size: 0.75rem; line-height: 1.5; color: var(--text-gray-light);">
                 <p style="margin: 0 0 10px 0; font-weight: bold; color: #fff;">💡 Guía Rápida para Habilitar Facturación Electrónica en ARCA:</p>
                 <ol style="margin: 0; padding-left: 16px;">
@@ -1323,6 +1293,58 @@
           </div>
 
         </div>
+      </section>
+
+      <!-- TAB 11: INTEGRACIONES -->
+      <section id="integrations-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Configuración de Integraciones</h2>
+            <p>Conectá tu ERP con plataformas externas para automatizar tus ventas, facturación y envíos.</p>
+          </div>
+        </div>
+
+        <!-- INFO INTRODUCCIÓN INTEGRACIONES (Conexiones soportadas e info de contacto) -->
+        <div class="idx-card" style="padding: 24px; background: linear-gradient(135deg, rgba(96, 165, 250, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+            <div style="font-size: 2.2rem; filter: drop-shadow(0 0 6px rgba(96,165,250,0.5));">🔌</div>
+            <div>
+              <h4 style="margin: 0; color: #fff; font-size: 1.1rem; font-weight: 900;">Catálogo de Conexiones de GestioSmart</h4>
+              <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-gray);">Automatizaciones omnicanal a medida para optimizar la administración de tu negocio.</p>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">☁️ Tiendanube</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Sincronización bidireccional en tiempo real de catálogo de productos, precios y stocks separados (local vs taller).</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🧾 ARCA (ex-AFIP)</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Emisión automatizada de facturas electrónicas (A, B y C) mediante Web Services en cada venta concretada.</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛍️ Mercado Libre</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Vinculación directa de stock físico con tus publicaciones activas y automatización de etiquetas de Mercado Envíos.</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛒 WooCommerce / Shopify</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Conectores autónomos para e-commerce propios que centralizan tus pedidos web en la facturación del local.</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🚚 Andreani / OCA (Logística)</strong>
+              <span style="font-size: 0.75rem; color: var(--text-gray-light);">Cálculo automático de costos de envío, generación de etiquetas de despacho y seguimiento de envíos físicos.</span>
+            </div>
+          </div>
+
+          <div style="background: rgba(96, 165, 250, 0.05); border: 1px solid rgba(96, 165, 250, 0.2); padding: 14px; border-radius: 8px; text-align: center;">
+            <p style="margin: 0; font-size: 0.8rem; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <span>📧 ¿Deseas activar una integración, configurar ARCA o solicitar soporte? Escribinos a:</span>
+              <a href="mailto:gestiosmart.ss@gmail.com" style="color: var(--accent-blue); text-decoration: underline; font-size: 0.85rem; font-weight: 800;">gestiosmart.ss@gmail.com</a>
+            </p>
+          </div>
+        </div>
+
       </section>
 
     </main>

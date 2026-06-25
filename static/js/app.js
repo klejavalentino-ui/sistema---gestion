@@ -1229,6 +1229,12 @@ async function refreshState() {
         } else {
           item.style.display = "none";
         }
+      } else if (item.id === "sidebar-arca-item") {
+        if (state.email === "klejavalentino@gmail.com") {
+          item.style.display = "block";
+        } else {
+          item.style.display = "none";
+        }
       } else {
         item.style.display = "block";
       }
@@ -2434,8 +2440,8 @@ function openCheckoutModal() {
 
   const arcaBtn = document.getElementById("checkout-arca-btn");
   if (arcaBtn) {
-    const isTargetUser = (state.email === "matiascuchettidiaz@gmail.com");
-    arcaBtn.style.display = isTargetUser ? "none" : "block";
+    const hasArcaAccess = (state.email === "klejavalentino@gmail.com");
+    arcaBtn.style.display = hasArcaAccess ? "block" : "none";
   }
 
   document.getElementById("checkout-modal").className = "modal-backdrop active";
@@ -6459,6 +6465,7 @@ function switchTab(tabId) {
   if (tabId === "fixed-costs") renderFixedCosts();
   if (tabId === "marketing") switchMarketingSubTab(state.activeMarketingSubTab || "summary");
   if (tabId === "tiendanube") renderIntegrationsStatus();
+  if (tabId === "arca") renderIntegrationsStatus();
 }
 
 // --- Asignación de Listeners ---
@@ -6964,6 +6971,7 @@ async function renderIntegrationsStatus() {
     let tnGross = 0;
     let tnFees = 0;
     let tnNet = 0;
+    let tnUnits = 0;
     
     let tnSalesHTML = "";
     tnSales.forEach(s => {
@@ -6976,6 +6984,11 @@ async function renderIntegrationsStatus() {
       tnGross += grossVal;
       tnFees += sFees;
       tnNet += sNet;
+      
+      const items = s.items || [];
+      items.forEach(it => {
+        tnUnits += (parseInt(it.quantity) || 0);
+      });
       
       const formattedDate = new Date(s.date).toLocaleDateString("es-AR", {
         day: "2-digit",
@@ -7010,6 +7023,13 @@ async function renderIntegrationsStatus() {
     
     const tnReportNetEl = document.getElementById("tn-report-net");
     if (tnReportNetEl) tnReportNetEl.innerText = `$ ${Math.round(tnNet).toLocaleString()}`;
+
+    const tnTicket = tnSales.length > 0 ? (tnGross / tnSales.length) : 0;
+    const tnReportTicketEl = document.getElementById("tn-report-ticket");
+    if (tnReportTicketEl) tnReportTicketEl.innerText = `$ ${Math.round(tnTicket).toLocaleString()}`;
+
+    const tnReportUnitsEl = document.getElementById("tn-report-units");
+    if (tnReportUnitsEl) tnReportUnitsEl.innerText = `${tnUnits} u.`;
     
     const tnSalesLogEl = document.getElementById("tn-sales-log");
     if (tnSalesLogEl) tnSalesLogEl.innerHTML = tnSalesHTML;
