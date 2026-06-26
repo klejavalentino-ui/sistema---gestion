@@ -1674,6 +1674,11 @@ def save_integration(integration_id):
         elif integration_id == "tiendanube":
             access_token = data.get("access_token")
             user_id = data.get("user_id")
+            if access_token == "••••••••":
+                existing = firebase_config.get_document("integrations", "tiendanube", token)
+                if existing and existing.get("access_token"):
+                    access_token = existing.get("access_token")
+                    data["access_token"] = access_token
             if access_token:
                 data["access_token"] = "".join(c for c in str(access_token) if ord(c) < 128).strip()
             if user_id:
@@ -1757,8 +1762,9 @@ def sync_tiendanube_catalog_route():
             for variant in tn_prod.get("variants", []):
                 v_id = variant.get("id")
                 raw_sku = variant.get("sku")
-                if not raw_sku:
-                    continue
+                if not raw_sku or not str(raw_sku).strip():
+                    # Fallback para variantes sin SKU en Tiendanube
+                    raw_sku = f"TN-{p_id}-{v_id}"
                 
                 sku = str(raw_sku).strip().upper()
                 if biz_type == "comercio" and not sku.endswith("-U"):
@@ -1856,7 +1862,11 @@ def sync_tiendanube_catalog_route():
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             executor.map(save_one_product, products_to_save)
             
-        return jsonify({"success": True, "count": len(products_to_save)})
+        return jsonify({
+            "success": True, 
+            "count": len(products_to_save),
+            "synced_count": len(products_to_save)
+        })
     except Exception as e:
         return handle_error(e)
 

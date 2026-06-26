@@ -7134,7 +7134,8 @@ async function syncTiendanubeCatalog() {
   try {
     showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
     const result = await apiRequest("/api/integrations/tiendanube/sync", "POST");
-    showToast(`Sincronización completada. ${result.synced_count || 0} variantes procesadas.`);
+    const processed = result.synced_count !== undefined ? result.synced_count : (result.count || 0);
+    showToast(`Sincronización completada. ${processed} variantes procesadas.`);
     await refreshState();
   } catch (error) {
     showToast("Error en sincronización: " + error.message, true);
