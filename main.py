@@ -2080,10 +2080,19 @@ def sync_tiendanube_orders_route():
                 clean_sku = doc_id[len(prefix):].upper()
                 products_by_sku[clean_sku] = p
 
+        # Fetch existing sales to count only new ones imported
+        sales_list = firebase_config.list_documents("sales", token)
+        existing_sale_ids = set()
+        for s in sales_list:
+            doc_id = s.get("id", "")
+            if doc_id.startswith(f"{prefix}TN-"):
+                existing_sale_ids.add(doc_id)
+
         fee_fijo = safe_float(config.get("fee_fijo_tn", 300.0))
         comision = safe_float(config.get("comision_pasarela_pago", 5.0))
         
         sales_saved = 0
+        new_sales_count = 0
         for order in all_orders:
             order_id = str(order.get("id"))
             
@@ -2173,12 +2182,16 @@ def sync_tiendanube_orders_route():
                 "total_neto": total_neto
             }
             
-            firebase_config.set_document("sales", f"{prefix}TN-{order_id}", sale_data, token)
+            doc_id_with_prefix = f"{prefix}TN-{order_id}"
+            if doc_id_with_prefix not in existing_sale_ids:
+                new_sales_count += 1
+                
+            firebase_config.set_document("sales", doc_id_with_prefix, sale_data, token)
             sales_saved += 1
             
         return jsonify({
             "success": True,
-            "count": sales_saved
+            "count": new_sales_count
         })
     except Exception as e:
         return handle_error(e)

@@ -7380,7 +7380,11 @@ async function syncTiendanubeSales() {
     showToast("Sincronizando ventas desde Tiendanube... Esto puede tardar unos segundos.");
     const result = await apiRequest("/api/integrations/tiendanube/sync-orders", "POST");
     const count = result.count || 0;
-    showToast(`Sincronización completada. ${count} ventas importadas.`);
+    if (count > 0) {
+      showToast(`Sincronización completada. ${count} ${count === 1 ? 'venta importada' : 'ventas importadas'}.`);
+    } else {
+      showToast("Sincronización completa.");
+    }
     await refreshState();
   } catch (error) {
     showToast("Error en sincronización de ventas: " + error.message, true);
