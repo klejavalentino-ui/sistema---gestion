@@ -1764,10 +1764,20 @@ def sync_tiendanube_catalog_route():
             if not cat_data:
                 break
             for cat in cat_data:
-                cat_id = cat.get("id")
-                name_dict = cat.get("name", {})
-                cat_name = name_dict.get("es", name_dict.get("en", next(iter(name_dict.values())) if name_dict.values() else "General"))
-                tn_categories[cat_id] = cat_name
+                if isinstance(cat, dict):
+                    cat_id = cat.get("id")
+                    if cat_id is not None:
+                        name_dict = cat.get("name", {})
+                        if isinstance(name_dict, dict):
+                            cat_name = name_dict.get("es", name_dict.get("en", next(iter(name_dict.values())) if name_dict.values() else "General"))
+                        else:
+                            cat_name = "General"
+                        tn_categories[cat_id] = cat_name
+                        tn_categories[str(cat_id)] = cat_name
+                        try:
+                            tn_categories[int(cat_id)] = cat_name
+                        except (ValueError, TypeError):
+                            pass
             if len(cat_data) < 100:
                 break
             cat_page += 1
@@ -1830,10 +1840,28 @@ def sync_tiendanube_catalog_route():
             product_categories = tn_prod.get("categories", [])
             product_category = "General"
             if product_categories and isinstance(product_categories, list):
-                for cat_id in product_categories:
-                    if cat_id in tn_categories:
-                        product_category = tn_categories[cat_id]
-                        break
+                for cat_item in product_categories:
+                    cat_id = None
+                    if isinstance(cat_item, dict):
+                        cat_id = cat_item.get("id")
+                    elif isinstance(cat_item, (int, str)):
+                        cat_id = cat_item
+                    
+                    if cat_id is not None:
+                        if cat_id in tn_categories:
+                            product_category = tn_categories[cat_id]
+                            break
+                        elif str(cat_id) in tn_categories:
+                            product_category = tn_categories[str(cat_id)]
+                            break
+                        else:
+                            try:
+                                int_id = int(cat_id)
+                                if int_id in tn_categories:
+                                    product_category = tn_categories[int_id]
+                                    break
+                            except (ValueError, TypeError):
+                                pass
             
             for variant in tn_prod.get("variants", []):
                 v_id = variant.get("id")
@@ -1946,6 +1974,33 @@ def sync_tiendanube_catalog_route():
                     }
                     products_to_save.append(new_prod)
                     
+        # Update categories config with any new category names imported from Tiendanube
+        try:
+            cat_config = firebase_config.get_document("products", f"{prefix}categories_config", token)
+            if not cat_config:
+                cat_config = {
+                    "sku": f"{prefix}categories_config",
+                    "name": "Categories Configuration",
+                    "categories": []
+                }
+            
+            current_categories = cat_config.get("categories", [])
+            if not isinstance(current_categories, list):
+                current_categories = []
+                
+            updated = False
+            for prod in products_to_save:
+                p_cat = prod.get("category")
+                if p_cat and p_cat not in current_categories:
+                    current_categories.append(p_cat)
+                    updated = True
+            
+            if updated:
+                cat_config["categories"] = current_categories
+                firebase_config.set_document("products", f"{prefix}categories_config", cat_config, token)
+        except Exception as cat_err:
+            print(f"[CATEGORY SYNC] Failed to update categories_config: {cat_err}")
+
         # 5. Save products concurrently
         def save_one_product(prod):
             sku_with_prefix = prod.get("sku")

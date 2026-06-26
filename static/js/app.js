@@ -7171,15 +7171,25 @@ async function renderIntegrationsStatus() {
         minute: "2-digit"
       });
       
+      const itemsListText = items.map(it => {
+        const p = it.product || {};
+        const sizeText = it.size && it.size !== "Único" ? ` (${it.size})` : "";
+        const colorText = p.color ? ` | ${p.color}` : "";
+        return `<span style="color: var(--text-gray); font-size: 0.7rem;">${it.quantity} un. x ${p.name || 'Prenda'}${sizeText}${colorText}</span>`;
+      }).join("<br>");
+
       tnSalesHTML += `
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 6px 0;">
-          <div>
-            <strong style="color: #fff;">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
+        <div style="border-bottom: 1px solid rgba(255,255,255,0.03); padding: 8px 0;">
+          <div style="display: flex; justify-content: space-between;">
+            <div>
+              <strong style="color: #fff;">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
+            </div>
+            <div style="text-align: right;">
+              <span style="color: #fff;">Bruto: $${Math.round(grossVal).toLocaleString()}</span> | 
+              <span style="color: var(--accent-emerald); font-weight: bold;">Neto: $${Math.round(sNet).toLocaleString()}</span>
+            </div>
           </div>
-          <div style="text-align: right;">
-            <span style="color: #fff;">Bruto: $${Math.round(grossVal).toLocaleString()}</span> | 
-            <span style="color: var(--accent-emerald); font-weight: bold;">Neto: $${Math.round(sNet).toLocaleString()}</span>
-          </div>
+          ${itemsListText ? `<div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--accent-blue); line-height: 1.4;">${itemsListText}</div>` : ""}
         </div>
       `;
     });
