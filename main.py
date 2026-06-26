@@ -165,6 +165,12 @@ def sync_stock_to_tiendanube(uid, items, token=None, db_client=None, prefix=None
         user_id = config.get("user_id")
         access_token = config.get("access_token")
         
+        # Sanitizar credenciales para evitar caracteres ocultos no-ASCII (ej: de copiar y pegar)
+        if access_token:
+            access_token = "".join(c for c in str(access_token) if ord(c) < 128).strip()
+        if user_id:
+            user_id = "".join(c for c in str(user_id) if ord(c) < 128).strip()
+        
         headers = {
             "Authentication": f"bearer {access_token}",
             "Content-Type": "application/json",
@@ -1665,6 +1671,13 @@ def save_integration(integration_id):
             email = get_email_from_token(token)
             if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
                 return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
+        elif integration_id == "tiendanube":
+            access_token = data.get("access_token")
+            user_id = data.get("user_id")
+            if access_token:
+                data["access_token"] = "".join(c for c in str(access_token) if ord(c) < 128).strip()
+            if user_id:
+                data["user_id"] = "".join(c for c in str(user_id) if ord(c) < 128).strip()
         res = firebase_config.set_document("integrations", integration_id, data, token)
         return jsonify(res)
     except Exception as e:
@@ -1688,6 +1701,12 @@ def sync_tiendanube_catalog_route():
             
         user_id = config.get("user_id")
         access_token = config.get("access_token")
+        
+        # Sanitizar credenciales para evitar caracteres ocultos no-ASCII (ej: de copiar y pegar)
+        if access_token:
+            access_token = "".join(c for c in str(access_token) if ord(c) < 128).strip()
+        if user_id:
+            user_id = "".join(c for c in str(user_id) if ord(c) < 128).strip()
         
         headers = {
             "Authentication": f"bearer {access_token}",
