@@ -7084,6 +7084,63 @@ async function renderIntegrationsStatus() {
   }
 }
 
+async function saveTiendanubeConfig(event) {
+  event.preventDefault();
+  const userId = document.getElementById("tiendanube-user-id").value;
+  const accessToken = document.getElementById("tiendanube-access-token").value;
+  
+  if (!userId || !accessToken) {
+    showToast("Por favor completa todos los campos.", true);
+    return;
+  }
+  
+  try {
+    showToast("Guardando credenciales de Tiendanube...");
+    const payload = {
+      user_id: userId,
+      access_token: accessToken,
+      activo: true
+    };
+    
+    await apiRequest("/api/integrations/tiendanube", "POST", payload);
+    showToast("¡Tiendanube conectada con éxito!");
+    await renderIntegrationsStatus();
+  } catch (error) {
+    showToast("Error al guardar credenciales: " + error.message, true);
+  }
+}
+
+async function disconnectTiendanube() {
+  if (!confirm("¿Seguro que deseas desconectar Tiendanube?")) return;
+  try {
+    showToast("Desconectando...");
+    const payload = {
+      activo: false
+    };
+    await apiRequest("/api/integrations/tiendanube", "POST", payload);
+    showToast("Tiendanube desconectada.");
+    
+    // Limpiar campos
+    document.getElementById("tiendanube-user-id").value = "";
+    document.getElementById("tiendanube-access-token").value = "";
+    
+    await renderIntegrationsStatus();
+  } catch (error) {
+    showToast("Error al desconectar: " + error.message, true);
+  }
+}
+
+async function syncTiendanubeCatalog() {
+  try {
+    showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
+    const result = await apiRequest("/api/integrations/tiendanube/sync", "POST");
+    showToast(`Sincronización completada. ${result.synced_count || 0} variantes procesadas.`);
+    await refreshState();
+  } catch (error) {
+    showToast("Error en sincronización: " + error.message, true);
+  }
+}
+
 const MONOTRIBUTO_LIMITS_2026 = {
   'A': 6450000,
   'B': 9640000,
