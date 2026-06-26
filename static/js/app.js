@@ -1436,13 +1436,19 @@ function renderPanel() {
   const totalSalesNetValue = filteredSales.reduce((sum, s) => sum + (s.total_neto !== undefined ? parseFloat(s.total_neto) : s.total || 0), 0);
 
   // Actualizar KPIs en el HTML
+  const revDesc = document.getElementById("panel-stat-revenue-desc");
   if (state.email === "matiascuchettidiaz@gmail.com") {
     document.getElementById("panel-stat-revenue").innerHTML = `
       <div style="font-size: 1.3rem; color: #fff;">$ ${Math.round(totalSalesValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Bruto)</span></div>
       <div style="font-size: 0.95rem; color: var(--accent-emerald); font-weight: 700; margin-top: 2px;">$ ${Math.round(totalSalesNetValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Neto)</span></div>
     `;
+    if (revDesc) revDesc.style.display = "none";
   } else {
     document.getElementById("panel-stat-revenue").innerText = `$ ${Math.round(totalSalesValue).toLocaleString()}`;
+    if (revDesc) {
+      revDesc.style.display = "block";
+      revDesc.innerText = "Facturación Total";
+    }
   }
   document.getElementById("panel-stat-ticket").innerText = `$ ${Math.round(averageTicket).toLocaleString()}`;
   document.getElementById("panel-stat-units").innerText = totalItemsSold;
@@ -6941,6 +6947,7 @@ async function renderIntegrationsStatus() {
     const tokenInput = document.getElementById("tiendanube-access-token");
     const disconnectBtn = document.getElementById("tiendanube-disconnect-btn");
     const syncBtn = document.getElementById("tiendanube-sync-btn");
+    const saveBtn = document.getElementById("tiendanube-save-btn");
     
     if (tiendanube && tiendanube.activo) {
       if (badge) {
@@ -6949,10 +6956,19 @@ async function renderIntegrationsStatus() {
         badge.style.borderColor = "rgba(16, 185, 129, 0.2)";
         badge.style.background = "var(--bg-dark)";
       }
-      if (userIdInput) userIdInput.value = tiendanube.user_id || "";
-      if (tokenInput) tokenInput.value = "••••••••";
+      if (userIdInput) {
+        userIdInput.value = tiendanube.user_id || "";
+        userIdInput.disabled = true;
+        userIdInput.readOnly = true;
+      }
+      if (tokenInput) {
+        tokenInput.value = "••••••••";
+        tokenInput.disabled = true;
+        tokenInput.readOnly = true;
+      }
       if (disconnectBtn) disconnectBtn.style.display = "block";
       if (syncBtn) syncBtn.style.display = "block";
+      if (saveBtn) saveBtn.style.display = "none";
     } else {
       if (badge) {
         badge.innerText = "Desconectado";
@@ -6960,10 +6976,19 @@ async function renderIntegrationsStatus() {
         badge.style.borderColor = "rgba(229, 56, 59, 0.2)";
         badge.style.background = "var(--bg-dark)";
       }
-      if (userIdInput && !tiendanube) userIdInput.value = "";
-      if (tokenInput && !tiendanube) tokenInput.value = "";
+      if (userIdInput) {
+        userIdInput.disabled = false;
+        userIdInput.readOnly = false;
+        if (!tiendanube) userIdInput.value = "";
+      }
+      if (tokenInput) {
+        tokenInput.disabled = false;
+        tokenInput.readOnly = false;
+        if (!tiendanube) tokenInput.value = "";
+      }
       if (disconnectBtn) disconnectBtn.style.display = "none";
       if (syncBtn) syncBtn.style.display = "none";
+      if (saveBtn) saveBtn.style.display = "block";
     }
 
     // Calcular métricas de Tiendanube para el reporte adicional

@@ -1737,6 +1737,20 @@ def sync_tiendanube_catalog_route():
             
         # 3. Get existing products from Firestore to map & update
         existing_docs = firebase_config.list_documents("products", token)
+        
+        # Limpiar productos antiguos con formato incorrecto ("TN-")
+        clean_docs = []
+        for d in existing_docs:
+            doc_id = d.get("id", "")
+            if doc_id.startswith(prefix) and "TN-" in doc_id:
+                try:
+                    firebase_config.delete_document("products", doc_id, token)
+                except Exception as del_err:
+                    print(f"[CLEANUP ERROR] Falló eliminar {doc_id}: {del_err}")
+            else:
+                clean_docs.append(d)
+        existing_docs = clean_docs
+
         existing_products_by_sku = {}
         for d in existing_docs:
             doc_id = d.get("id", "")
@@ -1763,8 +1777,8 @@ def sync_tiendanube_catalog_route():
                 v_id = variant.get("id")
                 raw_sku = variant.get("sku")
                 if not raw_sku or not str(raw_sku).strip():
-                    # Fallback para variantes sin SKU en Tiendanube
-                    raw_sku = f"TN-{p_id}-{v_id}"
+                    # Fallback para variantes sin SKU en Tiendanube (evitando guión después de TN para baseSku correcto)
+                    raw_sku = f"TN{p_id}-{v_id}"
                 
                 sku = str(raw_sku).strip().upper()
                 if biz_type == "comercio" and not sku.endswith("-U"):
@@ -1811,23 +1825,38 @@ def sync_tiendanube_catalog_route():
                 images = tn_prod.get("images", [])
                 image_url = images[0].get("src") if images else ""
 
+                raw_stock = variant.get("stock")
+                if raw_stock is None:
+                    stock_local_val = 0
+                    stock_taller_val = "infinito"
+                else:
+                    stock_local_val = safe_int(raw_stock)
+                    stock_taller_val = safe_int(raw_stock)
+
                 if sku in existing_products_by_sku:
                     existing_prod = existing_products_by_sku[sku]
                     existing_prod["name"] = p_name
                     if image_url:
                         existing_prod["image_url"] = image_url
                     existing_prod["price_tiendanube"] = price
+                    existing_prod["price_local"] = price
+                    existing_prod["price"] = price
                     existing_prod["tiendanube_product_id"] = p_id
                     existing_prod["tiendanube_variant_id"] = v_id
                     
-                    # Preservar stock_local original
-                    s_local = existing_prod.get("stock_local", existing_prod.get("stock", 0))
-                    existing_prod["stock_local"] = safe_int(s_local)
-                    existing_prod["stock"] = safe_int(s_local)
-                    existing_prod["stock_taller"] = existing_prod.get("stock_taller", "infinito")
+                    # Actualizar stock de Tiendanube (si es infinito, local mantiene el suyo o es 0)
+                    if raw_stock is None:
+                        existing_prod["stock_taller"] = "infinito"
+                        s_local = existing_prod.get("stock_local", existing_prod.get("stock", 0))
+                        existing_prod["stock_local"] = safe_int(s_local)
+                        existing_prod["stock"] = safe_int(s_local)
+                    else:
+                        existing_prod["stock_taller"] = stock_taller_val
+                        existing_prod["stock_local"] = stock_local_val
+                        existing_prod["stock"] = stock_local_val
+                        
                     existing_prod["cost"] = safe_float(existing_prod.get("cost", 0.0))
                     existing_prod["margin"] = safe_float(existing_prod.get("margin", 0.0))
-                    existing_prod["price_local"] = existing_prod.get("price_local", existing_prod.get("price", existing_prod["cost"] * (1 + existing_prod["margin"]/100)))
                     
                     products_to_save.append(existing_prod)
                 else:
@@ -1839,11 +1868,11 @@ def sync_tiendanube_catalog_route():
                         "category": "General",
                         "size": size,
                         "color": color,
-                        "stock": 0,
-                        "stock_local": 0,
-                        "stock_taller": "infinito",
-                        "baseCost": price,
-                        "cost": price,
+                        "stock": stock_local_val,
+                        "stock_local": stock_local_val,
+                        "stock_taller": stock_taller_val,
+                        "baseCost": 0.0,
+                        "cost": 0.0,
                         "margin": 0.0,
                         "price": price,
                         "price_local": price,
