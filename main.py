@@ -30,9 +30,23 @@ def safe_float(val, default=0.0):
     if val is None:
         return default
     try:
-        if isinstance(val, str):
-            val = val.replace("$", "").replace(" ", "").replace(".", "").replace(",", ".").strip()
-        return float(val)
+        if isinstance(val, (int, float)):
+            return float(val)
+        val_str = str(val).strip().replace("$", "").replace(" ", "")
+        if not val_str:
+            return default
+        
+        if "," in val_str:
+            val_str = val_str.replace(".", "")
+            val_str = val_str.replace(",", ".")
+        else:
+            if val_str.count(".") > 1:
+                val_str = val_str.replace(".", "")
+            elif val_str.count(".") == 1:
+                parts = val_str.split(".")
+                if len(parts[1]) == 3:
+                    val_str = val_str.replace(".", "")
+        return float(val_str)
     except (ValueError, TypeError):
         return default
 
@@ -40,9 +54,25 @@ def safe_int(val, default=0):
     if val is None:
         return default
     try:
-        if isinstance(val, str):
-            val = val.replace(".", "").replace(",", "").strip()
-        return int(val)
+        if isinstance(val, (int, float)):
+            return int(val)
+        val_str = str(val).strip().replace("$", "").replace(" ", "")
+        if not val_str:
+            return default
+        
+        if "," in val_str:
+            val_str = val_str.replace(".", "")
+            val_str = val_str.split(",")[0]
+        else:
+            if val_str.count(".") > 1:
+                val_str = val_str.replace(".", "")
+            elif val_str.count(".") == 1:
+                parts = val_str.split(".")
+                if len(parts[1]) == 3:
+                    val_str = val_str.replace(".", "")
+                else:
+                    val_str = parts[0]
+        return int(val_str)
     except (ValueError, TypeError):
         return default
 
@@ -1443,6 +1473,8 @@ def create_sale():
         sale_data = {
             "date": str(date),
             "total": safe_float(total),
+            "subtotal": safe_float(data.get("subtotal", total)),
+            "discount_pct": safe_float(data.get("discount_pct", 0.0)),
             "method": str(method),
             "items": items,
             "extras": data.get("extras", {}),
@@ -1895,6 +1927,172 @@ def sync_tiendanube_catalog_route():
             "success": True, 
             "count": len(products_to_save),
             "synced_count": len(products_to_save)
+        })
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/integrations/tiendanube/sync-orders", methods=["POST"])
+def sync_tiendanube_orders_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        config = firebase_config.get_document("integrations", "tiendanube", token)
+        if not config or not config.get("activo"):
+            return jsonify({"error": "La integración con Tiendanube no está activa o no está configurada."}), 400
+            
+        user_id = config.get("user_id")
+        access_token = config.get("access_token")
+        
+        if access_token:
+            access_token = "".join(c for c in str(access_token) if ord(c) < 128).strip()
+        if user_id:
+            user_id = "".join(c for c in str(user_id) if ord(c) < 128).strip()
+            
+        headers = {
+            "Authentication": f"bearer {access_token}",
+            "User-Agent": "GestioSmart (klejavalentino@gmail.com)",
+            "Content-Type": "application/json"
+        }
+        
+        all_orders = []
+        page = 1
+        while True:
+            url = f"https://api.tiendanube.com/v1/{user_id}/orders?payment_status=paid&page={page}&limit=100"
+            r = requests.get(url, headers=headers, timeout=30)
+            if not r.ok:
+                return jsonify({"error": f"Error de Tiendanube API: {r.text}"}), 400
+            data = r.json()
+            if not data:
+                break
+            all_orders.extend(data)
+            
+            # Stop if last order in page is older than May 2026
+            last_order_date_str = data[-1].get("created_at")
+            if last_order_date_str:
+                try:
+                    year = int(last_order_date_str[0:4])
+                    month = int(last_order_date_str[5:7])
+                    if year < 2026 or (year == 2026 and month < 5):
+                        break
+                except Exception:
+                    pass
+                    
+            if len(data) < 100:
+                break
+            page += 1
+            
+        products_list = firebase_config.list_documents("products", token)
+        products_by_sku = {}
+        for p in products_list:
+            doc_id = p.get("id", "")
+            if doc_id.startswith(prefix):
+                clean_sku = doc_id[len(prefix):].upper()
+                products_by_sku[clean_sku] = p
+
+        fee_fijo = safe_float(config.get("fee_fijo_tn", 300.0))
+        comision = safe_float(config.get("comision_pasarela_pago", 5.0))
+        
+        sales_saved = 0
+        for order in all_orders:
+            order_id = str(order.get("id"))
+            
+            gateway = order.get("payment_details", {}).get("method", "Tiendanube")
+            if not gateway:
+                gateway = "Tiendanube"
+                
+            created_at = order.get("created_at")
+            total_price = safe_float(order.get("total"))
+            subtotal_price = safe_float(order.get("subtotal"))
+            
+            costos_fin = fee_fijo + (comision / 100.0 * total_price)
+            total_neto = max(0.0, total_price - costos_fin)
+            
+            order_items = []
+            for item in order.get("products", []):
+                sku = str(item.get("sku") or "").strip().upper()
+                qty = safe_int(item.get("quantity", 1))
+                price = safe_float(item.get("price"))
+                
+                matched_local_prod = products_by_sku.get(sku)
+                
+                prod_data = {
+                    "sku": sku,
+                    "name": item.get("name"),
+                    "price_local": price,
+                    "price_tiendanube": price,
+                    "price": price,
+                    "category": item.get("category", "General"),
+                    "color": ""
+                }
+                
+                if matched_local_prod:
+                    prod_data["cost"] = safe_float(matched_local_prod.get("cost", 0.0))
+                    prod_data["margin"] = safe_float(matched_local_prod.get("margin", 0.0))
+                    prod_data["category"] = matched_local_prod.get("category", "General")
+                    prod_data["color"] = matched_local_prod.get("color", "")
+                else:
+                    prod_data["cost"] = 0.0
+                    prod_data["margin"] = 0.0
+                
+                # Parse variant size and color from variant_name
+                variant_name = str(item.get("variant_name") or "").strip()
+                size = "Único"
+                color = ""
+                if variant_name:
+                    if "/" in variant_name:
+                        parts = [p.strip() for p in variant_name.split("/")]
+                        for p in parts:
+                            p_lower = p.lower()
+                            if p_lower in ["s", "m", "l", "xl", "xxl", "xxxl", "3xl", "xs"] or any(t in p_lower for t in ["talle", "size", "talla"]):
+                                size = p
+                            elif p_lower.startswith("talle") or p.isdigit() or len(p) <= 2:
+                                size = p
+                            else:
+                                color = p
+                    else:
+                        vn_lower = variant_name.lower()
+                        if vn_lower in ["s", "m", "l", "xl", "xxl", "xxxl", "3xl", "xs"] or any(t in vn_lower for t in ["talle", "size", "talla"]) or variant_name.isdigit() or len(variant_name) <= 2:
+                            size = variant_name
+                        else:
+                            color = variant_name
+                            
+                if color and not prod_data["color"]:
+                    prod_data["color"] = color
+                
+                order_items.append({
+                    "product": prod_data,
+                    "size": size,
+                    "quantity": qty
+                })
+                
+            discount_amount = safe_float(order.get("discount"))
+            discount_pct = (discount_amount / subtotal_price * 100.0) if (subtotal_price > 0 and discount_amount > 0) else 0.0
+            
+            sale_data = {
+                "date": created_at,
+                "total": total_price,
+                "subtotal": subtotal_price,
+                "discount_pct": discount_pct,
+                "method": gateway,
+                "items": order_items,
+                "extras": {},
+                "origen": "tiendanube",
+                "fee_fijo_tn": fee_fijo,
+                "comision_pasarela_pago": comision,
+                "total_neto": total_neto
+            }
+            
+            firebase_config.set_document("sales", f"{prefix}TN-{order_id}", sale_data, token)
+            sales_saved += 1
+            
+        return jsonify({
+            "success": True,
+            "count": sales_saved
         })
     except Exception as e:
         return handle_error(e)

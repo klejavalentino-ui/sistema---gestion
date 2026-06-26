@@ -1309,8 +1309,9 @@ function populateMonthSelectors() {
   const panelSel = document.getElementById("panel-month-select");
   const costSel = document.getElementById("costs-month-select");
   const periodMonthSel = document.getElementById("cost-period-month");
+  const tnMonthSel = document.getElementById("tiendanube-month-select");
   
-  [panelSel, costSel, periodMonthSel].forEach(select => {
+  [panelSel, costSel, periodMonthSel, tnMonthSel].forEach(select => {
     if (select) {
       select.innerHTML = "";
       MONTHS.forEach(m => {
@@ -1326,6 +1327,12 @@ function populateMonthSelectors() {
   if (panelSel) panelSel.value = state.panelMonth;
   if (costSel) costSel.value = state.viewCostsMonth;
   if (periodMonthSel) periodMonthSel.value = state.viewCostsMonth;
+  if (tnMonthSel) {
+    if (!state.tiendanubeMonth) {
+      state.tiendanubeMonth = state.panelMonth;
+    }
+    tnMonthSel.value = state.tiendanubeMonth;
+  }
 }
 
 // --- Controladores de Renderizado ---
@@ -2214,7 +2221,15 @@ function renderPOSCart(recalc = true) {
 
   if (state.cart.length === 0) {
     container.innerHTML = `<div class="pos-cart-empty"><p>El carrito está vacío</p></div>`;
-    document.getElementById("pos-cart-total-val").innerText = "$ 0";
+    const totalValEl = document.getElementById("pos-cart-total-val");
+    if (totalValEl) {
+      totalValEl.innerText = "$ 0";
+      totalValEl.dataset.total = 0;
+      totalValEl.dataset.subtotal = 0;
+      totalValEl.dataset.discountPct = 0;
+    }
+    const discountInput = document.getElementById("pos-cart-discount-input");
+    if (discountInput) discountInput.value = "0";
     cobrarBtn.disabled = true;
     
     // Resetear adicionales al vaciar el carrito
@@ -2305,8 +2320,19 @@ function renderPOSCart(recalc = true) {
   });
 
   if (recalc) {
-    document.getElementById("pos-cart-total-val").innerText = `$ ${Math.round(total).toLocaleString()}`;
-    document.getElementById("pos-cart-total-val").dataset.total = total;
+    const discountInput = document.getElementById("pos-cart-discount-input");
+    const discountPct = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+    const subtotal = total;
+    const discountAmount = (subtotal * discountPct) / 100;
+    const finalTotal = subtotal - discountAmount;
+
+    const totalValEl = document.getElementById("pos-cart-total-val");
+    if (totalValEl) {
+      totalValEl.innerText = `$ ${Math.round(finalTotal).toLocaleString()}`;
+      totalValEl.dataset.total = finalTotal;
+      totalValEl.dataset.subtotal = subtotal;
+      totalValEl.dataset.discountPct = discountPct;
+    }
   }
 }
 
@@ -2516,7 +2542,10 @@ async function consumePOSExtras(cart, selectedExtras) {
 }
 
 async function confirmPayment(method) {
-  const total = parseFloat(document.getElementById("pos-cart-total-val").dataset.total) || 0;
+  const totalValEl = document.getElementById("pos-cart-total-val");
+  const total = parseFloat(totalValEl.dataset.total) || 0;
+  const subtotal = parseFloat(totalValEl.dataset.subtotal) || total;
+  const discountPct = parseFloat(totalValEl.dataset.discountPct) || 0;
   const totalUnits = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
 
   if (method === "Financiado") {
@@ -2554,6 +2583,8 @@ async function confirmPayment(method) {
   const salePayload = {
     date: new Date().toISOString(),
     total: total,
+    subtotal: subtotal,
+    discount_pct: discountPct,
     method: method,
     items: state.cart.map(item => ({
       product: item.product,
@@ -2641,7 +2672,10 @@ async function submitCheckoutFinance() {
     return;
   }
 
-  const total = parseFloat(document.getElementById("pos-cart-total-val").dataset.total) || 0;
+  const totalValEl = document.getElementById("pos-cart-total-val");
+  const total = parseFloat(totalValEl.dataset.total) || 0;
+  const subtotal = parseFloat(totalValEl.dataset.subtotal) || total;
+  const discountPct = parseFloat(totalValEl.dataset.discountPct) || 0;
   const paidAmount = parseFloat(paidRaw) || 0;
   const debtAmount = total - paidAmount;
 
@@ -2681,6 +2715,8 @@ async function submitCheckoutFinance() {
     const salePayload = {
       date: new Date().toISOString(),
       total: total,
+      subtotal: subtotal,
+      discount_pct: discountPct,
       method: methodStr,
       items: state.cart.map(item => ({
         product: item.product,
@@ -6947,7 +6983,11 @@ async function renderIntegrationsStatus() {
     const tokenInput = document.getElementById("tiendanube-access-token");
     const disconnectBtn = document.getElementById("tiendanube-disconnect-btn");
     const syncBtn = document.getElementById("tiendanube-sync-btn");
+    const syncSalesBtn = document.getElementById("tiendanube-sync-sales-btn");
     const saveBtn = document.getElementById("tiendanube-save-btn");
+    const connectedInfo = document.getElementById("tiendanube-connected-info");
+    const infoIdSpan = document.getElementById("tiendanube-info-id");
+    const credentialsFields = document.getElementById("tiendanube-credentials-fields");
     
     if (tiendanube && tiendanube.activo) {
       if (badge) {
@@ -6956,18 +6996,18 @@ async function renderIntegrationsStatus() {
         badge.style.borderColor = "rgba(16, 185, 129, 0.2)";
         badge.style.background = "var(--bg-dark)";
       }
-      if (userIdInput) {
-        userIdInput.value = tiendanube.user_id || "";
-        userIdInput.disabled = true;
-        userIdInput.readOnly = true;
+      if (connectedInfo) {
+        connectedInfo.style.display = "flex";
       }
-      if (tokenInput) {
-        tokenInput.value = "••••••••";
-        tokenInput.disabled = true;
-        tokenInput.readOnly = true;
+      if (infoIdSpan) {
+        infoIdSpan.innerText = tiendanube.user_id || "";
+      }
+      if (credentialsFields) {
+        credentialsFields.style.display = "none";
       }
       if (disconnectBtn) disconnectBtn.style.display = "block";
       if (syncBtn) syncBtn.style.display = "block";
+      if (syncSalesBtn) syncSalesBtn.style.display = "block";
       if (saveBtn) saveBtn.style.display = "none";
     } else {
       if (badge) {
@@ -6975,6 +7015,12 @@ async function renderIntegrationsStatus() {
         badge.className = "badge-red";
         badge.style.borderColor = "rgba(229, 56, 59, 0.2)";
         badge.style.background = "var(--bg-dark)";
+      }
+      if (connectedInfo) {
+        connectedInfo.style.display = "none";
+      }
+      if (credentialsFields) {
+        credentialsFields.style.display = "grid";
       }
       if (userIdInput) {
         userIdInput.disabled = false;
@@ -6988,11 +7034,26 @@ async function renderIntegrationsStatus() {
       }
       if (disconnectBtn) disconnectBtn.style.display = "none";
       if (syncBtn) syncBtn.style.display = "none";
+      if (syncSalesBtn) syncSalesBtn.style.display = "none";
       if (saveBtn) saveBtn.style.display = "block";
     }
 
+    // Month selector reading
+    const monthSelect = document.getElementById("tiendanube-month-select");
+    if (monthSelect && monthSelect.value) {
+      state.tiendanubeMonth = monthSelect.value;
+    } else {
+      state.tiendanubeMonth = state.tiendanubeMonth || MONTHS[new Date().getMonth()];
+    }
+
     // Calcular métricas de Tiendanube para el reporte adicional
-    const tnSales = state.sales.filter(s => s.origen === "tiendanube");
+    const now = new Date();
+    const tnSales = state.sales.filter(s => {
+      if (s.origen !== "tiendanube") return false;
+      const saleDate = new Date(s.date);
+      return MONTHS[saleDate.getMonth()] === state.tiendanubeMonth && saleDate.getFullYear() === now.getFullYear();
+    });
+
     let tnGross = 0;
     let tnFees = 0;
     let tnNet = 0;
@@ -7058,6 +7119,53 @@ async function renderIntegrationsStatus() {
     
     const tnSalesLogEl = document.getElementById("tn-sales-log");
     if (tnSalesLogEl) tnSalesLogEl.innerHTML = tnSalesHTML;
+
+    // Renderizar gráfico de evolución online (líneas)
+    const evolutionCtx = document.getElementById("chart-tiendanube-evolution");
+    if (evolutionCtx) {
+      const salesMap = {};
+      ["Sem 1", "Sem 2", "Sem 3", "Sem 4", "Sem 5"].forEach(w => salesMap[w] = 0);
+      
+      tnSales.forEach(s => {
+        const day = new Date(s.date).getDate();
+        const weekIndex = Math.min(Math.floor((day - 1) / 7), 4);
+        salesMap[`Sem ${weekIndex + 1}`] += s.total || 0;
+      });
+
+      const evolutionLabels = Object.keys(salesMap);
+      const evolutionData = Object.values(salesMap);
+
+      if (state.tiendanubeEvolutionChart) {
+        state.tiendanubeEvolutionChart.destroy();
+      }
+      
+      state.tiendanubeEvolutionChart = new Chart(evolutionCtx.getContext("2d"), {
+        type: 'line',
+        data: {
+          labels: evolutionLabels,
+          datasets: [{
+            label: 'Ventas Online ($)',
+            data: evolutionData,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true,
+            pointBackgroundColor: '#3b82f6',
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+            y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+          }
+        }
+      });
+    }
 
     // Renderizar ARCA Config
     const arca = integrations?.arca;
@@ -7164,6 +7272,18 @@ async function syncTiendanubeCatalog() {
     await refreshState();
   } catch (error) {
     showToast("Error en sincronización: " + error.message, true);
+  }
+}
+
+async function syncTiendanubeSales() {
+  try {
+    showToast("Sincronizando ventas desde Tiendanube... Esto puede tardar unos segundos.");
+    const result = await apiRequest("/api/integrations/tiendanube/sync-orders", "POST");
+    const count = result.count || 0;
+    showToast(`Sincronización completada. ${count} ventas importadas.`);
+    await refreshState();
+  } catch (error) {
+    showToast("Error en sincronización de ventas: " + error.message, true);
   }
 }
 

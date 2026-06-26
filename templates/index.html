@@ -471,6 +471,10 @@
             </div>
 
             <div class="pos-cart-footer">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color);">
+                <span style="font-size: 0.8rem; color: var(--text-gray);">Descuento (%)</span>
+                <input type="number" id="pos-cart-discount-input" class="form-input" style="width: 70px; padding: 4px 8px; font-size: 0.8rem; text-align: right; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="0" min="0" max="100" oninput="renderPOSCart()">
+              </div>
               <div class="pos-cart-total-row">
                 <span class="pos-cart-total-label">Total a Cobrar</span>
                 <span id="pos-cart-total-val" class="pos-cart-total-value">$ 0</span>
@@ -1138,8 +1142,16 @@
               <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">☁️ Tiendanube</h3>
               <span id="tiendanube-status-badge" class="badge-red" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);">Desconectado</span>
             </div>
+            <!-- Bloque informativo de conexión -->
+            <div id="tiendanube-connected-info" style="display: none; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+              <div>
+                <h4 style="margin: 0; color: #fff; font-size: 0.9rem;">Tienda Conectada</h4>
+                <p style="margin: 5px 0 0 0; color: var(--text-gray); font-size: 0.8rem;">ID de Tienda: <span id="tiendanube-info-id" style="font-weight: 700; color: #fff;">-</span></p>
+              </div>
+            </div>
+
             <form id="tiendanube-config-form" onsubmit="saveTiendanubeConfig(event)">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+              <div id="tiendanube-credentials-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                 <div class="form-group" style="margin-bottom: 0;">
                   <label class="form-label" for="tiendanube-user-id">User ID</label>
                   <input type="text" id="tiendanube-user-id" class="form-input" placeholder="Ingresa tu User ID de Tiendanube" required>
@@ -1152,12 +1164,18 @@
               <div style="display: flex; gap: 10px;">
                 <button type="submit" id="tiendanube-save-btn" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Credenciales</button>
                 <button type="button" id="tiendanube-disconnect-btn" class="btn" style="background: var(--accent-red); color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectTiendanube()">Desconectar</button>
+                <button type="button" id="tiendanube-sync-sales-btn" class="btn btn-primary" style="background: #3b82f6; color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="syncTiendanubeSales()">Sincronizar Ventas</button>
               </div>
             </form>
 
             <!-- REPORTE DE RENDIMIENTO ADICIONAL - TIENDANUBE -->
             <div id="tiendanube-reports-box" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-              <h4 style="color: #fff; margin: 0 0 12px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h4 style="color: #fff; margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
+                <select id="tiendanube-month-select" class="form-select" style="width: 140px; padding: 6px 10px; font-size: 0.8rem;" onchange="renderIntegrationsStatus()">
+                  <!-- Cargado dinámicamente -->
+                </select>
+              </div>
               
               <div class="grid-5" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px;">
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
@@ -1179,6 +1197,14 @@
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas TN</span>
                   <p id="tn-report-units" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">0 u.</p>
+                </div>
+              </div>
+
+              <!-- Gráfico de Evolución Online -->
+              <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">📈 Evolución de Ventas Online</p>
+                <div style="position: relative; height: 160px; width: 100%;">
+                  <canvas id="chart-tiendanube-evolution"></canvas>
                 </div>
               </div>
 
