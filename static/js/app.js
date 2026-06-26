@@ -37,7 +37,8 @@ const state = {
   dismissedNotifications: {
     stock: false,
     cobranzas: false,
-    cuentas: false
+    cuentas: false,
+    missing_cost_margin: false
   }
 };
 
@@ -1446,10 +1447,12 @@ function renderPanel() {
   const revDesc = document.getElementById("panel-stat-revenue-desc");
   if (state.email === "matiascuchettidiaz@gmail.com") {
     document.getElementById("panel-stat-revenue").innerHTML = `
-      <div style="font-size: 1.3rem; color: #fff;">$ ${Math.round(totalSalesValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Bruto)</span></div>
-      <div style="font-size: 0.95rem; color: var(--accent-emerald); font-weight: 700; margin-top: 2px;">$ ${Math.round(totalSalesNetValue).toLocaleString()} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Neto)</span></div>
+      <div style="font-size: 1.3rem; color: #fff;">$ ${Math.round(totalSalesValue).toLocaleString()}</div>
     `;
-    if (revDesc) revDesc.style.display = "none";
+    if (revDesc) {
+      revDesc.style.display = "block";
+      revDesc.innerText = "Facturación Total";
+    }
   } else {
     document.getElementById("panel-stat-revenue").innerText = `$ ${Math.round(totalSalesValue).toLocaleString()}`;
     if (revDesc) {
@@ -1980,7 +1983,7 @@ function renderSalesPOS() {
       const ref = bp.variants[0];
       const cost = parseFloat(ref.cost) || 0;
       const margin = parseFloat(ref.margin) || 0;
-      const price = cost * (1 + margin / 100);
+      const price = parseFloat(ref.price_local) || parseFloat(ref.price) || (cost * (1 + margin / 100));
 
       const card = document.createElement("div");
       card.className = "pos-product-card";
@@ -3258,16 +3261,14 @@ function renderInventory() {
         ${(state.businessType === "comercio" || tallesText === "Único" || !tallesText) ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talles: ${tallesText}</div>`}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
-        <div style="font-size: 0.8rem; color: #fff;">${g.totalStock} u. <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Local)</span></div>
-        <div style="font-size: 0.75rem; color: var(--accent-blue);">${stockTallerText} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Taller)</span></div>
+        <div style="font-size: 0.8rem; color: #fff;">${g.totalStock} u.</div>
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
         ${g.totalMinStock} un.
       </td>
       <td style="text-align: right; color: var(--text-gray);">$ ${Math.round(cost).toLocaleString()}</td>
       <td style="text-align: right; font-weight: 700;">
-        <div style="font-size: 0.8rem; color: #10b981;">${priceLocalText} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Local)</span></div>
-        <div style="font-size: 0.75rem; color: var(--accent-blue);">${priceTiendanubeText} <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: normal;">(Web)</span></div>
+        <div style="font-size: 0.8rem; color: #10b981;">${priceLocalText}</div>
       </td>
       <td style="text-align: right; color: var(--text-gray-light);">
         <span style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
@@ -6408,7 +6409,11 @@ function renderExtrasConfig() {
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" style="font-size: 0.65rem;">Costo ($)</label>
-            <input type="number" id="new-opt-cost-${catKey}" class="form-input" style="padding: 6px 10px; font-size: 0.8rem;" placeholder="0" min="0" required>
+            <input type="text" id="new-opt-cost-${catKey}" class="form-input" style="padding: 6px 10px; font-size: 0.8rem;" placeholder="0" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size: 0.65rem;">Stock Físico</label>
+            <input type="number" id="new-opt-stock-${catKey}" class="form-input" style="padding: 6px 10px; font-size: 0.8rem;" placeholder="0" min="0" required>
           </div>
           <button type="submit" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem; margin-top: 4px; width: 100%;">+ Agregar Opción</button>
         </form>
@@ -6657,6 +6662,37 @@ function updateNotifications() {
     }
   }
 
+  // 4. Falta materia prima o margen
+  if (!state.dismissedNotifications.missing_cost_margin) {
+    const missingProducts = state.products.filter(p => {
+      if (!p.sku || 
+          p.sku.startsWith("supplier_") || 
+          p.sku.startsWith("fixedcost_") || 
+          p.sku.startsWith("account_") || 
+          p.sku.startsWith("cashtransaction_") || 
+          p.sku.startsWith("influencer_") || 
+          p.sku.startsWith("marketingexpense_") || 
+          p.sku.startsWith("stockintake_") || 
+          p.sku === "extras_config" || 
+          p.sku === "categories_config") {
+        return false;
+      }
+      const rawCost = parseFloat(p.cost) || 0;
+      const margin = parseFloat(p.margin) || 0;
+      return rawCost === 0 || margin === 0;
+    });
+
+    if (missingProducts.length > 0) {
+      activeAlerts.push({
+        type: "missing_cost_margin",
+        title: "Datos Faltantes",
+        icon: "fa-solid fa-bell",
+        iconClass: "warning",
+        text: `Falta poner materia prima y margen en <strong>${missingProducts.length}</strong> productos.`
+      });
+    }
+  }
+
   // Render notifications in dropdown
   if (activeAlerts.length === 0) {
     list.innerHTML = `<div class="no-notifications">No tienes notificaciones pendientes.</div>`;
@@ -6692,7 +6728,28 @@ function cleanCompareText(str) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
-    .trim();
+}
+
+function parseLocalFloat(val) {
+  if (val === null || val === undefined) return 0.0;
+  if (typeof val === 'number') return val;
+  let valStr = val.toString().trim().replace(/\$/g, "").replace(/\s/g, "");
+  if (!valStr) return 0.0;
+  if (valStr.includes(",")) {
+    valStr = valStr.replace(/\./g, "").replace(/,/g, ".");
+  } else {
+    const dotsCount = (valStr.match(/\./g) || []).length;
+    if (dotsCount > 1) {
+      valStr = valStr.replace(/\./g, "");
+    } else if (dotsCount === 1) {
+      const parts = valStr.split(".");
+      if (parts[1].length === 3) {
+        valStr = valStr.replace(/\./g, "");
+      }
+    }
+  }
+  const parsed = parseFloat(valStr);
+  return isNaN(parsed) ? 0.0 : parsed;
 }
 
 function slugify(text) {
@@ -6755,9 +6812,11 @@ async function addExtraOption(e, categoryKey) {
   e.preventDefault();
   const nameInput = document.getElementById(`new-opt-name-${categoryKey}`);
   const costInput = document.getElementById(`new-opt-cost-${categoryKey}`);
+  const stockInput = document.getElementById(`new-opt-stock-${categoryKey}`);
   
   const name = nameInput.value.trim();
-  const cost = parseFloat(costInput.value) || 0;
+  const cost = parseLocalFloat(costInput.value) || 0;
+  const stock = stockInput ? (parseInt(stockInput.value) || 0) : 0;
   
   if (!name) return;
 
@@ -6770,8 +6829,8 @@ async function addExtraOption(e, categoryKey) {
     return;
   }
 
-  // Agregar opción con stock inicial = 0
-  state.extras[categoryKey].push({ id, name, cost, stock: 0 });
+  // Agregar opción con stock físico especificado
+  state.extras[categoryKey].push({ id, name, cost, stock });
 
   try {
     showToast("Guardando opción...");
@@ -6819,7 +6878,7 @@ async function saveEditExtraForm(e) {
   const categoryKey = document.getElementById("edit-extra-category").value;
   const optionId = document.getElementById("edit-extra-id").value;
   const name = document.getElementById("edit-extra-name").value.trim();
-  const cost = parseFloat(document.getElementById("edit-extra-cost").value);
+  const cost = parseLocalFloat(document.getElementById("edit-extra-cost").value);
   const stock = parseInt(document.getElementById("edit-extra-stock").value);
 
   if (!name) {
@@ -7058,6 +7117,7 @@ async function renderIntegrationsStatus() {
     let tnFees = 0;
     let tnNet = 0;
     let tnUnits = 0;
+    let tnOperatingCosts = 0;
     
     let tnSalesHTML = "";
     tnSales.forEach(s => {
@@ -7065,16 +7125,43 @@ async function renderIntegrationsStatus() {
       const fixedFee = s.fee_fijo_tn !== undefined ? parseFloat(s.fee_fijo_tn) : 300;
       const pctFee = s.comision_pasarela_pago !== undefined ? parseFloat(s.comision_pasarela_pago) : 5;
       const sFees = fixedFee + (pctFee / 100 * grossVal);
-      const sNet = s.total_neto !== undefined ? parseFloat(s.total_neto) : (grossVal - sFees);
+      
+      // Calculate operating cost for this sale
+      let saleOpCost = 0;
+      const items = s.items || [];
+      items.forEach(it => {
+        const p = it.product || {};
+        const qty = parseInt(it.quantity) || 0;
+        
+        let itemExtraCost = 0;
+        if (s.extras) {
+          Object.keys(s.extras).forEach(catKey => {
+            const extraId = s.extras[catKey];
+            if (extraId && extraId !== "0") {
+              const extrasObj = p.extras || {};
+              let hasStatic = false;
+              if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+              else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+              else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+              if (!hasStatic) {
+                itemExtraCost += getExtraCost(catKey, extraId);
+              }
+            }
+          });
+        }
+        
+        const unitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
+        saleOpCost += unitCost * qty;
+        tnUnits += qty;
+      });
+
+      tnOperatingCosts += saleOpCost;
+      const sNet = grossVal - sFees - saleOpCost;
       
       tnGross += grossVal;
       tnFees += sFees;
       tnNet += sNet;
-      
-      const items = s.items || [];
-      items.forEach(it => {
-        tnUnits += (parseInt(it.quantity) || 0);
-      });
       
       const formattedDate = new Date(s.date).toLocaleDateString("es-AR", {
         day: "2-digit",
@@ -7106,6 +7193,9 @@ async function renderIntegrationsStatus() {
     
     const tnReportFeesEl = document.getElementById("tn-report-fees");
     if (tnReportFeesEl) tnReportFeesEl.innerText = `$ ${Math.round(tnFees).toLocaleString()}`;
+
+    const tnReportOperatingCostsEl = document.getElementById("tn-report-operating-costs");
+    if (tnReportOperatingCostsEl) tnReportOperatingCostsEl.innerText = `$ ${Math.round(tnOperatingCosts).toLocaleString()}`;
     
     const tnReportNetEl = document.getElementById("tn-report-net");
     if (tnReportNetEl) tnReportNetEl.innerText = `$ ${Math.round(tnNet).toLocaleString()}`;

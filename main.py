@@ -1751,6 +1751,27 @@ def sync_tiendanube_catalog_route():
             "Content-Type": "application/json"
         }
         
+        # 1.5 Fetch all categories from Tiendanube
+        tn_categories = {}
+        cat_page = 1
+        while True:
+            cat_url = f"https://api.tiendanube.com/v1/{user_id}/categories?page={cat_page}&limit=100"
+            cat_r = requests.get(cat_url, headers=headers, timeout=30)
+            if not cat_r.ok:
+                print(f"[CATEGORY SYNC] Failed to fetch categories: {cat_r.text}")
+                break
+            cat_data = cat_r.json()
+            if not cat_data:
+                break
+            for cat in cat_data:
+                cat_id = cat.get("id")
+                name_dict = cat.get("name", {})
+                cat_name = name_dict.get("es", name_dict.get("en", next(iter(name_dict.values())) if name_dict.values() else "General"))
+                tn_categories[cat_id] = cat_name
+            if len(cat_data) < 100:
+                break
+            cat_page += 1
+        
         # 2. Get all products from Tiendanube (with pagination)
         all_tn_products = []
         page = 1
@@ -1804,6 +1825,15 @@ def sync_tiendanube_catalog_route():
             p_name_dict = tn_prod.get("name", {})
             p_name = p_name_dict.get("es", p_name_dict.get("en", next(iter(p_name_dict.values())) if p_name_dict.values() else "Sin Nombre"))
             attributes = tn_prod.get("attributes", [])
+            
+            # Map category from categories list using our tn_categories dictionary
+            product_categories = tn_prod.get("categories", [])
+            product_category = "General"
+            if product_categories and isinstance(product_categories, list):
+                for cat_id in product_categories:
+                    if cat_id in tn_categories:
+                        product_category = tn_categories[cat_id]
+                        break
             
             for variant in tn_prod.get("variants", []):
                 v_id = variant.get("id")
@@ -1868,6 +1898,7 @@ def sync_tiendanube_catalog_route():
                 if sku in existing_products_by_sku:
                     existing_prod = existing_products_by_sku[sku]
                     existing_prod["name"] = p_name
+                    existing_prod["category"] = product_category
                     if image_url:
                         existing_prod["image_url"] = image_url
                     existing_prod["price_tiendanube"] = price
@@ -1897,7 +1928,7 @@ def sync_tiendanube_catalog_route():
                         "sku": f"{prefix}{sku}",
                         "baseSku": baseSku,
                         "name": p_name,
-                        "category": "General",
+                        "category": product_category,
                         "size": size,
                         "color": color,
                         "stock": stock_local_val,

@@ -532,10 +532,10 @@
                   <th>SKU / Producto</th>
                   <th>Categoría</th>
                   <th>Variante</th>
-                  <th style="text-align: right;">Stock (Local/Taller)</th>
+                  <th style="text-align: right;">Stock</th>
                   <th style="text-align: right;">Unidades de Stock Critico</th>
                   <th style="text-align: right;">Costo Unit.</th>
-                  <th style="text-align: right;">Precio (Local/Web)</th>
+                  <th style="text-align: right;">Precio Venta</th>
                   <th style="text-align: right;">Margen</th>
                   <th style="text-align: right; width: 80px;">Acciones</th>
                 </tr>
@@ -1185,6 +1185,10 @@
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros TN</span>
                   <p id="tn-report-fees" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-red); margin-top: 4px;">$0</p>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Operativos TN</span>
+                  <p id="tn-report-operating-costs" style="font-size: 1.2rem; font-weight: 900; color: var(--accent-red); margin-top: 4px;">$0</p>
                 </div>
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ganancia Neta TN</span>
@@ -1917,8 +1921,9 @@
                 <input type="number" id="prod-margin" class="form-input" placeholder="0" oninput="recalculateProductPrice()" required>
               </div>
               <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="font-size: 0.75rem;">Precio Venta</label>
-                <div id="prod-price-preview" style="padding: 10px; background: var(--bg-dark); border-radius: 8px; color: var(--accent-emerald); font-weight: 900; border: 1px solid var(--border-color); text-align: center;">$ 0</div>
+                <label class="form-label" style="font-size: 0.75rem;">Precio Venta ($)</label>
+                <input type="text" id="prod-price-local" class="form-input" placeholder="0" required>
+                <div id="prod-price-preview" style="display: none;"></div>
               </div>
             </div>
 
@@ -1927,19 +1932,9 @@
               <span id="prod-total-cost-display" style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ 0</span>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 16px;">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="font-size: 0.75rem;">Precio Local ($)</label>
-                <input type="text" id="prod-price-local" class="form-input" placeholder="0">
-              </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="font-size: 0.75rem;">Precio Tiendanube ($)</label>
-                <input type="text" id="prod-price-tiendanube" class="form-input" placeholder="0">
-              </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" style="font-size: 0.75rem;">Stock Taller</label>
-                <input type="text" id="prod-stock-taller" class="form-input" value="infinito">
-              </div>
+            <div style="display: none;">
+              <input type="hidden" id="prod-price-tiendanube" value="0">
+              <input type="hidden" id="prod-stock-taller" value="infinito">
             </div>
           </div>
         </div>
@@ -2312,7 +2307,7 @@
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-extra-cost">Costo ($)</label>
-            <input type="number" id="edit-extra-cost" class="form-input" min="0" step="0.01" required placeholder="0">
+            <input type="text" id="edit-extra-cost" class="form-input" required placeholder="0">
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-extra-stock">Stock Físico</label>
