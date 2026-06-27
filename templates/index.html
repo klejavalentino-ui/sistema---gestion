@@ -1166,8 +1166,13 @@
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h4 style="color: #fff; margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                  <select id="tiendanube-month-select" class="form-select" style="width: 140px; padding: 6px 10px; font-size: 0.8rem;" onchange="renderIntegrationsStatus()">
+                  <select id="tiendanube-month-select" class="form-select" style="width: 110px; padding: 6px 10px; font-size: 0.8rem; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="renderIntegrationsStatus()">
                     <!-- Cargado dinámicamente -->
+                  </select>
+                  <select id="tiendanube-year-select" class="form-select" style="width: 90px; padding: 6px 10px; font-size: 0.8rem; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="renderIntegrationsStatus()">
+                    <option value="2025">2025</option>
+                    <option value="2026" selected>2026</option>
+                    <option value="2027">2027</option>
                   </select>
                   <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; background: var(--bg-card); border: 1px solid var(--border-color); color: #fff;" onclick="exportTiendanubeToExcel()">
                     <i class="fas fa-file-excel" style="color: #107c41;"></i> Exportar Excel

@@ -1312,7 +1312,7 @@ function populateMonthSelectors() {
   const periodMonthSel = document.getElementById("cost-period-month");
   const tnMonthSel = document.getElementById("tiendanube-month-select");
   
-  [panelSel, costSel, periodMonthSel].forEach(select => {
+  [panelSel, costSel, periodMonthSel, tnMonthSel].forEach(select => {
     if (select) {
       select.innerHTML = "";
       MONTHS.forEach(m => {
@@ -1324,33 +1324,22 @@ function populateMonthSelectors() {
     }
   });
   
-  if (tnMonthSel) {
-    tnMonthSel.innerHTML = "";
-    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    const currentDate = new Date();
-    
-    // Generar opciones para 2026 y 2025
-    for (let year of [2026, 2025]) {
-      for (let m = 11; m >= 0; m--) {
-        const val = `${year}-${String(m + 1).padStart(2, '0')}`;
-        const opt = document.createElement("option");
-        opt.value = val;
-        opt.innerText = `${monthNames[m]} ${year}`;
-        tnMonthSel.appendChild(opt);
-      }
-    }
-  }
-  
   // Seleccionar mes actual
   if (panelSel) panelSel.value = state.panelMonth;
   if (costSel) costSel.value = state.viewCostsMonth;
   if (periodMonthSel) periodMonthSel.value = state.viewCostsMonth;
   if (tnMonthSel) {
     if (!state.tiendanubeMonth) {
-      const now = new Date();
-      state.tiendanubeMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      state.tiendanubeMonth = state.panelMonth;
     }
     tnMonthSel.value = state.tiendanubeMonth;
+  }
+  const tnYearSel = document.getElementById("tiendanube-year-select");
+  if (tnYearSel) {
+    if (!state.tiendanubeYear) {
+      state.tiendanubeYear = new Date().getFullYear().toString();
+    }
+    tnYearSel.value = state.tiendanubeYear;
   }
 }
 
@@ -7115,21 +7104,29 @@ async function renderIntegrationsStatus() {
       if (saveBtn) saveBtn.style.display = "block";
     }
 
-    // Month selector reading
+    // Month and Year selectors reading
     const monthSelect = document.getElementById("tiendanube-month-select");
+    const yearSelect = document.getElementById("tiendanube-year-select");
+    
     if (monthSelect && monthSelect.value) {
       state.tiendanubeMonth = monthSelect.value;
     } else {
-      const curr = new Date();
-      state.tiendanubeMonth = state.tiendanubeMonth || `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`;
+      state.tiendanubeMonth = state.tiendanubeMonth || MONTHS[new Date().getMonth()];
+    }
+    
+    if (yearSelect && yearSelect.value) {
+      state.tiendanubeYear = yearSelect.value;
+    } else {
+      state.tiendanubeYear = state.tiendanubeYear || new Date().getFullYear().toString();
     }
 
     // Calcular métricas de Tiendanube para el reporte adicional
     const tnSales = state.sales.filter(s => {
       if (s.origen !== "tiendanube" && !(s.id && s.id.includes("TN-"))) return false;
       const saleDate = new Date(s.date);
-      const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
-      return saleMonth === state.tiendanubeMonth;
+      const sMonthName = MONTHS[saleDate.getMonth()];
+      const sYearStr = saleDate.getFullYear().toString();
+      return sMonthName === state.tiendanubeMonth && sYearStr === state.tiendanubeYear;
     });
     
     // Ordenar de más nueva a más vieja
@@ -7759,7 +7756,9 @@ async function updateMonotributoTrackerUI(invoicesList) {
   const msgEl = document.getElementById("arca-monotributo-info-msg");
   
   if (accEl) {
-    accEl.innerText = `$ ${Math.round(accumulated).toLocaleString("es-AR")} / $ ${Math.round(limit).toLocaleString("es-AR")}`;
+    const formattedAcc = Math.round(accumulated).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formattedLimit = Math.round(limit).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    accEl.innerText = `$ ${formattedAcc} / $ ${formattedLimit}`;
   }
   
   const percent = limit > 0 ? Math.min(100, (accumulated / limit) * 100) : 0;
@@ -7780,7 +7779,7 @@ async function updateMonotributoTrackerUI(invoicesList) {
       badgeEl.className = "badge-red";
       badgeEl.style.borderColor = "rgba(229, 56, 59, 0.2)";
       badgeEl.style.background = "var(--bg-dark)";
-      msgEl.innerHTML = `<strong>🚨 Límite de Categoría Excedido (${percent.toFixed(1)}%)</strong>: Has superado el tope de $${limit.toLocaleString("es-AR")} anual de la Categoría ${category}. ARCA podría excluirte de oficio. Deberás recategorizarte o inscribirte en el Régimen General.`;
+      msgEl.innerHTML = `<strong>🚨 Límite de Categoría Excedido (${percent.toFixed(1)}%)</strong>: Has superado el tope de $${Math.round(limit).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")} anual de la Categoría ${category}. ARCA podría excluirte de oficio. Deberás recategorizarte o inscribirte en el Régimen General.`;
     } else if (percent >= 85) {
       badgeEl.innerText = "ALERTA LÍMITE";
       badgeEl.className = "badge-red";
@@ -7803,7 +7802,9 @@ async function updateMonotributoTrackerUI(invoicesList) {
   const monthMsgEl = document.getElementById("arca-monotributo-month-info-msg");
   
   if (monthAccEl) {
-    monthAccEl.innerText = `$ ${Math.round(monthlyAccumulated).toLocaleString("es-AR")} / $ ${Math.round(monthlyLimit).toLocaleString("es-AR")}`;
+    const formattedMonthlyAcc = Math.round(monthlyAccumulated).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formattedMonthlyLimit = Math.round(monthlyLimit).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    monthAccEl.innerText = `$ ${formattedMonthlyAcc} / $ ${formattedMonthlyLimit}`;
   }
   
   const monthPercent = monthlyLimit > 0 ? Math.min(100, (monthlyAccumulated / monthlyLimit) * 100) : 0;
@@ -8102,12 +8103,14 @@ function renderExternalMonthlyBillingList() {
     const mIndex = parseInt(monthStr) - 1;
     const name = `${monthNames[mIndex]} ${year}`;
     
+    const formattedAmount = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    
     const chip = document.createElement("div");
     chip.style.cssText = "background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #fff;";
     chip.innerHTML = `
       <div>
         <strong>${name}:</strong> 
-        <span style="color: var(--accent-emerald); font-weight: bold; margin-left: 4px;">$${Math.round(amount).toLocaleString("es-AR")}</span>
+        <span style="color: var(--accent-emerald); font-weight: bold; margin-left: 4px;">$${formattedAmount}</span>
       </div>
       <button type="button" style="background: none; border: none; color: var(--accent-red); cursor: pointer; padding: 0 4px; font-weight: bold; font-size: 0.8rem;" onclick="deleteExternalMonthlyBilling('${key}')">✕</button>
     `;
