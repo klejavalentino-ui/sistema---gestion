@@ -2610,5 +2610,32 @@ def simulate_invoice():
     except Exception as e:
         return handle_error(e)
 
+@app.route("/api/temp-setup-arca/<secret>", methods=["GET"])
+def temp_setup_arca(secret):
+    if secret != "Lafalda2025":
+        return "Unauthorized", 401
+    try:
+        import firebase_admin
+        from firebase_admin import auth, firestore
+        
+        db = firestore.client()
+        email = "matiascuchettidiaz@gmail.com"
+        user = auth.get_user_by_email(email)
+        uid = user.uid
+        
+        doc_ref = db.document(f"users/{uid}/integrations/arca")
+        config_data = {
+            "cuit": "20-36289595-3",
+            "condicion_iva": "monotributo",
+            "categoria_monotributo": "C",
+            "pos": "2",
+            "domicilio_fiscal": "Castelli 1229, Bahía Blanca",
+            "activo": True
+        }
+        doc_ref.set(config_data)
+        return f"Successfully connected ARCA for {email} (UID: {uid})"
+    except Exception as e:
+        return f"Error connecting ARCA: {str(e)}", 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

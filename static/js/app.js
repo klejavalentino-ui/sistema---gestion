@@ -7112,6 +7112,9 @@ async function renderIntegrationsStatus() {
       const saleDate = new Date(s.date);
       return MONTHS[saleDate.getMonth()] === state.tiendanubeMonth && saleDate.getFullYear() === now.getFullYear();
     });
+    
+    // Ordenar de más nueva a más vieja
+    tnSales.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     let tnGross = 0;
     let tnFees = 0;
@@ -7402,6 +7405,9 @@ function exportTiendanubeToExcel() {
     const saleDate = new Date(s.date);
     return MONTHS[saleDate.getMonth()] === state.tiendanubeMonth && saleDate.getFullYear() === now.getFullYear();
   });
+
+  // Ordenar de más nueva a más vieja
+  tnSales.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (tnSales.length === 0) {
     showToast("No hay ventas de Tiendanube en este periodo para exportar.", true);
