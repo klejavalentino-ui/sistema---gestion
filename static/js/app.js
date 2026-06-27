@@ -7293,7 +7293,8 @@ async function renderIntegrationsStatus() {
       if (arcaBadge) {
         let text = "Configurado - Modo Simulación";
         if (arca.cert_content && arca.key_content) {
-          text += " (Llaves cargadas)";
+          const isHomo = arca.cert_content.toLowerCase().includes("homo") || arca.cert_content.toLowerCase().includes("wsaahomo");
+          text = isHomo ? "Conectado - Homologación (AFIP)" : "Conectado - Producción (Facturación Real)";
         }
         arcaBadge.innerText = text;
         arcaBadge.className = "badge-green";
@@ -7698,7 +7699,7 @@ async function updateMonotributoTrackerUI(invoicesList) {
 
 async function saveArcaConfig(event) {
   event.preventDefault();
-  const cuit = document.getElementById("arca-cuit").value;
+  const cuit = document.getElementById("arca-cuit").value.replace(/\D/g, "");
   const condicion = document.getElementById("arca-condicion-iva").value;
   const pos = document.getElementById("arca-pos").value;
   const categoria = document.getElementById("arca-categoria-monotributo").value;

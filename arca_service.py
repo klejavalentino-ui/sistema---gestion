@@ -17,6 +17,21 @@ INVOICE_TYPES_MAP = {
     "Nota de Crédito C": 13,
 }
 
+def _post_request(url, data, headers, timeout=30):
+    from requests.adapters import HTTPAdapter
+    from urllib3.util import ssl_
+    import ssl
+    
+    class LegacyContextAdapter(HTTPAdapter):
+        def init_poolmanager(self, *args, **kwargs):
+            ctx = ssl_.create_urllib3_context(ciphers="DEFAULT@SECLEVEL=1")
+            kwargs['ssl_context'] = ctx
+            return super().init_poolmanager(*args, **kwargs)
+            
+    session = requests.Session()
+    session.mount("https://", LegacyContextAdapter())
+    return session.post(url, data=data, headers=headers, timeout=timeout)
+
 class WSAAClient:
     def __init__(self, cert_content, key_content, sandbox=True):
         self.cert_content = cert_content
@@ -39,28 +54,28 @@ class WSAAClient:
     <service>{service}</service>
 </loginTicketRequest>"""
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tra_file = os.path.join(tmpdir, "tra.xml")
-            cert_file = os.path.join(tmpdir, "cert.crt")
-            key_file = os.path.join(tmpdir, "key.key")
-            out_file = os.path.join(tmpdir, "tra.xml.cms")
-            
-            with open(tra_file, "w", encoding="utf-8") as f:
-                f.write(tra_xml)
-            with open(cert_file, "w", encoding="utf-8") as f:
-                f.write(self.cert_content)
-            with open(key_file, "w", encoding="utf-8") as f:
-                f.write(self.key_content)
-                
-            cmd = ["openssl", "cms", "-sign", "-in", tra_file, "-signer", cert_file, "-inkey", key_file, "-out", out_file, "-nodetach", "-outform", "PEM"]
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
-            
-            with open(out_file, "r") as f:
-                cms_content = f.read()
-                
-            lines = cms_content.splitlines()
-            base64_lines = [l.strip() for l in lines if not l.startswith("-----")]
-            cms_signature = "".join(base64_lines)
+        # Sign using cryptography library (pure Python)
+        from cryptography.hazmat.primitives.serialization import pkcs7, load_pem_private_key
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography import x509
+
+        cert_bytes = self.cert_content.encode("utf-8") if isinstance(self.cert_content, str) else self.cert_content
+        key_bytes = self.key_content.encode("utf-8") if isinstance(self.key_content, str) else self.key_content
+
+        cert = x509.load_pem_x509_certificate(cert_bytes)
+        private_key = load_pem_private_key(key_bytes, password=None)
+
+        signature_pem = (
+            pkcs7.PKCS7SignatureBuilder()
+            .set_data(tra_xml.encode("utf-8"))
+            .add_signer(cert, private_key, hashes.SHA256())
+            .sign(serialization.Encoding.PEM, [])
+        )
+
+        cms_content = signature_pem.decode("utf-8")
+        lines = cms_content.splitlines()
+        base64_lines = [l.strip() for l in lines if not l.startswith("-----")]
+        cms_signature = "".join(base64_lines)
 
         soap_envelope = f"""<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsaa="http://wsaa.view.sua.dvadac.desein.afip.gov">
    <soapenv:Header/>
@@ -76,7 +91,7 @@ class WSAAClient:
             "SOAPAction": ""
         }
         
-        r = requests.post(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
+        r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
         r.raise_for_status()
         
         root = ET.fromstring(r.text)
@@ -96,7 +111,7 @@ class WSFEClient:
         self.sign = sign
         self.cuit = "".join(c for c in str(cuit) if c.isdigit())
         self.sandbox = sandbox
-        self.url = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx" if sandbox else "https://servicios1.afip.gob.ar/wsfev1/service.asmx"
+        self.url = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx" if sandbox else "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
 
     def get_last_authorized_voucher(self, pto_vta, cbte_tipo):
         soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
@@ -119,7 +134,7 @@ class WSFEClient:
             "SOAPAction": "http://ar.gov.afip.dif.FEV1/FECompUltimoAutorizado"
         }
         
-        r = requests.post(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
+        r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
         r.raise_for_status()
         
         root = ET.fromstring(r.text)
@@ -176,7 +191,7 @@ class WSFEClient:
             "SOAPAction": "http://ar.gov.afip.dif.FEV1/FECAESolicitar"
         }
         
-        r = requests.post(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
+        r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
         r.raise_for_status()
         
         root = ET.fromstring(r.text)
