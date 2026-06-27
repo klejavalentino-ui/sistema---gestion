@@ -7646,31 +7646,64 @@ async function updateMonotributoTrackerUI(invoicesList) {
   if (!selectCondicion || selectCondicion.value !== "monotributo") return;
   
   const categorySelect = document.getElementById("arca-categoria-monotributo");
-  const category = categorySelect ? categorySelect.value : "A";
-  const limit = MONOTRIBUTO_LIMITS_2026[category] || 6450000;
+  const category = categorySelect ? categorySelect.value : "C";
+  const limit = MONOTRIBUTO_LIMITS_2026[category] || 21113696.52;
   
-  let invoices = invoicesList;
-  if (!invoices) {
-    try {
-      invoices = await apiRequest("/api/invoices") || [];
-    } catch (e) {
-      console.error(e);
-      invoices = [];
-    }
+  // 1. Cargar las ventas reales para tener la facturación real
+  let sales = [];
+  try {
+    sales = await apiRequest("/api/sales") || [];
+  } catch (e) {
+    console.error("Error loading sales for Monotributo tracker:", e);
   }
   
-  // Sumar la facturación de los últimos 12 meses corridos (365 días)
   const oneYearAgo = new Date();
   oneYearAgo.setDate(oneYearAgo.getDate() - 365);
   
+  // 2. Poblar selector de meses si está vacío
+  const monthSelect = document.getElementById("arca-monotributo-month-select");
+  if (monthSelect && monthSelect.options.length === 0) {
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const currentDate = new Date();
+    
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.innerText = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+      monthSelect.appendChild(opt);
+    }
+    
+    const currentVal = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+    monthSelect.value = currentVal;
+  }
+  
+  // 3. Sumar la facturación de los últimos 12 meses (ventas no canceladas)
   let accumulated = 0;
-  invoices.forEach(inv => {
-    const invDate = new Date(inv.date);
-    if (invDate >= oneYearAgo && inv.status === "Aprobado") {
-      accumulated += parseFloat(inv.total) || 0;
+  sales.forEach(sale => {
+    if (sale.status === "cancelled") return;
+    const saleDate = new Date(sale.date);
+    if (saleDate >= oneYearAgo) {
+      accumulated += parseFloat(sale.total) || 0;
     }
   });
   
+  // 4. Calcular facturación del mes seleccionado
+  let monthlyAccumulated = 0;
+  const selectedMonth = monthSelect ? monthSelect.value : "";
+  if (selectedMonth) {
+    sales.forEach(sale => {
+      if (sale.status === "cancelled") return;
+      const saleDate = new Date(sale.date);
+      const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
+      if (saleMonth === selectedMonth) {
+        monthlyAccumulated += parseFloat(sale.total) || 0;
+      }
+    });
+  }
+  
+  // 5. Actualizar interfaz anual
   const accEl = document.getElementById("arca-monotributo-accumulated");
   const pbEl = document.getElementById("arca-monotributo-progressbar");
   const badgeEl = document.getElementById("arca-monotributo-alert-badge");
@@ -7683,18 +7716,18 @@ async function updateMonotributoTrackerUI(invoicesList) {
   const percent = limit > 0 ? Math.min(100, (accumulated / limit) * 100) : 0;
   if (pbEl) {
     pbEl.style.width = `${percent}%`;
-    if (percent < 80) {
-      pbEl.style.backgroundColor = "var(--accent-emerald)";
-    } else if (percent < 95) {
+    if (percent >= 95) {
+      pbEl.style.backgroundColor = "var(--accent-red)";
+    } else if (percent >= 80) {
       pbEl.style.backgroundColor = "#f59e0b"; // Naranja
     } else {
-      pbEl.style.backgroundColor = "var(--accent-red)"; // Rojo
+      pbEl.style.backgroundColor = "var(--accent-emerald)";
     }
   }
   
   if (badgeEl && msgEl) {
     if (percent >= 100) {
-      badgeEl.innerText = "CRÍTICO - EXCLUIDO";
+      badgeEl.innerText = "CATEGORÍA EXCEDIDA";
       badgeEl.className = "badge-red";
       badgeEl.style.borderColor = "rgba(229, 56, 59, 0.2)";
       badgeEl.style.background = "var(--bg-dark)";
@@ -7711,6 +7744,38 @@ async function updateMonotributoTrackerUI(invoicesList) {
       badgeEl.style.borderColor = "rgba(16, 185, 129, 0.2)";
       badgeEl.style.background = "var(--bg-dark)";
       msgEl.innerHTML = `<strong>✓ Control al Día (${percent.toFixed(1)}%)</strong>: Tu facturación anual acumulada está dentro de los límites saludables para la Categoría ${category}.`;
+    }
+  }
+  
+  // 6. Actualizar interfaz mensual
+  const monthlyLimit = limit / 12;
+  const monthAccEl = document.getElementById("arca-monotributo-month-accumulated");
+  const monthPbEl = document.getElementById("arca-monotributo-month-progressbar");
+  const monthMsgEl = document.getElementById("arca-monotributo-month-info-msg");
+  
+  if (monthAccEl) {
+    monthAccEl.innerText = `$ ${Math.round(monthlyAccumulated).toLocaleString("es-AR")} / $ ${Math.round(monthlyLimit).toLocaleString("es-AR")}`;
+  }
+  
+  const monthPercent = monthlyLimit > 0 ? Math.min(100, (monthlyAccumulated / monthlyLimit) * 100) : 0;
+  if (monthPbEl) {
+    monthPbEl.style.width = `${monthPercent}%`;
+    if (monthPercent >= 95) {
+      monthPbEl.style.backgroundColor = "var(--accent-red)";
+    } else if (monthPercent >= 80) {
+      monthPbEl.style.backgroundColor = "#f59e0b"; // Naranja
+    } else {
+      monthPbEl.style.backgroundColor = "var(--accent-blue)";
+    }
+  }
+  
+  if (monthMsgEl) {
+    if (monthPercent >= 100) {
+      monthMsgEl.innerHTML = `<strong>⚠️ Límite Mensual Superado (${monthPercent.toFixed(1)}%)</strong>: Superaste la facturación mensual prorrateada ($${Math.round(monthlyLimit).toLocaleString("es-AR")}) en la Categoría ${category}. Controlá la proyección anual.`;
+    } else if (monthPercent >= 85) {
+      monthMsgEl.innerHTML = `<strong>⚠️ Alerta Límite Mensual (${monthPercent.toFixed(1)}%)</strong>: Estás cerca del límite mensual prorrateado para la Categoría ${category}.`;
+    } else {
+      monthMsgEl.innerHTML = `<strong>✓ Mensual Saludable (${monthPercent.toFixed(1)}%)</strong>: Facturación mensual dentro de la porción proporcional de la Categoría ${category}.`;
     }
   }
 }
