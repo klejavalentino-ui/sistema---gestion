@@ -1944,6 +1944,8 @@ def sync_tiendanube_catalog_route():
                 if sku in existing_products_by_sku:
                     existing_prod = existing_products_by_sku[sku]
                     existing_prod["name"] = clean_name
+                    existing_prod["size"] = size
+                    existing_prod["color"] = color
                     existing_prod["category"] = product_category
                     if image_url:
                         existing_prod["image_url"] = image_url

@@ -7108,7 +7108,7 @@ async function renderIntegrationsStatus() {
     // Calcular métricas de Tiendanube para el reporte adicional
     const now = new Date();
     const tnSales = state.sales.filter(s => {
-      if (s.origen !== "tiendanube") return false;
+      if (s.origen !== "tiendanube" && !(s.id && s.id.includes("TN-"))) return false;
       const saleDate = new Date(s.date);
       return MONTHS[saleDate.getMonth()] === state.tiendanubeMonth && saleDate.getFullYear() === now.getFullYear();
     });
@@ -7394,6 +7394,107 @@ async function syncTiendanubeSales() {
     showToast("Error en sincronización de ventas: " + error.message, true);
   }
 }
+
+function exportTiendanubeToExcel() {
+  const now = new Date();
+  const tnSales = state.sales.filter(s => {
+    if (s.origen !== "tiendanube" && !(s.id && s.id.includes("TN-"))) return false;
+    const saleDate = new Date(s.date);
+    return MONTHS[saleDate.getMonth()] === state.tiendanubeMonth && saleDate.getFullYear() === now.getFullYear();
+  });
+
+  if (tnSales.length === 0) {
+    showToast("No hay ventas de Tiendanube en este periodo para exportar.", true);
+    return;
+  }
+
+  // 1. Hoja: Resumen Métricas
+  let tnGross = 0;
+  let tnFees = 0;
+  let tnNet = 0;
+  let tnUnits = 0;
+  let tnOperatingCosts = 0;
+
+  const salesRows = [];
+  tnSales.forEach(s => {
+    const grossVal = s.total || 0;
+    const fixedFee = s.fee_fijo_tn !== undefined ? parseFloat(s.fee_fijo_tn) : 300;
+    const pctFee = s.comision_pasarela_pago !== undefined ? parseFloat(s.comision_pasarela_pago) : 5;
+    const sFees = fixedFee + (pctFee / 100 * grossVal);
+    
+    let saleOpCost = 0;
+    const items = s.items || [];
+    const itemDetails = [];
+    items.forEach(it => {
+      const p = it.product || {};
+      const qty = parseInt(it.quantity) || 0;
+      
+      let itemExtraCost = 0;
+      if (s.extras) {
+        Object.keys(s.extras).forEach(catKey => {
+          const extraId = s.extras[catKey];
+          if (extraId && extraId !== "0") {
+            const extrasObj = p.extras || {};
+            let hasStatic = false;
+            if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+            else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+            else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+            if (!hasStatic) {
+              const list = state.extras[catKey] || [];
+              const found = list.find(o => o.id === extraId);
+              if (found) {
+                itemExtraCost += parseFloat(found.cost) || 0;
+              }
+            }
+          }
+        });
+      }
+      
+      const unitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
+      saleOpCost += unitCost * qty;
+      tnUnits += qty;
+      itemDetails.push(`${qty} u. x ${p.name || 'Prenda'} (${it.size}${p.color ? ' | ' + p.color : ''})`);
+    });
+
+    tnOperatingCosts += saleOpCost;
+    const sNet = grossVal - sFees - saleOpCost;
+    
+    tnGross += grossVal;
+    tnFees += sFees;
+    tnNet += sNet;
+
+    salesRows.push({
+      "ID Pedido": s.id,
+      "Fecha": new Date(s.date).toLocaleString("es-AR"),
+      "Monto Bruto ($)": Math.round(grossVal),
+      "Costos Financieros ($)": Math.round(sFees),
+      "Costos Operativos ($)": Math.round(saleOpCost),
+      "Ganancia Neta ($)": Math.round(sNet),
+      "Pasarela / Método": s.method || "Tiendanube",
+      "Detalle de Productos": itemDetails.join("; ")
+    });
+  });
+
+  const summaryData = [
+    { "Métrica": "Ventas Brutas TN", "Valor": Math.round(tnGross) },
+    { "Métrica": "Costos Financieros TN", "Valor": Math.round(tnFees) },
+    { "Métrica": "Costos Operativos TN", "Valor": Math.round(tnOperatingCosts) },
+    { "Métrica": "Ganancia Neta TN", "Valor": Math.round(tnNet) },
+    { "Métrica": "Prendas Vendidas", "Valor": tnUnits },
+    { "Métrica": "Ticket Promedio", "Valor": tnSales.length > 0 ? Math.round(tnGross / tnSales.length) : 0 }
+  ];
+
+  const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+  const wsSales = XLSX.utils.json_to_sheet(salesRows);
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen Métricas");
+  XLSX.utils.book_append_sheet(wb, wsSales, "Ventas Online");
+
+  XLSX.writeFile(wb, `Reporte_Tiendanube_${state.tiendanubeMonth}.xlsx`);
+}
+
 
 const MONOTRIBUTO_LIMITS_2026 = {
   'A': 6450000,

@@ -444,14 +444,7 @@
               <span id="pos-cart-count-badge" class="pos-cart-badge">0 items</span>
             </div>
 
-            <!-- Selector de Origen de Venta -->
-            <div style="padding: 8px 14px; background: rgba(255, 255, 255, 0.02); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
-              <span style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Origen de Venta</span>
-              <select id="pos-sale-origin" class="form-input" style="width: auto; padding: 4px 8px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" onchange="renderPOSCart()">
-                <option value="local">Local</option>
-                <option value="tiendanube">Tiendanube</option>
-              </select>
-            </div>
+
 
             <!-- Contenedor scrollable intermedio para asegurar que el pie de página con el botón Cobrar nunca se oculte -->
             <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0;">
@@ -1172,9 +1165,14 @@
             <div id="tiendanube-reports-box" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h4 style="color: #fff; margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
-                <select id="tiendanube-month-select" class="form-select" style="width: 140px; padding: 6px 10px; font-size: 0.8rem;" onchange="renderIntegrationsStatus()">
-                  <!-- Cargado dinámicamente -->
-                </select>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select id="tiendanube-month-select" class="form-select" style="width: 140px; padding: 6px 10px; font-size: 0.8rem;" onchange="renderIntegrationsStatus()">
+                    <!-- Cargado dinámicamente -->
+                  </select>
+                  <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; background: var(--bg-card); border: 1px solid var(--border-color); color: #fff;" onclick="exportTiendanubeToExcel()">
+                    <i class="fas fa-file-excel" style="color: #107c41;"></i> Exportar Excel
+                  </button>
+                </div>
               </div>
               
               <div class="grid-5" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px;">
