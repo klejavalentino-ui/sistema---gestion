@@ -1312,7 +1312,7 @@ function populateMonthSelectors() {
   const periodMonthSel = document.getElementById("cost-period-month");
   const tnMonthSel = document.getElementById("tiendanube-month-select");
   
-  [panelSel, costSel, periodMonthSel, tnMonthSel].forEach(select => {
+  [panelSel, costSel, periodMonthSel].forEach(select => {
     if (select) {
       select.innerHTML = "";
       MONTHS.forEach(m => {
@@ -1324,13 +1324,31 @@ function populateMonthSelectors() {
     }
   });
   
+  if (tnMonthSel) {
+    tnMonthSel.innerHTML = "";
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const currentDate = new Date();
+    
+    // Generar opciones para 2026 y 2025
+    for (let year of [2026, 2025]) {
+      for (let m = 11; m >= 0; m--) {
+        const val = `${year}-${String(m + 1).padStart(2, '0')}`;
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.innerText = `${monthNames[m]} ${year}`;
+        tnMonthSel.appendChild(opt);
+      }
+    }
+  }
+  
   // Seleccionar mes actual
   if (panelSel) panelSel.value = state.panelMonth;
   if (costSel) costSel.value = state.viewCostsMonth;
   if (periodMonthSel) periodMonthSel.value = state.viewCostsMonth;
   if (tnMonthSel) {
     if (!state.tiendanubeMonth) {
-      state.tiendanubeMonth = state.panelMonth;
+      const now = new Date();
+      state.tiendanubeMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     }
     tnMonthSel.value = state.tiendanubeMonth;
   }
@@ -7102,15 +7120,16 @@ async function renderIntegrationsStatus() {
     if (monthSelect && monthSelect.value) {
       state.tiendanubeMonth = monthSelect.value;
     } else {
-      state.tiendanubeMonth = state.tiendanubeMonth || MONTHS[new Date().getMonth()];
+      const curr = new Date();
+      state.tiendanubeMonth = state.tiendanubeMonth || `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`;
     }
 
     // Calcular métricas de Tiendanube para el reporte adicional
-    const now = new Date();
     const tnSales = state.sales.filter(s => {
       if (s.origen !== "tiendanube" && !(s.id && s.id.includes("TN-"))) return false;
       const saleDate = new Date(s.date);
-      return MONTHS[saleDate.getMonth()] === state.tiendanubeMonth && saleDate.getFullYear() === now.getFullYear();
+      const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
+      return saleMonth === state.tiendanubeMonth;
     });
     
     // Ordenar de más nueva a más vieja
@@ -7183,9 +7202,15 @@ async function renderIntegrationsStatus() {
 
       tnSalesHTML += `
         <div style="border-bottom: 1px solid rgba(255,255,255,0.03); padding: 8px 0;">
-          <div style="display: flex; justify-content: space-between;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
               <strong style="color: #fff;">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
+              <span style="margin-left: 8px;">
+                <select class="form-input" style="width: auto; padding: 2px 4px; font-size: 0.65rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff; cursor: pointer;" onchange="changeSaleFiscalStatus('${s.id}', this.value)">
+                  <option value="no_declarada" ${s.fiscal_status === 'no_declarada' || !s.fiscal_status ? 'selected' : ''}>No Declarada</option>
+                  <option value="declarada" ${s.fiscal_status === 'declarada' ? 'selected' : ''}>Facturada</option>
+                </select>
+              </span>
             </div>
             <div style="text-align: right;">
               <span style="color: #fff;">Bruto: $${Math.round(grossVal).toLocaleString()}</span> | 
@@ -7277,7 +7302,6 @@ async function renderIntegrationsStatus() {
     const condicionSelect = document.getElementById("arca-condicion-iva");
     const posInput = document.getElementById("arca-pos");
     const categoriaSelect = document.getElementById("arca-categoria-monotributo");
-    const externaInput = document.getElementById("arca-facturacion-externa");
     
     const arcaSaveBtn = document.getElementById("arca-save-btn");
     const arcaDisconnectBtn = document.getElementById("arca-disconnect-btn");
@@ -7318,10 +7342,6 @@ async function renderIntegrationsStatus() {
         posInput.value = arca.pos || "0002";
         posInput.disabled = true;
       }
-      if (externaInput) {
-        externaInput.value = arca.facturacion_externa || 0;
-        externaInput.disabled = true;
-      }
       if (arcaCertFile) arcaCertFile.disabled = true;
       if (arcaKeyFile) arcaKeyFile.disabled = true;
       
@@ -7347,7 +7367,6 @@ async function renderIntegrationsStatus() {
       if (condicionSelect) condicionSelect.disabled = false;
       if (categoriaSelect) categoriaSelect.disabled = false;
       if (posInput) posInput.disabled = false;
-      if (externaInput) externaInput.disabled = false;
       if (arcaCertFile) arcaCertFile.disabled = false;
       if (arcaKeyFile) arcaKeyFile.disabled = false;
       
@@ -7374,6 +7393,9 @@ async function renderIntegrationsStatus() {
     if (condicionSelect && condicionSelect.value === "monotributo") {
       await updateMonotributoTrackerUI(invoices);
     }
+    
+    // Renderizar registros de facturación externa
+    renderExternalMonthlyBillingList();
 
   } catch (error) {
     console.error("Error al obtener integraciones:", error);
@@ -7663,13 +7685,26 @@ async function updateMonotributoTrackerUI(invoicesList) {
     console.error("Error loading sales for Monotributo tracker:", e);
   }
   
-  const externaInput = document.getElementById("arca-facturacion-externa");
-  const externaBilling = externaInput ? parseFloat(externaInput.value) || 0 : 0;
+  // 2. Resolver Filtro de tipo de venta (Solo Facturadas vs Todas)
+  const trackerFilter = document.getElementById("arca-tracker-filter")?.value || "solo_facturadas";
+  
+  // 3. Resolver Facturación Externa Mensual (Mapa)
+  const arca = state.integrations?.arca || {};
+  const externaMap = arca.facturacion_externa_mensual || {};
+  
+  // Sumar facturación externa del mapa para los últimos 12 meses calendarizados
+  let externaAccumulated = 0;
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    externaAccumulated += parseFloat(externaMap[key]) || 0;
+  }
   
   const oneYearAgo = new Date();
   oneYearAgo.setDate(oneYearAgo.getDate() - 365);
   
-  // 2. Poblar selector de meses si está vacío
+  // 4. Poblar selector de meses si está vacío
   const monthSelect = document.getElementById("arca-monotributo-month-select");
   if (monthSelect && monthSelect.options.length === 0) {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -7688,22 +7723,27 @@ async function updateMonotributoTrackerUI(invoicesList) {
     monthSelect.value = currentVal;
   }
   
-  // 3. Sumar la facturación de los últimos 12 meses (ventas no canceladas + facturación externa)
-  let accumulated = externaBilling;
+  // 5. Sumar la facturación de los últimos 12 meses
+  let accumulated = externaAccumulated;
   sales.forEach(sale => {
     if (sale.status === "cancelled") return;
+    if (trackerFilter === "solo_facturadas" && sale.fiscal_status !== "declarada") return;
+    
     const saleDate = new Date(sale.date);
     if (saleDate >= oneYearAgo) {
       accumulated += parseFloat(sale.total) || 0;
     }
   });
   
-  // 4. Calcular facturación del mes seleccionado
-  let monthlyAccumulated = 0;
+  // 6. Calcular facturación del mes seleccionado
   const selectedMonth = monthSelect ? monthSelect.value : "";
+  const monthlyExterna = parseFloat(externaMap[selectedMonth]) || 0;
+  let monthlyAccumulated = monthlyExterna;
   if (selectedMonth) {
     sales.forEach(sale => {
       if (sale.status === "cancelled") return;
+      if (trackerFilter === "solo_facturadas" && sale.fiscal_status !== "declarada") return;
+      
       const saleDate = new Date(sale.date);
       const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
       if (saleMonth === selectedMonth) {
@@ -7712,7 +7752,7 @@ async function updateMonotributoTrackerUI(invoicesList) {
     });
   }
   
-  // 5. Actualizar interfaz anual
+  // 7. Actualizar interfaz anual
   const accEl = document.getElementById("arca-monotributo-accumulated");
   const pbEl = document.getElementById("arca-monotributo-progressbar");
   const badgeEl = document.getElementById("arca-monotributo-alert-badge");
@@ -7756,7 +7796,7 @@ async function updateMonotributoTrackerUI(invoicesList) {
     }
   }
   
-  // 6. Actualizar interfaz mensual
+  // 8. Actualizar interfaz mensual
   const monthlyLimit = limit / 12;
   const monthAccEl = document.getElementById("arca-monotributo-month-accumulated");
   const monthPbEl = document.getElementById("arca-monotributo-month-progressbar");
@@ -7795,7 +7835,6 @@ async function saveArcaConfig(event) {
   const condicion = document.getElementById("arca-condicion-iva").value;
   const pos = document.getElementById("arca-pos").value;
   const categoria = document.getElementById("arca-categoria-monotributo").value;
-  const externaVal = parseFloat(document.getElementById("arca-facturacion-externa").value) || 0;
   
   const certFile = document.getElementById("arca-cert-file").files[0];
   const keyFile = document.getElementById("arca-key-file").files[0];
@@ -7826,9 +7865,12 @@ async function saveArcaConfig(event) {
       condicion_iva: condicion,
       categoria_monotributo: categoria,
       pos: pos,
-      facturacion_externa: externaVal,
       activo: true
     };
+    
+    if (state.integrations?.arca?.facturacion_externa_mensual) {
+      payload.facturacion_externa_mensual = state.integrations.arca.facturacion_externa_mensual;
+    }
     
     if (certText) payload.cert_content = certText;
     if (keyText) payload.key_content = keyText;
@@ -7979,6 +8021,117 @@ async function loadArcaInvoices() {
   } catch (error) {
     console.error("Error al cargar facturas de ARCA:", error);
     return [];
+  }
+}
+
+async function changeSaleFiscalStatus(saleId, status) {
+  try {
+    await apiRequest(`/api/sales/${saleId}/fiscal-status`, "PUT", { fiscal_status: status });
+    showToast("Estado fiscal de la venta actualizado.");
+    
+    const localSale = state.sales.find(s => s.id === saleId);
+    if (localSale) {
+      localSale.fiscal_status = status;
+    }
+    
+    await updateMonotributoTrackerUI();
+    renderIntegrationsStatus();
+  } catch (error) {
+    showToast("Error al actualizar estado fiscal: " + error.message, true);
+  }
+}
+
+async function saveExternalMonthlyBilling() {
+  const month = document.getElementById("externa-month").value;
+  const year = document.getElementById("externa-year").value;
+  const amount = parseFloat(document.getElementById("externa-amount").value) || 0;
+  
+  if (amount <= 0) {
+    showToast("Por favor, ingresá un monto mayor a cero.", true);
+    return;
+  }
+  
+  const key = `${year}-${month}`;
+  
+  try {
+    showToast("Guardando facturación externa...");
+    let integrations = state.integrations || {};
+    let arca = integrations.arca || {};
+    
+    if (!arca.facturacion_externa_mensual) {
+      arca.facturacion_externa_mensual = {};
+    }
+    
+    arca.facturacion_externa_mensual[key] = amount;
+    
+    await apiRequest("/api/integrations/arca", "POST", arca);
+    showToast("¡Registro de facturación externa guardado!");
+    
+    document.getElementById("externa-amount").value = "";
+    
+    await renderIntegrationsStatus();
+    await updateMonotributoTrackerUI();
+  } catch (e) {
+    showToast("Error al guardar facturación externa: " + e.message, true);
+  }
+}
+
+function renderExternalMonthlyBillingList() {
+  const container = document.getElementById("externa-monthly-list");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  
+  const arca = state.integrations?.arca;
+  if (!arca || !arca.facturacion_externa_mensual) {
+    container.innerHTML = `<div style="grid-column: 1/-1; color: var(--text-gray); font-size: 0.75rem;">No hay registros cargados.</div>`;
+    return;
+  }
+  
+  const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const sortedKeys = Object.keys(arca.facturacion_externa_mensual).sort().reverse();
+  
+  if (sortedKeys.length === 0) {
+    container.innerHTML = `<div style="grid-column: 1/-1; color: var(--text-gray); font-size: 0.75rem;">No hay registros cargados.</div>`;
+    return;
+  }
+  
+  sortedKeys.forEach(key => {
+    const amount = arca.facturacion_externa_mensual[key];
+    const [year, monthStr] = key.split("-");
+    const mIndex = parseInt(monthStr) - 1;
+    const name = `${monthNames[mIndex]} ${year}`;
+    
+    const chip = document.createElement("div");
+    chip.style.cssText = "background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #fff;";
+    chip.innerHTML = `
+      <div>
+        <strong>${name}:</strong> 
+        <span style="color: var(--accent-emerald); font-weight: bold; margin-left: 4px;">$${Math.round(amount).toLocaleString("es-AR")}</span>
+      </div>
+      <button type="button" style="background: none; border: none; color: var(--accent-red); cursor: pointer; padding: 0 4px; font-weight: bold; font-size: 0.8rem;" onclick="deleteExternalMonthlyBilling('${key}')">✕</button>
+    `;
+    container.appendChild(chip);
+  });
+}
+
+async function deleteExternalMonthlyBilling(key) {
+  if (!confirm("¿Estás seguro de eliminar este registro de facturación externa?")) return;
+  
+  try {
+    showToast("Eliminando registro...");
+    let arca = state.integrations?.arca || {};
+    if (arca.facturacion_externa_mensual) {
+      delete arca.facturacion_externa_mensual[key];
+    }
+    
+    await apiRequest("/api/integrations/arca", "POST", arca);
+    showToast("Registro eliminado con éxito.");
+    
+    await renderIntegrationsStatus();
+    await updateMonotributoTrackerUI();
+  } catch (e) {
+    showToast("Error al eliminar registro: " + e.message, true);
   }
 }
 

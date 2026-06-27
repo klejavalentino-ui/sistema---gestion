@@ -1273,10 +1273,6 @@
                   <label class="form-label" for="arca-pos">Punto de Venta</label>
                   <input type="text" id="arca-pos" class="form-input" placeholder="Ej: 0002" value="0002">
                 </div>
-                <div class="form-group" id="arca-externa-group" style="margin-bottom: 0;">
-                  <label class="form-label" for="arca-facturacion-externa">Facturación Externa AFIP ($)</label>
-                  <input type="number" id="arca-facturacion-externa" class="form-input" placeholder="Ej: 500000" value="0" step="any" onchange="updateMonotributoTrackerUI()">
-                </div>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                 <div class="form-group" style="margin-bottom: 0;">
@@ -1301,6 +1297,15 @@
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <span style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">🔍 Control de Facturación / Recategorización</span>
                 <span id="arca-monotributo-alert-badge" class="badge-blue" style="font-size: 0.65rem; padding: 2px 6px;">Cargando...</span>
+              </div>
+              
+              <!-- FILTRO TIPO DE VENTA -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: rgba(255,255,255,0.01); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+                <span style="font-size: 0.7rem; color: var(--text-gray-light);">Computar para Recategorización:</span>
+                <select id="arca-tracker-filter" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
+                  <option value="solo_facturadas" selected>Solo Ventas Facturadas (Fiscal)</option>
+                  <option value="todas">Total de Ventas Comerciales (Con y Sin Facturar)</option>
+                </select>
               </div>
               
               <!-- CONTROL ANUAL -->
@@ -1349,6 +1354,55 @@
                   <p style="margin: 4px 0 0 0; font-size: 0.65rem; color: var(--text-gray-light); line-height: 1.3;">
                     Perfil activo para emitir Factura clase A (con discriminación de IVA) y clase B (a consumidores finales). No sujeto a topes anuales de Monotributo.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- REGISTRO DE FACTURACIÓN EXTERNA AFIP (HISTÓRICA / MENSUAL) -->
+            <div id="arca-externa-monthly-card" class="idx-card" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+              <h4 style="color: #fff; margin: 0 0 15px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">💼 Registro de Facturación Externa (AFIP)</h4>
+              
+              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; align-items: end;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="externa-month">Mes</label>
+                    <select id="externa-month" class="form-input" style="background: var(--bg-dark); border-color: var(--border-color); color: #fff;">
+                      <option value="01">Enero</option>
+                      <option value="02">Febrero</option>
+                      <option value="03">Marzo</option>
+                      <option value="04">Abril</option>
+                      <option value="05">Mayo</option>
+                      <option value="06">Junio</option>
+                      <option value="07">Julio</option>
+                      <option value="08">Agosto</option>
+                      <option value="09">Septiembre</option>
+                      <option value="10">Octubre</option>
+                      <option value="11">Noviembre</option>
+                      <option value="12">Diciembre</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="externa-year">Año</label>
+                    <select id="externa-year" class="form-input" style="background: var(--bg-dark); border-color: var(--border-color); color: #fff;">
+                      <option value="2024">2024</option>
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                      <option value="2027">2027</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="externa-amount">Monto Facturado ($)</label>
+                    <input type="number" id="externa-amount" class="form-input" placeholder="Ej: 500000" min="0" step="any" style="border-color: var(--border-color); color: #fff;">
+                  </div>
+                  <button type="button" class="btn btn-primary" style="padding: 8px 12px; font-size: 0.8rem; height: 36px;" onclick="saveExternalMonthlyBilling()">Guardar Registro</button>
+                </div>
+
+                <!-- Lista de montos cargados -->
+                <div style="margin-top: 15px;">
+                  <strong style="color: var(--text-gray); font-size: 0.7rem; text-transform: uppercase;">Registros Guardados (Últimos 12 meses):</strong>
+                  <div id="externa-monthly-list" style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">
+                    <!-- Se carga dinámicamente -->
+                  </div>
                 </div>
               </div>
             </div>

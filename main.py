@@ -1416,6 +1416,33 @@ def get_sales():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/sales/<sale_id>/fiscal-status", methods=["PUT"])
+def update_sale_fiscal_status(sale_id):
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        data = request.json or {}
+        fiscal_status = data.get("fiscal_status", "no_declarada")
+        
+        doc_id = f"{prefix}{sale_id}"
+        sale = firebase_config.get_document("sales", doc_id, token)
+        if not sale:
+            sale = firebase_config.get_document("sales", sale_id, token)
+            if not sale:
+                return jsonify({"error": "Venta no encontrada"}), 404
+            doc_id = sale_id
+            
+        sale["fiscal_status"] = fiscal_status
+        firebase_config.set_document("sales", doc_id, sale, token)
+        return jsonify({"success": True, "fiscal_status": fiscal_status})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/sales", methods=["POST"])
 def create_sale():
     token = get_auth_token()
