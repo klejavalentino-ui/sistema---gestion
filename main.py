@@ -2574,18 +2574,74 @@ def simulate_invoice():
             if diff_days < -10:
                 return jsonify({"error": "Límite de fecha: ARCA solo permite facturar servicios hasta 10 días hacia adelante."}), 400
 
-        # 3. Generar número secuencial contando las existentes
-        existing_invoices = firebase_config.list_documents("invoices", token)
-        next_num = len(existing_invoices) + 1
-        invoice_number = f"{str(pos).zfill(4)}-{str(next_num).zfill(8)}"
+        cert_content = arca_config.get("cert_content")
+        key_content = arca_config.get("key_content")
         
-        # 4. Generar CAE ficticio y vencimiento
-        cae = "".join([str(random.randint(0, 9)) for _ in range(14)])
-        cae_due = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+        # Client CUIT
+        client_cuit = last_sale.get("client_cuit") or "20-99999999-9"
         
-        # Mock de cliente CUIT
-        client_cuit = "20-99999999-9"
-        
+        if cert_content and key_content:
+            # Real AFIP / ARCA invoicing
+            from arca_service import WSAAClient, WSFEClient, INVOICE_TYPES_MAP
+            
+            is_sandbox_cert = "homo" in str(cert_content).lower() or "wsaahomo" in str(cert_content).lower()
+            
+            try:
+                wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
+                token_afip, sign_afip = wsaa.get_token_and_sign("wsfe")
+                wsfe = WSFEClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
+                
+                cbte_tipo = INVOICE_TYPES_MAP.get(invoice_type, 11)
+                
+                # Get last voucher number authorized from AFIP
+                last_authorized = wsfe.get_last_authorized_voucher(pos, cbte_tipo)
+                cbte_nro = last_authorized + 1
+                
+                invoice_number = f"{str(pos).zfill(4)}-{str(cbte_nro).zfill(8)}"
+                
+                # Parse client CUIT/DNI
+                doc_tipo = 99
+                doc_nro = 0
+                client_doc = "".join(c for c in str(client_cuit) if c.isdigit())
+                if client_doc and len(client_doc) >= 7:
+                    doc_nro = int(client_doc)
+                    if len(client_doc) == 11:
+                        doc_tipo = 80
+                    else:
+                        doc_tipo = 96
+                        
+                concept_val = 1 # Bienes
+                if concepto == "servicios":
+                    concept_val = 2
+                
+                # Format date to YYYYMMDD
+                fch_val = invoice_date.strftime("%Y%m%d")
+                
+                # Request CAE from AFIP
+                cae, cae_due = wsfe.request_cae(
+                    pto_vta=pos,
+                    cbte_tipo=cbte_tipo,
+                    cbte_nro=cbte_nro,
+                    total=total,
+                    doc_tipo=doc_tipo,
+                    doc_nro=doc_nro,
+                    concepto=concept_val,
+                    cbte_fch=fch_val
+                )
+                
+                # Format expiration date to YYYY-MM-DD from YYYYMMDD returned by AFIP
+                if cae_due and len(cae_due) == 8:
+                    cae_due = f"{cae_due[0:4]}-{cae_due[4:6]}-{cae_due[6:8]}"
+            except Exception as afip_err:
+                return jsonify({"error": f"Error AFIP: {str(afip_err)}"}), 400
+        else:
+            # Fallback to simulation
+            existing_invoices = firebase_config.list_documents("invoices", token)
+            next_num = len(existing_invoices) + 1
+            invoice_number = f"{str(pos).zfill(4)}-{str(next_num).zfill(8)}"
+            cae = "".join([str(random.randint(0, 9)) for _ in range(14)])
+            cae_due = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+            
         invoice_data = {
             "sale_id": sale_id,
             "type": invoice_type,
