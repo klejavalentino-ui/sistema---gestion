@@ -1720,6 +1720,21 @@ def save_integration(integration_id):
     except Exception as e:
         return handle_error(e)
 
+def clean_product_name_and_size(p_name, variant_size):
+    if not p_name:
+        return p_name, variant_size
+    words = p_name.strip().split()
+    if len(words) > 1:
+        last_word = words[-1].upper()
+        sizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL"]
+        if last_word in sizes:
+            clean_name = " ".join(words[:-1])
+            new_size = variant_size
+            if variant_size in ["Único", "", None]:
+                new_size = words[-1]
+            return clean_name, new_size
+    return p_name, variant_size
+
 @app.route("/api/integrations/tiendanube/sync", methods=["POST"])
 def sync_tiendanube_catalog_route():
     token = get_auth_token()
@@ -1827,8 +1842,8 @@ def sync_tiendanube_catalog_route():
         biz_type = request.headers.get("X-Business-Type", "textil")
         if biz_type not in ["textil", "comercio"]:
             biz_type = "textil"
-            
         products_to_save = []
+        new_variants_count = 0
         
         for tn_prod in all_tn_products:
             p_id = tn_prod.get("id")
@@ -1910,6 +1925,9 @@ def sync_tiendanube_catalog_route():
                 if biz_type == "comercio":
                     size = "Único"
                     
+                # Clean size suffix from product name (e.g. "Campera WOMAN L" -> "Campera WOMAN")
+                clean_name, size = clean_product_name_and_size(p_name, size)
+                
                 baseSku = sku.split("-")[0] if "-" in sku else sku
                 
                 images = tn_prod.get("images", [])
@@ -1925,7 +1943,7 @@ def sync_tiendanube_catalog_route():
 
                 if sku in existing_products_by_sku:
                     existing_prod = existing_products_by_sku[sku]
-                    existing_prod["name"] = p_name
+                    existing_prod["name"] = clean_name
                     existing_prod["category"] = product_category
                     if image_url:
                         existing_prod["image_url"] = image_url
@@ -1955,7 +1973,7 @@ def sync_tiendanube_catalog_route():
                         "id": f"{prefix}{sku}",
                         "sku": f"{prefix}{sku}",
                         "baseSku": baseSku,
-                        "name": p_name,
+                        "name": clean_name,
                         "category": product_category,
                         "size": size,
                         "color": color,
@@ -1973,6 +1991,7 @@ def sync_tiendanube_catalog_route():
                         "tiendanube_variant_id": v_id
                     }
                     products_to_save.append(new_prod)
+                    new_variants_count += 1
                     
         # Update categories config with any new category names imported from Tiendanube
         try:
@@ -2011,7 +2030,7 @@ def sync_tiendanube_catalog_route():
             
         return jsonify({
             "success": True, 
-            "count": len(products_to_save),
+            "count": new_variants_count,
             "synced_count": len(products_to_save)
         })
     except Exception as e:
@@ -2048,7 +2067,7 @@ def sync_tiendanube_orders_route():
         all_orders = []
         page = 1
         while True:
-            url = f"https://api.tiendanube.com/v1/{user_id}/orders?payment_status=paid&page={page}&limit=100"
+            url = f"https://api.tiendanube.com/v1/{user_id}/orders?page={page}&limit=100"
             r = requests.get(url, headers=headers, timeout=30)
             if not r.ok:
                 return jsonify({"error": f"Error de Tiendanube API: {r.text}"}), 400
@@ -2094,6 +2113,8 @@ def sync_tiendanube_orders_route():
         sales_saved = 0
         new_sales_count = 0
         for order in all_orders:
+            if order.get("status") == "cancelled":
+                continue
             order_id = str(order.get("id"))
             
             gateway = order.get("payment_details", {}).get("method", "Tiendanube")

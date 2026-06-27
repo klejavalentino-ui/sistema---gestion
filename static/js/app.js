@@ -7367,8 +7367,12 @@ async function syncTiendanubeCatalog() {
   try {
     showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
     const result = await apiRequest("/api/integrations/tiendanube/sync", "POST");
-    const processed = result.synced_count !== undefined ? result.synced_count : (result.count || 0);
-    showToast(`Sincronización completada. ${processed} variantes procesadas.`);
+    const count = result.count !== undefined ? result.count : 0;
+    if (count > 0) {
+      showToast(`Sincronización completada. ${count} ${count === 1 ? 'variante nueva importada' : 'variantes nuevas importadas'}.`);
+    } else {
+      showToast("Sincronización completa.");
+    }
     await refreshState();
   } catch (error) {
     showToast("Error en sincronización: " + error.message, true);
