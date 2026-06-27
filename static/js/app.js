@@ -7278,6 +7278,11 @@ async function renderIntegrationsStatus() {
     const posInput = document.getElementById("arca-pos");
     const categoriaSelect = document.getElementById("arca-categoria-monotributo");
     
+    const arcaSaveBtn = document.getElementById("arca-save-btn");
+    const arcaDisconnectBtn = document.getElementById("arca-disconnect-btn");
+    const arcaCertFile = document.getElementById("arca-cert-file");
+    const arcaKeyFile = document.getElementById("arca-key-file");
+    
     // Establecer fecha por defecto a hoy en el input del formulario de facturación
     const dateInput = document.getElementById("arca-invoice-date");
     if (dateInput && !dateInput.value) {
@@ -7295,10 +7300,27 @@ async function renderIntegrationsStatus() {
         arcaBadge.style.borderColor = "rgba(16, 185, 129, 0.2)";
         arcaBadge.style.background = "var(--bg-dark)";
       }
-      if (cuitInput) cuitInput.value = arca.cuit || "";
-      if (condicionSelect) condicionSelect.value = arca.condicion_iva || "monotributo";
-      if (categoriaSelect) categoriaSelect.value = arca.categoria_monotributo || "A";
-      if (posInput) posInput.value = arca.pos || "0002";
+      if (cuitInput) {
+        cuitInput.value = arca.cuit || "";
+        cuitInput.disabled = true;
+      }
+      if (condicionSelect) {
+        condicionSelect.value = arca.condicion_iva || "monotributo";
+        condicionSelect.disabled = true;
+      }
+      if (categoriaSelect) {
+        categoriaSelect.value = arca.categoria_monotributo || "A";
+        categoriaSelect.disabled = true;
+      }
+      if (posInput) {
+        posInput.value = arca.pos || "0002";
+        posInput.disabled = true;
+      }
+      if (arcaCertFile) arcaCertFile.disabled = true;
+      if (arcaKeyFile) arcaKeyFile.disabled = true;
+      
+      if (arcaSaveBtn) arcaSaveBtn.style.display = "none";
+      if (arcaDisconnectBtn) arcaDisconnectBtn.style.display = "block";
     } else {
       if (arcaBadge) {
         arcaBadge.innerText = "Simulación Activa";
@@ -7306,6 +7328,15 @@ async function renderIntegrationsStatus() {
         arcaBadge.style.borderColor = "rgba(96, 165, 250, 0.2)";
         arcaBadge.style.background = "var(--bg-dark)";
       }
+      if (cuitInput) cuitInput.disabled = false;
+      if (condicionSelect) condicionSelect.disabled = false;
+      if (categoriaSelect) condicionSelect.disabled = false;
+      if (posInput) posInput.disabled = false;
+      if (arcaCertFile) arcaCertFile.disabled = false;
+      if (arcaKeyFile) arcaKeyFile.disabled = false;
+      
+      if (arcaSaveBtn) arcaSaveBtn.style.display = "block";
+      if (arcaDisconnectBtn) arcaDisconnectBtn.style.display = "none";
     }
     
     // Cargar historial de Facturas ARCA
@@ -7712,6 +7743,27 @@ async function saveArcaConfig(event) {
     await renderIntegrationsStatus();
   } catch (error) {
     showToast("Error al guardar configuración: " + error.message, true);
+  }
+}
+
+async function disconnectArca() {
+  if (!confirm("¿Estás seguro de que deseas desconectar la integración con ARCA? Se eliminarán las credenciales y certificados guardados.")) return;
+  try {
+    showToast("Desconectando ARCA...");
+    const payload = {
+      cuit: "",
+      condicion_iva: "monotributo",
+      categoria_monotributo: "A",
+      pos: "0002",
+      cert_content: "",
+      key_content: "",
+      activo: false
+    };
+    await apiRequest("/api/integrations/arca", "POST", payload);
+    showToast("Integración con ARCA desconectada.");
+    await refreshState();
+  } catch (error) {
+    showToast("Error al desconectar ARCA: " + error.message, true);
   }
 }
 

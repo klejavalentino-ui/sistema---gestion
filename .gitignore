@@ -18,3 +18,7 @@ Thumbs.db
 
 # Sandbox configurations
 .gemini/
+
+# ARCA digital signature keys (must be kept secure)
+mazogestion.key
+mazogestion.csr
