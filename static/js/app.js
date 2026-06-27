@@ -7277,6 +7277,7 @@ async function renderIntegrationsStatus() {
     const condicionSelect = document.getElementById("arca-condicion-iva");
     const posInput = document.getElementById("arca-pos");
     const categoriaSelect = document.getElementById("arca-categoria-monotributo");
+    const externaInput = document.getElementById("arca-facturacion-externa");
     
     const arcaSaveBtn = document.getElementById("arca-save-btn");
     const arcaDisconnectBtn = document.getElementById("arca-disconnect-btn");
@@ -7317,6 +7318,10 @@ async function renderIntegrationsStatus() {
         posInput.value = arca.pos || "0002";
         posInput.disabled = true;
       }
+      if (externaInput) {
+        externaInput.value = arca.facturacion_externa || 0;
+        externaInput.disabled = true;
+      }
       if (arcaCertFile) arcaCertFile.disabled = true;
       if (arcaKeyFile) arcaKeyFile.disabled = true;
       
@@ -7342,6 +7347,7 @@ async function renderIntegrationsStatus() {
       if (condicionSelect) condicionSelect.disabled = false;
       if (categoriaSelect) categoriaSelect.disabled = false;
       if (posInput) posInput.disabled = false;
+      if (externaInput) externaInput.disabled = false;
       if (arcaCertFile) arcaCertFile.disabled = false;
       if (arcaKeyFile) arcaKeyFile.disabled = false;
       
@@ -7657,6 +7663,9 @@ async function updateMonotributoTrackerUI(invoicesList) {
     console.error("Error loading sales for Monotributo tracker:", e);
   }
   
+  const externaInput = document.getElementById("arca-facturacion-externa");
+  const externaBilling = externaInput ? parseFloat(externaInput.value) || 0 : 0;
+  
   const oneYearAgo = new Date();
   oneYearAgo.setDate(oneYearAgo.getDate() - 365);
   
@@ -7679,8 +7688,8 @@ async function updateMonotributoTrackerUI(invoicesList) {
     monthSelect.value = currentVal;
   }
   
-  // 3. Sumar la facturación de los últimos 12 meses (ventas no canceladas)
-  let accumulated = 0;
+  // 3. Sumar la facturación de los últimos 12 meses (ventas no canceladas + facturación externa)
+  let accumulated = externaBilling;
   sales.forEach(sale => {
     if (sale.status === "cancelled") return;
     const saleDate = new Date(sale.date);
@@ -7786,6 +7795,7 @@ async function saveArcaConfig(event) {
   const condicion = document.getElementById("arca-condicion-iva").value;
   const pos = document.getElementById("arca-pos").value;
   const categoria = document.getElementById("arca-categoria-monotributo").value;
+  const externaVal = parseFloat(document.getElementById("arca-facturacion-externa").value) || 0;
   
   const certFile = document.getElementById("arca-cert-file").files[0];
   const keyFile = document.getElementById("arca-key-file").files[0];
@@ -7816,6 +7826,7 @@ async function saveArcaConfig(event) {
       condicion_iva: condicion,
       categoria_monotributo: categoria,
       pos: pos,
+      facturacion_externa: externaVal,
       activo: true
     };
     

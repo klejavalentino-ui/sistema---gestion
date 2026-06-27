@@ -2078,13 +2078,12 @@ def sync_tiendanube_orders_route():
                 break
             all_orders.extend(data)
             
-            # Stop if last order in page is older than May 2026
+            # Stop if last order in page is older than 2025
             last_order_date_str = data[-1].get("created_at")
             if last_order_date_str:
                 try:
                     year = int(last_order_date_str[0:4])
-                    month = int(last_order_date_str[5:7])
-                    if year < 2026 or (year == 2026 and month < 5):
+                    if year < 2025:
                         break
                 except Exception:
                     pass

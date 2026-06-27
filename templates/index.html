@@ -1273,6 +1273,10 @@
                   <label class="form-label" for="arca-pos">Punto de Venta</label>
                   <input type="text" id="arca-pos" class="form-input" placeholder="Ej: 0002" value="0002">
                 </div>
+                <div class="form-group" id="arca-externa-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="arca-facturacion-externa">Facturación Externa AFIP ($)</label>
+                  <input type="number" id="arca-facturacion-externa" class="form-input" placeholder="Ej: 500000" value="0" step="any" onchange="updateMonotributoTrackerUI()">
+                </div>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                 <div class="form-group" style="margin-bottom: 0;">
