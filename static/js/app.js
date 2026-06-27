@@ -7320,6 +7320,15 @@ async function renderIntegrationsStatus() {
       if (arcaCertFile) arcaCertFile.disabled = true;
       if (arcaKeyFile) arcaKeyFile.disabled = true;
       
+      const certHelp = document.querySelector("#arca-cert-file + small");
+      if (certHelp && arca.cert_content) {
+        certHelp.innerHTML = `<span style="color: #10B981; font-weight: bold;">✓ Certificado guardado en la base de datos</span>`;
+      }
+      const keyHelp = document.querySelector("#arca-key-file + small");
+      if (keyHelp && arca.key_content) {
+        keyHelp.innerHTML = `<span style="color: #10B981; font-weight: bold;">✓ Clave privada guardada en la base de datos</span>`;
+      }
+      
       if (arcaSaveBtn) arcaSaveBtn.style.display = "none";
       if (arcaDisconnectBtn) arcaDisconnectBtn.style.display = "block";
     } else {
@@ -7331,10 +7340,19 @@ async function renderIntegrationsStatus() {
       }
       if (cuitInput) cuitInput.disabled = false;
       if (condicionSelect) condicionSelect.disabled = false;
-      if (categoriaSelect) condicionSelect.disabled = false;
+      if (categoriaSelect) categoriaSelect.disabled = false;
       if (posInput) posInput.disabled = false;
       if (arcaCertFile) arcaCertFile.disabled = false;
       if (arcaKeyFile) arcaKeyFile.disabled = false;
+      
+      const certHelp = document.querySelector("#arca-cert-file + small");
+      if (certHelp) {
+        certHelp.innerText = "Certificado de Delegación obtenido desde la web de ARCA.";
+      }
+      const keyHelp = document.querySelector("#arca-key-file + small");
+      if (keyHelp) {
+        keyHelp.innerText = "Clave generada localmente para encriptar solicitudes wsaa.";
+      }
       
       if (arcaSaveBtn) arcaSaveBtn.style.display = "block";
       if (arcaDisconnectBtn) arcaDisconnectBtn.style.display = "none";
