@@ -7286,7 +7286,11 @@ async function renderIntegrationsStatus() {
     
     if (arca && arca.activo) {
       if (arcaBadge) {
-        arcaBadge.innerText = "Configurado - Modo Simulación";
+        let text = "Configurado - Modo Simulación";
+        if (arca.cert_content && arca.key_content) {
+          text += " (Llaves cargadas)";
+        }
+        arcaBadge.innerText = text;
         arcaBadge.className = "badge-green";
         arcaBadge.style.borderColor = "rgba(16, 185, 129, 0.2)";
         arcaBadge.style.background = "var(--bg-dark)";
@@ -7668,6 +7672,28 @@ async function saveArcaConfig(event) {
   const pos = document.getElementById("arca-pos").value;
   const categoria = document.getElementById("arca-categoria-monotributo").value;
   
+  const certFile = document.getElementById("arca-cert-file").files[0];
+  const keyFile = document.getElementById("arca-key-file").files[0];
+  
+  let certText = "";
+  let keyText = "";
+  
+  const readAsText = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsText(file);
+    });
+  };
+  
+  try {
+    if (certFile) certText = await readAsText(certFile);
+    if (keyFile) keyText = await readAsText(keyFile);
+  } catch (err) {
+    showToast("Error al leer archivos de certificados: " + err.message, true);
+    return;
+  }
+  
   try {
     showToast("Guardando configuración fiscal de ARCA...");
     const payload = {
@@ -7677,6 +7703,9 @@ async function saveArcaConfig(event) {
       pos: pos,
       activo: true
     };
+    
+    if (certText) payload.cert_content = certText;
+    if (keyText) payload.key_content = keyText;
     
     await apiRequest("/api/integrations/arca", "POST", payload);
     showToast("¡Configuración fiscal guardada con éxito!");
