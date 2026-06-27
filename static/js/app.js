@@ -7539,17 +7539,17 @@ function exportTiendanubeToExcel() {
 
 
 const MONOTRIBUTO_LIMITS_2026 = {
-  'A': 6450000,
-  'B': 9640000,
-  'C': 13250000,
-  'D': 16450000,
-  'E': 19350000,
-  'F': 24250000,
-  'G': 29000000,
-  'H': 44000000, // Tope máximo para servicios
-  'I': 49250000, // Tope cosas muebles
-  'J': 56400000, // Tope cosas muebles
-  'K': 68000000  // Tope cosas muebles
+  'A': 10277988.13,
+  'B': 15058447.71,
+  'C': 21113696.52,
+  'D': 26212853.42,
+  'E': 30833964.37,
+  'F': 38642048.36,
+  'G': 46211109.00,
+  'H': 70113407.00, // Tope máximo para servicios
+  'I': 78479212.00, // Tope cosas muebles
+  'J': 89872640.00, // Tope cosas muebles
+  'K': 108357084.05  // Tope cosas muebles
 };
 
 function toggleArcaCondicionFields() {
