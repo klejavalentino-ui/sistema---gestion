@@ -2845,9 +2845,9 @@ function openSalesHistoryModal() {
             <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="printSaleTicket('${sale.id}')">
               <i class="fas fa-print"></i> Imprimir
             </button>
-            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #ef4444;" onclick="deleteSale('${sale.id}')">
+            ${!sale.arca_invoice_id ? `<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #ef4444;" onclick="deleteSale('${sale.id}')">
               <i class="fas fa-trash"></i> Eliminar
-            </button>
+            </button>` : ''}
           </div>
         </div>
         <p style="font-size: 0.75rem; color: var(--text-gray); margin-bottom: 12px;">📅 ${dateStr}</p>

@@ -1632,6 +1632,9 @@ def delete_sale(sale_id):
         if not sale_to_delete:
             return jsonify({"error": "Venta no encontrada"}), 404
             
+        if sale_to_delete.get("arca_invoice_id"):
+            return jsonify({"error": "No se puede eliminar una venta que ya ha sido facturada en AFIP. Debes anularla emitiendo una Nota de Crédito."}), 400
+            
         # 2. Devolver el stock
         items = sale_to_delete.get("items", [])
         products = firebase_config.list_documents("products", token)
