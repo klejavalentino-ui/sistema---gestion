@@ -2796,7 +2796,11 @@ function openSalesHistoryModal() {
     empty.style.display = "block";
   } else {
     empty.style.display = "none";
-    state.sales.forEach(sale => {
+    
+    // Sort descending by date
+    const sortedSales = [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    sortedSales.forEach(sale => {
       const itemsText = sale.items ? sale.items.map(item => `${item.quantity} un x ${item.product.name} (${item.size})`).join("<br>") : "";
       const dateStr = new Date(sale.date).toLocaleDateString('es-AR') + " " + new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       
@@ -2824,20 +2828,25 @@ function openSalesHistoryModal() {
       el.style.paddingBottom = "16px";
       el.style.marginBottom = "16px";
       
+      const translatedMethod = translatePaymentMethod(sale.method);
+      
       let badgeClass = "badge-emerald";
       if (sale.method.startsWith("Cta. corriente")) badgeClass = "badge-blue";
-      else if (sale.method === "Canje") badgeClass = "badge-gray";
+      else if (sale.method === "Canje" || sale.method === "custom") badgeClass = "badge-gray";
       
       el.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
           <div>
             <span style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ ${Math.round(sale.total).toLocaleString()}</span>
-            <span class="badge ${badgeClass}" style="margin-left: 8px;">${sale.method}</span>
+            <span class="badge ${badgeClass}" style="margin-left: 8px; text-transform: capitalize;">${translatedMethod}</span>
           </div>
           <div style="display: flex; gap: 6px;">
             ${!sale.arca_invoice_id ? `<button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">⚡ Facturar</button>` : `<span class="badge badge-emerald" style="font-size: 0.6rem;" title="Facturado en AFIP">✔️ ${sale.arca_invoice_id}</span>`}
             <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="printSaleTicket('${sale.id}')">
               <i class="fas fa-print"></i> Imprimir
+            </button>
+            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #ef4444;" onclick="deleteSale('${sale.id}')">
+              <i class="fas fa-trash"></i> Eliminar
             </button>
           </div>
         </div>
@@ -2871,6 +2880,34 @@ async function emitInvoiceFromSale(saleId) {
 
 function closeSalesHistoryModal() {
   document.getElementById("sales-history-modal").className = "modal-backdrop";
+}
+
+function translatePaymentMethod(method) {
+  if (!method) return "Desconocido";
+  const m = method.toLowerCase();
+  if (m === "credit_card" || m === "credit") return "Tarjeta de Crédito";
+  if (m === "debit_card" || m === "debit") return "Tarjeta de Débito";
+  if (m === "transfer" || m === "wire_transfer") return "Transferencia";
+  if (m === "cash") return "Efectivo";
+  if (m === "custom") return "Personalizado / Efectivo";
+  if (m === "mercadopago") return "Mercado Pago";
+  return method;
+}
+
+async function deleteSale(saleId) {
+  if (!confirm("¿Estás seguro de que deseas eliminar esta venta? El stock de los productos vendidos será devuelto al inventario de forma automática.")) return;
+  
+  try {
+    showToast("Eliminando venta y devolviendo stock...");
+    const res = await apiRequest(`/api/sales/${saleId}`, "DELETE");
+    if (res.success) {
+      showToast("Venta eliminada y stock restaurado exitosamente.");
+      await refreshState();
+      openSalesHistoryModal();
+    }
+  } catch (error) {
+    showToast("Error al eliminar venta: " + error.message, true);
+  }
 }
 
 function printSaleTicket(saleId) {

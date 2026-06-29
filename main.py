@@ -1621,6 +1621,42 @@ def delete_sale(sale_id):
         return jsonify({"error": "Token inválido o expirado"}), 401
         
     try:
+        # 1. Obtener la venta para saber qué stock devolver
+        sales = firebase_config.list_documents("sales", token)
+        sale_to_delete = None
+        for s in sales:
+            if s.get("id") == sale_id:
+                sale_to_delete = s
+                break
+                
+        if not sale_to_delete:
+            return jsonify({"error": "Venta no encontrada"}), 404
+            
+        # 2. Devolver el stock
+        items = sale_to_delete.get("items", [])
+        products = firebase_config.list_documents("products", token)
+        
+        for item in items:
+            prod_info = item.get("product", {})
+            sku = prod_info.get("sku")
+            qty = safe_int(item.get("quantity", 0))
+            
+            if sku and qty > 0:
+                # Encontrar el producto original
+                prod = next((p for p in products if p.get("sku") == sku), None)
+                if prod:
+                    # Devolver stock
+                    current_stock = safe_int(prod.get("stock", 0))
+                    prod["stock"] = current_stock + qty
+                    
+                    if "stock_local" in prod:
+                        current_local = safe_int(prod.get("stock_local", 0))
+                        prod["stock_local"] = current_local + qty
+                    
+                    # Actualizar en BD
+                    firebase_config.update_document("products", f"{prefix}{sku}", prod, token)
+        
+        # 3. Eliminar la venta
         deleted = firebase_config.delete_document("sales", f"{prefix}{sale_id}", token)
         return jsonify({"success": deleted})
     except Exception as e:
