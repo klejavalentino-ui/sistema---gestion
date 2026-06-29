@@ -34,7 +34,15 @@
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
             <label class="form-label" for="login-password">Contraseña</label>
-            <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+            <div style="position: relative;">
+              <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password" style="padding-right: 40px;">
+              <button type="button" onclick="toggleLoginPasswordVisibility()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-gray); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <svg id="password-eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="form-group" style="margin-bottom: 20px;">
             <label class="form-label" for="login-business-type">Tipo de Negocio</label>
@@ -1395,9 +1403,9 @@
                       <option value="2027">2027</option>
                     </select>
                   </div>
-                  <div class="form-group" style="margin-bottom: 0;">
+                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" for="externa-amount">Monto Facturado ($)</label>
-                    <input type="number" id="externa-amount" class="form-input" placeholder="Ej: 500000" min="0" step="any" style="border-color: var(--border-color); color: #fff;">
+                    <input type="text" id="externa-amount" class="form-input" placeholder="Ej: 500.000" style="border-color: var(--border-color); color: #fff;" oninput="formatExternaAmountInput(this)">
                   </div>
                   <button type="button" class="btn btn-primary" style="padding: 8px 12px; font-size: 0.8rem; height: 36px;" onclick="saveExternalMonthlyBilling()">Guardar Registro</button>
                 </div>

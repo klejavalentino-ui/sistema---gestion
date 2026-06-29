@@ -1199,7 +1199,12 @@ async function refreshState() {
     }
 
     state.categories = data.categories || [];
-    state.products = data.products || [];
+    state.products = (data.products || []).map(p => {
+      if (p.size) {
+        p.size = normalizeSize(p.size);
+      }
+      return p;
+    });
     state.sales = data.sales || [];
     state.suppliers = data.suppliers || [];
     state.currentAccounts = data.currentAccounts || [];
@@ -8045,7 +8050,8 @@ async function changeSaleFiscalStatus(saleId, status) {
 async function saveExternalMonthlyBilling() {
   const month = document.getElementById("externa-month").value;
   const year = document.getElementById("externa-year").value;
-  const amount = parseFloat(document.getElementById("externa-amount").value) || 0;
+  const rawVal = document.getElementById("externa-amount").value.replace(/\D/g, "");
+  const amount = parseFloat(rawVal) || 0;
   
   if (amount <= 0) {
     showToast("Por favor, ingresá un monto mayor a cero.", true);
@@ -8136,5 +8142,72 @@ async function deleteExternalMonthlyBilling(key) {
   } catch (e) {
     showToast("Error al eliminar registro: " + e.message, true);
   }
+}
+
+function normalizeSize(sz) {
+  if (!sz) return "Único";
+  const szUpper = sz.toString().trim().toUpperCase();
+  
+  if (szUpper.includes("S/M") || szUpper.includes("TALLE 1") || szUpper === "1") {
+    return "S";
+  }
+  if (szUpper.includes("M/L") || szUpper.includes("TALLE 2") || szUpper === "2") {
+    return "M";
+  }
+  if (szUpper.includes("L/XL") || szUpper.includes("TALLE 3") || szUpper === "3") {
+    return "L";
+  }
+  if (szUpper.includes("XL/XXL") || szUpper.includes("TALLE 4") || szUpper === "4") {
+    return "XL";
+  }
+  
+  if (["XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL"].includes(szUpper)) {
+    return szUpper;
+  }
+  
+  if (["U", "UNICO", "ÚNICO", "TALLE UNICO", "TALLE ÚNICO", "SINGLE"].includes(szUpper)) {
+    return "Único";
+  }
+  
+  for (const std of ["XXL", "XL", "XS", "S", "M", "L"]) {
+    const regex = new RegExp(`\\b${std}\\b`);
+    if (regex.test(szUpper)) {
+      return std;
+    }
+  }
+  
+  return "Único";
+}
+
+function toggleLoginPasswordVisibility() {
+  const pwdInput = document.getElementById("login-password");
+  const eyeIcon = document.getElementById("password-eye-icon");
+  if (!pwdInput) return;
+  
+  if (pwdInput.type === "password") {
+    pwdInput.type = "text";
+    if (eyeIcon) {
+      eyeIcon.innerHTML = `
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+      `;
+    }
+  } else {
+    pwdInput.type = "password";
+    if (eyeIcon) {
+      eyeIcon.innerHTML = `
+        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+      `;
+    }
+  }
+}
+
+function formatExternaAmountInput(input) {
+  let val = input.value.replace(/\D/g, "");
+  if (!val) {
+    input.value = "";
+    return;
+  }
+  input.value = val.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 

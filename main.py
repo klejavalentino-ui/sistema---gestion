@@ -1747,20 +1747,48 @@ def save_integration(integration_id):
     except Exception as e:
         return handle_error(e)
 
+def normalize_size(sz):
+    if not sz:
+        return "Único"
+    sz_upper = str(sz).strip().upper()
+    
+    if "S/M" in sz_upper or "TALLE 1" in sz_upper or sz_upper == "1":
+        return "S"
+    if "M/L" in sz_upper or "TALLE 2" in sz_upper or sz_upper == "2":
+        return "M"
+    if "L/XL" in sz_upper or "TALLE 3" in sz_upper or sz_upper == "3":
+        return "L"
+    if "XL/XXL" in sz_upper or "TALLE 4" in sz_upper or sz_upper == "4":
+        return "XL"
+        
+    if sz_upper in ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL"]:
+        return sz_upper
+        
+    if sz_upper in ["U", "UNICO", "ÚNICO", "TALLE UNICO", "TALLE ÚNICO", "SINGLE"]:
+        return "Único"
+        
+    for std in ["XXL", "XL", "XS", "S", "M", "L"]:
+        import re
+        if re.search(r'\b' + std + r'\b', sz_upper):
+            return std
+            
+    return "Único"
+
 def clean_product_name_and_size(p_name, variant_size):
+    norm_size = normalize_size(variant_size)
     if not p_name:
-        return p_name, variant_size
+        return p_name, norm_size
     words = p_name.strip().split()
     if len(words) > 1:
         last_word = words[-1].upper()
         sizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL"]
         if last_word in sizes:
             clean_name = " ".join(words[:-1])
-            new_size = variant_size
-            if variant_size in ["Único", "", None]:
-                new_size = words[-1]
+            new_size = norm_size
+            if norm_size in ["Único", "", None]:
+                new_size = normalize_size(words[-1])
             return clean_name, new_size
-    return p_name, variant_size
+    return p_name, norm_size
 
 @app.route("/api/integrations/tiendanube/sync", methods=["POST"])
 def sync_tiendanube_catalog_route():
