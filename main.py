@@ -1625,7 +1625,7 @@ def delete_sale(sale_id):
         sales = firebase_config.list_documents("sales", token)
         sale_to_delete = None
         for s in sales:
-            if s.get("id") == sale_id:
+            if s.get("id") == f"{prefix}{sale_id}":
                 sale_to_delete = s
                 break
                 
@@ -1643,7 +1643,7 @@ def delete_sale(sale_id):
             
             if sku and qty > 0:
                 # Encontrar el producto original
-                prod = next((p for p in products if p.get("sku") == sku), None)
+                prod = next((p for p in products if p.get("sku") == f"{prefix}{sku}"), None)
                 if prod:
                     # Devolver stock
                     current_stock = safe_int(prod.get("stock", 0))
