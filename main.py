@@ -1654,7 +1654,7 @@ def delete_sale(sale_id):
                         prod["stock_local"] = current_local + qty
                     
                     # Actualizar en BD
-                    firebase_config.update_document("products", f"{prefix}{sku}", prod, token)
+                    firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
         
         # 3. Eliminar la venta
         deleted = firebase_config.delete_document("sales", f"{prefix}{sale_id}", token)
@@ -2597,7 +2597,7 @@ def emit_invoice():
             
         # 1. Recuperar la venta específica
         sales = firebase_config.list_documents("sales", token)
-        sale = next((s for s in sales if s.get("id") == sale_id), None)
+        sale = next((s for s in sales if s.get("id") == f"{prefix}{sale_id}"), None)
         
         if not sale:
             return jsonify({"error": "Venta no encontrada."}), 404
@@ -2712,7 +2712,7 @@ def emit_invoice():
         
         # 4. Update Sale to mark as invoiced
         sale["arca_invoice_id"] = invoice_number
-        firebase_config.update_document("sales", sale_id, {"arca_invoice_id": invoice_number}, token)
+        firebase_config.set_document("sales", f"{prefix}{sale_id}", sale, token)
         
         invoice_data["id"] = invoice_id
         return jsonify(invoice_data)
