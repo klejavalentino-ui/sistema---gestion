@@ -2543,6 +2543,150 @@ def get_invoices():
     except Exception as e:
         return handle_error(e)
 
+
+@app.route("/api/invoices/emit", methods=["POST"])
+def emit_invoice():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    email = get_email_from_token(token)
+    if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
+        return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
+    
+    try:
+        data = request.json or {}
+        sale_id = data.get("sale_id")
+        if not sale_id:
+            return jsonify({"error": "Falta el ID de la venta"}), 400
+            
+        # 1. Recuperar la venta específica
+        sales = firebase_config.list_documents("sales", token)
+        sale = next((s for s in sales if s.get("id") == sale_id), None)
+        
+        if not sale:
+            return jsonify({"error": "Venta no encontrada."}), 404
+            
+        if sale.get("arca_invoice_id"):
+            return jsonify({"error": "Esta venta ya fue facturada en AFIP."}), 400
+            
+        total = safe_float(sale.get("total", 0.0))
+        
+        # 2. Validar límites de Consumidor Final (Nuevos límites de ARCA)
+        client_cuit = sale.get("client_cuit", "").strip()
+        client_name = sale.get("client_name", "").strip()
+        client_cuit_clean = "".join(c for c in client_cuit if c.isdigit())
+        
+        is_anonymous = not client_cuit_clean or client_cuit_clean == "20999999999" or not client_name
+        
+        if is_anonymous:
+            payment_method = str(sale.get("payment_method", "")).lower()
+            is_cash = "efectivo" in payment_method
+            
+            if total >= 10000000:
+                return jsonify({"error": f"El monto (${total}) supera el límite absoluto de $10.000.000 para Consumidor Final. Debes editar la venta y cargar el Nombre, Domicilio y DNI/CUIT del cliente."}), 400
+            if is_cash and total >= 208644:
+                return jsonify({"error": f"El monto (${total}) supera el límite de $208.644 para ventas en EFECTIVO a Consumidor Final anónimo. Debes cargar los datos del cliente (DNI/CUIT y Nombre)."}), 400
+            elif not is_cash and total >= 417288:
+                return jsonify({"error": f"El monto (${total}) supera el límite de $417.288 para ventas por MEDIOS ELECTRÓNICOS a Consumidor Final anónimo. Debes cargar los datos del cliente (DNI/CUIT y Nombre)."}), 400
+        
+        # 3. Recuperar configuración de ARCA
+        arca_config = firebase_config.get_document("integrations", "arca", token) or {}
+        pos = arca_config.get("pos", "0002")
+        condicion_iva = arca_config.get("condicion_iva", "monotributo")
+        cuit_emisor = arca_config.get("cuit", "20-35689124-9")
+        
+        if condicion_iva == "inscripto":
+            invoice_type = "Factura B"
+        else:
+            invoice_type = "Factura C"
+            
+        from datetime import datetime, date as pydate, timedelta
+        import random
+        
+        invoice_date = pydate.today()
+        cert_content = arca_config.get("cert_content")
+        key_content = arca_config.get("key_content")
+        
+        cuit_to_use = client_cuit if client_cuit else "20-99999999-9"
+        
+        if cert_content and key_content:
+            from arca_service import WSAAClient, WSFEClient, INVOICE_TYPES_MAP
+            is_sandbox_cert = "homo" in str(cert_content).lower() or "wsaahomo" in str(cert_content).lower()
+            
+            try:
+                wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
+                token_afip, sign_afip = wsaa.get_token_and_sign("wsfe")
+                wsfe = WSFEClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
+                
+                cbte_tipo = INVOICE_TYPES_MAP.get(invoice_type, 11)
+                last_authorized = wsfe.get_last_authorized_voucher(pos, cbte_tipo)
+                cbte_nro = last_authorized + 1
+                invoice_number = f"{str(pos).zfill(4)}-{str(cbte_nro).zfill(8)}"
+                
+                doc_tipo = 99
+                doc_nro = 0
+                client_doc = "".join(c for c in str(cuit_to_use) if c.isdigit())
+                if client_doc and len(client_doc) >= 7:
+                    doc_nro = int(client_doc)
+                    if len(client_doc) == 11:
+                        doc_tipo = 80
+                    else:
+                        doc_tipo = 96
+                        
+                fch_val = invoice_date.strftime("%Y%m%d")
+                
+                cae, cae_due = wsfe.request_cae(
+                    pto_vta=pos,
+                    cbte_tipo=cbte_tipo,
+                    cbte_nro=cbte_nro,
+                    total=total,
+                    doc_tipo=doc_tipo,
+                    doc_nro=doc_nro,
+                    concepto=1, # Bienes
+                    cbte_fch=fch_val
+                )
+                
+                if cae_due and len(cae_due) == 8:
+                    cae_due = f"{cae_due[0:4]}-{cae_due[4:6]}-{cae_due[6:8]}"
+            except Exception as afip_err:
+                return jsonify({"error": f"Error AFIP: {str(afip_err)}"}), 400
+        else:
+            existing_invoices = firebase_config.list_documents("invoices", token)
+            next_num = len(existing_invoices) + 1
+            invoice_number = f"{str(pos).zfill(4)}-{str(next_num).zfill(8)}"
+            cae = "".join([str(random.randint(0, 9)) for _ in range(14)])
+            cae_due = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+            
+        invoice_data = {
+            "sale_id": sale_id,
+            "type": invoice_type,
+            "invoice_number": invoice_number,
+            "cuit_emisor": cuit_emisor,
+            "client_cuit": cuit_to_use,
+            "total": total,
+            "cae": cae,
+            "cae_due": cae_due,
+            "status": "Aprobado",
+            "date": invoice_date.isoformat(),
+            "associated_invoice": ""
+        }
+        
+        invoice_id = f"FC-{invoice_number}"
+        firebase_config.set_document("invoices", invoice_id, invoice_data, token)
+        
+        # 4. Update Sale to mark as invoiced
+        sale["arca_invoice_id"] = invoice_number
+        firebase_config.update_document("sales", sale_id, {"arca_invoice_id": invoice_number}, token)
+        
+        invoice_data["id"] = invoice_id
+        return jsonify(invoice_data)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Error interno al emitir comprobante: {str(e)}"}), 500
+
+
 @app.route("/api/invoices/simulate", methods=["POST"])
 def simulate_invoice():
     token = get_auth_token()

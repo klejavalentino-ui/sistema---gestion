@@ -2834,9 +2834,12 @@ function openSalesHistoryModal() {
             <span style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ ${Math.round(sale.total).toLocaleString()}</span>
             <span class="badge ${badgeClass}" style="margin-left: 8px;">${sale.method}</span>
           </div>
-          <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="printSaleTicket('${sale.id}')">
-            <i class="fas fa-print"></i> Imprimir
-          </button>
+          <div style="display: flex; gap: 6px;">
+            ${!sale.arca_invoice_id ? `<button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">⚡ Facturar</button>` : `<span class="badge badge-emerald" style="font-size: 0.6rem;" title="Facturado en AFIP">✔️ ${sale.arca_invoice_id}</span>`}
+            <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="printSaleTicket('${sale.id}')">
+              <i class="fas fa-print"></i> Imprimir
+            </button>
+          </div>
         </div>
         <p style="font-size: 0.75rem; color: var(--text-gray); margin-bottom: 12px;">📅 ${dateStr}</p>
         <div style="background: var(--bg-input); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.75rem; line-height: 1.5; color: var(--text-gray-light); margin-bottom: 6px;">
@@ -2850,6 +2853,20 @@ function openSalesHistoryModal() {
   }
 
   modal.className = "modal-backdrop active";
+}
+
+async function emitInvoiceFromSale(saleId) {
+  try {
+    showToast("Generando factura electrónica en AFIP...");
+    const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
+    showToast(`¡Factura ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
+    await refreshState();
+    openSalesHistoryModal(); // Refresh modal
+    if (typeof renderExternalMonthlyBillingList === 'function') renderExternalMonthlyBillingList();
+    if (typeof renderUninvoicedSales === 'function') renderUninvoicedSales();
+  } catch (error) {
+    showToast(error.message, true); // It will show the limit errors
+  }
 }
 
 function closeSalesHistoryModal() {
@@ -3235,9 +3252,7 @@ function renderInventory() {
     
     // Ordenar los talles según el orden estándar
     const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
-    const sortedTalles = g.variants
-      .map(v => v.size)
-      .filter(s => s)
+    const sortedTalles = [...new Set(g.variants.map(v => v.size).filter(s => s))]
       .sort((a, b) => {
         const idxA = sizeOrder.indexOf(a);
         const idxB = sizeOrder.indexOf(b);
@@ -3326,9 +3341,11 @@ function openCreateProductModal() {
   document.getElementById("prod-name").value = "";
   document.getElementById("prod-color").value = "";
   document.getElementById("prod-cost-input").value = "";
+  formatCurrencyField(document.getElementById("prod-cost-input"));
   document.getElementById("prod-margin").value = 50;
   
   document.getElementById("prod-price-local").value = "";
+  formatCurrencyField(document.getElementById("prod-price-local"));
   document.getElementById("prod-price-tiendanube").value = "";
   document.getElementById("prod-stock-taller").value = "infinito";
   
@@ -3409,9 +3426,11 @@ function openEditProductModal(sku) {
   document.getElementById("prod-name").value = p.name;
   document.getElementById("prod-color").value = p.color;
   document.getElementById("prod-cost-input").value = Math.round(p.baseCost || p.cost).toLocaleString("es-AR");
+  formatCurrencyField(document.getElementById("prod-cost-input"));
   document.getElementById("prod-margin").value = p.margin;
   
   document.getElementById("prod-price-local").value = p.price_local !== undefined ? p.price_local : "";
+  formatCurrencyField(document.getElementById("prod-price-local"));
   document.getElementById("prod-price-tiendanube").value = p.price_tiendanube !== undefined ? p.price_tiendanube : "";
   document.getElementById("prod-stock-taller").value = p.stock_taller !== undefined ? p.stock_taller : "infinito";
   
@@ -6574,13 +6593,11 @@ function setupEventListeners() {
     "intake-materia-prima", "intake-pay-cash-val", "intake-pay-debt-val"
   ];
   
+  window.currencyInputsList = currencyInputs;
   currencyInputs.forEach(id => {
     const input = document.getElementById(id);
     if (input) {
-      input.addEventListener("input", (e) => {
-        const raw = e.target.value.replace(/\D/g, "");
-        e.target.value = raw ? parseInt(raw).toLocaleString("es-AR") : "";
-      });
+      input.addEventListener("input", (e) => formatCurrencyField(e.target));
     }
   });
 
@@ -6878,6 +6895,7 @@ function editExtraOption(categoryKey, optionId) {
   document.getElementById("edit-extra-id").value = optionId;
   document.getElementById("edit-extra-name").value = option.name;
   document.getElementById("edit-extra-cost").value = option.cost;
+  formatCurrencyField(document.getElementById("edit-extra-cost"));
   document.getElementById("edit-extra-stock").value = option.stock !== undefined && option.stock !== null ? option.stock : 0;
 
   document.getElementById("edit-extra-modal").className = "modal-backdrop active";
@@ -8025,11 +8043,56 @@ async function loadArcaInvoices() {
         </tr>
       `;
     }).join("");
+    renderUninvoicedSales();
     return invoices;
   } catch (error) {
     console.error("Error al cargar facturas de ARCA:", error);
     return [];
   }
+}
+
+function renderUninvoicedSales() {
+  const tbody = document.getElementById("arca-uninvoiced-sales-log");
+  if (!tbody) return;
+  
+  const uninvoiced = state.sales.filter(s => !s.arca_invoice_id);
+  uninvoiced.sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  // Show only up to 20 recent uninvoiced sales to keep it clean
+  const recent = uninvoiced.slice(0, 20);
+  
+  if (recent.length === 0) {
+    tbody.innerHTML = `
+      <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
+        <td colspan="4" style="padding: 15px; text-align: center;">No hay ventas recientes pendientes de facturar.</td>
+      </tr>
+    `;
+    return;
+  }
+  
+  tbody.innerHTML = recent.map(sale => {
+    const formattedDate = new Date(sale.date).toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    return `
+      <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
+        <td style="padding: 8px;">${formattedDate}</td>
+        <td style="padding: 8px; font-weight: 700; color: #fff;">$ ${Math.round(sale.total).toLocaleString("es-AR")}</td>
+        <td style="padding: 8px;">
+          <span class="badge badge-gray" style="font-size: 0.65rem;">${sale.method}</span>
+        </td>
+        <td style="padding: 8px; text-align: right;">
+          <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">
+            ⚡ Facturar
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join("");
 }
 
 async function changeSaleFiscalStatus(saleId, status) {
@@ -8201,6 +8264,20 @@ function toggleLoginPasswordVisibility() {
         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
       `;
     }
+  }
+}
+
+function formatCurrencyField(input) {
+  if (!input) return;
+  const raw = input.value.toString().replace(/\D/g, "");
+  input.value = raw ? parseInt(raw).toLocaleString("es-AR") : "";
+}
+
+function formatAllCurrencyInputs() {
+  if (window.currencyInputsList) {
+    window.currencyInputsList.forEach(id => {
+      formatCurrencyField(document.getElementById(id));
+    });
   }
 }
 

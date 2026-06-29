@@ -1461,6 +1461,23 @@
                 </div>
               </form>
 
+              <h5 style="color: var(--text-gray); margin: 0 0 10px 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 25px;">Ventas Recientes (No Facturadas)</h5>
+              <div style="overflow-x: auto; margin-bottom: 25px;">
+                <table class="inventory-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
+                      <th style="padding: 8px;">Fecha</th>
+                      <th style="padding: 8px;">Monto Total</th>
+                      <th style="padding: 8px;">Medio de Pago</th>
+                      <th style="padding: 8px; text-align: right;">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="arca-uninvoiced-sales-log">
+                    <!-- Inyectado dinámicamente -->
+                  </tbody>
+                </table>
+              </div>
+
               <h5 style="color: var(--text-gray); margin: 0 0 10px 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">Historial de Comprobantes Emitidos</h5>
               <!-- Listado de Facturas Emitidas -->
               <div style="overflow-x: auto;">
