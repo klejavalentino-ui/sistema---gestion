@@ -2611,7 +2611,7 @@ async function confirmPayment(method) {
   };
 
   if (origin === "tiendanube") {
-    salePayload.fee_fijo_tn = parseFloat(document.getElementById("chk-fee-fijo").value) || 0;
+    salePayload.fee_fijo_tn = parseLocalFloat(document.getElementById("chk-fee-fijo").value) || 0;
     salePayload.comision_pasarela_pago = parseFloat(document.getElementById("chk-comision").value) || 0;
   }
 
@@ -2743,7 +2743,7 @@ async function submitCheckoutFinance() {
     };
 
     if (origin === "tiendanube") {
-      salePayload.fee_fijo_tn = parseFloat(document.getElementById("chk-fee-fijo").value) || 0;
+      salePayload.fee_fijo_tn = parseLocalFloat(document.getElementById("chk-fee-fijo").value) || 0;
       salePayload.comision_pasarela_pago = parseFloat(document.getElementById("chk-comision").value) || 0;
     }
 
@@ -3673,8 +3673,8 @@ async function saveProductForm(e) {
     }
   }
 
-  const priceLocal = parseFloat(document.getElementById("prod-price-local").value) || 0;
-  const priceTiendanube = parseFloat(document.getElementById("prod-price-tiendanube").value) || 0;
+  const priceLocal = parseLocalFloat(document.getElementById("prod-price-local").value) || 0;
+  const priceTiendanube = parseLocalFloat(document.getElementById("prod-price-tiendanube").value) || 0;
   const stockTaller = document.getElementById("prod-stock-taller").value || "infinito";
 
   // Preparar variantes en lote
@@ -6569,7 +6569,9 @@ function setupEventListeners() {
   const currencyInputs = [
     "cost-amount-input", "caja-amount", "tx-amount", "tx-payment", "prod-cost-input",
     "mkt-campaign-cost", "ext-est-minorista", "ext-est-mayorista", "ext-pack-chica",
-    "ext-pack-mediana", "ext-pack-grande", "ext-bor-basico", "ext-bor-medio", "ext-bor-complejo"
+    "ext-pack-mediana", "ext-pack-grande", "ext-bor-basico", "ext-bor-medio", "ext-bor-complejo",
+    "chk-fee-fijo", "prod-price-local", "edit-extra-cost", "externa-amount",
+    "intake-materia-prima", "intake-pay-cash-val", "intake-pay-debt-val"
   ];
   
   currencyInputs.forEach(id => {
@@ -8200,14 +8202,5 @@ function toggleLoginPasswordVisibility() {
       `;
     }
   }
-}
-
-function formatExternaAmountInput(input) {
-  let val = input.value.replace(/\D/g, "");
-  if (!val) {
-    input.value = "";
-    return;
-  }
-  input.value = val.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 

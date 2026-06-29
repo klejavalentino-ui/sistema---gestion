@@ -1405,7 +1405,7 @@
                   </div>
                    <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" for="externa-amount">Monto Facturado ($)</label>
-                    <input type="text" id="externa-amount" class="form-input" placeholder="Ej: 500.000" style="border-color: var(--border-color); color: #fff;" oninput="formatExternaAmountInput(this)">
+                    <input type="text" id="externa-amount" class="form-input" placeholder="Ej: 500.000" style="border-color: var(--border-color); color: #fff;" >
                   </div>
                   <button type="button" class="btn btn-primary" style="padding: 8px 12px; font-size: 0.8rem; height: 36px;" onclick="saveExternalMonthlyBilling()">Guardar Registro</button>
                 </div>
@@ -1581,7 +1581,7 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
               <label class="form-label" style="font-size: 0.65rem;" for="chk-fee-fijo">Fee Fijo ($)</label>
-              <input type="number" id="chk-fee-fijo" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="300">
+              <input type="text" id="chk-fee-fijo" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="300">
             </div>
             <div>
               <label class="form-label" style="font-size: 0.65rem;" for="chk-comision">Comisión Pago (%)</label>
@@ -1603,9 +1603,7 @@
           <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Financiado')">
             <span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas</strong>
           </button>
-          <button id="checkout-arca-btn" class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('ARCA')">
-            <span style="font-size: 1.2rem; margin-right: 12px;">🔗</span> <strong>ARCA Pago</strong>
-          </button>
+          
         </div>
       </div>
 
