@@ -2672,7 +2672,7 @@ def emit_invoice():
                 doc_tipo = 99
                 doc_nro = 0
                 client_doc = "".join(c for c in str(cuit_to_use) if c.isdigit())
-                if client_doc and len(client_doc) >= 7:
+                if client_doc and len(client_doc) >= 7 and client_doc != "20999999999":
                     doc_nro = int(client_doc)
                     if len(client_doc) == 11:
                         doc_tipo = 80
