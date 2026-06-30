@@ -2659,12 +2659,8 @@ function autoFillClientInfo() {
 }
 
 function finishCheckoutWithNoInvoice() {
-  document.getElementById("checkout-step-invoice-options").style.display = "none";
-  document.getElementById("checkout-step-success").style.display = "block";
-  const printBtn = document.getElementById("checkout-print-btn");
-  if (printBtn) {
-    printBtn.onclick = () => printSaleTicket(window.currentCheckoutSaleId);
-  }
+  printSaleTicket(window.currentCheckoutSaleId);
+  closeCheckoutModalAndReset();
 }
 
 async function finishCheckoutWithARCA() {
@@ -2677,17 +2673,17 @@ async function finishCheckoutWithARCA() {
     const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
     showToast(`¡Factura ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
     
-    // Esperar a que se actualicen las ventas
-    await refreshState();
-    
-    document.getElementById("checkout-step-invoice-options").style.display = "none";
-    document.getElementById("checkout-step-success").style.display = "block";
-    titleEl.innerHTML = originalHtml;
-    
-    const printBtn = document.getElementById("checkout-print-btn");
-    if (printBtn) {
-      printBtn.onclick = () => printSaleTicket(saleId);
+    // Actualizar localmente antes de imprimir
+    const localSale = state.sales.find(s => s.id === saleId);
+    if (localSale) {
+      localSale.arca_invoice_id = res.invoice_number;
+      localSale.arca_cae = res.cae;
+      localSale.arca_cae_due = res.cae_due;
     }
+    
+    titleEl.innerHTML = originalHtml;
+    printSaleTicket(saleId);
+    closeCheckoutModalAndReset();
   } catch (error) {
     titleEl.innerHTML = originalHtml;
     showToast("Error al facturar: " + error.message, true);
@@ -2695,7 +2691,7 @@ async function finishCheckoutWithARCA() {
 }
 
 function closeCheckoutAndKeepSale() {
-  closeCheckoutModal();
+  closeCheckoutModalAndReset();
 }
 
 function formatCheckoutPaidAmount() {
@@ -2886,7 +2882,7 @@ function openSalesHistoryModal() {
             <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="printSaleTicket('${sale.id}')">
               <i class="fas fa-print"></i> Imprimir
             </button>
-            ${!sale.arca_invoice_id ? `<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #ef4444;" onclick="deleteSale('${sale.id}')">
+            ${(!sale.arca_invoice_id && sale.origen !== 'tiendanube') ? `<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #ef4444;" onclick="deleteSale('${sale.id}')">
               <i class="fas fa-trash"></i> Eliminar
             </button>` : ''}
           </div>
