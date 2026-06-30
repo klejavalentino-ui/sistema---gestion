@@ -3201,10 +3201,30 @@ function printSaleTicket(saleId) {
     printWindow.document.write(ticketHtml);
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    
+    const img = printWindow.document.querySelector("img");
+    if (img) {
+      img.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+      img.onerror = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+      // Fallback
+      setTimeout(() => {
+        if (!printWindow.closed) {
+          printWindow.print();
+          printWindow.close();
+        }
+      }, 1500);
+    } else {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
   } else {
     showToast("Permiso de ventanas emergentes bloqueado. Por favor, habilítelo para poder imprimir.", true);
   }
@@ -7173,6 +7193,7 @@ async function renderIntegrationsStatus() {
   if (!state.token) return;
   try {
     const integrations = await apiRequest("/api/integrations");
+    state.integrations = integrations;
     const tiendanube = integrations?.tiendanube;
     
     // Controlar visibilidad de Tiendanube para el usuario específico
