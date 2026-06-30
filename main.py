@@ -2788,7 +2788,6 @@ def emit_credit_note():
         
         arca_config = firebase_config.get_document("integrations", "arca", token) or {}
         pos = int(arca_config.get("pos", "2"))
-        sandbox = arca_config.get("mode", "sandbox") == "sandbox"
         cert_content = arca_config.get("cert_content")
         key_content = arca_config.get("key_content")
         cuit = arca_config.get("cuit")
@@ -2796,11 +2795,13 @@ def emit_credit_note():
         if not cert_content or not key_content or not cuit:
             return jsonify({"error": "Credenciales de ARCA incompletas."}), 400
             
+        is_sandbox_cert = "homo" in str(cert_content).lower() or "wsaahomo" in str(cert_content).lower()
+        
         # Login to ARCA
-        wsaa = WSAAClient(cert_content, key_content, sandbox=sandbox)
+        wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
         arca_token, sign = wsaa.get_token_and_sign()
         
-        wsfe = WSFEClient(arca_token, sign, cuit, sandbox=sandbox)
+        wsfe = WSFEClient(arca_token, sign, cuit, sandbox=is_sandbox_cert)
         
         # Get last NC number
         last_nc = wsfe.get_last_authorized_voucher(pos, nc_tipo)
