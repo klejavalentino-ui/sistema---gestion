@@ -2595,6 +2595,10 @@ def emit_invoice():
     if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
         return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
     
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
     try:
         data = request.json or {}
         sale_id = data.get("sale_id")
