@@ -1673,6 +1673,26 @@
           <button class="btn btn-primary" style="width: 100%; padding: 12px; margin-top: 20px; font-weight: 800;" onclick="submitCheckoutFinance()">Confirmar Venta en Cobranzas</button>
         </div>
       </div>
+      </div>
+
+      <!-- Step: Invoice Options -->
+      <div id="checkout-step-invoice-options" style="display: none;" class="p-6">
+        <div class="modal-header" style="border: none; padding: 0 0 20px 0;">
+          <h3 class="modal-title">Emisión de Comprobante</h3>
+          <span class="modal-close-btn" onclick="closeCheckoutModal()">✕</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+          <button class="btn btn-secondary" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="finishCheckoutWithNoInvoice()">
+            <i class="fas fa-receipt"></i> Emitir ticket X (no válido)
+          </button>
+          <button class="btn btn-emerald" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="finishCheckoutWithARCA()">
+            <i class="fas fa-file-invoice-dollar"></i> ARCA
+          </button>
+          <button class="btn btn-secondary" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; background: transparent; border: 1px solid var(--text-gray); display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-gray-light);" onclick="closeCheckoutAndKeepSale()">
+            <i class="fas fa-times"></i> Cerrar Ventana
+          </button>
+        </div>
+      </div>
 
       <!-- Step 3: Success Notification -->
       <div id="checkout-step-success" style="display: none;" class="p-12">

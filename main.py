@@ -2715,6 +2715,8 @@ def emit_invoice():
         
         # 4. Update Sale to mark as invoiced
         sale["arca_invoice_id"] = invoice_number
+        sale["arca_cae"] = cae
+        sale["arca_cae_due"] = cae_due
         firebase_config.set_document("sales", f"{prefix}{sale_id}", sale, token)
         
         invoice_data["id"] = invoice_id

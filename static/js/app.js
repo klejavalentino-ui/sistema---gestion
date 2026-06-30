@@ -2633,15 +2633,12 @@ async function confirmPayment(method) {
       window.open(registeredSale.payment_url, "_blank");
     }
 
-    // Avanzar a step 3 (éxito)
+    // Guardar ID para los siguientes pasos
+    window.currentCheckoutSaleId = saleId;
+
+    // Avanzar al step de opciones de facturación
     document.getElementById("checkout-step-method").style.display = "none";
-    document.getElementById("checkout-step-success").style.display = "block";
-    
-    // Configurar botón de impresión
-    const printBtn = document.getElementById("checkout-print-btn");
-    if (printBtn) {
-      printBtn.onclick = () => printSaleTicket(saleId);
-    }
+    document.getElementById("checkout-step-invoice-options").style.display = "block";
     
     state.cart = [];
   } catch (error) {
@@ -2651,11 +2648,54 @@ async function confirmPayment(method) {
 
 function autoFillClientInfo() {
   const name = document.getElementById("chk-client-name").value.trim().toLowerCase();
-  const match = state.currentAccounts.find(a => a.type === "cliente" && a.entityName.toLowerCase() === name);
-  if (match) {
-    document.getElementById("chk-client-phone").value = match.phone || "";
-    document.getElementById("chk-client-address").value = match.address || "";
+  const datalist = document.getElementById("chk-client-list");
+  const options = datalist.querySelectorAll("option");
+  const selectedOpt = Array.from(options).find(o => o.value.toLowerCase() === name);
+  
+  if (selectedOpt) {
+    document.getElementById("chk-client-phone").value = selectedOpt.dataset.phone || "";
+    document.getElementById("chk-client-address").value = selectedOpt.dataset.address || "";
   }
+}
+
+function finishCheckoutWithNoInvoice() {
+  document.getElementById("checkout-step-invoice-options").style.display = "none";
+  document.getElementById("checkout-step-success").style.display = "block";
+  const printBtn = document.getElementById("checkout-print-btn");
+  if (printBtn) {
+    printBtn.onclick = () => printSaleTicket(window.currentCheckoutSaleId);
+  }
+}
+
+async function finishCheckoutWithARCA() {
+  const saleId = window.currentCheckoutSaleId;
+  const titleEl = document.querySelector("#checkout-step-invoice-options .modal-title");
+  const originalHtml = titleEl.innerHTML;
+  titleEl.innerHTML = "Facturando en AFIP <i class='fas fa-spinner fa-spin'></i>";
+  
+  try {
+    const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
+    showToast(`¡Factura ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
+    
+    // Esperar a que se actualicen las ventas
+    await refreshState();
+    
+    document.getElementById("checkout-step-invoice-options").style.display = "none";
+    document.getElementById("checkout-step-success").style.display = "block";
+    titleEl.innerHTML = originalHtml;
+    
+    const printBtn = document.getElementById("checkout-print-btn");
+    if (printBtn) {
+      printBtn.onclick = () => printSaleTicket(saleId);
+    }
+  } catch (error) {
+    titleEl.innerHTML = originalHtml;
+    showToast("Error al facturar: " + error.message, true);
+  }
+}
+
+function closeCheckoutAndKeepSale() {
+  closeCheckoutModal();
 }
 
 function formatCheckoutPaidAmount() {
@@ -2692,7 +2732,6 @@ async function submitCheckoutFinance() {
   const subtotal = parseFloat(totalValEl.dataset.subtotal) || total;
   const discountPct = parseFloat(totalValEl.dataset.discountPct) || 0;
   const paidAmount = parseFloat(paidRaw) || 0;
-  const debtAmount = total - paidAmount;
 
   try {
     // 1. Crear o actualizar cuenta corriente de cliente
@@ -2768,15 +2807,12 @@ async function submitCheckoutFinance() {
       date: salePayload.date
     });
 
-    // Éxito
-    document.getElementById("checkout-step-finance").style.display = "none";
-    document.getElementById("checkout-step-success").style.display = "block";
+    // Guardar ID para los siguientes pasos
+    window.currentCheckoutSaleId = saleId;
     
-    // Configurar botón de impresión
-    const printBtn = document.getElementById("checkout-print-btn");
-    if (printBtn) {
-      printBtn.onclick = () => printSaleTicket(saleId);
-    }
+    // Avanzar al step de opciones de facturación
+    document.getElementById("checkout-step-finance").style.display = "none";
+    document.getElementById("checkout-step-invoice-options").style.display = "block";
     
     state.cart = [];
   } catch (error) {
@@ -2834,11 +2870,16 @@ function openSalesHistoryModal() {
       if (sale.method.startsWith("Cta. corriente")) badgeClass = "badge-blue";
       else if (sale.method === "Canje" || sale.method === "custom") badgeClass = "badge-gray";
       
+      const originBadge = (sale.origen === "tiendanube") 
+        ? `<span class="badge" style="margin-left: 4px; background: #8b5cf6; color: white; padding: 2px 6px; font-size: 0.65rem;">Tienda Nube</span>` 
+        : `<span class="badge" style="margin-left: 4px; background: rgba(255,255,255,0.1); color: #ccc; padding: 2px 6px; font-size: 0.65rem;">Local</span>`;
+        
       el.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-          <div>
-            <span style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ ${Math.round(sale.total).toLocaleString()}</span>
-            <span class="badge ${badgeClass}" style="margin-left: 8px; text-transform: capitalize;">${translatedMethod}</span>
+          <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+            <span style="font-size: 1.1rem; font-weight: 900; color: #fff; margin-right: 4px;">$ ${Math.round(sale.total).toLocaleString()}</span>
+            <span class="badge ${badgeClass}" style="text-transform: capitalize;">${translatedMethod}</span>
+            ${originBadge}
           </div>
           <div style="display: flex; gap: 6px;">
             ${!sale.arca_invoice_id ? `<button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">⚡ Facturar</button>` : `<span class="badge badge-emerald" style="font-size: 0.6rem;" title="Facturado en AFIP">✔️ ${sale.arca_invoice_id}</span>`}
@@ -2988,135 +3029,177 @@ function printSaleTicket(saleId) {
     `;
   }
 
-  // Construir HTML final
-  const ticketHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Ticket ${sale.id}</title>
-      <style>
-        @page {
-          margin: 0;
-        }
-        body {
-          font-family: 'Courier New', Courier, monospace;
-          font-size: 12px;
-          line-height: 1.3;
-          color: #000;
-          background: #fff;
-          margin: 0;
-          padding: 10px;
-          width: 72mm;
-          box-sizing: border-box;
-        }
-        .text-center {
-          text-align: center;
-        }
-        .text-right {
-          text-align: right;
-        }
-        .bold {
-          font-weight: bold;
-        }
-        .header {
-          margin-bottom: 10px;
-        }
-        .non-fiscal {
-          font-size: 10px;
-          border: 1px solid #000;
-          padding: 4px;
-          margin: 5px 0;
-          display: inline-block;
-          font-weight: bold;
-        }
-        .separator {
-          border-top: 1px dashed #000;
-          margin: 8px 0;
-        }
-        .items-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 10px 0;
-        }
-        .items-table th {
-          border-bottom: 1px dashed #000;
-          text-align: left;
-          font-weight: bold;
-          padding: 4px 0;
-        }
-        .items-table td {
-          padding: 4px 0;
-          vertical-align: top;
-        }
-        .totals {
-          margin-top: 10px;
-          font-size: 12px;
-        }
-        .totals-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 4px;
-        }
-        .footer {
-          margin-top: 15px;
-          font-size: 10px;
-        }
-        .exchange-ticket {
-          margin-top: 20px;
-          padding-top: 15px;
-          border-top: 1px dashed #000;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header text-center">
-        <div class="non-fiscal">DOCUMENTO NO VALIDO COMO FACTURA</div>
-        <h2 style="margin: 5px 0; font-size: 16px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
-        <p style="margin: 2px 0; font-size: 10px;">Fecha: ${dateStr} - ${timeStr}</p>
-        <p style="margin: 2px 0; font-size: 10px; font-family: monospace;">TICKET N°: ${sale.id}</p>
-      </div>
-      
-      <div class="separator"></div>
-      
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th>Detalle</th>
-            <th class="text-right">Cant</th>
-            <th class="text-right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHtml}
-        </tbody>
-      </table>
-      
-      <div class="separator"></div>
-      
-      <div class="totals">
-        <div class="totals-row">
-          <span>Metodo Pago:</span>
-          <span class="bold">${sale.method}</span>
-        </div>
-        <div class="totals-row" style="font-size: 14px; margin-top: 8px;">
-          <span class="bold">TOTAL:</span>
-          <span class="bold">$${Math.round(sale.total).toLocaleString('es-AR')}</span>
-        </div>
-      </div>
-      
-      <div class="separator"></div>
-      
-      <div class="footer text-center">
-        <p style="margin: 5px 0;">¡Muchas gracias por su compra!</p>
-      </div>
-      
-      ${exchangeTicketHtml}
-    </body>
-    </html>
-  `;
+  const isFiscal = !!sale.arca_invoice_id;
+  let ticketHtml = "";
 
-  // Abrir ventana e imprimir
+  if (!isFiscal) {
+    // Ticket No Válido Como Factura
+    ticketHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Ticket ${sale.id}</title>
+        <style>
+          @page { margin: 0; }
+          body { font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.3; color: #000; background: #fff; margin: 0; padding: 10px; width: 72mm; box-sizing: border-box; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .bold { font-weight: bold; }
+          .header { margin-bottom: 10px; }
+          .non-fiscal { font-size: 10px; border: 1px solid #000; padding: 4px; margin: 5px 0; display: inline-block; font-weight: bold; }
+          .separator { border-top: 1px dashed #000; margin: 8px 0; }
+          .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+          .items-table th { border-bottom: 1px dashed #000; text-align: left; font-weight: bold; padding: 4px 0; }
+          .items-table td { padding: 4px 0; vertical-align: top; }
+          .totals { margin-top: 10px; font-size: 12px; }
+          .totals-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+          .footer { margin-top: 15px; font-size: 10px; }
+          .exchange-ticket { margin-top: 20px; padding-top: 15px; border-top: 1px dashed #000; }
+        </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <div class="non-fiscal">DOCUMENTO NO VALIDO COMO FACTURA</div>
+          <h2 style="margin: 5px 0; font-size: 16px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
+          <p style="margin: 2px 0; font-size: 10px;">Fecha: ${dateStr} - ${timeStr}</p>
+          <p style="margin: 2px 0; font-size: 10px; font-family: monospace;">TICKET N°: ${sale.id}</p>
+        </div>
+        <div class="separator"></div>
+        <table class="items-table">
+          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">Total</th></tr></thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+        <div class="separator"></div>
+        <div class="totals">
+          <div class="totals-row"><span>Metodo Pago:</span><span class="bold">${sale.method}</span></div>
+          <div class="totals-row" style="font-size: 14px; margin-top: 8px;"><span class="bold">TOTAL:</span><span class="bold">$${Math.round(sale.total).toLocaleString('es-AR')}</span></div>
+        </div>
+        <div class="separator"></div>
+        ${exchangeTicketHtml}
+        <div class="footer text-center">
+          <p style="margin: 5px 0;">¡Gracias por su compra!</p>
+        </div>
+      </body>
+      </html>
+    `;
+  } else {
+    // Factura C (Legal)
+    let arca = {};
+    if (state.integrations && state.integrations.arca) {
+        arca = state.integrations.arca;
+    }
+    const cuit = arca.cuit || "00-00000000-0";
+    const pos = arca.pos || "0002";
+    const businessName = arca.businessName || state.businessName || "Responsable Monotributo";
+    const address = arca.address || "Domicilio Comercial";
+    const iibb = arca.iibb || cuit;
+    const incioAct = arca.inicio_actividades || "01/01/2020";
+    const nroFactura = sale.arca_invoice_id || "";
+    const cae = sale.arca_cae || "";
+    const caeDue = sale.arca_cae_due || "";
+    const clientCuit = sale.client_cuit ? sale.client_cuit.replace(/[^0-9]/g, '') : "0";
+    const isAnonymous = clientCuit === "0" || clientCuit === "20999999999" || clientCuit === "";
+
+    let qrImgHtml = "";
+    if (cae) {
+      try {
+        const qrData = {
+          "ver": 1,
+          "fecha": sale.date.split("T")[0],
+          "cuit": parseInt(cuit.replace(/[^0-9]/g, '') || 0),
+          "ptoVta": parseInt(pos),
+          "tipoCmp": 11,
+          "nroCmp": parseInt(nroFactura.split("-")[1] || 0),
+          "importe": parseFloat(sale.total),
+          "moneda": "PES",
+          "ctz": 1.0,
+          "tipoDocRec": parseInt(clientCuit) > 0 ? 80 : 99,
+          "nroDocRec": parseInt(clientCuit) > 0 ? parseInt(clientCuit) : 0,
+          "tipoCodAut": "E",
+          "codAut": parseInt(cae)
+        };
+        const base64QrData = btoa(JSON.stringify(qrData));
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.afip.gob.ar/fe/qr/?p=${base64QrData}`;
+        qrImgHtml = `<img src="${qrUrl}" alt="QR AFIP" style="width: 100px; height: 100px; margin-top: 5px;">`;
+      } catch (e) {
+        console.error("Error generating QR data", e);
+      }
+    }
+
+    ticketHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Factura C ${nroFactura}</title>
+        <style>
+          @page { margin: 0; }
+          body { font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.2; color: #000; background: #fff; margin: 0; padding: 10px; width: 72mm; box-sizing: border-box; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .bold { font-weight: bold; }
+          .header { margin-bottom: 5px; }
+          .separator { border-top: 1px dashed #000; margin: 5px 0; }
+          .items-table { width: 100%; border-collapse: collapse; margin: 5px 0; }
+          .items-table th { border-bottom: 1px dashed #000; text-align: left; font-weight: bold; padding: 2px 0; }
+          .items-table td { padding: 2px 0; vertical-align: top; }
+          .totals { margin-top: 5px; font-size: 11px; }
+          .totals-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+          .afip-box { border: 1px solid #000; padding: 4px; text-align: center; margin: 5px 0; }
+          .c-letter { font-size: 24px; font-weight: bold; margin: 0; }
+          .exchange-ticket { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; }
+        </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <div class="afip-box">
+            <p class="c-letter">C</p>
+            <p style="font-size: 9px; margin: 0;">COD. 011</p>
+          </div>
+          <h2 style="margin: 3px 0; font-size: 14px; text-transform: uppercase;">${businessName}</h2>
+          <p style="margin: 2px 0; font-size: 10px;">${address}</p>
+          <p style="margin: 2px 0; font-size: 10px;">CUIT: ${cuit}</p>
+          <p style="margin: 2px 0; font-size: 10px;">IIBB: ${iibb}</p>
+          <p style="margin: 2px 0; font-size: 10px;">Inicio Actividades: ${incioAct}</p>
+          <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">RESPONSABLE MONOTRIBUTO</p>
+        </div>
+        <div class="separator"></div>
+        <div class="text-center" style="margin: 5px 0;">
+          <p class="bold" style="margin: 0; font-size: 14px;">FACTURA</p>
+          <p style="margin: 2px 0;">Nro: ${pos}-${nroFactura.split("-")[1] || "00000000"}</p>
+          <p style="margin: 2px 0;">Fecha: ${dateStr}</p>
+        </div>
+        <div class="separator"></div>
+        <div style="margin: 5px 0; font-size: 10px;">
+          <p style="margin: 2px 0;"><span class="bold">A CONSUMIDOR FINAL</span></p>
+          ${!isAnonymous ? `
+            <p style="margin: 2px 0;">CUIT/DNI: ${clientCuit}</p>
+            <p style="margin: 2px 0;">Cliente: ${sale.client_name || "Consumidor"}</p>
+          ` : ''}
+        </div>
+        <div class="separator"></div>
+        <table class="items-table">
+          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">Total</th></tr></thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+        <div class="separator"></div>
+        <div class="totals">
+          <div class="totals-row"><span>Cond. de Venta:</span><span class="bold">${sale.method.toLowerCase().includes('efectivo') ? 'Contado' : (sale.method.toLowerCase().includes('transfer') ? 'Transferencia' : 'Tarjeta')}</span></div>
+          <div class="totals-row" style="font-size: 14px; margin-top: 5px;"><span class="bold">TOTAL:</span><span class="bold">$${Math.round(sale.total).toLocaleString('es-AR')}</span></div>
+        </div>
+        <div class="separator"></div>
+        ${exchangeTicketHtml}
+        <div class="footer text-center" style="margin-top: 10px;">
+          ${qrImgHtml}
+          <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
+          <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   const printWindow = window.open("", "_blank", "width=600,height=800");
   if (printWindow) {
     printWindow.document.write(ticketHtml);
