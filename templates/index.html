@@ -1339,8 +1339,9 @@
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span style="font-size: 0.75rem; color: var(--text-gray-light);">Facturación mensual:</span>
-                  <select id="arca-monotributo-month-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
-                    <!-- Se carga por JS -->
+                  <select id="arca-monotributo-month-only-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
+                  </select>
+                  <select id="arca-monotributo-year-only-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
                   </select>
                 </div>
                 <span style="font-size: 1.0rem; font-weight: 800; color: #fff;" id="arca-monotributo-month-accumulated">$0 / $0</span>
@@ -2516,6 +2517,35 @@
   </section>
 
   <!-- --- PANTALLA DE MURO DE PAGO (PAYWALL OFFLINE) --- -->
+  <!-- Modal Nota de Crédito ARCA -->
+  <div id="credit-note-modal" class="modal-backdrop">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Generar Nota de Crédito (ARCA)</h2>
+        <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="closeCreditNoteModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div style="padding: 15px; font-size: 0.8rem; color: var(--text-gray-light); line-height: 1.5;">
+        <p style="margin-bottom: 12px; color: var(--text-gray);">Al generar la Nota de Crédito, la venta se anulará en el sistema, el saldo se revertirá en caja y se informará a AFIP. <strong>La factura original no se borra</strong>, pero su saldo quedará neteado a $0.</p>
+        
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #fff;">Motivo de la anulación:</label>
+          <select id="credit-note-reason" class="form-input">
+            <option value="Devolución técnica">Devolución técnica (Los productos VUELVEN al inventario)</option>
+            <option value="Anulación por mercadería dañada">Anulación por mercadería dañada (Se pierde el stock, NO vuelve al inventario)</option>
+          </select>
+        </div>
+
+        <div style="background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); padding: 10px; border-radius: 6px; color: #f97316; font-size: 0.75rem;">
+          <i class="fas fa-exclamation-triangle"></i> Esta acción emitirá un comprobante fiscal válido en AFIP y no se puede deshacer.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeCreditNoteModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-confirm-credit-note" style="background: #f97316; border-color: #ea580c; color: white;" onclick="confirmCreditNote()">Emitir Nota de Crédito</button>
+      </div>
+    </div>
+  </div>
+
   <section id="paywall-screen" style="display: none; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;">
     <div class="idx-card" style="width: 100%; max-width: 520px; padding: 35px; background: var(--bg-dark); border-color: var(--border-color); text-align: center;">
       <div style="font-size: 3rem; color: var(--accent-red); margin-bottom: 20px;">

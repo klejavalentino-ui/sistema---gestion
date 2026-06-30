@@ -146,9 +146,21 @@ class WSFEClient:
             
         return int(cbte_nro_node.text)
 
-    def request_cae(self, pto_vta, cbte_tipo, cbte_nro, total, doc_tipo=99, doc_nro=0, concepto=1, cbte_fch=None):
+    def request_cae(self, pto_vta, cbte_tipo, cbte_nro, total, doc_tipo=99, doc_nro=0, concepto=1, cbte_fch=None, cbtes_asoc=None):
         if not cbte_fch:
             cbte_fch = datetime.now().strftime("%Y%m%d")
+            
+        cbtes_asoc_xml = ""
+        if cbtes_asoc:
+            cbtes_asoc_xml = f"""
+            <CbtesAsoc>
+              <CbteAsoc>
+                <Tipo>{int(cbtes_asoc['tipo'])}</Tipo>
+                <PtoVta>{int(cbtes_asoc['pto_vta'])}</PtoVta>
+                <Nro>{int(cbtes_asoc['nro'])}</Nro>
+                <Cuit>{self.cuit}</Cuit>
+              </CbteAsoc>
+            </CbtesAsoc>"""
             
         soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
@@ -180,7 +192,7 @@ class WSFEClient:
             <ImpTrib>0.00</ImpTrib>
             <ImpIVA>0.00</ImpIVA>
             <MonId>PES</MonId>
-            <MonCotiz>1</MonCotiz>
+            <MonCotiz>1</MonCotiz>{cbtes_asoc_xml}
           </FECAEDetRequest>
         </FeDetReq>
       </FeCAEReq>

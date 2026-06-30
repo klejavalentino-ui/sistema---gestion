@@ -2740,6 +2740,145 @@ def emit_invoice():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Error interno al emitir comprobante: {str(e)}"}), 500
+@app.route("/api/invoices/credit-note", methods=["POST"])
+def emit_credit_note():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    email = get_email_from_token(token)
+    if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
+        return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
+    
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        data = request.json or {}
+        sale_id = data.get("sale_id")
+        reason = data.get("reason", "Devolución técnica") # "Anulación por mercadería dañada" or "Devolución técnica"
+        
+        if not sale_id:
+            return jsonify({"error": "Falta el ID de la venta"}), 400
+            
+        sales = firebase_config.list_documents("sales", token)
+        sale = next((s for s in sales if s.get("id") == f"{prefix}{sale_id}"), None)
+        
+        if not sale:
+            return jsonify({"error": "Venta no encontrada."}), 404
+            
+        orig_invoice = sale.get("arca_invoice_id")
+        if not orig_invoice:
+            return jsonify({"error": "La venta no está facturada en AFIP."}), 400
+            
+        if sale.get("credit_note_cae") or sale.get("status") == "cancelled":
+            return jsonify({"error": "La venta ya fue anulada/tiene Nota de Crédito."}), 400
+            
+        # Parse original invoice (e.g. 0002-00000002)
+        parts = orig_invoice.split("-")
+        if len(parts) != 2:
+            return jsonify({"error": f"Formato de factura original inválido: {orig_invoice}"}), 400
+        orig_pto_vta = int(parts[0])
+        orig_nro = int(parts[1])
+        orig_tipo = 11 # Asumimos Factura C por defecto en el sistema actual
+        
+        nc_tipo = 13 # Nota de Crédito C
+        
+        arca_config = firebase_config.get_document("integrations", "arca", token) or {}
+        pos = int(arca_config.get("pos", "2"))
+        sandbox = arca_config.get("mode", "sandbox") == "sandbox"
+        cert_content = arca_config.get("cert_content")
+        key_content = arca_config.get("key_content")
+        cuit = arca_config.get("cuit")
+        
+        if not cert_content or not key_content or not cuit:
+            return jsonify({"error": "Credenciales de ARCA incompletas."}), 400
+            
+        # Login to ARCA
+        wsaa = WSAAClient(cert_content, key_content, sandbox=sandbox)
+        arca_token, sign = wsaa.get_token_and_sign()
+        
+        wsfe = WSFEClient(arca_token, sign, cuit, sandbox=sandbox)
+        
+        # Get last NC number
+        last_nc = wsfe.get_last_authorized_voucher(pos, nc_tipo)
+        next_nc = last_nc + 1
+        
+        total = safe_float(sale.get("total", 0.0))
+        
+        # Parse client document
+        client_cuit = sale.get("client_cuit", "").strip()
+        client_cuit_clean = "".join(c for c in client_cuit if c.isdigit())
+        doc_tipo = 99
+        doc_nro = 0
+        if client_cuit_clean:
+            if len(client_cuit_clean) == 11:
+                doc_tipo = 80 # CUIT
+                doc_nro = int(client_cuit_clean)
+            elif len(client_cuit_clean) in [7, 8]:
+                doc_tipo = 96 # DNI
+                doc_nro = int(client_cuit_clean)
+                
+        # Generate Credit Note
+        cbtes_asoc = {
+            "tipo": orig_tipo,
+            "pto_vta": orig_pto_vta,
+            "nro": orig_nro
+        }
+        
+        cae, cae_due = wsfe.request_cae(pos, nc_tipo, next_nc, total, doc_tipo, doc_nro, cbtes_asoc=cbtes_asoc)
+        nc_invoice_number = f"{pos:04d}-{next_nc:08d}"
+        
+        # Update sale locally
+        sale["status"] = "cancelled"
+        sale["credit_note_id"] = nc_invoice_number
+        sale["credit_note_cae"] = cae
+        sale["credit_note_cae_due"] = cae_due
+        sale["cancel_reason"] = reason
+        firebase_config.set_document("sales", f"{prefix}{sale_id}", sale, token)
+        
+        # Generar transacción de caja negativa
+        caja_payload = {
+            "description": f"Anulación NC {nc_invoice_number} (Ref: {orig_invoice}) - {reason}",
+            "type": "expense",
+            "amount": total,
+            "date": datetime.now().isoformat()
+        }
+        caja_id = int(time.time() * 1000)
+        caja_payload["sku"] = f"cashtransaction_{caja_id}"
+        caja_payload["name"] = caja_payload["description"]
+        caja_payload["cost"] = total
+        caja_payload["stock"] = 0
+        caja_payload["id"] = str(caja_id)
+        firebase_config.set_document("products", f"{prefix}{caja_payload['sku']}", caja_payload, token)
+        
+        # Devolver stock si aplica
+        if reason == "Devolución técnica":
+            items = sale.get("items", [])
+            for cart_item in items:
+                prod_info = cart_item.get("product", {})
+                sku = prod_info.get("sku")
+                qty = safe_int(cart_item.get("quantity", 0))
+                
+                if sku and qty > 0:
+                    prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
+                    if prod:
+                        current_stock = safe_int(prod.get("stock", 0))
+                        prod["stock"] = current_stock + qty
+                        prod["sku"] = f"{prefix}{sku}"
+                        firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
+                        
+        return jsonify({
+            "success": True,
+            "credit_note_id": nc_invoice_number,
+            "cae": cae,
+            "cae_due": cae_due
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Error al emitir Nota de Crédito: {str(e)}"}), 500
 
 
 @app.route("/api/invoices/simulate", methods=["POST"])

@@ -2871,19 +2871,23 @@ function openSalesHistoryModal() {
         : `<span class="badge" style="margin-left: 4px; background: rgba(255,255,255,0.1); color: #ccc; padding: 2px 6px; font-size: 0.65rem;">Local</span>`;
         
       el.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; ${sale.status === 'cancelled' ? 'opacity: 0.6;' : ''}">
           <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-            <span style="font-size: 1.1rem; font-weight: 900; color: #fff; margin-right: 4px;">$ ${Math.round(sale.total).toLocaleString()}</span>
+            <span style="font-size: 1.1rem; font-weight: 900; color: #fff; margin-right: 4px; ${sale.status === 'cancelled' ? 'text-decoration: line-through;' : ''}">$ ${Math.round(sale.total).toLocaleString()}</span>
             <span class="badge ${badgeClass}" style="text-transform: capitalize;">${translatedMethod}</span>
             ${originBadge}
           </div>
           <div style="display: flex; gap: 6px;">
-            ${!sale.arca_invoice_id ? `<button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">⚡ Facturar</button>` : `<span class="badge badge-emerald" style="font-size: 0.6rem;" title="Facturado en AFIP">✔️ ${sale.arca_invoice_id}</span>`}
+            ${sale.credit_note_id ? `<span class="badge" style="background: rgba(100,100,100,0.2); color: #aaa; font-size: 0.6rem;" title="Nota de Crédito Generada">⛔ Anulada (NC: ${sale.credit_note_id})</span>` :
+              (!sale.arca_invoice_id ? `<button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">⚡ Facturar</button>` : `<span class="badge badge-emerald" style="font-size: 0.6rem;" title="Facturado en AFIP">✔️ ${sale.arca_invoice_id}</span>`)}
             <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px;" onclick="printSaleTicket('${sale.id}')">
               <i class="fas fa-print"></i> Imprimir
             </button>
-            ${(!sale.arca_invoice_id && sale.origen !== 'tiendanube') ? `<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #ef4444;" onclick="deleteSale('${sale.id}')">
+            ${(!sale.arca_invoice_id && sale.origen !== 'tiendanube' && !sale.credit_note_id) ? `<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #ef4444;" onclick="deleteSale('${sale.id}')">
               <i class="fas fa-trash"></i> Eliminar
+            </button>` : ''}
+            ${(sale.arca_invoice_id && !sale.credit_note_id) ? `<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #f97316; border: none;" onclick="openCreditNoteModal('${sale.id}')">
+              <i class="fas fa-undo"></i> N. Crédito
             </button>` : ''}
           </div>
         </div>
@@ -2899,6 +2903,42 @@ function openSalesHistoryModal() {
   }
 
   modal.className = "modal-backdrop active";
+}
+
+let currentCreditNoteSaleId = null;
+
+function openCreditNoteModal(saleId) {
+  currentCreditNoteSaleId = saleId;
+  document.getElementById("credit-note-modal").className = "modal-backdrop active";
+}
+
+function closeCreditNoteModal() {
+  currentCreditNoteSaleId = null;
+  document.getElementById("credit-note-modal").className = "modal-backdrop";
+}
+
+async function confirmCreditNote() {
+  if (!currentCreditNoteSaleId) return;
+  const reason = document.getElementById("credit-note-reason").value;
+  const btn = document.getElementById("btn-confirm-credit-note");
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = "Emitiendo <i class='fas fa-spinner fa-spin'></i>";
+  btn.disabled = true;
+  
+  try {
+    const res = await apiRequest("/api/invoices/credit-note", "POST", { sale_id: currentCreditNoteSaleId, reason: reason });
+    showToast(`¡Nota de Crédito ${res.credit_note_id} emitida con éxito! CAE: ${res.cae}`);
+    closeCreditNoteModal();
+    await refreshState();
+    openSalesHistoryModal(); // Refresh modal
+    if (typeof renderExternalMonthlyBillingList === 'function') renderExternalMonthlyBillingList();
+    if (typeof renderUninvoicedSales === 'function') renderUninvoicedSales();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+  }
 }
 
 async function emitInvoiceFromSale(saleId) {
@@ -7864,22 +7904,30 @@ async function updateMonotributoTrackerUI(invoicesList) {
   oneYearAgo.setDate(oneYearAgo.getDate() - 365);
   
   // 4. Poblar selector de meses si está vacío
-  const monthSelect = document.getElementById("arca-monotributo-month-select");
-  if (monthSelect && monthSelect.options.length === 0) {
+  const monthOnlySelect = document.getElementById("arca-monotributo-month-only-select");
+  const yearOnlySelect = document.getElementById("arca-monotributo-year-only-select");
+  
+  if (monthOnlySelect && yearOnlySelect && monthOnlySelect.options.length === 0) {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const currentDate = new Date();
     
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    for (let i = 0; i < 12; i++) {
       const opt = document.createElement("option");
-      opt.value = val;
-      opt.innerText = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-      monthSelect.appendChild(opt);
+      opt.value = String(i + 1).padStart(2, '0');
+      opt.innerText = monthNames[i];
+      monthOnlySelect.appendChild(opt);
     }
     
-    const currentVal = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-    monthSelect.value = currentVal;
+    const currentYear = currentDate.getFullYear();
+    for (let i = currentYear - 2; i <= currentYear; i++) {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.innerText = String(i);
+      yearOnlySelect.appendChild(opt);
+    }
+    
+    monthOnlySelect.value = String(currentDate.getMonth() + 1).padStart(2, '0');
+    yearOnlySelect.value = String(currentYear);
   }
   
   // 5. Sumar la facturación de los últimos 12 meses
@@ -7895,7 +7943,7 @@ async function updateMonotributoTrackerUI(invoicesList) {
   });
   
   // 6. Calcular facturación del mes seleccionado
-  const selectedMonth = monthSelect ? monthSelect.value : "";
+  const selectedMonth = (monthOnlySelect && yearOnlySelect) ? `${yearOnlySelect.value}-${monthOnlySelect.value}` : "";
   const monthlyExterna = parseFloat(externaMap[selectedMonth]) || 0;
   let monthlyAccumulated = monthlyExterna;
   if (selectedMonth) {
