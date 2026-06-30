@@ -179,6 +179,8 @@ class WSFEClient:
             <ImpOpEx>0.00</ImpOpEx>
             <ImpTrib>0.00</ImpTrib>
             <ImpIVA>0.00</ImpIVA>
+            <MonId>PES</MonId>
+            <MonCotiz>1</MonCotiz>
           </FECAEDetRequest>
         </FeDetReq>
       </FeCAEReq>
