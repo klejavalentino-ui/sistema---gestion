@@ -2755,6 +2755,7 @@ def emit_credit_note():
         
     try:
         from arca_service import WSAAClient, WSFEClient
+        from datetime import datetime
         
         data = request.json or {}
         sale_id = data.get("sale_id")
