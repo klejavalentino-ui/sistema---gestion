@@ -2754,6 +2754,8 @@ def emit_credit_note():
         return jsonify({"error": "Token inválido o expirado"}), 401
         
     try:
+        from arca_service import WSAAClient, WSFEClient
+        
         data = request.json or {}
         sale_id = data.get("sale_id")
         reason = data.get("reason", "Devolución técnica") # "Anulación por mercadería dañada" or "Devolución técnica"
@@ -2811,13 +2813,12 @@ def emit_credit_note():
         client_cuit_clean = "".join(c for c in client_cuit if c.isdigit())
         doc_tipo = 99
         doc_nro = 0
-        if client_cuit_clean:
+        if client_cuit_clean and len(client_cuit_clean) >= 7 and client_cuit_clean != "20999999999":
+            doc_nro = int(client_cuit_clean)
             if len(client_cuit_clean) == 11:
                 doc_tipo = 80 # CUIT
-                doc_nro = int(client_cuit_clean)
-            elif len(client_cuit_clean) in [7, 8]:
+            else:
                 doc_tipo = 96 # DNI
-                doc_nro = int(client_cuit_clean)
                 
         # Generate Credit Note
         cbtes_asoc = {
