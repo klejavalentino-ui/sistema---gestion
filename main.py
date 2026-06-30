@@ -2730,6 +2730,7 @@ def emit_invoice():
         sale["arca_invoice_id"] = invoice_number
         sale["arca_cae"] = cae
         sale["arca_cae_due"] = cae_due
+        sale["fiscal_status"] = "declarada"
         firebase_config.set_document("sales", f"{prefix}{sale_id}", sale, token)
         
         invoice_data["id"] = invoice_id

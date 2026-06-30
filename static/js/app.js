@@ -7366,8 +7366,8 @@ async function renderIntegrationsStatus() {
               <strong style="color: #fff;">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
               <span style="margin-left: 8px;">
                 <select class="form-input" style="width: auto; padding: 2px 4px; font-size: 0.65rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff; cursor: pointer;" onchange="changeSaleFiscalStatus('${s.id}', this.value)">
-                  <option value="no_declarada" ${s.fiscal_status === 'no_declarada' || !s.fiscal_status ? 'selected' : ''}>No Declarada</option>
-                  <option value="declarada" ${s.fiscal_status === 'declarada' ? 'selected' : ''}>Facturada</option>
+                  <option value="no_declarada" ${(s.fiscal_status === 'no_declarada' || !s.fiscal_status) && !s.arca_cae && !s.arca_invoice_id ? 'selected' : ''}>No Declarada</option>
+                  <option value="declarada" ${s.fiscal_status === 'declarada' || s.arca_cae || s.arca_invoice_id ? 'selected' : ''}>Facturada</option>
                 </select>
               </span>
             </div>
@@ -7886,7 +7886,7 @@ async function updateMonotributoTrackerUI(invoicesList) {
   let accumulated = externaAccumulated;
   sales.forEach(sale => {
     if (sale.status === "cancelled") return;
-    if (trackerFilter === "solo_facturadas" && sale.fiscal_status !== "declarada") return;
+    if (trackerFilter === "solo_facturadas" && sale.fiscal_status !== "declarada" && !sale.arca_cae && !sale.arca_invoice_id) return;
     
     const saleDate = new Date(sale.date);
     if (saleDate >= oneYearAgo) {
@@ -7901,7 +7901,7 @@ async function updateMonotributoTrackerUI(invoicesList) {
   if (selectedMonth) {
     sales.forEach(sale => {
       if (sale.status === "cancelled") return;
-      if (trackerFilter === "solo_facturadas" && sale.fiscal_status !== "declarada") return;
+      if (trackerFilter === "solo_facturadas" && sale.fiscal_status !== "declarada" && !sale.arca_cae && !sale.arca_invoice_id) return;
       
       const saleDate = new Date(sale.date);
       const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
