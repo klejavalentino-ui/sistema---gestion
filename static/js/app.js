@@ -1245,6 +1245,21 @@ async function refreshState() {
         item.style.display = "block";
       }
     });
+
+    // Auto-revert failed NCs once
+    if (!localStorage.getItem("gs_ncs_fixed_v2")) {
+      setTimeout(async () => {
+        try {
+          const res = await apiRequest("/api/invoices/fix-failed-ncs", "POST");
+          console.log("Auto-reverted failed NCs:", res);
+          localStorage.setItem("gs_ncs_fixed_v2", "true");
+          // Re-refresh state to show the reverted sales in the UI
+          await refreshState();
+        } catch (e) {
+          console.error("Auto-revert failed:", e);
+        }
+      }, 3000);
+    }
   } catch (error) {
     console.error("Error loading states:", error);
     showToast("Error al sincronizar con la base de datos", true);
