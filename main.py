@@ -2883,6 +2883,38 @@ def emit_credit_note():
         traceback.print_exc()
         return jsonify({"error": f"Error al emitir Nota de Crédito: {str(e)}"}), 500
 
+@app.route("/api/invoices/fix-failed-ncs", methods=["POST"])
+def fix_failed_ncs():
+    try:
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        prefix = get_user_prefix(token)
+        if not prefix:
+            return jsonify({"error": "Token inválido"}), 401
+            
+        sales = firebase_config.list_documents("sales", token)
+        fixed_count = 0
+        for s in sales:
+            if s.get("status") == "cancelled" and ("credit_note_id" in s or "credit_note_cae" in s):
+                # Desmarcar venta
+                s["status"] = "completed"
+                nc_id = s.get("credit_note_id")
+                s.pop("credit_note_id", None)
+                s.pop("credit_note_cae", None)
+                firebase_config.set_document("sales", s["id"], s, token)
+                fixed_count += 1
+                
+                # Borrar la transaccion de caja negativa
+                if nc_id:
+                    prods = firebase_config.list_documents("products", token)
+                    for p in prods:
+                        if p.get("sku", "").startswith("cashtransaction_") and nc_id in p.get("description", ""):
+                            firebase_config.delete_document("products", p["id"], token)
+                            
+        return jsonify({"message": f"Se restauraron {fixed_count} ventas anuladas fallidas y sus movimientos en caja."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 @app.route("/api/invoices/simulate", methods=["POST"])
 def simulate_invoice():
