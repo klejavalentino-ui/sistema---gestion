@@ -1772,6 +1772,16 @@ def save_integration(integration_id):
             email = get_email_from_token(token)
             if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com"]:
                 return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
+            
+            # Preservar certificados existentes si no se proveen en el nuevo payload
+            existing = firebase_config.get_document("integrations", "arca", token)
+            if existing:
+                if "cert_content" not in data or not data["cert_content"]:
+                    if existing.get("cert_content"):
+                        data["cert_content"] = existing.get("cert_content")
+                if "key_content" not in data or not data["key_content"]:
+                    if existing.get("key_content"):
+                        data["key_content"] = existing.get("key_content")
         elif integration_id == "tiendanube":
             access_token = data.get("access_token")
             user_id = data.get("user_id")
@@ -2697,11 +2707,7 @@ def emit_invoice():
             except Exception as afip_err:
                 return jsonify({"error": f"Error AFIP: {str(afip_err)}"}), 400
         else:
-            existing_invoices = firebase_config.list_documents("invoices", token)
-            next_num = len(existing_invoices) + 1
-            invoice_number = f"{str(pos).zfill(4)}-{str(next_num).zfill(8)}"
-            cae = "".join([str(random.randint(0, 9)) for _ in range(14)])
-            cae_due = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+            return jsonify({"error": "No se encontraron las credenciales digitales de AFIP (Certificado o Llave Privada) configuradas en la sección de integraciones ARCA. Por favor cárgalas en el panel de control antes de facturar."}), 400
             
         invoice_data = {
             "sale_id": sale_id,
