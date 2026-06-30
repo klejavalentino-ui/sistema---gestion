@@ -158,7 +158,6 @@ class WSFEClient:
                 <Tipo>{int(cbtes_asoc['tipo'])}</Tipo>
                 <PtoVta>{int(cbtes_asoc['pto_vta'])}</PtoVta>
                 <Nro>{int(cbtes_asoc['nro'])}</Nro>
-                <Cuit>{self.cuit}</Cuit>
               </CbteAsoc>
             </CbtesAsoc>"""
             
@@ -210,8 +209,13 @@ class WSFEClient:
         
         root = ET.fromstring(r.text)
         
+        # Check cabecera result
         resultado_node = root.find(".//Resultado") or root.find(".//{http://ar.gov.afip.dif.FEV1/}Resultado")
-        if resultado_node is None or resultado_node.text != "A":
+        # Check detalle result
+        det_resultado_node = root.find(".//FECAEDetResponse/Resultado") or root.find(".//{http://ar.gov.afip.dif.FEV1/}FECAEDetResponse/{http://ar.gov.afip.dif.FEV1/}Resultado")
+        
+        # Si alguno de los dos resultados es distinto de "A" (Aprobado), lanzar error
+        if (resultado_node is None or resultado_node.text != "A") or (det_resultado_node is not None and det_resultado_node.text != "A"):
             obs_nodes = root.findall(".//Obs/Obs") or root.findall(".//{http://ar.gov.afip.dif.FEV1/}Obs")
             obs_msgs = []
             for obs in obs_nodes:
@@ -222,6 +226,11 @@ class WSFEClient:
             err_node = root.find(".//Msg") or root.find(".//{http://ar.gov.afip.dif.FEV1/}Msg")
             global_err = err_node.text if err_node is not None else "Rechazado por AFIP"
             err_msg_detailed = " | ".join(obs_msgs) if obs_msgs else ""
+            
+            # If we don't have obs but we have a det_resultado != A without Obs, it's weird, but we will catch it.
+            if not err_msg_detailed and det_resultado_node is not None and det_resultado_node.text != "A":
+                err_msg_detailed = "Rechazado a nivel detalle (sin observaciones adicionales de AFIP)"
+                
             raise Exception(f"{global_err}: {err_msg_detailed}".strip())
             
         cae_node = root.find(".//CAE") or root.find(".//{http://ar.gov.afip.dif.FEV1/}CAE")
