@@ -13,6 +13,11 @@ from flask_cors import CORS
 from flask_compress import Compress
 from cachetools import TTLCache
 from functools import wraps
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import smtplib
+from email.mime.text import MIMEText
+from functools import wraps
 from arca_client import create_arca_payment
 
 def handle_error(e):
@@ -25,6 +30,26 @@ def handle_error(e):
             return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
         return jsonify({"error": str(e)}), status
     return jsonify({"error": str(e)}), 500
+
+def send_admin_email(subject, body):
+    sender = "gestiosmart.ss@gmail.com"
+    pwd = os.environ.get("SMTP_PASSWORD", "")
+    if not pwd:
+        print("Advertencia: SMTP_PASSWORD no configurada. No se pudo enviar el correo.")
+        return
+        
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = sender
+    
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender, pwd)
+            server.sendmail(sender, sender, msg.as_string())
+        print(f"Correo enviado exitosamente: {subject}")
+    except Exception as e:
+        print(f"Error al enviar correo: {e}")
 
 def safe_float(val, default=0.0):
     if val is None:
@@ -82,6 +107,14 @@ app.secret_key = "mazo_clothing_secret_key_secure_idx"
 # Habilitar CORS y Compresión
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 Compress(app)
+
+# Rate Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["1000 per day", "150 per hour"],
+    storage_uri="memory://"
+)
 
 # Caché en memoria para perfiles de usuario (TTL de 5 minutos, tamaño máximo de 1000 perfiles)
 profile_cache = TTLCache(maxsize=1000, ttl=300)
@@ -277,6 +310,11 @@ def register():
     data = request.json or {}
     email = data.get("email")
     password = data.get("password")
+    name = data.get("name", "")
+    businessName = data.get("businessName", "")
+    username = data.get("username", "")
+    phone = data.get("phone", "")
+    biz_type = data.get("businessType", "textil")
     
     if not email or not password:
         return jsonify({"error": "Correo y contraseña son requeridos"}), 400
@@ -284,6 +322,26 @@ def register():
     try:
         res = firebase_config.sign_up(email, password)
         token = res.get("idToken")
+        
+        # Guardar el perfil extendido del usuario
+        try:
+            profile_payload = {
+                "sku": f"{biz_type}_user_profile",
+                "name": f"Perfil {biz_type.capitalize()}",
+                "contactName": name,
+                "businessName": businessName,
+                "username": username,
+                "contactPhone": phone,
+                "contactEmail": email,
+                "subscriptionStatus": "trial",
+                "trialStartDate": datetime.utcnow().isoformat(),
+                "role": "admin",
+                "currency": "ARS",
+                "createdAt": datetime.utcnow().isoformat()
+            }
+            firebase_config.set_document("products", f"{biz_type}_user_profile", profile_payload, token)
+        except Exception as ex:
+            print(f"Error guardando perfil extendido: {ex}")
         
         # Send verification email immediately on registration
         try:
@@ -423,6 +481,20 @@ def get_all_state():
         return jsonify({"error": "Token inválido o expirado"}), 401
         
     try:
+        admin_uid = firebase_config.verify_id_token(token)
+        real_uid = firebase_config.get_real_uid(admin_uid, token)
+        
+        my_role = "admin"
+        my_permissions = None
+        
+        if admin_uid != real_uid:
+            my_role = "subuser"
+            try:
+                sub_doc = firebase_config.get_document(f"users/{real_uid}/subusers", admin_uid, token)
+                if sub_doc:
+                    my_permissions = sub_doc.get("access", {})
+            except Exception as e:
+                print(f"Error getting subuser permissions: {e}")
         # 1. Check email verification status in real-time
         try:
             user_info = firebase_config.get_account_info(token)
@@ -493,6 +565,17 @@ def get_all_state():
             payload["sku"] = f"{prefix}user_profile"
             try:
                 firebase_config.set_document("products", f"{prefix}user_profile", payload, token)
+                
+                # Enviar correo de notificación
+                biz_name = profile_doc.get("businessName", "No especificado")
+                u_email = profile_doc.get("contactEmail", "No especificado")
+                u_name = profile_doc.get("contactName", "No especificado")
+                u_phone = profile_doc.get("contactPhone", "No especificado")
+                
+                subject = f"Prueba Vencida - {biz_name}"
+                body = f"Se ha agotado el período de prueba para el siguiente usuario:\n\nNombre: {u_name}\nNegocio: {biz_name}\nEmail: {u_email}\nTeléfono: {u_phone}\n\nPor favor, contactalo para coordinar la suscripción."
+                send_admin_email(subject, body)
+                
             except Exception as ex:
                 print(f"Error updating expired subscription: {ex}")
 
@@ -577,17 +660,7 @@ def get_all_state():
             "daysLeft": days_left,
             "businessType": profile_doc.get("businessType", "clothing"),
             "businessName": profile_doc.get("businessName", ""),
-            "userProfile": {
-                "sku": "user_profile",
-                "name": "User Profile",
-                "cost": 0.0,
-                "stock": 0,
-                "createdAt": profile_doc.get("createdAt"),
-                "trialDays": profile_doc.get("trialDays", 15),
-                "subscriptionStatus": subscription_status,
-                "businessType": profile_doc.get("businessType", "clothing"),
-                "businessName": profile_doc.get("businessName", "")
-            },
+            "userProfile": profile_doc,
             "categories": categories,
             "products": products,
             "sales": user_sales,
@@ -598,7 +671,9 @@ def get_all_state():
             "influencers": influencers,
             "marketingExpenses": expenses,
             "extras": extras,
-            "stockIntakes": intakes
+            "stockIntakes": intakes,
+            "role": my_role,
+            "permissions": my_permissions
         })
     except Exception as e:
         return handle_error(e)
@@ -3101,9 +3176,6 @@ def temp_setup_arca(secret):
         import firebase_admin
         from firebase_admin import auth, firestore
         
-        db = firestore.client()
-        email = "matiascuchettidiaz@gmail.com"
-        user = auth.get_user_by_email(email)
         uid = user.uid
         
         doc_ref = db.document(f"users/{uid}/integrations/arca")
@@ -3119,6 +3191,143 @@ def temp_setup_arca(secret):
         return f"Successfully connected ARCA for {email} (UID: {uid})"
     except Exception as e:
         return f"Error connecting ARCA: {str(e)}", 500
+# --- RUTAS DE MI NEGOCIO ---
+@app.route("/api/business/settings", methods=["PUT"])
+def update_business_settings():
+    token = get_auth_token()
+    if not token: return jsonify({"error": "No autorizado"}), 401
+    
+    data = request.json
+    try:
+        admin_uid = firebase_config.verify_id_token(token)
+        # Check if caller is already a subuser. Only admin can change business settings.
+        real_uid = firebase_config.get_real_uid(admin_uid, token)
+        if real_uid != admin_uid:
+            return jsonify({"error": "Acceso denegado: solo el administrador puede modificar los ajustes."}), 403
+            
+        prefix = get_user_prefix(token)
+        doc = firebase_config.get_document("products", f"{prefix}user_profile", token)
+        if not doc:
+            return jsonify({"error": "Perfil no encontrado"}), 404
+            
+        if "businessName" in data: doc["businessName"] = data["businessName"]
+        if "businessType" in data: doc["businessType"] = data["businessType"]
+        if "ivaCondition" in data: doc["ivaCondition"] = data["ivaCondition"]
+        
+        firebase_config.set_document("products", f"{prefix}user_profile", doc, token)
+        return jsonify({"success": True, "userProfile": doc})
+    except Exception as e:
+        return handle_error(e)
+
+# --- RUTAS DE GESTIÓN DE SUB-USUARIOS ---
+@app.route("/api/business/users", methods=["GET"])
+def get_business_users():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+        
+    try:
+        admin_uid = firebase_config.verify_id_token(token)
+        # Check if caller is already a subuser. Subusers cannot list/manage other subusers.
+        real_uid = firebase_config.get_real_uid(admin_uid, token)
+        if real_uid != admin_uid:
+            return jsonify({"error": "Acceso denegado: solo el administrador puede gestionar usuarios."}), 403
+            
+        docs = firebase_config.list_documents(f"users/{admin_uid}/subusers", token)
+        return jsonify(docs)
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/business/users", methods=["POST"])
+def create_business_user():
+    token = get_auth_token()
+    if not token: return jsonify({"error": "No autorizado"}), 401
+    
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
+    name = data.get("name")
+    access = data.get("access", {})
+    
+    if not email or not password or not name:
+        return jsonify({"error": "Faltan datos obligatorios (email, password, nombre)."}), 400
+        
+    try:
+        admin_uid = firebase_config.verify_id_token(token)
+        real_uid = firebase_config.get_real_uid(admin_uid, token)
+        if real_uid != admin_uid:
+            return jsonify({"error": "Acceso denegado."}), 403
+            
+        # 1. Create user in Firebase Auth using REST API (sign_up)
+        new_user_data = firebase_config.sign_up(email, password)
+        sub_uid = new_user_data.get("localId")
+        
+        if not sub_uid:
+            return jsonify({"error": "No se pudo crear el usuario en Authentication."}), 500
+            
+        # 2. Store subuser info in admin's collection
+        subuser_doc = {
+            "name": name,
+            "email": email,
+            "access": access,
+            "status": "Activo",
+            "createdAt": int(time.time()),
+            "id": sub_uid
+        }
+        firebase_config.set_document(f"users/{admin_uid}/subusers", sub_uid, subuser_doc, token)
+        
+        # 3. Create global mapping for tenant resolution
+        mapping_doc = {
+            "parent_uid": admin_uid,
+            "createdAt": int(time.time())
+        }
+        firebase_config.set_document("subuser_mapping", sub_uid, mapping_doc, token)
+        
+        return jsonify({"success": True, "user": subuser_doc})
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/business/users/<sub_uid>", methods=["PUT"])
+def update_business_user(sub_uid):
+    token = get_auth_token()
+    if not token: return jsonify({"error": "No autorizado"}), 401
+    data = request.json
+    
+    try:
+        admin_uid = firebase_config.verify_id_token(token)
+        if firebase_config.get_real_uid(admin_uid, token) != admin_uid:
+            return jsonify({"error": "Acceso denegado."}), 403
+            
+        doc = firebase_config.get_document(f"users/{admin_uid}/subusers", sub_uid, token)
+        if not doc:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+            
+        if "name" in data: doc["name"] = data["name"]
+        if "access" in data: doc["access"] = data["access"]
+        if "status" in data: doc["status"] = data["status"]
+        
+        firebase_config.set_document(f"users/{admin_uid}/subusers", sub_uid, doc, token)
+        return jsonify({"success": True, "user": doc})
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/business/users/<sub_uid>", methods=["DELETE"])
+def delete_business_user(sub_uid):
+    token = get_auth_token()
+    if not token: return jsonify({"error": "No autorizado"}), 401
+    
+    try:
+        admin_uid = firebase_config.verify_id_token(token)
+        if firebase_config.get_real_uid(admin_uid, token) != admin_uid:
+            return jsonify({"error": "Acceso denegado."}), 403
+            
+        firebase_config.delete_document(f"users/{admin_uid}/subusers", sub_uid, token)
+        firebase_config.delete_document("subuser_mapping", sub_uid, token)
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return handle_error(e)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

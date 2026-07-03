@@ -5,3 +5,5 @@ firebase-admin
 cachetools
 Flask-Compress
 Flask-CORS
+Flask-Limiter
+

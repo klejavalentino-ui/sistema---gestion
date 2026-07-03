@@ -2,8 +2,10 @@ import json
 import os
 import requests
 import jwt
+from cachetools import TTLCache
 
 _session = requests.Session()
+parent_uid_cache = TTLCache(maxsize=1000, ttl=3600)
 import time
 import firebase_admin
 from firebase_admin import credentials, auth
@@ -282,9 +284,35 @@ def verify_id_token(id_token):
                 pass
         return None
 
-def resolve_collection_path(collection, uid):
+def get_real_uid(uid, id_token):
+    if not uid: return None
+    if uid in parent_uid_cache:
+        return parent_uid_cache[uid]
+    
+    if id_token:
+        url = f"{BASE_URL}/subuser_mapping/{uid}"
+        headers = {"Authorization": f"Bearer {id_token}"}
+        try:
+            r = _session.get(url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                doc_json = r.json()
+                if "fields" in doc_json:
+                    from_doc = from_firestore_document(doc_json)
+                    parent_uid = from_doc.get("parent_uid", uid)
+                    parent_uid_cache[uid] = parent_uid
+                    return parent_uid
+        except Exception:
+            pass
+            
+    parent_uid_cache[uid] = uid
+    return uid
+
+def resolve_collection_path(collection, uid, id_token=None):
     if not uid:
         raise Exception("UID inválido al resolver la colección de base de datos.")
+    
+    uid = get_real_uid(uid, id_token)
+
     if collection.startswith("users/"):
         return collection
     if collection in ["users", "usuarios", "comercios"]:
@@ -302,7 +330,7 @@ def get_document(collection, doc_id, id_token):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid)
+    resolved_path = resolve_collection_path(collection, uid, id_token)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     r = _session.get(url, headers=headers, timeout=30)
@@ -315,7 +343,7 @@ def list_documents(collection, id_token):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid)
+    resolved_path = resolve_collection_path(collection, uid, id_token)
     
     parts = resolved_path.split("/")
     if len(parts) >= 2:
@@ -348,7 +376,7 @@ def set_document(collection, doc_id, data, id_token):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid)
+    resolved_path = resolve_collection_path(collection, uid, id_token)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     payload = to_firestore_fields(data)
@@ -360,7 +388,7 @@ def delete_document(collection, doc_id, id_token):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid)
+    resolved_path = resolve_collection_path(collection, uid, id_token)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = {"Authorization": f"Bearer {id_token}"}
     r = _session.delete(url, headers=headers, timeout=30)

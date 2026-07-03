@@ -267,16 +267,35 @@ async function handleLogin(e) {
 
 async function handleRegister(e) {
   e.preventDefault();
+  
+  const name = document.getElementById("register-name").value;
+  const businessName = document.getElementById("register-business-name").value;
+  const username = document.getElementById("register-username").value;
   const email = document.getElementById("register-email").value;
+  const phone = document.getElementById("register-phone").value;
   const password = document.getElementById("register-password").value;
+  const confirmPassword = document.getElementById("register-password-confirm").value;
+  const bizType = document.getElementById("register-business-type").value || "textil";
   const errorDiv = document.getElementById("register-error");
+  
   errorDiv.style.display = "none";
+  
+  if (password !== confirmPassword) {
+    errorDiv.innerText = "Las contraseñas no coinciden.";
+    errorDiv.style.display = "block";
+    return;
+  }
+  if (password.length < 6) {
+    errorDiv.innerText = "La contraseña debe tener al menos 6 caracteres.";
+    errorDiv.style.display = "block";
+    return;
+  }
   
   try {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ name, businessName, username, email, phone, password, businessType: bizType })
     });
     
     const data = await res.json();
@@ -284,7 +303,6 @@ async function handleRegister(e) {
     
     state.token = data.token;
     state.email = data.email;
-    const bizType = document.getElementById("register-business-type").value || "textil";
     state.businessType = bizType;
     localStorage.setItem("gestiosmart_token", data.token);
     localStorage.setItem("gestiosmart_email", data.email);
@@ -295,6 +313,32 @@ async function handleRegister(e) {
   } catch (error) {
     errorDiv.innerText = translateError(error.message);
     errorDiv.style.display = "block";
+  }
+}
+
+function updateSidebarProfile() {
+  const nameSpan = document.getElementById("user-display-name");
+  const roleSpan = document.getElementById("user-display-role");
+  const avatarDiv = document.getElementById("user-display-avatar");
+  
+  if (nameSpan && roleSpan && avatarDiv) {
+    // If state.userProfile exists, use it. Otherwise use email prefix.
+    let displayName = "USUARIO";
+    let displayRole = "Administrador";
+    
+    if (state.userProfile && state.userProfile.contactName) {
+      displayName = state.userProfile.contactName;
+    } else if (state.email) {
+      displayName = state.email.split("@")[0];
+    }
+    
+    if (state.userProfile && state.userProfile.role) {
+      displayRole = state.userProfile.role.charAt(0).toUpperCase() + state.userProfile.role.slice(1);
+    }
+    
+    nameSpan.innerText = displayName;
+    roleSpan.innerText = displayRole;
+    avatarDiv.innerText = displayName.charAt(0).toUpperCase();
   }
 }
 
@@ -594,6 +638,7 @@ async function confirmPdfImport() {
         quantitiesMap[item.size] = item.quantity;
         totalQty += item.quantity;
         unitCost = item.unitCost; // Use parsed materia prima price
+      });
       });
       
       // Update each size variant
@@ -1187,6 +1232,14 @@ async function refreshState() {
     if (paywallScreen) paywallScreen.style.display = "none";
     if (appSection) appSection.style.display = "flex";
     if (authSection) authSection.style.display = "none";
+    
+    // Almacenar perfil y actualizar sidebar
+    state.userProfile = data.userProfile || null;
+    state.role = data.role || "admin";
+    state.permissions = data.permissions || null;
+    
+    updateSidebarProfile();
+    applyPermissionsToUI();
 
     // 4. Update Trial Countdown Badge
     if (trialBadge && trialText) {
@@ -6735,6 +6788,7 @@ function switchTab(tabId) {
   if (tabId === "marketing") switchMarketingSubTab(state.activeMarketingSubTab || "summary");
   if (tabId === "tiendanube") renderIntegrationsStatus();
   if (tabId === "arca") renderIntegrationsStatus();
+  if (tabId === "business") loadBusinessData();
 }
 
 // --- Asignación de Listeners ---
@@ -8479,5 +8533,284 @@ function formatAllCurrencyInputs() {
       formatCurrencyField(document.getElementById(id));
     });
   }
+
+// ==========================================
+// BUSINESS SETTINGS & USERS
+// ==========================================
+
+function applyPermissionsToUI() {
+  // Solo aplicamos bloqueo si es subuser y tiene permissions
+  if (state.role === "admin" || !state.permissions) {
+    // Restaurar todo a visible/habilitado si es admin (por si deslogueó y re-logueó)
+    document.querySelectorAll(".menu-item").forEach(el => el.style.display = "");
+    document.querySelectorAll("button:not(.sidebar-menu-btn), input, select, textarea").forEach(el => el.disabled = false);
+    return;
+  }
+  
+  const p = state.permissions;
+  
+  APP_SECTIONS.forEach(sec => {
+    const access = p[sec.id] || "none";
+    const menuItem = document.querySelector(`.menu-item[data-tab="${sec.id}"]`);
+    const sectionEl = document.getElementById(`${sec.id}-section`);
+    
+    // 1. Control de Visibilidad en el menú
+    if (menuItem) {
+      if (access === "none") {
+        menuItem.style.display = "none";
+        // Si estaba activo, sacarlo al panel u otro lado
+        if (state.activeTab === sec.id) switchTab("panel");
+      } else {
+        menuItem.style.display = "";
+      }
+    }
+    
+    // 2. Control de Edición (Solo si puede ver)
+    if (sectionEl && access === "view") {
+      // Deshabilitar todos los inputs y botones de guardado en esta sección
+      // (Exceptuando los que sean para navegación interna o modales visuales)
+      const inputs = sectionEl.querySelectorAll("input, select, textarea");
+      inputs.forEach(el => el.disabled = true);
+      
+      const buttons = sectionEl.querySelectorAll("button:not(.nav-btn)");
+      buttons.forEach(el => {
+        // Bloquear botones que parezcan ser de acción
+        if(el.innerText.includes("Guardar") || el.innerText.includes("+") || el.innerText.includes("Agregar") || el.innerText.includes("Cobrar") || el.innerText.includes("Borrar") || el.innerText.includes("Eliminar")) {
+          el.disabled = true;
+          el.style.opacity = "0.5";
+          el.style.cursor = "not-allowed";
+        }
+      });
+    }
+  });
 }
 
+const APP_SECTIONS = [
+  { id: "panel", name: "Panel Principal" },
+  { id: "sales", name: "Ventas" },
+  { id: "products", name: "Inventario" },
+  { id: "clients", name: "Agenda" },
+  { id: "expenses", name: "Gastos" },
+  { id: "marketing", name: "Marketing" },
+  { id: "integrations", name: "Integraciones" },
+  { id: "business", name: "Mi Negocio" }
+];
+
+async function loadBusinessData() {
+  if (state.userProfile) {
+    document.getElementById("business-settings-name").value = state.userProfile.businessName || "";
+    document.getElementById("business-settings-type").value = state.userProfile.businessType || "textil";
+    document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
+  }
+  await loadBusinessUsers();
+}
+window.loadBusinessData = loadBusinessData;
+
+async function saveBusinessSettings() {
+  try {
+    const data = {
+      businessName: document.getElementById("business-settings-name").value,
+      businessType: document.getElementById("business-settings-type").value,
+      ivaCondition: document.getElementById("business-settings-iva").value
+    };
+    const res = await apiRequest("/api/business/settings", "PUT", data);
+    state.userProfile = res.userProfile;
+    updateSidebarProfile();
+    showToast("Ajustes guardados con éxito.");
+  } catch(e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.saveBusinessSettings = saveBusinessSettings;
+
+async function loadBusinessUsers() {
+  try {
+    const users = await apiRequest("/api/business/users");
+    const tbody = document.getElementById("business-users-tbody");
+    if(!tbody) return;
+    tbody.innerHTML = "";
+    
+    if (!users || users.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-gray);">No hay usuarios adicionales.</td></tr>`;
+      return;
+    }
+    
+    users.forEach(u => {
+      const accessBadge = "Personalizado";
+      const statusBadge = u.status === "Activo" 
+        ? `<span class="badge-green">Activo</span>` 
+        : `<span class="badge-red">${u.status || 'Inactivo'}</span>`;
+        
+      const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--border-color)";
+      tr.innerHTML = `
+        <td style="padding: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 32px; height: 32px; border-radius: 6px; background: var(--bg-color); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-gray);">
+              ${(u.name || "U").charAt(0).toUpperCase()}
+            </div>
+          </div>
+        </td>
+        <td style="padding: 16px; font-weight: 600;">${u.name || '-'}</td>
+        <td style="padding: 16px; color: var(--text-gray);">${u.email || '-'}</td>
+        <td style="padding: 16px; text-align: center;"><span class="badge-blue">${accessBadge}</span></td>
+        <td style="padding: 16px; text-align: center;">${statusBadge}</td>
+        <td style="padding: 16px; text-align: right;">
+          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; margin-right: 8px;" onclick="editBusinessUser('${u.id}')">Editar</button>
+          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; color: var(--accent-red); border-color: rgba(229, 56, 59, 0.2);" onclick="deleteBusinessUser('${u.id}')">Borrar</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch(e) {
+    console.error("Error loading users:", e);
+  }
+}
+window.loadBusinessUsers = loadBusinessUsers;
+
+let currentEditingUser = null;
+let currentUserPermissions = {};
+
+function renderPermissionsMatrix() {
+  const tbody = document.getElementById("modal-permissions-tbody");
+  if(!tbody) return;
+  tbody.innerHTML = "";
+  
+  APP_SECTIONS.forEach(sec => {
+    const val = currentUserPermissions[sec.id] || "none";
+    const isView = val === "view" || val === "edit";
+    const isEdit = val === "edit";
+    
+    const tr = document.createElement("tr");
+    tr.style.borderBottom = "1px solid var(--border-color)";
+    tr.innerHTML = `
+      <td style="padding: 12px 8px; font-weight: 500; font-size: 0.85rem; color: var(--text-dark);">${sec.name}</td>
+      <td style="text-align: center; padding: 12px 8px;">
+        <input type="checkbox" onchange="togglePermission('${sec.id}', 'view', this.checked)" ${isView ? 'checked' : ''} style="accent-color: var(--accent-blue);">
+      </td>
+      <td style="text-align: center; padding: 12px 8px;">
+        <input type="checkbox" onchange="togglePermission('${sec.id}', 'edit', this.checked)" ${isEdit ? 'checked' : ''} style="accent-color: var(--accent-green);">
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+window.renderPermissionsMatrix = renderPermissionsMatrix;
+
+function togglePermission(secId, type, isChecked) {
+  const current = currentUserPermissions[secId] || "none";
+  if (type === "edit") {
+    currentUserPermissions[secId] = isChecked ? "edit" : "view";
+  } else if (type === "view") {
+    currentUserPermissions[secId] = isChecked ? "view" : "none";
+    if (!isChecked && currentUserPermissions[secId] === "edit") {
+      currentUserPermissions[secId] = "none";
+    }
+  }
+  renderPermissionsMatrix();
+}
+window.togglePermission = togglePermission;
+
+function setUserPermissionsAll(mode) {
+  APP_SECTIONS.forEach(sec => {
+    if (mode === "all") currentUserPermissions[sec.id] = "edit";
+    else if (mode === "view") currentUserPermissions[sec.id] = "view";
+    else currentUserPermissions[sec.id] = "none";
+  });
+  renderPermissionsMatrix();
+}
+window.setUserPermissionsAll = setUserPermissionsAll;
+
+function openNewUserModal() {
+  currentEditingUser = null;
+  document.getElementById("modal-user-id").value = "";
+  document.getElementById("modal-user-name").value = "";
+  document.getElementById("modal-user-email").value = "";
+  document.getElementById("modal-user-username").value = "";
+  document.getElementById("modal-user-password").value = "";
+  
+  document.getElementById("modal-user-title").innerText = "Nuevo Usuario";
+  document.getElementById("modal-user-email").disabled = false;
+  
+  currentUserPermissions = {};
+  setUserPermissionsAll("none");
+  
+  document.getElementById("modal-business-user").style.display = "flex";
+}
+window.openNewUserModal = openNewUserModal;
+
+async function editBusinessUser(uid) {
+  try {
+    const users = await apiRequest("/api/business/users");
+    const u = users.find(x => x.id === uid);
+    if(!u) return;
+    
+    currentEditingUser = uid;
+    document.getElementById("modal-user-id").value = u.id;
+    document.getElementById("modal-user-name").value = u.name || "";
+    document.getElementById("modal-user-email").value = u.email || "";
+    document.getElementById("modal-user-username").value = u.username || "";
+    document.getElementById("modal-user-password").value = "";
+    
+    document.getElementById("modal-user-title").innerText = "Editar Usuario";
+    document.getElementById("modal-user-email").disabled = true;
+    
+    currentUserPermissions = u.access || {};
+    renderPermissionsMatrix();
+    
+    document.getElementById("modal-business-user").style.display = "flex";
+  } catch(e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.editBusinessUser = editBusinessUser;
+
+function closeBusinessUserModal() {
+  document.getElementById("modal-business-user").style.display = "none";
+}
+window.closeBusinessUserModal = closeBusinessUserModal;
+
+async function saveBusinessUser() {
+  const name = document.getElementById("modal-user-name").value;
+  const email = document.getElementById("modal-user-email").value;
+  const username = document.getElementById("modal-user-username").value;
+  const password = document.getElementById("modal-user-password").value;
+  
+  if (!name || !email) {
+    showToast("Nombre y Email son obligatorios", true);
+    return;
+  }
+  
+  if (!currentEditingUser && !password) {
+    showToast("La contraseña es obligatoria para usuarios nuevos", true);
+    return;
+  }
+  
+  const payload = { name, email, username, access: currentUserPermissions };
+  if (password) payload.password = password;
+  
+  try {
+    const method = currentEditingUser ? "PUT" : "POST";
+    const url = currentEditingUser ? `/api/business/users/${currentEditingUser}` : "/api/business/users";
+    
+    await apiRequest(url, method, payload);
+    showToast(currentEditingUser ? "Usuario actualizado." : "Usuario creado con éxito.");
+    closeBusinessUserModal();
+    loadBusinessData();
+  } catch (e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.saveBusinessUser = saveBusinessUser;
+
+async function deleteBusinessUser(uid) {
+  if(!confirm("¿Estás seguro que querés eliminar el acceso de este usuario?")) return;
+  try {
+    await apiRequest(`/api/business/users/${uid}`, "DELETE");
+    showToast("Usuario eliminado.");
+    loadBusinessData();
+  } catch(e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.deleteBusinessUser = deleteBusinessUser;
