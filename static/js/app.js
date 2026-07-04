@@ -84,7 +84,6 @@ function checkAuth() {
     authSection.style.display = "none";
     // We let refreshState determine app section visibility
     state.businessType = localStorage.getItem("gestiosmart_business_type") || "textil";
-    document.getElementById("user-display-email").innerText = state.email;
     applyBusinessTypeUIUpdates();
     initApp();
   } else {
