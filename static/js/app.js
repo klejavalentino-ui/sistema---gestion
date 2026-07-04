@@ -639,7 +639,6 @@ async function confirmPdfImport() {
         totalQty += item.quantity;
         unitCost = item.unitCost; // Use parsed materia prima price
       });
-      });
       
       // Update each size variant
       const sizesToUpdate = Object.entries(quantitiesMap).filter(([_, qty]) => qty > 0);
