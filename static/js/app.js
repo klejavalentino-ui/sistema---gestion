@@ -8532,6 +8532,7 @@ function formatAllCurrencyInputs() {
       formatCurrencyField(document.getElementById(id));
     });
   }
+}
 
 // ==========================================
 // BUSINESS SETTINGS & USERS
