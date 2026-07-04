@@ -1313,7 +1313,9 @@ async function refreshState() {
     }
   } catch (error) {
     console.error("Error loading states:", error);
-    showToast("Error al sincronizar con la base de datos", true);
+    if (error.message !== "Sesión expirada.") {
+      showToast("Error al sincronizar con la base de datos", true);
+    }
   } finally {
     // Inicializar formulario de ingreso de stock cada vez que se refresca el estado
     setupStockIntakeForm();
