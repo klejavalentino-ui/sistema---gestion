@@ -286,15 +286,52 @@ def index():
 
 # --- Rutas de Autenticación ---
 
+USERNAMES_FILE = "usernames.json"
+
+def get_email_for_username(username):
+    if not os.path.exists(USERNAMES_FILE):
+        return None
+    try:
+        with open(USERNAMES_FILE, "r") as f:
+            data = json.load(f)
+            return data.get(username)
+    except:
+        return None
+
+def save_username_mapping(username, email):
+    if not username or not email:
+        return
+    data = {}
+    if os.path.exists(USERNAMES_FILE):
+        try:
+            with open(USERNAMES_FILE, "r") as f:
+                data = json.load(f)
+        except:
+            pass
+    data[username] = email
+    try:
+        with open(USERNAMES_FILE, "w") as f:
+            json.dump(data, f)
+    except:
+        pass
+
 @app.route("/api/auth/login", methods=["POST"])
 def login():
     data = request.json or {}
-    email = data.get("email")
+    email = data.get("email") # Podría ser un username
     password = data.get("password")
     
     if not email or not password:
-        return jsonify({"error": "Correo y contraseña son requeridos"}), 400
+        return jsonify({"error": "Correo/Usuario y contraseña son requeridos"}), 400
         
+    # Verificar si es un username (no contiene arroba)
+    if "@" not in email:
+        mapped = get_email_for_username(email)
+        if mapped:
+            email = mapped
+        else:
+            return jsonify({"error": "Nombre de usuario no encontrado. Si acabas de crear tu cuenta o no tenés el acceso rápido vinculado, usá tu correo electrónico completo."}), 404
+            
     try:
         res = firebase_config.sign_in(email, password)
         return jsonify({
@@ -322,6 +359,9 @@ def register():
     try:
         res = firebase_config.sign_up(email, password)
         token = res.get("idToken")
+        
+        # Guardar mapeo de username localmente
+        save_username_mapping(username, email)
         
         # Guardar el perfil extendido del usuario
         try:
