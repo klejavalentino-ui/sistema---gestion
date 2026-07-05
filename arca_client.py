@@ -21,7 +21,7 @@ def create_arca_payment(sale_id, amount, return_url, webhook_url, tenant_uid):
         "currency": "ARS",
         "redirect_url": return_url,
         "webhook_url": webhook_url,
-        "description": f"Compra GestioSmart - Orden {sale_id}",
+        "description": f"Compra Datamargen - Orden {sale_id}",
         "metadata": {
             "tenant_uid": tenant_uid
         }

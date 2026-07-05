@@ -32,7 +32,7 @@ def handle_error(e):
     return jsonify({"error": str(e)}), 500
 
 def send_admin_email(subject, body):
-    sender = "gestiosmart.ss@gmail.com"
+    sender = "datamargen.ss@gmail.com"
     pwd = os.environ.get("SMTP_PASSWORD", "")
     if not pwd:
         print("Advertencia: SMTP_PASSWORD no configurada. No se pudo enviar el correo.")
@@ -237,7 +237,7 @@ def sync_stock_to_tiendanube(uid, items, token=None, db_client=None, prefix=None
         headers = {
             "Authentication": f"bearer {access_token}",
             "Content-Type": "application/json",
-            "User-Agent": "GestioSmart (klejavalentino@gmail.com)"
+            "User-Agent": "Datamargen (klejavalentino@gmail.com)"
         }
         
         if not prefix:
@@ -1801,7 +1801,7 @@ def get_user_profile():
         if not profile:
             # Inicializar perfil por defecto para nuevos inquilinos
             profile = {
-                "name": "Mi Tienda GestioSmart",
+                "name": "Mi Tienda Datamargen",
                 "branding": {
                     "color_primario": "#10b981"
                 },
@@ -1984,7 +1984,7 @@ def sync_tiendanube_catalog_route():
         
         headers = {
             "Authentication": f"bearer {access_token}",
-            "User-Agent": "GestioSmart (klejavalentino@gmail.com)",
+            "User-Agent": "Datamargen (klejavalentino@gmail.com)",
             "Content-Type": "application/json"
         }
         
@@ -2284,7 +2284,7 @@ def sync_tiendanube_orders_route():
             
         headers = {
             "Authentication": f"bearer {access_token}",
-            "User-Agent": "GestioSmart (klejavalentino@gmail.com)",
+            "User-Agent": "Datamargen (klejavalentino@gmail.com)",
             "Content-Type": "application/json"
         }
         

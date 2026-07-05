@@ -1,9 +1,9 @@
 // --- Estado Global ---
 const state = {
-  token: localStorage.getItem("gestiosmart_token"),
-  email: localStorage.getItem("gestiosmart_email"),
-  businessType: localStorage.getItem("gestiosmart_business_type") || "textil",
-  businessName: localStorage.getItem("gestiosmart_business_name") || "",
+  token: localStorage.getItem("datamargen_token"),
+  email: localStorage.getItem("datamargen_email"),
+  businessType: localStorage.getItem("datamargen_business_type") || "textil",
+  businessName: localStorage.getItem("datamargen_business_name") || "",
   userProfile: null,
   categories: [],
   products: [],
@@ -83,7 +83,7 @@ function checkAuth() {
   if (state.token) {
     authSection.style.display = "none";
     // We let refreshState determine app section visibility
-    state.businessType = localStorage.getItem("gestiosmart_business_type") || "textil";
+    state.businessType = localStorage.getItem("datamargen_business_type") || "textil";
     applyBusinessTypeUIUpdates();
     initApp();
   } else {
@@ -252,9 +252,9 @@ async function handleLogin(e) {
     state.email = data.email;
     const bizType = document.getElementById("login-business-type").value || "textil";
     state.businessType = bizType;
-    localStorage.setItem("gestiosmart_token", data.token);
-    localStorage.setItem("gestiosmart_email", data.email);
-    localStorage.setItem("gestiosmart_business_type", bizType);
+    localStorage.setItem("datamargen_token", data.token);
+    localStorage.setItem("datamargen_email", data.email);
+    localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("¡Sesión iniciada!");
     checkAuth();
@@ -303,9 +303,9 @@ async function handleRegister(e) {
     state.token = data.token;
     state.email = data.email;
     state.businessType = bizType;
-    localStorage.setItem("gestiosmart_token", data.token);
-    localStorage.setItem("gestiosmart_email", data.email);
-    localStorage.setItem("gestiosmart_business_type", bizType);
+    localStorage.setItem("datamargen_token", data.token);
+    localStorage.setItem("datamargen_email", data.email);
+    localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("Registro exitoso. Verificá tu correo.");
     checkAuth();
@@ -344,8 +344,8 @@ function updateSidebarProfile() {
 function handleLogout() {
   state.token = null;
   state.email = null;
-  localStorage.removeItem("gestiosmart_token");
-  localStorage.removeItem("gestiosmart_email");
+  localStorage.removeItem("datamargen_token");
+  localStorage.removeItem("datamargen_email");
   showToast("Sesión cerrada");
   checkAuth();
 }
@@ -1219,7 +1219,7 @@ async function refreshState() {
       const waBtn = document.getElementById("paywall-wa-btn");
       if (waBtn) {
         const adminPhone = "542914445566"; // Simulated Admin WhatsApp Phone Number
-        const msg = encodeURIComponent(`Hola! Quiero renovar mi suscripción de GestioSmart para el correo: ${state.email}`);
+        const msg = encodeURIComponent(`Hola! Quiero renovar mi suscripción de Datamargen para el correo: ${state.email}`);
         waBtn.href = `https://wa.me/542914445566?text=${msg}`;
       }
       return;
@@ -1268,9 +1268,9 @@ async function refreshState() {
     
     state.businessName = data.businessName || "";
     state.userProfile = data.userProfile || null;
-    localStorage.setItem("gestiosmart_business_name", state.businessName);
+    localStorage.setItem("datamargen_business_name", state.businessName);
     
-    let bizType = data.businessType || localStorage.getItem("gestiosmart_business_type") || "textil";
+    let bizType = data.businessType || localStorage.getItem("datamargen_business_type") || "textil";
     if (bizType === "clothing") bizType = "textil";
     if (bizType === "kiosk") bizType = "comercio";
     state.businessType = bizType;
@@ -7223,7 +7223,7 @@ async function saveBusinessNameForm(e) {
     await apiRequest("/api/products", "POST", profilePayload);
     
     state.businessName = name;
-    localStorage.setItem("gestiosmart_business_name", name);
+    localStorage.setItem("datamargen_business_name", name);
     
     showToast("¡Configuración exitosa!");
     
@@ -7285,9 +7285,9 @@ async function loginWithGoogle() {
     state.email = email;
     const bizType = document.getElementById("login-business-type")?.value || "textil";
     state.businessType = bizType;
-    localStorage.setItem("gestiosmart_token", idToken);
-    localStorage.setItem("gestiosmart_email", email);
-    localStorage.setItem("gestiosmart_business_type", bizType);
+    localStorage.setItem("datamargen_token", idToken);
+    localStorage.setItem("datamargen_email", email);
+    localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("¡Sesión iniciada con Google!");
     checkAuth();
