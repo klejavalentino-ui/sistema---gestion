@@ -1018,7 +1018,58 @@ def save_stock_intake():
         return jsonify({"error": str(e)}), 500
 
 
-# --- 5. Rutas de Cuentas Corrientes (Pagar & Cobrar) ---
+# --- Cierres de Caja ---
+@app.route("/api/cash/close", methods=["POST"])
+def perform_cash_close():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    data = request.json or {}
+    close_id = str(int(time.time() * 1000))
+    doc_id = f"{prefix}cash_close_{close_id}"
+    
+    payload = {
+        "sku": doc_id,
+        "type": "cash_close",
+        "date": datetime.utcnow().isoformat(),
+        "initialBalance": float(data.get("initialBalance", 0)),
+        "totalIncome": float(data.get("totalIncome", 0)),
+        "totalExpense": float(data.get("totalExpense", 0)),
+        "netBalance": float(data.get("netBalance", 0)),
+        "closingAmount": float(data.get("closingAmount", 0)),
+        "notes": data.get("notes", ""),
+        "userName": data.get("userName", "Administrador")
+    }
+    
+    try:
+        firebase_config.set_document("products", doc_id, payload, token)
+        return jsonify({"success": True, "close": payload})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/cash/closes", methods=["GET"])
+def get_cash_closes_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        all_docs = firebase_config.list_documents("products", token)
+        closes = [d for d in all_docs if d.get("sku", "").startswith(f"{prefix}cash_close_")]
+        closes.sort(key=lambda x: x.get("date", ""), reverse=True)
+        return jsonify(closes)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# --- Proveedores y Cuentas Corrientes ---(Pagar & Cobrar) ---
 
 @app.route("/api/current-accounts", methods=["GET"])
 def get_current_accounts():

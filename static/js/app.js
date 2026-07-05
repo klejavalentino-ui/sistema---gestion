@@ -5756,6 +5756,105 @@ function renderCashTransactions() {
   });
 }
 
+// --- LOGICA DE CIERRE DE CAJA ---
+let currentCashState = { income: 0, expense: 0, net: 0 };
+
+function openCashCloseModal() {
+  let income = 0;
+  let expense = 0;
+  
+  // Calcular los montos actuales para el cierre
+  state.cashTransactions.forEach(tx => {
+    const val = parseFloat(tx.amount) || 0;
+    if (tx.type === "income") income += val;
+    else expense += val;
+  });
+  
+  currentCashState = { income, expense, net: income - expense };
+  
+  document.getElementById("cash-close-income").innerText = "+$ " + Math.round(income).toLocaleString();
+  document.getElementById("cash-close-expense").innerText = "-$ " + Math.round(expense).toLocaleString();
+  document.getElementById("cash-close-net").innerText = "$ " + Math.round(currentCashState.net).toLocaleString();
+  document.getElementById("cash-close-actual").value = "";
+  document.getElementById("cash-close-notes").value = "";
+  
+  document.getElementById("modal-cash-close").style.display = "flex";
+}
+window.openCashCloseModal = openCashCloseModal;
+
+function closeCashCloseModal() {
+  document.getElementById("modal-cash-close").style.display = "none";
+}
+window.closeCashCloseModal = closeCashCloseModal;
+
+async function submitCashClose() {
+  try {
+    const actual = document.getElementById("cash-close-actual").value;
+    const notes = document.getElementById("cash-close-notes").value;
+    
+    const payload = {
+      initialBalance: 0,
+      totalIncome: currentCashState.income,
+      totalExpense: currentCashState.expense,
+      netBalance: currentCashState.net,
+      closingAmount: actual ? parseFloat(actual) : currentCashState.net,
+      notes: notes,
+      userName: state.userProfile?.contactName || state.businessName || state.email.split('@')[0]
+    };
+    
+    await apiRequest("/api/cash/close", "POST", payload);
+    
+    showToast("Cierre de caja guardado con éxito.");
+    closeCashCloseModal();
+  } catch (e) {
+    showToast("Error al guardar cierre: " + e.message, true);
+  }
+}
+window.submitCashClose = submitCashClose;
+
+function openCashClosesHistoryModal() {
+  loadCashClosesHistory();
+  document.getElementById("modal-cash-closes-history").style.display = "flex";
+}
+window.openCashClosesHistoryModal = openCashClosesHistoryModal;
+
+function closeCashClosesHistoryModal() {
+  document.getElementById("modal-cash-closes-history").style.display = "none";
+}
+window.closeCashClosesHistoryModal = closeCashClosesHistoryModal;
+
+async function loadCashClosesHistory() {
+  try {
+    const closes = await apiRequest("/api/cash/closes", "GET");
+    const tbody = document.getElementById("cash-closes-history-tbody");
+    if(!tbody) return;
+    tbody.innerHTML = "";
+    
+    if (!closes || closes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-gray);">No hay cierres previos registrados.</td></tr>';
+      return;
+    }
+    
+    closes.forEach(c => {
+      const dateStr = new Date(c.date).toLocaleDateString('es-AR') + " " + new Date(c.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--border-color)";
+      tr.innerHTML = `
+        <td style="padding: 12px; font-size: 0.8rem; color: var(--text-gray);">${dateStr}</td>
+        <td style="padding: 12px; font-size: 0.8rem; text-transform: uppercase; font-weight: 600;">${c.userName}</td>
+        <td style="padding: 12px; font-size: 0.8rem; text-align: right; color: var(--accent-green);">+$ ${Math.round(c.totalIncome).toLocaleString()}</td>
+        <td style="padding: 12px; font-size: 0.8rem; text-align: right; color: var(--accent-red);">-$ ${Math.round(c.totalExpense).toLocaleString()}</td>
+        <td style="padding: 12px; font-size: 0.8rem; text-align: right; font-weight: bold;">$ ${Math.round(c.netBalance).toLocaleString()}</td>
+        <td style="padding: 12px; font-size: 0.8rem; text-align: right; color: var(--text-gray);">${c.closingAmount ? '$ '+Math.round(c.closingAmount).toLocaleString() : '-'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    console.error(e);
+    showToast("No se pudo cargar el historial", true);
+  }
+}
+
 function openCashTransactionModal() {
   document.getElementById("caja-description").value = "";
   document.getElementById("caja-amount").value = "";
@@ -8631,10 +8730,17 @@ async function loadBusinessUsers() {
     if(!tbody) return;
     tbody.innerHTML = "";
     
-    if (!users || users.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-gray);">No hay usuarios adicionales.</td></tr>`;
-      return;
-    }
+    if (!users) users = [];
+    
+    // Inyectar el administrador principal
+    const adminUser = {
+      id: "admin",
+      name: state.userProfile?.contactName || state.businessName || state.email.split('@')[0],
+      email: state.email,
+      status: "Activo",
+      isAdmin: true
+    };
+    users.unshift(adminUser);
     
     users.forEach(u => {
       const accessBadge = "Personalizado";
@@ -8652,13 +8758,13 @@ async function loadBusinessUsers() {
             </div>
           </div>
         </td>
-        <td style="padding: 16px; font-weight: 600;">${u.name || '-'}</td>
+        <td style="padding: 16px; font-weight: 600; text-transform: uppercase;">${u.name || '-'}</td>
         <td style="padding: 16px; color: var(--text-gray);">${u.email || '-'}</td>
-        <td style="padding: 16px; text-align: center;"><span class="badge-blue">${accessBadge}</span></td>
+        <td style="padding: 16px; text-align: center;"><span class="badge-blue">${u.isAdmin ? 'Administrador' : accessBadge}</span></td>
         <td style="padding: 16px; text-align: center;">${statusBadge}</td>
         <td style="padding: 16px; text-align: right;">
-          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; margin-right: 8px;" onclick="editBusinessUser('${u.id}')">Editar</button>
-          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; color: var(--accent-red); border-color: rgba(229, 56, 59, 0.2);" onclick="deleteBusinessUser('${u.id}')">Borrar</button>
+          ${u.isAdmin ? '' : `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; margin-right: 8px;" onclick="editBusinessUser('${u.id}')">Editar</button>
+          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; color: var(--accent-red); border-color: rgba(229, 56, 59, 0.2);" onclick="deleteBusinessUser('${u.id}')">Borrar</button>`}
         </td>
       `;
       tbody.appendChild(tr);
