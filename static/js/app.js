@@ -8763,8 +8763,14 @@ async function loadBusinessUsers() {
         <td style="padding: 16px; text-align: center;"><span class="badge-blue">${u.isAdmin ? 'Administrador' : accessBadge}</span></td>
         <td style="padding: 16px; text-align: center;">${statusBadge}</td>
         <td style="padding: 16px; text-align: right;">
-          ${u.isAdmin ? '' : `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; margin-right: 8px;" onclick="editBusinessUser('${u.id}')">Editar</button>
-          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; color: var(--accent-red); border-color: rgba(229, 56, 59, 0.2);" onclick="deleteBusinessUser('${u.id}')">Borrar</button>`}
+          ${u.isAdmin ? '' : `
+            <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('${u.id}')" title="Editar y ajustar permisos">
+              <i class="fa-solid fa-pencil"></i>
+            </button>
+            <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-red); font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="deleteBusinessUser('${u.id}')" title="Eliminar usuario del sistema">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          `}
         </td>
       `;
       tbody.appendChild(tr);
