@@ -289,12 +289,16 @@ def index():
 USERNAMES_FILE = "usernames.json"
 
 def get_email_for_username(username):
+    username = username.strip().lower()
     email = None
     if os.path.exists(USERNAMES_FILE):
         try:
             with open(USERNAMES_FILE, "r") as f:
                 data = json.load(f)
-                email = data.get(username)
+                for k, v in data.items():
+                    if k.strip().lower() == username:
+                        email = v
+                        break
         except:
             pass
             
@@ -317,6 +321,7 @@ def get_email_for_username(username):
 def save_username_mapping(username, email, upload_to_firestore=True):
     if not username or not email:
         return
+    username = username.strip().lower()
     data = {}
     if os.path.exists(USERNAMES_FILE):
         try:
@@ -340,7 +345,7 @@ def save_username_mapping(username, email, upload_to_firestore=True):
 @app.route("/api/auth/login", methods=["POST"])
 def login():
     data = request.json or {}
-    email = data.get("email") # Podría ser un username
+    email = data.get("email", "").strip() # Podría ser un username
     password = data.get("password")
     
     if not email or not password:
