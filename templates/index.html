@@ -162,9 +162,7 @@
         <div id="topbar-business-type-container" style="display: flex; align-items: center; background: rgba(239, 71, 111, 0.1); border: 1px solid rgba(239, 71, 111, 0.2); border-radius: 20px; padding: 4px 12px; margin-right: 15px;">
           <span style="font-size: 0.7rem; font-weight: 800; color: var(--accent-red); letter-spacing: 0.5px; text-transform: uppercase;" id="user-display-business-type">Textil</span>
         </div>
-        <div id="trial-badge-container" style="display: none; align-items: center; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 20px; padding: 4px 12px; margin-right: 15px;">
-          <span style="font-size: 0.7rem; font-weight: 700; color: var(--accent-blue); letter-spacing: 0.5px;" id="trial-badge-text">Prueba: 15 días restantes</span>
-        </div>
+        <!-- Trial Badge removed by user request -->
         <div class="notification-bell-container" id="bell-container">
           <button class="btn-bell" type="button" onclick="toggleNotifications(event)">
             <i class="fa-regular fa-bell"></i>
@@ -1851,11 +1849,11 @@
             <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; text-align: left; margin-bottom: 24px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                 <span style="color: var(--text-gray);">Próximo Vencimiento:</span>
-                <span style="color: #fff; font-weight: bold;">Dentro de 15 días</span>
+                <span style="color: #fff; font-weight: bold;">06/08/2026</span>
               </div>
               <div style="display: flex; justify-content: space-between;">
                 <span style="color: var(--text-gray);">Costo mensual estimado:</span>
-                <span style="color: var(--accent-green); font-weight: bold;">$15.000 ARS</span>
+                <span style="color: var(--accent-green); font-weight: bold;">$20.000 ARS</span>
               </div>
             </div>
             <p style="font-size: 0.8rem; color: var(--text-gray-light);">
@@ -1904,7 +1902,7 @@
         </div>
       </div>
 
-      <div>
+      <div id="permissions-section">
         <h4 style="margin: 0 0 8px 0; color: var(--text-dark); font-size: 1rem; display: flex; align-items: center; gap: 8px;">
           <i>🔒</i> Permisos de Acceso
         </h4>
@@ -1934,6 +1932,7 @@
             <!-- JS generates this -->
           </tbody>
         </table>
+      </div>
 
         <div style="display: flex; justify-content: flex-end;">
           <button type="button" class="btn btn-primary" onclick="saveBusinessUser()" style="padding: 10px 24px;">Guardar Usuario</button>

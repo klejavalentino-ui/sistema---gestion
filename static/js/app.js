@@ -7445,7 +7445,25 @@ async function renderIntegrationsStatus() {
       if (syncBtn) syncBtn.style.display = "block";
       if (syncSalesBtn) syncSalesBtn.style.display = "block";
       if (saveBtn) saveBtn.style.display = "none";
+      
+      // AUTO-SYNC HOURLY
+      if (!window.tiendanubeSyncInterval) {
+        window.tiendanubeSyncInterval = setInterval(async () => {
+          try {
+            console.log("[Auto-Sync] Sincronizando Tiendanube...");
+            await apiRequest("/api/integrations/tiendanube/sync", "POST");
+            await apiRequest("/api/integrations/tiendanube/sync-orders", "POST");
+            console.log("[Auto-Sync] Sincronización exitosa.");
+          } catch(e) {
+            console.error("[Auto-Sync] Error", e);
+          }
+        }, 3600000); // 1 hora
+      }
     } else {
+      if (window.tiendanubeSyncInterval) {
+        clearInterval(window.tiendanubeSyncInterval);
+        window.tiendanubeSyncInterval = null;
+      }
       if (badge) {
         badge.innerText = "Desconectado";
         badge.className = "badge-red";
@@ -8867,6 +8885,12 @@ function openNewUserModal() {
   document.getElementById("modal-user-title").innerText = "Nuevo Usuario";
   document.getElementById("modal-user-email").disabled = false;
   
+  document.getElementById("modal-user-username").disabled = false;
+  document.getElementById("modal-user-password").disabled = false;
+  
+  const permSection = document.getElementById("permissions-section");
+  if(permSection) permSection.style.display = "block";
+  
   currentUserPermissions = {};
   setUserPermissionsAll("none");
   
@@ -8876,8 +8900,23 @@ window.openNewUserModal = openNewUserModal;
 
 async function editBusinessUser(uid) {
   if (uid === "admin") {
-    switchSubTab("biz-account");
-    showToast("Redirigido a 'Mi Cuenta' para editar tu perfil.");
+    currentEditingUser = "admin";
+    document.getElementById("modal-user-id").value = "admin";
+    document.getElementById("modal-user-name").value = state.userProfile?.name || "";
+    document.getElementById("modal-user-email").value = state.email || "";
+    document.getElementById("modal-user-username").value = "";
+    document.getElementById("modal-user-username").disabled = true;
+    document.getElementById("modal-user-password").value = "";
+    document.getElementById("modal-user-password").disabled = true;
+    
+    document.getElementById("modal-user-title").innerText = "Editar Mi Perfil";
+    document.getElementById("modal-user-email").disabled = true;
+    
+    // hide permissions section
+    const permSection = document.getElementById("permissions-section");
+    if(permSection) permSection.style.display = "none";
+    
+    document.getElementById("modal-business-user").style.display = "flex";
     return;
   }
   try {
@@ -8892,8 +8931,14 @@ async function editBusinessUser(uid) {
     document.getElementById("modal-user-username").value = u.username || "";
     document.getElementById("modal-user-password").value = "";
     
+    document.getElementById("modal-user-username").disabled = false;
+    document.getElementById("modal-user-password").disabled = false;
+    
     document.getElementById("modal-user-title").innerText = "Editar Usuario";
     document.getElementById("modal-user-email").disabled = true;
+    
+    const permSection = document.getElementById("permissions-section");
+    if(permSection) permSection.style.display = "block";
     
     currentUserPermissions = u.access || {};
     renderPermissionsMatrix();
@@ -8930,6 +8975,14 @@ async function saveBusinessUser() {
   if (password) payload.password = password;
   
   try {
+    if (currentEditingUser === "admin") {
+      await apiRequest("/api/business/settings", "PUT", { userProfileName: name });
+      showToast("Perfil de administrador actualizado.");
+      closeBusinessUserModal();
+      loadBusinessData();
+      return;
+    }
+    
     const method = currentEditingUser ? "PUT" : "POST";
     const url = currentEditingUser ? `/api/business/users/${currentEditingUser}` : "/api/business/users";
     
