@@ -289,16 +289,32 @@ def index():
 USERNAMES_FILE = "usernames.json"
 
 def get_email_for_username(username):
-    if not os.path.exists(USERNAMES_FILE):
-        return None
-    try:
-        with open(USERNAMES_FILE, "r") as f:
-            data = json.load(f)
-            return data.get(username)
-    except:
-        return None
+    email = None
+    if os.path.exists(USERNAMES_FILE):
+        try:
+            with open(USERNAMES_FILE, "r") as f:
+                data = json.load(f)
+                email = data.get(username)
+        except:
+            pass
+            
+    if email:
+        return email
+        
+    if db_admin:
+        try:
+            doc = db_admin.collection("username_mappings").document(username).get()
+            if doc.exists:
+                email = doc.to_dict().get("email")
+                if email:
+                    save_username_mapping(username, email, upload_to_firestore=False)
+                    return email
+        except Exception as e:
+            print(f"Error consultando username mapping en Firestore: {e}")
+            
+    return None
 
-def save_username_mapping(username, email):
+def save_username_mapping(username, email, upload_to_firestore=True):
     if not username or not email:
         return
     data = {}
@@ -314,6 +330,12 @@ def save_username_mapping(username, email):
             json.dump(data, f)
     except:
         pass
+        
+    if upload_to_firestore and db_admin:
+        try:
+            db_admin.collection("username_mappings").document(username).set({"email": email})
+        except Exception as e:
+            print(f"Error guardando username mapping en Firestore: {e}")
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
@@ -334,8 +356,19 @@ def login():
             
     try:
         res = firebase_config.sign_in(email, password)
+        token = res.get("idToken")
+        
+        try:
+            for biz_type in ["textil", "comercio"]:
+                profile_doc = firebase_config.get_document("products", f"{biz_type}_user_profile", token)
+                if profile_doc and profile_doc.get("username"):
+                    save_username_mapping(profile_doc["username"], email)
+                    break
+        except Exception as ex:
+            print(f"Error al sincronizar username mapping durante login: {ex}")
+            
         return jsonify({
-            "token": res.get("idToken"),
+            "token": token,
             "email": res.get("email"),
             "localId": res.get("localId")
         })
@@ -3303,7 +3336,19 @@ def update_business_settings():
             
         if "businessName" in data: doc["businessName"] = data["businessName"]
         if "userProfileName" in data: doc["name"] = data["userProfileName"]
-        if "userProfileUsername" in data: doc["username"] = data["userProfileUsername"]
+        if "userProfileUsername" in data:
+            new_username = data["userProfileUsername"]
+            doc["username"] = new_username
+            email = doc.get("contactEmail")
+            if not email:
+                try:
+                    acc_info = firebase_config.get_account_info(token)
+                    if acc_info:
+                        email = acc_info.get("email")
+                except:
+                    pass
+            if email:
+                save_username_mapping(new_username, email)
         if "businessType" in data: doc["businessType"] = data["businessType"]
         if "ivaCondition" in data: doc["ivaCondition"] = data["ivaCondition"]
         if "businessModel" in data: doc["businessModel"] = data["businessModel"]
