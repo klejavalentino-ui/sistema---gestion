@@ -77,6 +77,8 @@ body {
   list-style: none;
   flex-grow: 1;
   overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
 }
 
 /* Hide scrollbar on menu */
@@ -85,17 +87,17 @@ body {
 }
 
 .menu-item {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .menu-link {
   display: flex;
   align-items: center;
-  padding: 11px 14px;
+  padding: 8px 14px;
   color: var(--text-gray);
   text-decoration: none;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   border-radius: 8px;
   transition: all 0.2s ease;
 }
@@ -325,7 +327,7 @@ input[type=number] {
 @media (min-width: 1024px) {
   .pos-wrapper {
     flex-direction: row;
-    height: calc(100vh - 140px);
+    height: calc(100vh - 230px);
   }
 }
 
