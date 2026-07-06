@@ -289,8 +289,8 @@ async function handleRegister(e) {
   const phone = document.getElementById("register-phone").value;
   const password = document.getElementById("register-password").value;
   const confirmPassword = document.getElementById("register-password-confirm").value;
-  const bizModel = document.getElementById("register-business-type").value || "Textil / Indumentaria";
-  const bizType = (bizModel === "Textil / Indumentaria" || bizModel === "Calzado") ? "textil" : "comercio";
+  const bizModel = document.getElementById("register-business-type").value || "Indumentaria";
+  const bizType = (bizModel === "Indumentaria") ? "textil" : "comercio";
   const errorDiv = document.getElementById("register-error");
   
   errorDiv.style.display = "none";
@@ -9072,7 +9072,7 @@ const APP_SECTIONS = [
 async function loadBusinessData() {
   if (state.userProfile) {
     document.getElementById("business-settings-name").value = state.userProfile.businessName || "";
-    document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Textil / Indumentaria";
+    document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Indumentaria";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
     
     // Dibujar filas dinámicas en las subpestañas
@@ -9095,7 +9095,7 @@ window.loadBusinessData = loadBusinessData;
 async function saveBusinessSettings() {
   try {
     const model = document.getElementById("business-settings-model").value;
-    const type = (model === "Textil / Indumentaria" || model === "Calzado") ? "textil" : "comercio";
+    const type = (model === "Indumentaria") ? "textil" : "comercio";
     const data = {
       businessName: document.getElementById("business-settings-name").value,
       businessModel: model,
