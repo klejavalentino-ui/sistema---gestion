@@ -3732,101 +3732,180 @@ function populateInventoryCategorySelect(filterCat) {
 }
 
 // --- Product Location Helpers ---
-function renderProductLocationTabs() {
+function renderProductLocationRows() {
   const isComercio = state.businessType === "comercio";
-  const selectId = isComercio ? "modal-location-tab-simple" : "modal-location-tab";
-  const selectEl = document.getElementById(selectId);
-  if (!selectEl) return;
   
-  selectEl.innerHTML = "";
-  Object.keys(tempLocationStock).forEach(loc => {
-    const opt = document.createElement("option");
-    opt.value = loc;
-    opt.innerText = loc;
-    selectEl.appendChild(opt);
-  });
-  
-  if (currentLocationTab && tempLocationStock[currentLocationTab] !== undefined) {
-    selectEl.value = currentLocationTab;
-  } else {
-    currentLocationTab = selectEl.value || "";
-  }
-  
-  loadCurrentLocationStock();
-}
-
-function saveCurrentLocationStock() {
-  if (!currentLocationTab) return;
-  const isComercio = state.businessType === "comercio";
   if (isComercio) {
-    const val = document.getElementById("prod-stock-simple").value;
-    tempLocationStock[currentLocationTab]["Único"] = val !== "" ? parseInt(val) : 0;
-  } else {
-    ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
-      const input = document.getElementById(`stock-${sz}`);
-      const val = input.value;
-      const szVal = sz === 'Unico' ? 'Único' : sz;
-      tempLocationStock[currentLocationTab][szVal] = val !== "" ? parseInt(val) : 0;
+    // Populate simple stock rows
+    const container = document.getElementById("location-simple-stock-container");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    Object.keys(tempLocationStock).forEach(loc => {
+      const val = tempLocationStock[loc]["Único"] || 0;
+      const row = document.createElement("div");
+      row.style = "display: flex; gap: 12px; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 8px;";
+      row.innerHTML = `
+        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-white); width: 140px; min-width: 140px;">${loc}</span>
+        <input type="number" class="form-input product-simple-stock-input" data-location="${loc}" value="${val}" style="flex: 1; max-width: 200px; padding: 6px 12px; text-align: left;" placeholder="Ej. 100" min="0" oninput="saveAllLocationStocks()">
+        <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 8px 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="removeProductLocationSimpleRow('${loc}')">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      `;
+      container.appendChild(row);
     });
-  }
-}
-
-function loadCurrentLocationStock() {
-  const isComercio = state.businessType === "comercio";
-  if (!currentLocationTab || !tempLocationStock[currentLocationTab]) {
-    // Clear inputs
-    if (isComercio) {
-      document.getElementById("prod-stock-simple").value = "";
-    } else {
-      ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
-        document.getElementById(`stock-${sz}`).value = "";
+    
+    // Populate the add dropdown
+    const addSelect = document.getElementById("add-location-simple-select");
+    if (addSelect) {
+      addSelect.innerHTML = "";
+      const available = (state.userProfile?.locations || ["Local Principal"]).filter(l => tempLocationStock[l] === undefined);
+      available.forEach(l => {
+        const opt = document.createElement("option");
+        opt.value = l;
+        opt.innerText = l;
+        addSelect.appendChild(opt);
       });
+      if (available.length === 0) {
+        addSelect.innerHTML = '<option value="">Sin ubicaciones para añadir</option>';
+      }
     }
-    return;
-  }
-  
-  const locData = tempLocationStock[currentLocationTab];
-  if (isComercio) {
-    document.getElementById("prod-stock-simple").value = locData["Único"] || 0;
   } else {
-    ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
-      const szVal = sz === 'Unico' ? 'Único' : sz;
-      document.getElementById(`stock-${sz}`).value = locData[szVal] || 0;
+    // Populate textil size table rows
+    const container = document.getElementById("location-stock-matrix-container");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    const table = document.createElement("table");
+    table.style = "width: 100%; border-collapse: collapse; min-width: 600px;";
+    table.innerHTML = `
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
+          <th style="padding: 6px 12px; font-size: 0.75rem; color: var(--text-gray-light); font-weight: 700; width: 140px;">Ubicación</th>
+          ${['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'].map(sz => `<th style="padding: 6px 6px; font-size: 0.75rem; color: var(--text-gray-light); font-weight: 700; text-align: center;">${sz}</th>`).join("")}
+          <th style="padding: 6px 12px; width: 50px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    `;
+    
+    const tbody = table.querySelector("tbody");
+    Object.keys(tempLocationStock).forEach(loc => {
+      const tr = document.createElement("tr");
+      tr.style = "border-bottom: 1px solid rgba(255,255,255,0.03);";
+      
+      let inputsHtml = "";
+      ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'].forEach(sz => {
+        const val = tempLocationStock[loc][sz] || 0;
+        inputsHtml += `
+          <td style="padding: 4px 6px; text-align: center;">
+            <input type="number" class="form-input product-stock-input" data-location="${loc}" data-size="${sz}" value="${val}" style="text-align: center; padding: 6px; width: 60px; margin: 0 auto;" min="0" oninput="saveAllLocationStocks()">
+          </td>
+        `;
+      });
+      
+      tr.innerHTML = `
+        <td style="padding: 8px 12px; font-size: 0.85rem; font-weight: 700; color: var(--text-white); vertical-align: middle;">${loc}</td>
+        ${inputsHtml}
+        <td style="padding: 8px 12px; text-align: right; vertical-align: middle;">
+          <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="removeProductLocationRow('${loc}')">
+            <i class="fa-solid fa-trash" style="font-size: 0.85rem;"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+    container.appendChild(table);
+    
+    // Populate the add dropdown
+    const addSelect = document.getElementById("add-location-select");
+    if (addSelect) {
+      addSelect.innerHTML = "";
+      const available = (state.userProfile?.locations || ["Local Principal"]).filter(l => tempLocationStock[l] === undefined);
+      available.forEach(l => {
+        const opt = document.createElement("option");
+        opt.value = l;
+        opt.innerText = l;
+        addSelect.appendChild(opt);
+      });
+      if (available.length === 0) {
+        addSelect.innerHTML = '<option value="">Sin ubicaciones para añadir</option>';
+      }
+    }
+  }
+}
+
+function saveAllLocationStocks() {
+  const isComercio = state.businessType === "comercio";
+  if (isComercio) {
+    const simpleInputs = document.querySelectorAll(".product-simple-stock-input");
+    simpleInputs.forEach(input => {
+      const loc = input.dataset.location;
+      const val = input.value;
+      if (!tempLocationStock[loc]) tempLocationStock[loc] = {};
+      tempLocationStock[loc]["Único"] = val !== "" ? parseInt(val) : 0;
+    });
+  } else {
+    const sizeInputs = document.querySelectorAll(".product-stock-input");
+    sizeInputs.forEach(input => {
+      const loc = input.dataset.location;
+      const sz = input.dataset.size;
+      const val = input.value;
+      if (!tempLocationStock[loc]) tempLocationStock[loc] = {};
+      tempLocationStock[loc][sz] = val !== "" ? parseInt(val) : 0;
     });
   }
 }
+window.saveAllLocationStocks = saveAllLocationStocks;
 
-function changeProductModalLocation() {
-  saveCurrentLocationStock();
-  const isComercio = state.businessType === "comercio";
-  const selectId = isComercio ? "modal-location-tab-simple" : "modal-location-tab";
-  currentLocationTab = document.getElementById(selectId).value;
-  loadCurrentLocationStock();
+function addProductLocationRow() {
+  saveAllLocationStocks();
+  const select = document.getElementById("add-location-select");
+  if (!select) return;
+  const loc = select.value;
+  if (!loc) return;
+  
+  tempLocationStock[loc] = {
+    'XS': 0, 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, 'Único': 0
+  };
+  renderProductLocationRows();
 }
+window.addProductLocationRow = addProductLocationRow;
 
-function addProductModalLocation() {
-  saveCurrentLocationStock();
-  const availableLocs = (state.userProfile.locations || ["Local Principal"]).filter(l => tempLocationStock[l] === undefined);
-  if (availableLocs.length === 0) {
-    showToast("Ya has añadido todas las ubicaciones disponibles.", true);
-    return;
-  }
-  const loc = availableLocs[0];
-  tempLocationStock[loc] = {};
-  currentLocationTab = loc;
-  renderProductLocationTabs();
-}
-
-function removeProductModalLocation() {
-  if (!currentLocationTab) return;
+function removeProductLocationRow(loc) {
+  saveAllLocationStocks();
   if (Object.keys(tempLocationStock).length <= 1) {
     showToast("Debes tener al menos una ubicación para el stock.", true);
     return;
   }
-  delete tempLocationStock[currentLocationTab];
-  currentLocationTab = Object.keys(tempLocationStock)[0];
-  renderProductLocationTabs();
+  delete tempLocationStock[loc];
+  renderProductLocationRows();
 }
+window.removeProductLocationRow = removeProductLocationRow;
+
+function addProductLocationSimpleRow() {
+  saveAllLocationStocks();
+  const select = document.getElementById("add-location-simple-select");
+  if (!select) return;
+  const loc = select.value;
+  if (!loc) return;
+  
+  tempLocationStock[loc] = { 'Único': 0 };
+  renderProductLocationRows();
+}
+window.addProductLocationSimpleRow = addProductLocationSimpleRow;
+
+function removeProductLocationSimpleRow(loc) {
+  saveAllLocationStocks();
+  if (Object.keys(tempLocationStock).length <= 1) {
+    showToast("Debes tener al menos una ubicación para el stock.", true);
+    return;
+  }
+  delete tempLocationStock[loc];
+  renderProductLocationRows();
+}
+window.removeProductLocationSimpleRow = removeProductLocationSimpleRow;
 
 
 // Product Modal (Add/Edit)
@@ -3858,10 +3937,8 @@ function openCreateProductModal() {
   document.getElementById("prod-ss").value = "";
   document.getElementById("prod-te-textil").value = "";
   
-  // Limpiar stocks y stocks de seguridad de talles
+  // Limpiar stocks de seguridad de talles
   ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
-    document.getElementById(`stock-${sz}`).value = "";
-    document.getElementById(`stock-${sz}`).readOnly = false;
     const ssEl = document.getElementById(`ss-${sz}`);
     if (ssEl) {
       ssEl.value = "";
@@ -3873,15 +3950,13 @@ function openCreateProductModal() {
   document.getElementById("prod-color-label").innerText = isComercio ? "Variante" : "Color";
   document.getElementById("prod-color").placeholder = isComercio ? "Ej. Chocolate, Pack x3, etc." : "Ej. Negro";
   
-  document.getElementById("prod-stock-simple").value = "";
-  document.getElementById("prod-stock-simple").readOnly = false;
-  
   // Initialize locations stock
   tempLocationStock = {};
   const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
-  tempLocationStock[defaultLoc] = {};
-  currentLocationTab = defaultLoc;
-  renderProductLocationTabs();
+  tempLocationStock[defaultLoc] = {
+    'XS': 0, 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, 'Único': 0
+  };
+  renderProductLocationRows();
   
   const talleCard = document.getElementById("product-talles-card");
   const simpleStockContainer = document.getElementById("product-simple-stock-container");
@@ -3970,8 +4045,7 @@ function openEditProductModal(sku) {
     tempLocationStock[defaultLoc] = {};
   }
   
-  currentLocationTab = Object.keys(tempLocationStock)[0];
-  renderProductLocationTabs();
+  renderProductLocationRows();
 
   // Load security stock
   ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
@@ -4001,7 +4075,7 @@ function openEditProductModal(sku) {
   if (isComercio) {
     if (talleCard) talleCard.style.display = "none";
     if (simpleStockContainer) simpleStockContainer.style.display = "block";
-    // prod-stock-simple is handled by renderProductLocationTabs and loadCurrentLocationStock
+    // prod-stock-simple is handled by renderProductLocationRows
     
 
     if (globalSsContainer) globalSsContainer.style.display = "grid";
@@ -4187,7 +4261,7 @@ async function saveProductForm(e) {
   }
 
   // Recolectar stock por ubicaciones y calcular total por talle
-  saveCurrentLocationStock();
+  saveAllLocationStocks();
   const sizeStocks = {};
   const locationsStocksPerSize = {};
   
