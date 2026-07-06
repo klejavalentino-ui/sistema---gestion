@@ -69,7 +69,7 @@
           <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
         </div>
         
-        <button type="button" class="btn btn-secondary" onclick="toggleAuthView(true)" style="width: 100%; padding: 12px; background: transparent; color: #fff; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.85rem; font-weight: 600;">
+        <button type="button" class="btn btn-secondary" onclick="toggleAuthView(true)" style="width: 100%; padding: 12px; background: transparent; color: var(--text-white); border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.85rem; font-weight: 600;">
           Crear cuenta nueva
         </button>
       </div>
@@ -504,10 +504,28 @@
               </div>
             </div>
 
+            <!-- POS Configuration Section (Channel, Location) -->
+            <div style="padding: 12px; border-top: 1px solid var(--border-color); background: rgba(255,255,255,0.01);">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                  <label style="font-size: 0.7rem; color: var(--text-gray-light); margin-bottom: 4px; display: block;">Canal de Venta</label>
+                  <select id="pos-cart-channel-select" class="form-select" style="font-size: 0.8rem; padding: 4px 8px; height: auto;">
+                    <!-- Injected via JS -->
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size: 0.7rem; color: var(--text-gray-light); margin-bottom: 4px; display: block;">Ubicación</label>
+                  <select id="pos-cart-location-select" class="form-select" style="font-size: 0.8rem; padding: 4px 8px; height: auto;">
+                    <!-- Injected via JS -->
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div class="pos-cart-footer">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color);">
                 <span style="font-size: 0.8rem; color: var(--text-gray);">Descuento (%)</span>
-                <input type="number" id="pos-cart-discount-input" class="form-input" style="width: 70px; padding: 4px 8px; font-size: 0.8rem; text-align: right; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="0" min="0" max="100" oninput="renderPOSCart()">
+                <input type="number" id="pos-cart-discount-input" class="form-input" style="width: 70px; padding: 4px 8px; font-size: 0.8rem; text-align: right; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: var(--text-white);" value="0" min="0" max="100" oninput="renderPOSCart()">
               </div>
               <div class="pos-cart-total-row">
                 <span class="pos-cart-total-label">Total a Cobrar</span>
@@ -535,6 +553,9 @@
             </button>
             <button class="btn btn-secondary" onclick="exportInventoryToExcel()">
               <i>📥</i> Exportar Excel
+            </button>
+            <button class="btn btn-secondary" style="background: var(--bg-card); color: var(--text-white); border: 1px solid var(--accent-blue);" onclick="openBulkPriceModal()">
+              <i>💰</i> Modificar Precios
             </button>
             <button class="btn btn-primary" onclick="openCreateProductModal()">
               <i>+</i> Nuevo Producto
@@ -1213,15 +1234,15 @@
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h4 style="color: var(--text-white); margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                  <select id="tiendanube-month-select" class="form-select" style="width: 110px; padding: 6px 10px; font-size: 0.8rem; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="renderIntegrationsStatus()">
+                  <select id="tiendanube-month-select" class="form-select" style="width: 110px; padding: 6px 10px; font-size: 0.8rem; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);" onchange="renderIntegrationsStatus()">
                     <!-- Cargado dinámicamente -->
                   </select>
-                  <select id="tiendanube-year-select" class="form-select" style="width: 90px; padding: 6px 10px; font-size: 0.8rem; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="renderIntegrationsStatus()">
+                  <select id="tiendanube-year-select" class="form-select" style="width: 90px; padding: 6px 10px; font-size: 0.8rem; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);" onchange="renderIntegrationsStatus()">
                     <option value="2025">2025</option>
                     <option value="2026" selected>2026</option>
                     <option value="2027">2027</option>
                   </select>
-                  <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; background: var(--bg-card); border: 1px solid var(--border-color); color: #fff;" onclick="exportTiendanubeToExcel()">
+                  <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-white);" onclick="exportTiendanubeToExcel()">
                     <i class="fas fa-file-excel" style="color: #107c41;"></i> Exportar Excel
                   </button>
                 </div>
@@ -1354,7 +1375,7 @@
               <!-- FILTRO TIPO DE VENTA -->
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: rgba(255,255,255,0.01); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
                 <span style="font-size: 0.7rem; color: var(--text-gray-light);">Computar para Recategorización:</span>
-                <select id="arca-tracker-filter" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
+                <select id="arca-tracker-filter" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);" onchange="updateMonotributoTrackerUI()">
                   <option value="solo_facturadas" selected>Solo Ventas Facturadas (Fiscal)</option>
                   <option value="todas">Total de Ventas Comerciales (Con y Sin Facturar)</option>
                 </select>
@@ -1378,9 +1399,9 @@
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span style="font-size: 0.75rem; color: var(--text-gray-light);">Facturación mensual:</span>
-                  <select id="arca-monotributo-month-only-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
+                  <select id="arca-monotributo-month-only-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);" onchange="updateMonotributoTrackerUI()">
                   </select>
-                  <select id="arca-monotributo-year-only-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
+                  <select id="arca-monotributo-year-only-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);" onchange="updateMonotributoTrackerUI()">
                   </select>
                 </div>
                 <span style="font-size: 1.0rem; font-weight: 800; color: var(--text-white);" id="arca-monotributo-month-accumulated">$0 / $0</span>
@@ -1419,7 +1440,7 @@
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; align-items: end;">
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" for="externa-month">Mes</label>
-                    <select id="externa-month" class="form-input" style="background: var(--bg-dark); border-color: var(--border-color); color: #fff;">
+                    <select id="externa-month" class="form-input" style="background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);">
                       <option value="01">Enero</option>
                       <option value="02">Febrero</option>
                       <option value="03">Marzo</option>
@@ -1436,7 +1457,7 @@
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" for="externa-year">Año</label>
-                    <select id="externa-year" class="form-input" style="background: var(--bg-dark); border-color: var(--border-color); color: #fff;">
+                    <select id="externa-year" class="form-input" style="background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);">
                       <option value="2024">2024</option>
                       <option value="2025">2025</option>
                       <option value="2026">2026</option>
@@ -1445,7 +1466,7 @@
                   </div>
                    <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" for="externa-amount">Monto Facturado ($)</label>
-                    <input type="text" id="externa-amount" class="form-input" placeholder="Ej: 500.000" style="border-color: var(--border-color); color: #fff;" >
+                    <input type="text" id="externa-amount" class="form-input" placeholder="Ej: 500.000" style="border-color: var(--border-color); color: var(--text-white);" >
                   </div>
                   <button type="button" class="btn btn-primary" style="padding: 8px 12px; font-size: 0.8rem; height: 36px;" onclick="saveExternalMonthlyBilling()">Guardar Registro</button>
                 </div>
@@ -1629,11 +1650,11 @@
             gap: 6px;
           }
           .subtab-btn:hover {
-            color: #fff;
+            color: var(--text-white);
             background: rgba(255, 255, 255, 0.05);
           }
           .subtab-btn.active {
-            color: #fff;
+            color: var(--text-white);
             background: rgba(255, 255, 255, 0.08);
             border-color: var(--border-color);
           }
@@ -1682,6 +1703,8 @@
                   <option value="Revendedor">Revendedor</option>
                   <option value="Fabricante">Fabricante</option>
                   <option value="Revendedor + Fabricante">Revendedor + Fabricante</option>
+                  <option value="Textil">Textil</option>
+                  <option value="Comercio">Comercio</option>
                 </select>
               </div>
               <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
@@ -2035,11 +2058,11 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
               <label class="form-label" style="font-size: 0.65rem;" for="chk-fee-fijo">Fee Fijo ($)</label>
-              <input type="text" id="chk-fee-fijo" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="300">
+              <input type="text" id="chk-fee-fijo" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: var(--text-white);" value="300">
             </div>
             <div>
               <label class="form-label" style="font-size: 0.65rem;" for="chk-comision">Comisión Pago (%)</label>
-              <input type="number" id="chk-comision" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: #fff;" value="5">
+              <input type="number" id="chk-comision" class="form-input" style="padding: 6px; font-size: 0.75rem; height: auto; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: var(--text-white);" value="5">
             </div>
           </div>
         </div>
@@ -2355,51 +2378,87 @@
               </select>
             </div>
           </div>
-          <div class="form-group">
-            <label id="prod-color-label" class="form-label" for="prod-color">Color</label>
-            <input type="text" id="prod-color" class="form-input" placeholder="Ej. Negro" required>
+          <div class="grid-2">
+            <div class="form-group">
+              <label id="prod-color-label" class="form-label" for="prod-color">Color</label>
+              <input type="text" id="prod-color" class="form-input" placeholder="Ej. Negro" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="prod-price-list">Lista de Precios</label>
+              <select id="prod-price-list" class="form-select">
+                <!-- Injected via JS -->
+              </select>
+            </div>
           </div>
 
           <!-- Talles y Stock -->
           <div id="product-talles-card" class="idx-card" style="background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
-            <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin-bottom: 12px;">Talles y Stock</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin: 0;">Talles y Stock</label>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <label style="font-size: 0.75rem; color: var(--text-gray);">Ubicación:</label>
+                <select id="modal-location-tab" class="form-select" style="padding: 4px 8px; font-size: 0.75rem; height: auto;" onchange="changeProductModalLocation()">
+                  <!-- Injected via JS -->
+                </select>
+                <button type="button" class="btn btn-sm" style="padding: 4px 8px; font-size: 0.7rem; background: var(--bg-card); color: var(--text-red); border: 1px solid var(--text-red);" onclick="removeProductModalLocation()">
+                  <i>🗑️</i> Eliminar
+                </button>
+                <button type="button" class="btn btn-sm" style="padding: 4px 8px; font-size: 0.7rem; background: var(--bg-card); color: var(--accent-blue); border: 1px solid var(--accent-blue);" onclick="addProductModalLocation()">
+                  <i>+</i> Añadir
+                </button>
+              </div>
+            </div>
             <div class="grid-3 sm:grid-7" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XS</label>
-                <input type="number" id="stock-XS" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                <input type="number" id="stock-XS" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0" oninput="saveCurrentLocationStock()">
               </div>
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">S</label>
-                <input type="number" id="stock-S" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                <input type="number" id="stock-S" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0" oninput="saveCurrentLocationStock()">
               </div>
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">M</label>
-                <input type="number" id="stock-M" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                <input type="number" id="stock-M" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0" oninput="saveCurrentLocationStock()">
               </div>
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">L</label>
-                <input type="number" id="stock-L" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                <input type="number" id="stock-L" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0" oninput="saveCurrentLocationStock()">
               </div>
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XL</label>
-                <input type="number" id="stock-XL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                <input type="number" id="stock-XL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0" oninput="saveCurrentLocationStock()">
               </div>
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XXL</label>
-                <input type="number" id="stock-XXL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                <input type="number" id="stock-XXL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0" oninput="saveCurrentLocationStock()">
               </div>
               <div>
                 <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">Único</label>
-                <input type="number" id="stock-Unico" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+                <input type="number" id="stock-Unico" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0" oninput="saveCurrentLocationStock()">
               </div>
             </div>
             <p style="font-size: 0.65rem; color: var(--text-gray); text-align: center; margin-top: 12px; font-weight: 500;">Ingresá el stock inicial de los talles que desees habilitar.</p>
           </div>
 
           <!-- Stock Simple para Comercio -->
-          <div class="form-group" id="product-simple-stock-container" style="display: none;">
-            <label class="form-label" for="prod-stock-simple">Stock Inicial</label>
-            <input type="number" id="prod-stock-simple" class="form-input" placeholder="Ej. 100" min="0">
+          <div class="idx-card" id="product-simple-stock-container" style="display: none; background: var(--bg-input); padding: 16px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; margin: 0;">Stock Inicial</label>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <label style="font-size: 0.75rem; color: var(--text-gray);">Ubicación:</label>
+                <select id="modal-location-tab-simple" class="form-select" style="padding: 4px 8px; font-size: 0.75rem; height: auto;" onchange="changeProductModalLocation()">
+                  <!-- Injected via JS -->
+                </select>
+                <button type="button" class="btn btn-sm" style="padding: 4px 8px; font-size: 0.7rem; background: var(--bg-card); color: var(--text-red); border: 1px solid var(--text-red);" onclick="removeProductModalLocation()">
+                  <i>🗑️</i> Eliminar
+                </button>
+                <button type="button" class="btn btn-sm" style="padding: 4px 8px; font-size: 0.7rem; background: var(--bg-card); color: var(--accent-blue); border: 1px solid var(--accent-blue);" onclick="addProductModalLocation()">
+                  <i>+</i> Añadir
+                </button>
+              </div>
+            </div>
+            <input type="number" id="prod-stock-simple" class="form-input" placeholder="Ej. 100" min="0" oninput="saveCurrentLocationStock()">
           </div>
 
           <!-- Insumos Incorporados -->
@@ -3005,7 +3064,7 @@
 
       <div style="display: flex; flex-direction: column; gap: 10px;">
         <!-- Botón de WhatsApp -->
-        <a id="paywall-wa-btn" href="#" target="_blank" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; background: #25d366; color: #fff; border: none; text-decoration: none; align-items: center; display: inline-flex; font-weight: bold; font-size: 0.85rem; border-radius: 8px;">
+        <a id="paywall-wa-btn" href="#" target="_blank" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; background: #25d366; color: var(--text-white); border: none; text-decoration: none; align-items: center; display: inline-flex; font-weight: bold; font-size: 0.85rem; border-radius: 8px;">
           <i class="fab fa-whatsapp" style="font-size: 1.1rem; margin-right: 8px;"></i> Activar por WhatsApp (Enviar Comprobante)
         </a>
         <button class="btn btn-secondary" onclick="logout()" style="width: 100%; justify-content: center; padding: 12px; border: 1px solid var(--border-color); color: var(--text-gray-light); background: transparent;">Cerrar sesión</button>
@@ -3091,6 +3150,31 @@
             <!-- JS fills this -->
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL BULK PRICE UPDATE -->
+  <div id="modal-bulk-price-update" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 10000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 400px; padding: 24px; text-align: center;">
+      <div class="modal-header">
+        <h3 class="modal-title">Modificar Precios Masivamente</h3>
+        <span class="modal-close" onclick="closeBulkPriceModal()">✕</span>
+      </div>
+      <div class="modal-body" style="text-align: left;">
+        <p style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px;">Seleccioná una lista de precios y el porcentaje para aumentar o disminuir los precios de todos sus productos.</p>
+        <div class="form-group">
+          <label class="form-label">Lista de Precios</label>
+          <select id="bulk-price-list-select" class="form-select">
+            <!-- Injected via JS -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Porcentaje (%)</label>
+          <input type="number" id="bulk-price-percent-input" class="form-input" placeholder="Ej: 15 (aumento) o -10 (descuento)">
+          <small style="color: var(--text-gray-light); font-size: 0.7rem; display: block; margin-top: 4px;">Usá valores negativos para descontar.</small>
+        </div>
+        <button type="button" class="btn btn-primary" style="width: 100%; margin-top: 10px;" onclick="applyBulkPriceUpdate()">Aplicar Cambios</button>
       </div>
     </div>
   </div>

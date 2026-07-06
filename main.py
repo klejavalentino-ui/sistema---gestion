@@ -1657,6 +1657,7 @@ def create_sale():
     items = data.get("items")
     method = data.get("method", "Efectivo")
     origen = data.get("origen", "local")
+    ubicacion = data.get("ubicacion", "Local Principal")
     
     if not date or total is None or items is None:
         return jsonify({"error": "Campos obligatorios faltantes"}), 400
@@ -1682,9 +1683,16 @@ def create_sale():
                     continue
                 if not prod:
                     return jsonify({"error": f"Producto con SKU {sku} no encontrado en inventario"}), 400
-                current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                
+                # Retrieve stock from specific location or fallback
+                loc_stock = prod.get("locationsStock", {})
+                if isinstance(loc_stock, dict) and ubicacion in loc_stock:
+                    current_stock = safe_int(loc_stock[ubicacion])
+                else:
+                    current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                
                 if current_stock < qty:
-                    return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}' (Talle {prod.get('size')}). Disponible: {current_stock}, Solicitado: {qty}"}), 400
+                    return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}' (Talle {prod.get('size')}) en la ubicación '{ubicacion}'. Disponible: {current_stock}, Solicitado: {qty}"}), 400
 
         sale_id = f"V-{time.strftime('%H%M%S', time.localtime())}"
         
@@ -1704,7 +1712,9 @@ def create_sale():
             "method": str(method),
             "items": items,
             "extras": data.get("extras", {}),
-            "origen": origen
+            "origen": origen,
+            "canal_venta": data.get("canal_venta", "Minorista"),
+            "ubicacion": ubicacion
         }
 
         # Calcular ganancias netas si el origen es Tiendanube
@@ -1764,9 +1774,19 @@ def create_sale():
             def update_local_stock(prod_data):
                 sku, qty, prod = prod_data
                 if sku and qty > 0 and prod:
-                    current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
-                    prod["stock_local"] = max(0, current_stock - qty)
-                    prod["stock"] = prod["stock_local"]
+                    loc_stock = prod.get("locationsStock", {})
+                    if isinstance(loc_stock, dict) and ubicacion in loc_stock:
+                        loc_stock[ubicacion] = max(0, safe_int(loc_stock[ubicacion]) - qty)
+                        prod["locationsStock"] = loc_stock
+                        # Update total stock by summing all locations
+                        total_stock = sum(safe_int(v) for v in loc_stock.values())
+                        prod["stock"] = total_stock
+                        prod["stock_local"] = total_stock
+                    else:
+                        current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                        prod["stock_local"] = max(0, current_stock - qty)
+                        prod["stock"] = prod["stock_local"]
+                    
                     prod["sku"] = f"{prefix}{sku}"
                     firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
 

@@ -18,6 +18,10 @@
   --accent-emerald: #10b981;
   --accent-blue: #3b82f6;
   --accent-purple: #8b5cf6;
+  
+  --bg-btn-secondary: #1e293b;
+  --text-btn-secondary: var(--text-gray-light);
+  --bg-btn-secondary-hover: #334155;
 }
 
 body.light-theme {
@@ -33,6 +37,10 @@ body.light-theme {
   --text-muted: #94a3b8;
   
   --text-dark: #334155;
+  
+  --bg-btn-secondary: #e2e8f0;
+  --text-btn-secondary: #334155;
+  --bg-btn-secondary-hover: #cbd5e1;
 }
 
 * {
@@ -304,13 +312,13 @@ input[type=number] {
 }
 
 .btn-secondary {
-  background: #1e293b;
+  background: var(--bg-btn-secondary);
   border: 1px solid var(--border-color);
-  color: var(--text-gray-light);
+  color: var(--text-btn-secondary);
 }
 
 .btn-secondary:hover {
-  background: #334155;
+  background: var(--bg-btn-secondary-hover);
 }
 
 .btn-emerald {

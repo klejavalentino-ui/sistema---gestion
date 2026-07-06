@@ -26,7 +26,10 @@ const state = {
   panelMonth: "",      // Mes seleccionado (ej. 'Junio')
   
   // Fixed Costs View Month
-  viewCostsMonth: "",
+  fixedCostsMonth: "",
+  
+  // Influencers View Month
+  influencersMonth: "",
   
   // Chart.js instances
   evolutionChart: null,
@@ -41,6 +44,9 @@ const state = {
     missing_cost_margin: false
   }
 };
+
+let tempLocationStock = {};
+let currentLocationTab = "";
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -2340,6 +2346,26 @@ function renderPOSCart(recalc = true) {
   const countBadge = document.getElementById("pos-cart-count-badge");
   const cobrarBtn = document.getElementById("pos-cobrar-btn");
   
+  // Populate configuration dropdowns if not populated yet
+  const channelSelect = document.getElementById("pos-cart-channel-select");
+  if (channelSelect && channelSelect.children.length === 0) {
+    (state.userProfile.salesChannels || ["Minorista", "Mayorista", "TiendaNube"]).forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.innerText = c;
+      channelSelect.appendChild(opt);
+    });
+  }
+  const locationSelect = document.getElementById("pos-cart-location-select");
+  if (locationSelect && locationSelect.children.length === 0) {
+    (state.userProfile.locations || ["Local Principal"]).forEach(l => {
+      const opt = document.createElement("option");
+      opt.value = l;
+      opt.innerText = l;
+      locationSelect.appendChild(opt);
+    });
+  }
+  
   const totalItemsCount = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
   countBadge.innerText = `${totalItemsCount} items`;
 
@@ -2705,6 +2731,8 @@ async function confirmPayment(method) {
   }
 
   const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
+  const canalVenta = document.getElementById("pos-cart-channel-select") ? document.getElementById("pos-cart-channel-select").value : "Minorista";
+  const ubicacion = document.getElementById("pos-cart-location-select") ? document.getElementById("pos-cart-location-select").value : "Local Principal";
 
   // Registrar venta directa
   const salePayload = {
@@ -2719,8 +2747,11 @@ async function confirmPayment(method) {
       quantity: parseInt(item.quantity) || 1
     })),
     extras: extras,
-    origen: origin
+    origen: origin,
+    canal_venta: canalVenta,
+    ubicacion: ubicacion
   };
+
 
   if (origin === "tiendanube") {
     salePayload.fee_fijo_tn = parseLocalFloat(document.getElementById("chk-fee-fijo").value) || 0;
@@ -2874,6 +2905,9 @@ async function submitCheckoutFinance() {
     // 2. Registrar venta de tipo Cta. Corriente
     const methodStr = `Cta. corriente (${paidAmount > 0 ? '$'+Math.round(paidAmount).toLocaleString()+' Pago' : 'Total'})`;
     const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
+    const canalVenta = document.getElementById("pos-cart-channel-select") ? document.getElementById("pos-cart-channel-select").value : "Minorista";
+    const ubicacion = document.getElementById("pos-cart-location-select") ? document.getElementById("pos-cart-location-select").value : "Local Principal";
+    
     const salePayload = {
       date: new Date().toISOString(),
       total: total,
@@ -2886,8 +2920,11 @@ async function submitCheckoutFinance() {
         quantity: parseInt(item.quantity) || 1
       })),
       extras: extras,
-      origen: origin
+      origen: origin,
+      canal_venta: canalVenta,
+      ubicacion: ubicacion
     };
+
 
     if (origin === "tiendanube") {
       salePayload.fee_fijo_tn = parseLocalFloat(document.getElementById("chk-fee-fijo").value) || 0;
@@ -3444,6 +3481,72 @@ function exportSalesHistory() {
   XLSX.writeFile(wb, "Historial_Ventas.xlsx");
 }
 
+// --- BULK PRICE UPDATE ---
+function openBulkPriceModal() {
+  const plSelect = document.getElementById("bulk-price-list-select");
+  if (!plSelect) return;
+  
+  plSelect.innerHTML = '<option value="">Sin Lista</option>';
+  (state.userProfile.priceLists || []).forEach(pl => {
+    const opt = document.createElement("option");
+    opt.value = pl;
+    opt.innerText = pl;
+    plSelect.appendChild(opt);
+  });
+  
+  document.getElementById("bulk-price-percent-input").value = "";
+  document.getElementById("modal-bulk-price-update").style.display = "flex";
+}
+
+function closeBulkPriceModal() {
+  document.getElementById("modal-bulk-price-update").style.display = "none";
+}
+
+async function applyBulkPriceUpdate() {
+  const listName = document.getElementById("bulk-price-list-select").value;
+  const percentInput = document.getElementById("bulk-price-percent-input").value.trim();
+  if (!listName) {
+    showToast("Selecciona una lista de precios", true);
+    return;
+  }
+  if (!percentInput) {
+    showToast("Ingresa un porcentaje", true);
+    return;
+  }
+  
+  const percent = parseFloat(percentInput);
+  if (isNaN(percent)) {
+    showToast("Porcentaje inválido", true);
+    return;
+  }
+  
+  // Find all products with this price list
+  const productsToUpdate = state.products.filter(p => p.priceList === listName);
+  if (productsToUpdate.length === 0) {
+    showToast("No se encontraron productos en esa lista de precios", true);
+    return;
+  }
+  
+  const batchPayload = productsToUpdate.map(p => {
+    const pCopy = { ...p };
+    const factor = 1 + (percent / 100);
+    pCopy.price_local = pCopy.price_local ? Math.round(pCopy.price_local * factor) : 0;
+    pCopy.price_tiendanube = pCopy.price_tiendanube ? Math.round(pCopy.price_tiendanube * factor) : 0;
+    pCopy.price = pCopy.price_local; // fallback
+    return pCopy;
+  });
+  
+  try {
+    showToast(`Actualizando precios de ${batchPayload.length} productos...`);
+    await apiRequest("/api/products", "POST", batchPayload);
+    showToast("Precios actualizados exitosamente");
+    closeBulkPriceModal();
+    refreshState();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
 // --- 3. INVENTARIO ---
 function renderInventory() {
   const tbody = document.getElementById("inventory-table-body");
@@ -3621,6 +3724,104 @@ function populateInventoryCategorySelect(filterCat) {
   }
 }
 
+// --- Product Location Helpers ---
+function renderProductLocationTabs() {
+  const isComercio = state.businessType === "comercio";
+  const selectId = isComercio ? "modal-location-tab-simple" : "modal-location-tab";
+  const selectEl = document.getElementById(selectId);
+  if (!selectEl) return;
+  
+  selectEl.innerHTML = "";
+  Object.keys(tempLocationStock).forEach(loc => {
+    const opt = document.createElement("option");
+    opt.value = loc;
+    opt.innerText = loc;
+    selectEl.appendChild(opt);
+  });
+  
+  if (currentLocationTab && tempLocationStock[currentLocationTab] !== undefined) {
+    selectEl.value = currentLocationTab;
+  } else {
+    currentLocationTab = selectEl.value || "";
+  }
+  
+  loadCurrentLocationStock();
+}
+
+function saveCurrentLocationStock() {
+  if (!currentLocationTab) return;
+  const isComercio = state.businessType === "comercio";
+  if (isComercio) {
+    const val = document.getElementById("prod-stock-simple").value;
+    tempLocationStock[currentLocationTab]["Único"] = val !== "" ? parseInt(val) : 0;
+  } else {
+    ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
+      const input = document.getElementById(`stock-${sz}`);
+      const val = input.value;
+      const szVal = sz === 'Unico' ? 'Único' : sz;
+      tempLocationStock[currentLocationTab][szVal] = val !== "" ? parseInt(val) : 0;
+    });
+  }
+}
+
+function loadCurrentLocationStock() {
+  const isComercio = state.businessType === "comercio";
+  if (!currentLocationTab || !tempLocationStock[currentLocationTab]) {
+    // Clear inputs
+    if (isComercio) {
+      document.getElementById("prod-stock-simple").value = "";
+    } else {
+      ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
+        document.getElementById(`stock-${sz}`).value = "";
+      });
+    }
+    return;
+  }
+  
+  const locData = tempLocationStock[currentLocationTab];
+  if (isComercio) {
+    document.getElementById("prod-stock-simple").value = locData["Único"] || 0;
+  } else {
+    ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
+      const szVal = sz === 'Unico' ? 'Único' : sz;
+      document.getElementById(`stock-${sz}`).value = locData[szVal] || 0;
+    });
+  }
+}
+
+function changeProductModalLocation() {
+  saveCurrentLocationStock();
+  const isComercio = state.businessType === "comercio";
+  const selectId = isComercio ? "modal-location-tab-simple" : "modal-location-tab";
+  currentLocationTab = document.getElementById(selectId).value;
+  loadCurrentLocationStock();
+}
+
+function addProductModalLocation() {
+  saveCurrentLocationStock();
+  const availableLocs = (state.userProfile.locations || ["Local Principal"]).filter(l => tempLocationStock[l] === undefined);
+  if (availableLocs.length === 0) {
+    showToast("Ya has añadido todas las ubicaciones disponibles.", true);
+    return;
+  }
+  const loc = availableLocs[0];
+  tempLocationStock[loc] = {};
+  currentLocationTab = loc;
+  renderProductLocationTabs();
+}
+
+function removeProductModalLocation() {
+  if (!currentLocationTab) return;
+  if (Object.keys(tempLocationStock).length <= 1) {
+    showToast("Debes tener al menos una ubicación para el stock.", true);
+    return;
+  }
+  delete tempLocationStock[currentLocationTab];
+  currentLocationTab = Object.keys(tempLocationStock)[0];
+  renderProductLocationTabs();
+}
+
+
 // Product Modal (Add/Edit)
 function openCreateProductModal() {
   document.getElementById("modal-product-title").innerText = "Nuevo Producto";
@@ -3667,6 +3868,26 @@ function openCreateProductModal() {
   
   document.getElementById("prod-stock-simple").value = "";
   document.getElementById("prod-stock-simple").readOnly = false;
+  
+  // Initialize locations stock
+  tempLocationStock = {};
+  const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
+  tempLocationStock[defaultLoc] = {};
+  currentLocationTab = defaultLoc;
+  renderProductLocationTabs();
+  
+  // Populate Price List selector
+  const plSelect = document.getElementById("prod-price-list");
+  if (plSelect) {
+    plSelect.innerHTML = '<option value="">Sin Lista</option>';
+    (state.userProfile.priceLists || []).forEach(pl => {
+      const opt = document.createElement("option");
+      opt.value = pl;
+      opt.innerText = pl;
+      plSelect.appendChild(opt);
+    });
+    plSelect.value = "";
+  }
   
   const talleCard = document.getElementById("product-talles-card");
   const simpleStockContainer = document.getElementById("product-simple-stock-container");
@@ -3734,21 +3955,40 @@ function openEditProductModal(sku) {
   const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
   const variants = state.products.filter(prod => prod.baseSku === cleanBase);
   
-  // Limpiar y cargar stock/seguridad por talles
+  // Build tempLocationStock from variants
+  tempLocationStock = {};
+  variants.forEach(v => {
+    if (v.locationsStock && Object.keys(v.locationsStock).length > 0) {
+      Object.keys(v.locationsStock).forEach(loc => {
+        if (!tempLocationStock[loc]) tempLocationStock[loc] = {};
+        tempLocationStock[loc][v.size] = v.locationsStock[loc];
+      });
+    } else {
+      // Backwards compatibility: add stock to default location
+      const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
+      if (!tempLocationStock[defaultLoc]) tempLocationStock[defaultLoc] = {};
+      tempLocationStock[defaultLoc][v.size] = v.stock;
+    }
+  });
+  
+  if (Object.keys(tempLocationStock).length === 0) {
+    const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
+    tempLocationStock[defaultLoc] = {};
+  }
+  
+  currentLocationTab = Object.keys(tempLocationStock)[0];
+  renderProductLocationTabs();
+
+  // Load security stock
   ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
-    const input = document.getElementById(`stock-${sz}`);
     const ssInput = document.getElementById(`ss-${sz}`);
-    
-    input.readOnly = false; // Permitir editar cualquier talle
     if (ssInput) ssInput.readOnly = false;
     
     const szVal = sz === 'Unico' ? 'Único' : sz;
     const variant = variants.find(v => v.size === szVal);
     if (variant) {
-      input.value = variant.stock;
       if (ssInput) ssInput.value = (variant.securityStock !== undefined && variant.securityStock !== null && variant.securityStock !== "") ? variant.securityStock : "";
     } else {
-      input.value = "";
       if (ssInput) ssInput.value = "";
     }
   });
@@ -3767,9 +4007,9 @@ function openEditProductModal(sku) {
   if (isComercio) {
     if (talleCard) talleCard.style.display = "none";
     if (simpleStockContainer) simpleStockContainer.style.display = "block";
-    document.getElementById("prod-stock-simple").value = p.stock;
-    document.getElementById("prod-stock-simple").readOnly = false;
+    // prod-stock-simple is handled by renderProductLocationTabs and loadCurrentLocationStock
     
+
     if (globalSsContainer) globalSsContainer.style.display = "grid";
     if (talleSsContainer) talleSsContainer.style.display = "none";
     document.getElementById("prod-ss").value = (p.securityStock !== undefined && p.securityStock !== null) ? p.securityStock : "";
@@ -3792,6 +4032,19 @@ function openEditProductModal(sku) {
   }
 
   populateProductFormCategories(p.category);
+  
+  // Populate Price List selector
+  const plSelect = document.getElementById("prod-price-list");
+  if (plSelect) {
+    plSelect.innerHTML = '<option value="">Sin Lista</option>';
+    (state.userProfile.priceLists || []).forEach(pl => {
+      const opt = document.createElement("option");
+      opt.value = pl;
+      opt.innerText = pl;
+      plSelect.appendChild(opt);
+    });
+    plSelect.value = p.priceList || "";
+  }
   
   // Rellenar adicionales selectors con la configuración del producto (con fallback compatible)
   const selectedExtras = p.extras || {
@@ -3907,6 +4160,8 @@ async function saveProductForm(e) {
   const baseSku = document.getElementById("prod-sku").value.trim().toUpperCase();
   const category = document.getElementById("prod-category").value;
   const color = document.getElementById("prod-color").value;
+  const priceListSelect = document.getElementById("prod-price-list");
+  const priceList = priceListSelect ? priceListSelect.value : "";
   const cost = parseFloat(document.getElementById("prod-cost-input").value.replace(/\D/g, "")) || 0;
   const margin = parseFloat(document.getElementById("prod-margin").value);
   
@@ -3952,32 +4207,27 @@ async function saveProductForm(e) {
     }
   }
 
-  // Recolectar stock por talles
+  // Recolectar stock por ubicaciones y calcular total por talle
+  saveCurrentLocationStock();
   const sizeStocks = {};
-  let variantCount = 0;
+  const locationsStocksPerSize = {};
   
-  if (isComercio) {
-    const inputVal = document.getElementById("prod-stock-simple").value;
-    if (inputVal !== "") {
-      sizeStocks["Único"] = parseInt(inputVal) || 0;
-      variantCount++;
-    } else {
-      sizeStocks["Único"] = 0;
-      variantCount++;
-    }
-  } else {
-    const talleMapping = { 'XS': 'XS', 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL', 'Unico': 'Único' };
-    for (const [idKey, szVal] of Object.entries(talleMapping)) {
-      const inputVal = document.getElementById(`stock-${idKey}`).value;
-      if (inputVal !== "") {
-        sizeStocks[szVal] = parseInt(inputVal);
-        variantCount++;
+  Object.keys(tempLocationStock).forEach(loc => {
+    Object.keys(tempLocationStock[loc]).forEach(sz => {
+      const qty = tempLocationStock[loc][sz] || 0;
+      if (!sizeStocks[sz]) {
+        sizeStocks[sz] = 0;
+        locationsStocksPerSize[sz] = {};
       }
-    }
-    if (variantCount === 0) {
-      showToast("Por favor, ingresa stock para al menos un talle.", true);
-      return;
-    }
+      sizeStocks[sz] += qty;
+      locationsStocksPerSize[sz][loc] = qty;
+    });
+  });
+
+  let variantCount = Object.keys(sizeStocks).filter(sz => sizeStocks[sz] >= 0).length;
+  if (!isComercio && variantCount === 0) {
+    showToast("Por favor, ingresa stock para al menos una ubicación/talle.", true);
+    return;
   }
 
   const priceLocal = parseLocalFloat(document.getElementById("prod-price-local").value) || 0;
@@ -4014,6 +4264,8 @@ async function saveProductForm(e) {
         baseCost: cost,
         margin: margin,
         cost: totalCost,
+        priceList: priceList,
+        locationsStock: locationsStocksPerSize[size] || {},
         extras: extras,
         estampadoId: extras.estampados || null,
         bordadoId: extras.bordados || null,
@@ -4044,6 +4296,8 @@ async function saveProductForm(e) {
         baseCost: cost,
         margin: margin,
         cost: totalCost,
+        priceList: priceList,
+        locationsStock: locationsStocksPerSize[size] || {},
         extras: extras,
         estampadoId: extras.estampados || null,
         bordadoId: extras.bordados || null,
