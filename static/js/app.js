@@ -77,6 +77,15 @@ function showToast(message, isError = false) {
 function checkAuth() {
   const authSection = document.getElementById("auth-section");
   const appSection = document.getElementById("app-section");
+  
+  if (localStorage.getItem('app-theme') === 'light') {
+    document.body.classList.add('light-theme');
+    const icon = document.getElementById('theme-icon');
+    if (icon) {
+      icon.classList.remove('fa-moon');
+      icon.classList.add('fa-sun');
+    }
+  }
   const verifyScreen = document.getElementById("verify-email-screen");
   const paywallScreen = document.getElementById("paywall-screen");
   
@@ -321,14 +330,23 @@ function updateSidebarProfile() {
   const avatarDiv = document.getElementById("user-display-avatar");
   
   if (nameSpan && roleSpan && avatarDiv) {
+    const usernameSpan = document.getElementById("user-display-username");
+    
     // If state.userProfile exists, use it. Otherwise use email prefix.
     let displayName = "USUARIO";
     let displayRole = "Administrador";
+    let displayUsername = "";
     
-    if (state.userProfile && state.userProfile.contactName) {
+    if (state.userProfile && state.userProfile.name) {
+      displayName = state.userProfile.name;
+    } else if (state.userProfile && state.userProfile.contactName) {
       displayName = state.userProfile.contactName;
     } else if (state.email) {
       displayName = state.email.split("@")[0];
+    }
+    
+    if (state.userProfile && state.userProfile.username) {
+      displayUsername = "@" + state.userProfile.username;
     }
     
     if (state.userProfile && state.userProfile.role) {
@@ -338,6 +356,7 @@ function updateSidebarProfile() {
     nameSpan.innerText = displayName;
     roleSpan.innerText = displayRole;
     avatarDiv.innerText = displayName.charAt(0).toUpperCase();
+    if (usernameSpan) usernameSpan.innerText = displayUsername;
     
     // Update Topbar
     const tbDate = document.getElementById("topbar-date");
@@ -8741,6 +8760,9 @@ async function loadBusinessData() {
     document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Revendedor + Fabricante";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
     
+    // Dibujar filas dinámicas en las subpestañas
+    renderDynamicSettingsRows();
+    if (typeof renderPaymentMethods === 'function') renderPaymentMethods();
 
     // Mapear Configuración de Impresión
     const print = state.userProfile.printSettings || {};
@@ -8987,9 +9009,11 @@ async function saveBusinessUser() {
   
   try {
     if (currentEditingUser === "admin") {
-      await apiRequest("/api/business/settings", "PUT", { userProfileName: name, userProfileUsername: username });
+      const res = await apiRequest("/api/business/settings", "PUT", { userProfileName: name, userProfileUsername: username });
+      state.userProfile = res.userProfile;
       showToast("Perfil de administrador actualizado.");
       closeBusinessUserModal();
+      updateSidebarProfile();
       loadBusinessData();
       return;
     }
@@ -9156,3 +9180,131 @@ async function savePrintSettings() {
   }
 }
 window.savePrintSettings = savePrintSettings;
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-theme');
+  const icon = document.getElementById('theme-icon');
+  
+  if (isLight) {
+    localStorage.setItem('app-theme', 'light');
+    if(icon) {
+      icon.classList.remove('fa-moon');
+      icon.classList.add('fa-sun');
+    }
+  } else {
+    localStorage.setItem('app-theme', 'dark');
+    if(icon) {
+      icon.classList.remove('fa-sun');
+      icon.classList.add('fa-moon');
+    }
+  }
+}
+window.toggleTheme = toggleTheme;
+
+// --- MEDIOS DE PAGO ---
+function renderPaymentMethods() {
+  const tbody = document.getElementById('payment-methods-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const methods = state.userProfile?.paymentMethods || [];
+  
+  if (methods.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-gray); padding: 20px;">No hay medios de pago configurados.</td></tr>';
+    return;
+  }
+  
+  methods.forEach(pm => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border-color)';
+    tr.innerHTML = `
+      <td style="padding: 12px 8px; color: #fff; font-weight: 500;">${pm.name}</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.type}</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.comission}%</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.retention}%</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.adjustment}</td>
+      <td style="padding: 12px 8px; text-align: right;">
+        <button class="btn-icon" style="color: var(--accent-blue);" onclick="openPaymentMethodModal('${pm.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn-icon" style="color: var(--accent-red);" onclick="deletePaymentMethod('${pm.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+window.renderPaymentMethods = renderPaymentMethods;
+
+function openPaymentMethodModal(id = null) {
+  const methods = state.userProfile?.paymentMethods || [];
+  const pm = id ? methods.find(p => p.id === id) : null;
+  
+  document.getElementById('modal-pm-id').value = pm ? pm.id : '';
+  document.getElementById('modal-pm-name').value = pm ? pm.name : '';
+  document.getElementById('modal-pm-type').value = pm ? pm.type : 'Efectivo';
+  document.getElementById('modal-pm-comission').value = pm ? pm.comission : '0';
+  document.getElementById('modal-pm-retention').value = pm ? pm.retention : '0';
+  document.getElementById('modal-pm-adjustment').value = pm ? pm.adjustment : 'Sin ajuste';
+  document.getElementById('modal-pm-title').innerHTML = pm ? '💳 Editar Medio de Pago' : '💳 Nuevo Medio de Pago';
+  
+  document.getElementById('modal-payment-method').style.display = 'flex';
+}
+window.openPaymentMethodModal = openPaymentMethodModal;
+
+function closePaymentMethodModal() {
+  document.getElementById('modal-payment-method').style.display = 'none';
+}
+window.closePaymentMethodModal = closePaymentMethodModal;
+
+async function savePaymentMethod() {
+  const id = document.getElementById('modal-pm-id').value;
+  const name = document.getElementById('modal-pm-name').value;
+  const type = document.getElementById('modal-pm-type').value;
+  const comission = document.getElementById('modal-pm-comission').value || '0';
+  const retention = document.getElementById('modal-pm-retention').value || '0';
+  const adjustment = document.getElementById('modal-pm-adjustment').value;
+  
+  if (!name) {
+    showToast('El nombre es obligatorio', true);
+    return;
+  }
+  
+  let methods = [...(state.userProfile?.paymentMethods || [])];
+  
+  if (id) {
+    const idx = methods.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      methods[idx] = { id, name, type, comission, retention, adjustment };
+    }
+  } else {
+    methods.push({
+      id: 'pm_' + Date.now(),
+      name, type, comission, retention, adjustment
+    });
+  }
+  
+  try {
+    const res = await apiRequest('/api/business/settings', 'PUT', { paymentMethods: methods });
+    state.userProfile = res.userProfile;
+    renderPaymentMethods();
+    closePaymentMethodModal();
+    showToast('Medio de pago guardado correctamente');
+  } catch (e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+window.savePaymentMethod = savePaymentMethod;
+
+async function deletePaymentMethod(id) {
+  if (!confirm('¿Seguro que querés eliminar este medio de pago?')) return;
+  
+  let methods = [...(state.userProfile?.paymentMethods || [])];
+  methods = methods.filter(p => p.id !== id);
+  
+  try {
+    const res = await apiRequest('/api/business/settings', 'PUT', { paymentMethods: methods });
+    state.userProfile = res.userProfile;
+    renderPaymentMethods();
+    showToast('Medio de pago eliminado');
+  } catch (e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+window.deletePaymentMethod = deletePaymentMethod;

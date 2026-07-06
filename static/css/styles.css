@@ -20,6 +20,21 @@
   --accent-purple: #8b5cf6;
 }
 
+body.light-theme {
+  --bg-darkest: #f1f5f9;
+  --bg-dark: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #f8fafc;
+  --border-color: #e2e8f0;
+  
+  --text-white: #0f172a;
+  --text-gray-light: #334155;
+  --text-gray: #64748b;
+  --text-muted: #94a3b8;
+  
+  --text-dark: #334155;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
