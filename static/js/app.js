@@ -8699,8 +8699,25 @@ const APP_SECTIONS = [
 async function loadBusinessData() {
   if (state.userProfile) {
     document.getElementById("business-settings-name").value = state.userProfile.businessName || "";
-    document.getElementById("business-settings-type").value = state.userProfile.businessType || "textil";
+    document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Revendedor + Fabricante";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
+    
+    // Mapear Checkboxes de Módulos Activos
+    const chk = state.userProfile.bizCheckboxes || {};
+    document.getElementById("chk-module-treasury").checked = chk.activeTreasury ?? false;
+    document.getElementById("chk-module-receivable").checked = chk.activeReceivable ?? false;
+    document.getElementById("chk-module-commissions").checked = chk.activeCommissions ?? false;
+    document.getElementById("chk-module-orderstate").checked = chk.activeOrderState ?? false;
+    document.getElementById("chk-module-nostock").checked = chk.activeNoStockSales ?? false;
+    
+    // Mapear Configuración de Impresión
+    const print = state.userProfile.printSettings || {};
+    document.getElementById("print-settings-auto").checked = print.autoPrint ?? false;
+    document.getElementById("print-settings-size").value = print.paperSize || "80mm";
+    document.getElementById("print-settings-footer").value = print.footerText || "";
+
+    // Dibujar filas dinámicas en las subpestañas
+    renderDynamicSettingsRows();
   }
   await loadBusinessUsers();
 }
@@ -8710,8 +8727,15 @@ async function saveBusinessSettings() {
   try {
     const data = {
       businessName: document.getElementById("business-settings-name").value,
-      businessType: document.getElementById("business-settings-type").value,
-      ivaCondition: document.getElementById("business-settings-iva").value
+      businessModel: document.getElementById("business-settings-model").value,
+      ivaCondition: document.getElementById("business-settings-iva").value,
+      bizCheckboxes: {
+        activeTreasury: document.getElementById("chk-module-treasury").checked,
+        activeReceivable: document.getElementById("chk-module-receivable").checked,
+        activeCommissions: document.getElementById("chk-module-commissions").checked,
+        activeOrderState: document.getElementById("chk-module-orderstate").checked,
+        activeNoStockSales: document.getElementById("chk-module-nostock").checked,
+      }
     };
     const res = await apiRequest("/api/business/settings", "PUT", data);
     state.userProfile = res.userProfile;
@@ -8763,14 +8787,12 @@ async function loadBusinessUsers() {
         <td style="padding: 16px; text-align: center;"><span class="badge-blue">${u.isAdmin ? 'Administrador' : accessBadge}</span></td>
         <td style="padding: 16px; text-align: center;">${statusBadge}</td>
         <td style="padding: 16px; text-align: right;">
-          ${u.isAdmin ? '' : `
-            <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('${u.id}')" title="Editar y ajustar permisos">
-              <i class="fa-solid fa-pencil"></i>
-            </button>
-            <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-red); font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="deleteBusinessUser('${u.id}')" title="Eliminar usuario del sistema">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          `}
+          <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('${u.id}')" title="Editar y ajustar permisos">
+            <i class="fa-solid fa-pencil"></i>
+          </button>
+          <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: ${u.isAdmin ? 'var(--text-gray)' : 'var(--accent-red)'}; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s; opacity: ${u.isAdmin ? '0.4' : '1'};" onclick="deleteBusinessUser('${u.id}')" title="${u.isAdmin ? 'No se puede eliminar el administrador' : 'Eliminar usuario del sistema'}">
+            <i class="fa-solid fa-trash"></i>
+          </button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -8853,6 +8875,11 @@ function openNewUserModal() {
 window.openNewUserModal = openNewUserModal;
 
 async function editBusinessUser(uid) {
+  if (uid === "admin") {
+    switchSubTab("biz-account");
+    showToast("Redirigido a 'Mi Cuenta' para editar tu perfil.");
+    return;
+  }
   try {
     const users = await apiRequest("/api/business/users");
     const u = users.find(x => x.id === uid);
@@ -8917,6 +8944,10 @@ async function saveBusinessUser() {
 window.saveBusinessUser = saveBusinessUser;
 
 async function deleteBusinessUser(uid) {
+  if (uid === "admin") {
+    showToast("No podés eliminar tu propia cuenta de administrador principal.", true);
+    return;
+  }
   if(!confirm("¿Estás seguro que querés eliminar el acceso de este usuario?")) return;
   try {
     await apiRequest(`/api/business/users/${uid}`, "DELETE");
@@ -8927,3 +8958,137 @@ async function deleteBusinessUser(uid) {
   }
 }
 window.deleteBusinessUser = deleteBusinessUser;
+
+// --- SOPORTE DE SUB-PESTAÑAS DE CONFIGURACIÓN ---
+function switchSubTab(tabName) {
+  document.querySelectorAll(".subtab-panel").forEach(panel => {
+    panel.style.display = "none";
+  });
+  document.querySelectorAll(".subtab-btn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+  
+  const activePanel = document.getElementById(`panel-subtab-${tabName}`);
+  if (activePanel) activePanel.style.display = "block";
+  
+  const activeBtn = document.getElementById(`btn-subtab-${tabName}`);
+  if (activeBtn) activeBtn.classList.add("active");
+}
+window.switchSubTab = switchSubTab;
+
+function renderDynamicSettingsRows() {
+  const locContainer = document.getElementById("locations-list-container");
+  if (locContainer) {
+    locContainer.innerHTML = "";
+    const locations = state.userProfile.locations || ["Local Principal"];
+    locations.forEach(loc => addLocationRow(loc));
+  }
+
+  const chanContainer = document.getElementById("channels-list-container");
+  if (chanContainer) {
+    chanContainer.innerHTML = "";
+    const channels = state.userProfile.salesChannels || ["Minorista", "Mayorista", "TiendaNube"];
+    channels.forEach(chan => addChannelRow(chan));
+  }
+
+  const priceContainer = document.getElementById("prices-list-container");
+  if (priceContainer) {
+    priceContainer.innerHTML = "";
+    const prices = state.userProfile.priceLists || ["Minorista", "Mayorista"];
+    prices.forEach(pr => addPriceListRow(pr));
+  }
+}
+
+function addLocationRow(value = "") {
+  const container = document.getElementById("locations-list-container");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.style = "display: flex; gap: 12px; align-items: center; margin-bottom: 12px;";
+  div.innerHTML = `
+    <input type="text" class="form-input location-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre de la ubicación">
+    <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+  `;
+  container.appendChild(div);
+}
+window.addLocationRow = addLocationRow;
+
+function addChannelRow(value = "") {
+  const container = document.getElementById("channels-list-container");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.style = "display: flex; gap: 12px; align-items: center; margin-bottom: 12px;";
+  div.innerHTML = `
+    <input type="text" class="form-input channel-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre del canal">
+    <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+  `;
+  container.appendChild(div);
+}
+window.addChannelRow = addChannelRow;
+
+function addPriceListRow(value = "") {
+  const container = document.getElementById("prices-list-container");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.style = "display: flex; gap: 12px; align-items: center; margin-bottom: 12px;";
+  div.innerHTML = `
+    <input type="text" class="form-input price-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre de la lista">
+    <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+  `;
+  container.appendChild(div);
+}
+window.addPriceListRow = addPriceListRow;
+
+async function saveLocationsSettings() {
+  const inputs = document.querySelectorAll(".location-item-input");
+  const locations = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
+  try {
+    const res = await apiRequest("/api/business/settings", "PUT", { locations });
+    state.userProfile = res.userProfile;
+    showToast("Ubicaciones guardadas con éxito.");
+  } catch (e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.saveLocationsSettings = saveLocationsSettings;
+
+async function saveChannelsSettings() {
+  const inputs = document.querySelectorAll(".channel-item-input");
+  const salesChannels = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
+  try {
+    const res = await apiRequest("/api/business/settings", "PUT", { salesChannels });
+    state.userProfile = res.userProfile;
+    showToast("Canales de venta guardados con éxito.");
+  } catch (e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.saveChannelsSettings = saveChannelsSettings;
+
+async function savePricesSettings() {
+  const inputs = document.querySelectorAll(".price-item-input");
+  const priceLists = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
+  try {
+    const res = await apiRequest("/api/business/settings", "PUT", { priceLists });
+    state.userProfile = res.userProfile;
+    showToast("Listas de precios guardadas con éxito.");
+  } catch (e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.savePricesSettings = savePricesSettings;
+
+async function savePrintSettings() {
+  const printSettings = {
+    autoPrint: document.getElementById("print-settings-auto").checked,
+    paperSize: document.getElementById("print-settings-size").value,
+    footerText: document.getElementById("print-settings-footer").value
+  };
+  try {
+    const res = await apiRequest("/api/business/settings", "PUT", { printSettings });
+    state.userProfile = res.userProfile;
+    showToast("Ajustes de impresión guardados con éxito.");
+  } catch (e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.savePrintSettings = savePrintSettings;

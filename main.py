@@ -3304,6 +3304,12 @@ def update_business_settings():
         if "businessName" in data: doc["businessName"] = data["businessName"]
         if "businessType" in data: doc["businessType"] = data["businessType"]
         if "ivaCondition" in data: doc["ivaCondition"] = data["ivaCondition"]
+        if "businessModel" in data: doc["businessModel"] = data["businessModel"]
+        if "locations" in data: doc["locations"] = data["locations"]
+        if "salesChannels" in data: doc["salesChannels"] = data["salesChannels"]
+        if "priceLists" in data: doc["priceLists"] = data["priceLists"]
+        if "printSettings" in data: doc["printSettings"] = data["printSettings"]
+        if "bizCheckboxes" in data: doc["bizCheckboxes"] = data["bizCheckboxes"]
         
         firebase_config.set_document("products", f"{prefix}user_profile", doc, token)
         return jsonify({"success": True, "userProfile": doc})
