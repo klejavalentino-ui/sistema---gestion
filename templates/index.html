@@ -23,7 +23,7 @@
       
       <!-- HEADER -->
       <div style="text-align: center; margin-bottom: 25px;">
-        <h1 style="font-size: 2.2rem; font-weight: 900; color: #fff; letter-spacing: 2px;">Datamargen<span style="color: var(--accent-red);">.</span></h1>
+        <h1 style="font-size: 2.2rem; font-weight: 900; color: var(--text-white); letter-spacing: 2px;">Datamargen<span style="color: var(--accent-red);">.</span></h1>
         <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 5px; font-weight: 500;">Sistema de Gestión ERP</p>
       </div>
 
@@ -334,17 +334,17 @@
             <!-- Tarjeta Local -->
             <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <span style="font-weight: 700; color: #fff; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">🏪 Local Físico</span>
+                <span style="font-weight: 700; color: var(--text-white); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">🏪 Local Físico</span>
                 <span class="badge-blue" style="font-size: 0.65rem; padding: 2px 6px;">Mostrador</span>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
                 <div>
                   <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Facturado</p>
-                  <p id="channel-local-revenue" style="font-size: 1.1rem; font-weight: 800; color: #fff;">$0</p>
+                  <p id="channel-local-revenue" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">$0</p>
                 </div>
                 <div>
                   <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas</p>
-                  <p id="channel-local-units" style="font-size: 1.1rem; font-weight: 800; color: #fff;">0 u.</p>
+                  <p id="channel-local-units" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">0 u.</p>
                 </div>
                 <div>
                   <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costo de Mercadería</p>
@@ -360,17 +360,17 @@
             <!-- Tarjeta Tiendanube -->
             <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <span style="font-weight: 700; color: #fff; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">☁️ Tiendanube Online</span>
+                <span style="font-weight: 700; color: var(--text-white); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">☁️ Tiendanube Online</span>
                 <span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px;">E-Commerce</span>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
                 <div>
                   <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Facturado Bruto</p>
-                  <p id="channel-tn-revenue-gross" style="font-size: 1.1rem; font-weight: 800; color: #fff;">$0</p>
+                  <p id="channel-tn-revenue-gross" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">$0</p>
                 </div>
                 <div>
                   <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas</p>
-                  <p id="channel-tn-units" style="font-size: 1.1rem; font-weight: 800; color: #fff;">0 u.</p>
+                  <p id="channel-tn-units" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">0 u.</p>
                 </div>
                 <div>
                   <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros</p>
@@ -424,7 +424,7 @@
               💡 <strong>¿Qué es el Stock Crítico?</strong><br>
               Es la cantidad mínima de unidades que debes tener de un producto antes de realizar un nuevo pedido de reposición al proveedor. Esto te ayuda a evitar el <strong>quiebre de stock</strong> (quedarte sin productos para vender) mientras el proveedor prepara y entrega tu pedido.
             </p>
-            <div style="background: var(--bg-input); border-left: 4px solid var(--accent-blue); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-family: monospace; font-size: 0.9rem; font-weight: 700; color: #fff; width: fit-content;">
+            <div style="background: var(--bg-input); border-left: 4px solid var(--accent-blue); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-family: monospace; font-size: 0.9rem; font-weight: 700; color: var(--text-white); width: fit-content;">
               Fórmula: <span style="color: #60a5fa;">Stock Crítico</span> = (<span style="color: #fca5a5;">Venta Media Diaria</span> × <span style="color: #fde047;">Tiempo de Entrega (Días)</span>) + <span style="color: #86efac;">Stock de Seguridad</span>
             </div>
             <p style="margin-bottom: 0;">
@@ -613,10 +613,10 @@
                 <div class="form-group">
                   <label class="form-label">Tipo de Ingreso</label>
                   <div style="display: flex; gap: 16px; margin-top: 6px;">
-                    <label style="font-size: 0.85rem; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.85rem; color: var(--text-white); cursor: pointer; display: flex; align-items: center; gap: 6px;">
                       <input type="radio" name="intake-type" value="producto" checked onchange="toggleIntakeFormType()" style="accent-color: var(--accent-emerald);"> Producto de Inventario
                     </label>
-                    <label style="font-size: 0.85rem; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.85rem; color: var(--text-white); cursor: pointer; display: flex; align-items: center; gap: 6px;">
                       <input type="radio" name="intake-type" value="adicional" onchange="toggleIntakeFormType()" style="accent-color: var(--accent-emerald);"> Insumo
                     </label>
                   </div>
@@ -698,7 +698,7 @@
                   <div class="form-group">
                     <label class="form-label" id="intake-materia-prima-label">Materia Prima (Opcional)</label>
                     <input type="text" id="intake-materia-prima" class="form-input" placeholder="$ 0">
-                    <div id="intake-materia-prima-current" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; font-weight: 700; font-size: 0.75rem; color: #fff; justify-content: space-between; margin-top: 8px; align-items: center;">
+                    <div id="intake-materia-prima-current" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; font-weight: 700; font-size: 0.75rem; color: var(--text-white); justify-content: space-between; margin-top: 8px; align-items: center;">
                       <span style="color: var(--text-gray); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;">MATERIA PRIMA</span>
                       <span id="intake-materia-prima-current-val" style="color: var(--accent-emerald); font-weight: 800;">$0</span>
                     </div>
@@ -724,8 +724,8 @@
 
                 <div class="grid-2">
                   <div class="form-group" id="intake-margin-container">
-                    <label class="form-label">Margen (%) (Opcional)</label>
-                    <input type="number" id="intake-margin" class="form-input" placeholder="% 0" min="0" step="0.1">
+                    <label class="form-label">Margen (%) *</label>
+                    <input type="number" id="intake-margin" class="form-input" placeholder="Ej. 30" required>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Fecha de Ingreso *</label>
@@ -735,10 +735,10 @@
 
                 <!-- Condición de Pago de Compra -->
                 <div class="form-group" style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-bottom: 16px;">
-                  <label class="form-label">Condición de Pago (Compra)</label>
+                  <label class="form-label">Condición de Pago</label>
                   <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px;">
                     <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-                      <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">Efectivo ($):</span>
+                      <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">Anticipo ($):</span>
                       <input type="text" id="intake-pay-cash-val" class="form-input" value="0" style="padding: 6px 8px; text-align: right;" oninput="updateIntakePaymentSplit('cash')">
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
@@ -805,7 +805,7 @@
         <div class="idx-card" style="max-width: 480px; padding: 20px; margin-bottom: 24px; border-left: 4px solid var(--accent-red); display: flex; align-items: center; justify-content: space-between;">
           <div>
             <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Pagar (Proveedores)</span>
-            <div id="supplier-accounts-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: #fff; margin-top: 6px;">$ 0</div>
+            <div id="supplier-accounts-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">$ 0</div>
           </div>
           <div style="font-size: 2rem; color: var(--accent-red); opacity: 0.8;">📉</div>
         </div>
@@ -844,7 +844,7 @@
         <div class="idx-card" style="max-width: 480px; padding: 20px; margin-bottom: 24px; border-left: 4px solid var(--accent-emerald); display: flex; align-items: center; justify-content: space-between;">
           <div>
             <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Cobrar (Clientes)</span>
-            <div id="collections-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: #fff; margin-top: 6px;">$ 0</div>
+            <div id="collections-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">$ 0</div>
           </div>
           <div style="font-size: 2rem; color: var(--accent-emerald); opacity: 0.8;">📈</div>
         </div>
@@ -1054,7 +1054,7 @@
                   <i class="fas fa-share-alt"></i>
                 </div>
               </div>
-              <div id="mkt-summary-total-influencers" class="kpi-value" style="margin-top: 16px; font-size: 1.8rem; font-weight: 900; color: #fff; white-space: nowrap;">$0</div>
+              <div id="mkt-summary-total-influencers" class="kpi-value" style="margin-top: 16px; font-size: 1.8rem; font-weight: 900; color: var(--text-white); white-space: nowrap;">$0</div>
               <div id="mkt-summary-products-delivered" style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px; font-weight: 600;">Productos entregados: 0</div>
             </div>
             
@@ -1110,7 +1110,7 @@
                   <i class="fas fa-ad"></i>
                 </div>
               </div>
-              <div id="mkt-summary-total-ads" class="kpi-value" style="margin-top: 16px; font-size: 1.8rem; font-weight: 900; color: #fff; white-space: nowrap;">$0</div>
+              <div id="mkt-summary-total-ads" class="kpi-value" style="margin-top: 16px; font-size: 1.8rem; font-weight: 900; color: var(--text-white); white-space: nowrap;">$0</div>
               <div style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px; font-weight: 600;">Inversión acumulada en todos los canales</div>
             </div>
             
@@ -1178,14 +1178,14 @@
           <!-- SECCIÓN DE TIENDANUBE -->
           <div id="tiendanube-integration-card" class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-              <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">☁️ Tiendanube</h3>
+              <h3 style="margin: 0; color: var(--text-white); display: flex; align-items: center; gap: 8px;">☁️ Tiendanube</h3>
               <span id="tiendanube-status-badge" class="badge-red" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(229, 56, 59, 0.2);">Desconectado</span>
             </div>
             <!-- Bloque informativo de conexión -->
             <div id="tiendanube-connected-info" style="display: none; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
               <div>
-                <h4 style="margin: 0; color: #fff; font-size: 0.9rem;">Tienda Conectada</h4>
-                <p style="margin: 5px 0 0 0; color: var(--text-gray); font-size: 0.8rem;">ID de Tienda: <span id="tiendanube-info-id" style="font-weight: 700; color: #fff;">-</span></p>
+                <h4 style="margin: 0; color: var(--text-white); font-size: 0.9rem;">Tienda Conectada</h4>
+                <p style="margin: 5px 0 0 0; color: var(--text-gray); font-size: 0.8rem;">ID de Tienda: <span id="tiendanube-info-id" style="font-weight: 700; color: var(--text-white);">-</span></p>
               </div>
             </div>
 
@@ -1210,7 +1210,7 @@
             <!-- REPORTE DE RENDIMIENTO ADICIONAL - TIENDANUBE -->
             <div id="tiendanube-reports-box" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h4 style="color: #fff; margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
+                <h4 style="color: var(--text-white); margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📊 Métricas de Canal Online (Tiendanube)</h4>
                 <div style="display: flex; gap: 10px; align-items: center;">
                   <select id="tiendanube-month-select" class="form-select" style="width: 110px; padding: 6px 10px; font-size: 0.8rem; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="renderIntegrationsStatus()">
                     <!-- Cargado dinámicamente -->
@@ -1229,7 +1229,7 @@
               <div class="grid-5" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px;">
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Ventas Brutas TN</span>
-                  <p id="tn-report-gross" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">$0</p>
+                  <p id="tn-report-gross" style="font-size: 1.2rem; font-weight: 900; color: var(--text-white); margin-top: 4px;">$0</p>
                 </div>
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros TN</span>
@@ -1249,7 +1249,7 @@
                 </div>
                 <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                   <span style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas TN</span>
-                  <p id="tn-report-units" style="font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 4px;">0 u.</p>
+                  <p id="tn-report-units" style="font-size: 1.2rem; font-weight: 900; color: var(--text-white); margin-top: 4px;">0 u.</p>
                 </div>
               </div>
 
@@ -1287,7 +1287,7 @@
           <!-- SECCIÓN DE ARCA (ex-AFIP) - FACTURACIÓN ELECTRÓNICA -->
           <div class="idx-card" style="border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-              <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 8px;">🧾 ARCA (ex-AFIP) Facturación</h3>
+              <h3 style="margin: 0; color: var(--text-white); display: flex; align-items: center; gap: 8px;">🧾 ARCA (ex-AFIP) Facturación</h3>
               <span id="arca-status-badge" class="badge-blue" style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-align: center; border: 1px solid rgba(96, 165, 250, 0.2);">Simulación Activa</span>
             </div>
             
@@ -1362,7 +1362,7 @@
               <!-- CONTROL ANUAL -->
               <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
                 <span style="font-size: 0.75rem; color: var(--text-gray-light);">Facturación acumulada (últimos 12 meses):</span>
-                <span style="font-size: 1.1rem; font-weight: 900; color: #fff;" id="arca-monotributo-accumulated">$0 / $0</span>
+                <span style="font-size: 1.1rem; font-weight: 900; color: var(--text-white);" id="arca-monotributo-accumulated">$0 / $0</span>
               </div>
               <div style="width: 100%; height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
                 <div id="arca-monotributo-progressbar" style="width: 0%; height: 100%; background: var(--accent-emerald); transition: width 0.3s ease;"></div>
@@ -1382,7 +1382,7 @@
                   <select id="arca-monotributo-year-only-select" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff;" onchange="updateMonotributoTrackerUI()">
                   </select>
                 </div>
-                <span style="font-size: 1.0rem; font-weight: 800; color: #fff;" id="arca-monotributo-month-accumulated">$0 / $0</span>
+                <span style="font-size: 1.0rem; font-weight: 800; color: var(--text-white);" id="arca-monotributo-month-accumulated">$0 / $0</span>
               </div>
               <div style="width: 100%; height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
                 <div id="arca-monotributo-month-progressbar" style="width: 0%; height: 100%; background: var(--accent-blue); transition: width 0.3s ease;"></div>
@@ -1402,7 +1402,7 @@
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 1.5rem;">🏢</span>
                 <div>
-                  <strong style="color: #fff; font-size: 0.8rem;">Responsable Inscripto - Régimen General</strong>
+                  <strong style="color: var(--text-white); font-size: 0.8rem;">Responsable Inscripto - Régimen General</strong>
                   <p style="margin: 4px 0 0 0; font-size: 0.65rem; color: var(--text-gray-light); line-height: 1.3;">
                     Perfil activo para emitir Factura clase A (con discriminación de IVA) y clase B (a consumidores finales). No sujeto a topes anuales de Monotributo.
                   </p>
@@ -1412,7 +1412,7 @@
 
             <!-- REGISTRO DE FACTURACIÓN EXTERNA AFIP (HISTÓRICA / MENSUAL) -->
             <div id="arca-externa-monthly-card" class="idx-card" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-              <h4 style="color: #fff; margin: 0 0 15px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">💼 Registro de Facturación Externa (AFIP)</h4>
+              <h4 style="color: var(--text-white); margin: 0 0 15px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">💼 Registro de Facturación Externa (AFIP)</h4>
               
               <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; align-items: end;">
@@ -1461,7 +1461,7 @@
 
             <!-- PANEL DE FACTURACIÓN ELECTRÓNICA SIMULADA -->
             <div style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-              <h4 style="color: #fff; margin: 0 0 15px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📄 Facturación de Comprobantes Oficiales</h4>
+              <h4 style="color: var(--text-white); margin: 0 0 15px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📄 Facturación de Comprobantes Oficiales</h4>
               
               <!-- Formulario de Simulación/Emisión de Comprobante -->
               <form id="arca-invoicing-form" onsubmit="emitArcaInvoice(event)" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -1542,7 +1542,7 @@
 
               <!-- EXPLICACIÓN PASO A PASO PREMIUM PARA EL CLIENTE -->
               <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-top: 20px; font-size: 0.75rem; line-height: 1.5; color: var(--text-gray-light);">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: #fff;">💡 Guía Rápida para Habilitar Facturación Electrónica en ARCA:</p>
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--text-white);">💡 Guía Rápida para Habilitar Facturación Electrónica en ARCA:</p>
                 <ol style="margin: 0; padding-left: 16px;">
                   <li style="margin-bottom: 6px;"><strong>Generar Clave Privada y CSR</strong>: Desde tu servidor o con ayuda de nuestro soporte, generá una clave privada y un archivo de solicitud de certificado (CSR).</li>
                   <li style="margin-bottom: 6px;"><strong>Obtener Certificado Digital (.crt)</strong>: Entrá a la web de ARCA con Clave Fiscal al servicio <i>"Administración de Certificados Digitales"</i> y cargá el archivo CSR para descargar tu Certificado .crt.</li>
@@ -1571,36 +1571,36 @@
           <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
             <div style="font-size: 2.2rem; filter: drop-shadow(0 0 6px rgba(96,165,250,0.5));">🔌</div>
             <div>
-              <h4 style="margin: 0; color: #fff; font-size: 1.1rem; font-weight: 900;">Catálogo de Conexiones de Datamargen</h4>
+              <h4 style="margin: 0; color: var(--text-white); font-size: 1.1rem; font-weight: 900;">Catálogo de Conexiones de Datamargen</h4>
               <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-gray);">Automatizaciones omnicanal a medida para optimizar la administración de tu negocio.</p>
             </div>
           </div>
           
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
             <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">☁️ Tiendanube</strong>
+              <strong style="color: var(--text-white); font-size: 0.8rem; display: block; margin-bottom: 4px;">☁️ Tiendanube</strong>
               <span style="font-size: 0.75rem; color: var(--text-gray-light);">Sincronización bidireccional en tiempo real de catálogo de productos, precios y stocks separados (local vs taller).</span>
             </div>
             <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🧾 ARCA (ex-AFIP)</strong>
+              <strong style="color: var(--text-white); font-size: 0.8rem; display: block; margin-bottom: 4px;">🧾 ARCA (ex-AFIP)</strong>
               <span style="font-size: 0.75rem; color: var(--text-gray-light);">Emisión automatizada de facturas electrónicas (A, B y C) mediante Web Services en cada venta concretada.</span>
             </div>
             <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛍️ Mercado Libre</strong>
+              <strong style="color: var(--text-white); font-size: 0.8rem; display: block; margin-bottom: 4px;">🛍️ Mercado Libre</strong>
               <span style="font-size: 0.75rem; color: var(--text-gray-light);">Vinculación directa de stock físico con tus publicaciones activas y automatización de etiquetas de Mercado Envíos.</span>
             </div>
             <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🛒 WooCommerce / Shopify</strong>
+              <strong style="color: var(--text-white); font-size: 0.8rem; display: block; margin-bottom: 4px;">🛒 WooCommerce / Shopify</strong>
               <span style="font-size: 0.75rem; color: var(--text-gray-light);">Conectores autónomos para e-commerce propios que centralizan tus pedidos web en la facturación del local.</span>
             </div>
             <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-              <strong style="color: #fff; font-size: 0.8rem; display: block; margin-bottom: 4px;">🚚 Andreani / OCA (Logística)</strong>
+              <strong style="color: var(--text-white); font-size: 0.8rem; display: block; margin-bottom: 4px;">🚚 Andreani / OCA (Logística)</strong>
               <span style="font-size: 0.75rem; color: var(--text-gray-light);">Cálculo automático de costos de envío, generación de etiquetas de despacho y seguimiento de envíos físicos.</span>
             </div>
           </div>
 
           <div style="background: rgba(96, 165, 250, 0.05); border: 1px solid rgba(96, 165, 250, 0.2); padding: 14px; border-radius: 8px; text-align: center;">
-            <p style="margin: 0; font-size: 0.8rem; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <p style="margin: 0; font-size: 0.8rem; color: var(--text-white); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
               <span>📧 ¿Deseas activar una integración, configurar ARCA o solicitar soporte? Escribinos a:</span>
               <a href="mailto:datamargen.ss@gmail.com" style="color: var(--accent-blue); text-decoration: underline; font-size: 0.85rem; font-weight: 800;">datamargen.ss@gmail.com</a>
             </p>
@@ -1667,7 +1667,7 @@
         <!-- PANEL 1: MI NEGOCIO (GENERAL) -->
         <div id="panel-subtab-biz" class="subtab-panel">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="font-size: 1rem; color: #fff; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+            <h3 style="font-size: 1rem; color: var(--text-white); margin-top: 0; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
               🏢 Datos del Negocio
             </h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
@@ -1705,7 +1705,7 @@
         <div id="panel-subtab-locations" class="subtab-panel" style="display: none;">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-              <h3 style="font-size: 1rem; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
                 📍 Ubicaciones
               </h3>
               <button type="button" class="btn btn-primary" onclick="addLocationRow('')">+ Agregar</button>
@@ -1725,7 +1725,7 @@
         <div id="panel-subtab-channels" class="subtab-panel" style="display: none;">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <h3 style="font-size: 1rem; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
                 📣 Canales de Venta
               </h3>
               <button type="button" class="btn btn-primary" onclick="addChannelRow('')">+ Agregar</button>
@@ -1746,7 +1746,7 @@
         <div id="panel-subtab-prices" class="subtab-panel" style="display: none;">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <h3 style="font-size: 1rem; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
                 💲 Listas de Precios
               </h3>
               <button type="button" class="btn btn-primary" onclick="addPriceListRow('')">+ Agregar Lista</button>
@@ -1766,7 +1766,7 @@
         <!-- PANEL 5: IMPRESION -->
         <div id="panel-subtab-print" class="subtab-panel" style="display: none;">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px;">
-            <h3 style="font-size: 1rem; color: #fff; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+            <h3 style="font-size: 1rem; color: var(--text-white); margin-top: 0; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
               🖨️ Ajustes de Impresión
             </h3>
             <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
@@ -1800,7 +1800,7 @@
         <div id="panel-subtab-account" class="subtab-panel" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px;">
             <div>
-              <h3 style="font-size: 1rem; color: #fff; margin: 0 0 6px 0;">Plan Starter <span style="color: var(--text-gray); font-weight: normal;">— 0 disponibles</span></h3>
+              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0 0 6px 0;">Plan Starter <span style="color: var(--text-gray); font-weight: normal;">— 0 disponibles</span></h3>
               <p style="color: var(--text-gray-light); font-size: 0.85rem; margin: 0;">Usuarios con acceso al sistema.</p>
             </div>
             <button type="button" class="btn btn-primary" onclick="openNewUserModal()">+ Agregar</button>
@@ -1829,14 +1829,14 @@
         <div id="panel-subtab-subscription" class="subtab-panel" style="display: none;">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px; text-align: center; max-width: 600px; margin: 0 auto;">
             <div style="font-size: 3rem; margin-bottom: 16px;">💳</div>
-            <h3 style="margin-top: 0; color: #fff;">Plan Starter Activo</h3>
+            <h3 style="margin-top: 0; color: var(--text-white);">Plan Starter Activo</h3>
             <p style="color: var(--text-gray); font-size: 0.9rem; line-height: 1.6; margin-bottom: 24px;">
               Tu cuenta se encuentra bajo el período de prueba gratuito de 15 días. Disfrutás de acceso completo sin restricciones en facturación, tesorería e inventario.
             </p>
             <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; text-align: left; margin-bottom: 24px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                 <span style="color: var(--text-gray);">Próximo Vencimiento:</span>
-                <span style="color: #fff; font-weight: bold;">06/08/2026</span>
+                <span style="color: var(--text-white); font-weight: bold;">06/08/2026</span>
               </div>
               <div style="display: flex; justify-content: space-between;">
                 <span style="color: var(--text-gray);">Costo mensual estimado:</span>
@@ -1853,7 +1853,7 @@
         <div id="panel-subtab-payments" class="subtab-panel" style="display: none;">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-              <h3 style="font-size: 1rem; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
                 💳 Medios de Pago
               </h3>
               <button class="btn btn-primary" onclick="openPaymentMethodModal()">+ Nuevo Medio de Pago</button>
@@ -1890,7 +1890,7 @@
   <div id="modal-payment-method" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 10000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5);">
     <div class="modal-card" style="width: 100%; max-width: 500px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <h3 style="margin: 0; color: #fff; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;" id="modal-pm-title">
+        <h3 style="margin: 0; color: var(--text-white); font-size: 1.1rem; display: flex; align-items: center; gap: 8px;" id="modal-pm-title">
           💳 Nuevo Medio de Pago
         </h3>
         <button style="background: none; border: none; color: var(--text-gray); font-size: 1.5rem; cursor: pointer;" onclick="closePaymentMethodModal()">×</button>
@@ -2025,7 +2025,7 @@
         
         <div class="idx-card" style="background: var(--bg-input); padding: 16px; text-align: center; margin-bottom: 20px;">
           <p style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Total a Cobrar</p>
-          <p id="checkout-total-display" style="font-size: 1.8rem; font-weight: 900; color: #fff; margin-top: 4px;">$ 0</p>
+          <p id="checkout-total-display" style="font-size: 1.8rem; font-weight: 900; color: var(--text-white); margin-top: 4px;">$ 0</p>
         </div>
 
         <!-- Contenedor de Costos Financieros Tiendanube -->
@@ -2135,8 +2135,8 @@
       <!-- Step 3: Success Notification -->
       <div id="checkout-step-success" style="display: none;" class="p-12">
         <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
-          <div style="width: 60px; height: 60px; border-radius: 50%; background: var(--accent-emerald); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 20px; box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);">✓</div>
-          <h3 style="font-size: 1.6rem; font-weight: 900; color: #fff; margin-bottom: 24px;">¡Venta Registrada!</h3>
+          <div style="width: 60px; height: 60px; border-radius: 50%; background: var(--accent-emerald); color: var(--text-white); display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 20px; box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);">✓</div>
+          <h3 style="font-size: 1.6rem; font-weight: 900; color: var(--text-white); margin-bottom: 24px;">¡Venta Registrada!</h3>
           <div style="display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 280px;">
             <button id="checkout-print-btn" class="btn btn-emerald" style="padding: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.95rem;">
               <i class="fas fa-print"></i> Imprimir Ticket
@@ -2180,7 +2180,7 @@
       </div>
       <div class="modal-body">
         <div style="margin-bottom: 20px;">
-          <p id="size-modal-product-name" style="font-weight: 800; font-size: 0.95rem; color: #fff;"></p>
+          <p id="size-modal-product-name" style="font-weight: 800; font-size: 0.95rem; color: var(--text-white);"></p>
           <p id="size-modal-product-color" style="font-size: 0.8rem; color: var(--text-gray); margin-top: 2px;"></p>
         </div>
         <div id="size-modal-options-grid" class="grid-3" style="gap: 10px;">
@@ -2210,7 +2210,7 @@
         </div>
 
         <div id="excel-preview-area" style="display: none;">
-          <h4 style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 10px;">Vista previa de los primeros 5 productos:</h4>
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-white); margin-bottom: 10px;">Vista previa de los primeros 5 productos:</h4>
           <div class="table-wrapper" style="margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: 6px;">
             <table class="idx-table" style="font-size: 0.75rem;">
               <thead>
@@ -2264,7 +2264,7 @@
         </div>
 
         <div style="margin-bottom: 16px;">
-          <h4 style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Productos a Reponer:</h4>
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-white); margin-bottom: 8px;">Productos a Reponer:</h4>
           <div class="table-wrapper" style="border: 1px solid var(--border-color); border-radius: 6px;">
             <table class="idx-table" style="font-size: 0.75rem;">
               <thead>
@@ -2285,7 +2285,7 @@
         </div>
 
         <div style="margin-bottom: 16px;" id="pdf-import-extras-container-div">
-          <h4 style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Insumos a Reponer:</h4>
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-white); margin-bottom: 8px;">Insumos a Reponer:</h4>
           <div class="table-wrapper" style="border: 1px solid var(--border-color); border-radius: 6px;">
             <table class="idx-table" style="font-size: 0.75rem;">
               <thead>
@@ -2499,7 +2499,7 @@
 
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px; margin-top: 16px; border: 1px solid var(--border-color);">
               <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-gray);">Costo Unitario Total:</span>
-              <span id="prod-total-cost-display" style="font-size: 1.1rem; font-weight: 900; color: #fff;">$ 0</span>
+              <span id="prod-total-cost-display" style="font-size: 1.1rem; font-weight: 900; color: var(--text-white);">$ 0</span>
             </div>
 
             <div style="display: none;">
@@ -2938,7 +2938,7 @@
       <div style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
         <i class="fas fa-envelope-open-text"></i>
       </div>
-      <h2 style="font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 12px;">Verificá tu correo</h2>
+      <h2 style="font-size: 1.6rem; font-weight: 800; color: var(--text-white); margin-bottom: 12px;">Verificá tu correo</h2>
       <p style="color: var(--text-gray); font-size: 0.85rem; line-height: 1.6; margin-bottom: 25px;">
         Hemos enviado un correo de verificación a tu casilla. Por favor haz clic en el enlace para habilitar tu cuenta y luego pulsa "Ya lo verifiqué".
       </p>
@@ -2963,7 +2963,7 @@
         <p style="margin-bottom: 12px; color: var(--text-gray);">Al generar la Nota de Crédito, la venta se anulará en el sistema, el saldo se revertirá en caja y se informará a AFIP. <strong>La factura original no se borra</strong>, pero su saldo quedará neteado a $0.</p>
         
         <div style="margin-bottom: 15px;">
-          <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #fff;">Motivo de la anulación:</label>
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; color: var(--text-white);">Motivo de la anulación:</label>
           <select id="credit-note-reason" class="form-input">
             <option value="Devolución técnica">Devolución técnica (Los productos VUELVEN al inventario)</option>
             <option value="Anulación por mercadería dañada">Anulación por mercadería dañada (Se pierde el stock, NO vuelve al inventario)</option>
@@ -2986,7 +2986,7 @@
       <div style="font-size: 3rem; color: var(--accent-red); margin-bottom: 20px;">
         <i class="fas fa-lock"></i>
       </div>
-      <h2 style="font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 12px;">Tu período de prueba ha vencido</h2>
+      <h2 style="font-size: 1.6rem; font-weight: 800; color: var(--text-white); margin-bottom: 12px;">Tu período de prueba ha vencido</h2>
       <p style="color: var(--text-gray); font-size: 0.85rem; line-height: 1.6; margin-bottom: 20px;">
         Tu prueba gratuita de 15 días ha finalizado. Para seguir utilizando Datamargen y gestionar tu inventario y cobranzas, realiza la transferencia bancaria y presiona el botón para enviarnos el comprobante por WhatsApp.
       </p>
@@ -2994,7 +2994,7 @@
       <!-- Datos de Transferencia -->
       <div class="idx-card" style="background: var(--bg-input); padding: 20px; border-color: var(--border-color); text-align: left; margin-bottom: 20px;">
         <h4 style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue); letter-spacing: 0.5px; margin-bottom: 12px;">Datos de Transferencia Bancaria</h4>
-        <div style="font-size: 0.8rem; line-height: 1.8; color: #fff;">
+        <div style="font-size: 0.8rem; line-height: 1.8; color: var(--text-white);">
           <div><strong>Banco:</strong> Banco Provincia</div>
           <div><strong>CBU:</strong> 0140411501622851419356</div>
           <div><strong>Alias:</strong> datamargen.mazo</div>

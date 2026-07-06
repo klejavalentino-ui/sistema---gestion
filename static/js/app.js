@@ -2433,7 +2433,7 @@ function renderPOSCart(recalc = true) {
         <button class="pos-cart-item-delete" onclick="removePOSCartItem('${item.product.sku}')">✕</button>
         <div class="pos-qty-control">
           <button class="pos-qty-btn" onclick="updatePOSCartQty('${item.product.sku}', -1)">-</button>
-          <input type="number" class="pos-qty-input" value="${item.quantity}" oninput="setPOSCartExactQty('${item.product.sku}', this.value)" onblur="if(this.value==='') setPOSCartExactQty('${item.product.sku}', '1')">
+          <input type="number" class="pos-qty-input" value="${item.quantity}" onchange="setPOSCartExactQty('${item.product.sku}', this.value)" onblur="if(this.value==='') setPOSCartExactQty('${item.product.sku}', '1')">
           <button class="pos-qty-btn" onclick="updatePOSCartQty('${item.product.sku}', 1)">+</button>
         </div>
         <span class="pos-qty-stock-alert">Stock: ${stockText}</span>
@@ -5157,7 +5157,13 @@ async function handleStockIntakeSubmit(e) {
   }
   
   const baseCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
-  const margin = parseFloat(document.getElementById("intake-margin").value) || 0;
+  
+  const marginInput = document.getElementById("intake-margin").value;
+  if (!marginInput || marginInput.trim() === "") {
+    showToast("Por favor, ingresa el margen (%).", true);
+    return;
+  }
+  const margin = parseFloat(marginInput) || 0;
   
   // Recolectar adicionales seleccionados
   const extras = {};
@@ -8797,7 +8803,7 @@ window.saveBusinessSettings = saveBusinessSettings;
 
 async function loadBusinessUsers() {
   try {
-    const users = await apiRequest("/api/business/users");
+    let users = await apiRequest("/api/business/users");
     const tbody = document.getElementById("business-users-tbody");
     if(!tbody) return;
     tbody.innerHTML = "";
@@ -8807,7 +8813,8 @@ async function loadBusinessUsers() {
     // Inyectar el administrador principal
     const adminUser = {
       id: "admin",
-      name: state.userProfile?.contactName || state.businessName || state.email.split('@')[0],
+      name: state.userProfile?.name || state.userProfile?.contactName || state.businessName || state.email.split('@')[0],
+      username: state.userProfile?.username || state.email.split('@')[0],
       email: state.email,
       status: "Activo",
       isAdmin: true
@@ -8826,8 +8833,9 @@ async function loadBusinessUsers() {
         <td style="padding: 16px;">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="width: 32px; height: 32px; border-radius: 6px; background: var(--bg-color); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-gray);">
-              ${(u.name || "U").charAt(0).toUpperCase()}
+              ${(u.username || u.name || "U").charAt(0).toUpperCase()}
             </div>
+            <span style="font-weight: 600; color: var(--text-dark);">@${u.username || 'usuario'}</span>
           </div>
         </td>
         <td style="padding: 16px; font-weight: 600; text-transform: uppercase;">${u.name || '-'}</td>
@@ -9223,8 +9231,8 @@ function renderPaymentMethods() {
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.retention}%</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.adjustment}</td>
       <td style="padding: 12px 8px; text-align: right;">
-        <button class="btn-icon" style="color: var(--accent-blue);" onclick="openPaymentMethodModal('${pm.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
-        <button class="btn-icon" style="color: var(--accent-red);" onclick="deletePaymentMethod('${pm.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+        <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="openPaymentMethodModal('${pm.id}')" title="Editar"><i class="fa-solid fa-pencil"></i></button>
+        <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-red); font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="deletePaymentMethod('${pm.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
       </td>
     `;
     tbody.appendChild(tr);
