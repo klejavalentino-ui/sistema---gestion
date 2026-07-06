@@ -6010,25 +6010,53 @@ function openAccountDetailModal(accId) {
   if (!acc.transactions || acc.transactions.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-gray); padding: 20px; font-size: 0.75rem;">No hay movimientos registrados.</td></tr>`;
   } else {
-    // Ordenar de más reciente a más antiguo
-    const sorted = [...acc.transactions].reverse();
-    sorted.forEach(tx => {
-      const dateStr = new Date(tx.date).toLocaleDateString('es-AR') + " " + new Date(tx.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
-        <td style="font-weight: 600;">${tx.description}</td>
-        <td style="text-align: right; color: #f87171;">$ ${Math.round(tx.amount).toLocaleString()}</td>
-        <td style="text-align: right; color: #10b981;">$ ${Math.round(tx.payment).toLocaleString()}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+  // Ordenar de más reciente a más antiguo
+  const sorted = [...acc.transactions].reverse();
+  sorted.forEach(tx => {
+    const dateStr = new Date(tx.date).toLocaleDateString('es-AR') + " " + new Date(tx.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    const tr = document.createElement("tr");
+    let accionesHtml = "";
+    if (tx.payment > 0 && acc.type !== "proveedor") {
+       accionesHtml = `<button class="btn btn-sm" style="background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); font-size: 0.7rem; padding: 4px 8px;" onclick="generateReciboXPDF('${tx.id}', '${acc.id}', ${tx.payment}, '${tx.date}')"><i class="fa-solid fa-file-invoice"></i> Recibo X</button>`;
+    }
+    tr.innerHTML = `
+      <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
+      <td style="font-weight: 600;">${tx.description}</td>
+      <td style="text-align: right; color: #f87171;">$ ${Math.round(tx.amount).toLocaleString()}</td>
+      <td style="text-align: right; color: #10b981;">$ ${Math.round(tx.payment).toLocaleString()}</td>
+      <td style="text-align: right;">${accionesHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
   }
 
   // Reset form
   document.getElementById("tx-description").value = "";
   document.getElementById("tx-amount").value = "";
   document.getElementById("tx-payment").value = "";
+  
+  if (document.getElementById("tx-type")) {
+    document.getElementById("tx-type").value = "normal";
+    if (typeof toggleTxInterestFields === 'function') toggleTxInterestFields();
+  }
+
+  if (acc.type === "cliente") {
+    const invoiceSelect = document.getElementById("tx-debit-note-invoice");
+    if (invoiceSelect) {
+      invoiceSelect.innerHTML = '<option value="">Seleccione la factura de origen...</option>';
+      const clientSales = state.sales.filter(s => 
+        s.arca_invoice_id && 
+        ((s.client_name && s.client_name.toLowerCase().trim() === acc.entityName.toLowerCase().trim()) || 
+         (s.client_cuit && acc.cuit && s.client_cuit === acc.cuit))
+      );
+      clientSales.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.innerText = `Venta ${s.id} - N° ${s.arca_invoice_id} ($${s.total})`;
+        invoiceSelect.appendChild(opt);
+      });
+    }
+  }
 
   document.getElementById("account-detail-modal").className = "modal-backdrop active";
 }
@@ -6043,15 +6071,44 @@ async function saveAccountTransactionForm(e) {
   const description = document.getElementById("tx-description").value;
   const amount = parseFloat(document.getElementById("tx-amount").value.replace(/\D/g, "")) || 0;
   const payment = parseFloat(document.getElementById("tx-payment").value.replace(/\D/g, "")) || 0;
+  
+  const txTypeEl = document.getElementById("tx-type");
+  const type = txTypeEl ? txTypeEl.value : "normal";
+  const txEmitEl = document.getElementById("tx-emit-debit-note");
+  const emitDebitNote = txEmitEl ? txEmitEl.checked : false;
+  const txInvoiceEl = document.getElementById("tx-debit-note-invoice");
+  const invoiceId = txInvoiceEl ? txInvoiceEl.value : null;
 
   if (amount === 0 && payment === 0) {
     showToast("Ingresá un monto mayor a $0 en deuda o pago.", true);
     return;
   }
 
+  if (type === "interest" && emitDebitNote && !invoiceId) {
+    showToast("Para emitir la Nota de Débito en AFIP, seleccioná la Factura vinculada.", true);
+    return;
+  }
+
+  const btn = document.getElementById("btn-save-tx");
+  if(btn) { btn.innerText = "Registrando..."; btn.disabled = true; }
+
   try {
-    await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", { description, amount, payment });
-    showToast("Transacción registrada");
+    const payload = { 
+      description, 
+      amount, 
+      payment,
+      is_interest: (type === "interest"),
+      emit_debit_note: (type === "interest" && emitDebitNote),
+      original_sale_id: invoiceId
+    };
+    const res = await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", payload);
+    
+    if(res.nota_debito_emitida) {
+      showToast("Movimiento e Interés registrados. Nota de Débito aprobada por AFIP.", false);
+    } else {
+      showToast("Movimiento registrado", false);
+    }
+    
     refreshState();
     
     // Dejar abierto el modal y refrescar la vista interna
@@ -6060,7 +6117,85 @@ async function saveAccountTransactionForm(e) {
     }, 100);
   } catch (error) {
     showToast(error.message, true);
+  } finally {
+    if(btn) { btn.innerText = "Registrar Movimiento"; btn.disabled = false; }
   }
+}
+
+window.toggleTxInterestFields = function() {
+  const type = document.getElementById("tx-type").value;
+  const afipContainer = document.getElementById("interest-afip-container");
+  const amtLabel = document.getElementById("tx-amount-label");
+  const payInput = document.getElementById("tx-payment");
+  const descInput = document.getElementById("tx-description");
+  
+  if (type === "interest") {
+    if(afipContainer) afipContainer.style.display = "block";
+    if(amtLabel) amtLabel.innerText = "Interés ($)";
+    if(payInput) { payInput.readOnly = true; payInput.value = ""; }
+    if(descInput) { descInput.value = "Intereses por Financiación"; }
+  } else {
+    if(afipContainer) afipContainer.style.display = "none";
+    if(amtLabel) amtLabel.innerText = "Deuda ($)";
+    if(payInput) payInput.readOnly = false;
+    if(descInput) descInput.value = "";
+  }
+};
+
+window.toggleDebitNoteInvoiceSelect = function() {
+  const isChecked = document.getElementById("tx-emit-debit-note").checked;
+  const container = document.getElementById("debit-note-invoice-select-container");
+  if(container) container.style.display = isChecked ? "block" : "none";
+};
+
+window.generateReciboXPDF = function(txId, accId, amount, date) {
+  const acc = state.currentAccounts.find(a => a.id === accId);
+  if (!acc) return;
+  const doc = new window.jspdf.jsPDF();
+  
+  // Encabezado
+  doc.setFontSize(22);
+  doc.setFont("helvetica", "bold");
+  doc.text("X", 105, 20, { align: "center" });
+  doc.rect(98, 12, 14, 12);
+  
+  doc.setFontSize(10);
+  doc.text("DOCUMENTO NO VALIDO COMO FACTURA", 105, 30, { align: "center" });
+  
+  doc.setFontSize(16);
+  doc.text("RECIBO DE COBRO", 14, 45);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  
+  const businessName = state.userProfile.businessName || "Empresa";
+  doc.text(`Empresa: ${businessName}`, 14, 55);
+  const printDate = new Date(date).toLocaleDateString('es-AR') + " " + new Date(date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  doc.text(`Fecha del Pago: ${printDate}`, 120, 55);
+  doc.text(`Comprobante Nro: ${txId}`, 120, 62);
+  
+  doc.line(14, 70, 196, 70);
+  
+  doc.setFont("helvetica", "bold");
+  doc.text("Datos del Cliente", 14, 80);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Nombre/Razón Social: ${acc.entityName}`, 14, 88);
+  doc.text(`Teléfono: ${acc.phone || "No provisto"}`, 14, 96);
+  doc.text(`Domicilio: ${acc.address || "No provisto"}`, 120, 88);
+  
+  doc.line(14, 105, 196, 105);
+  
+  doc.setFontSize(14);
+  doc.text(`Recibimos la suma de pesos: $ ${Math.round(amount).toLocaleString()}`, 14, 120);
+  doc.setFontSize(10);
+  doc.text(`En concepto de: Pago parcial/total de deuda en cuenta corriente.`, 14, 130);
+  
+  doc.line(14, 145, 196, 145);
+  
+  doc.setFont("helvetica", "bold");
+  const balance = acc.transactions ? acc.transactions.reduce((sum, tx) => sum + (tx.amount - tx.payment), 0) : 0;
+  doc.text(`Saldo Restante de la Cuenta Corriente: $ ${Math.round(balance).toLocaleString()}`, 14, 155);
+  
+  doc.save(`Recibo_X_${acc.entityName}_${txId}.pdf`);
 }
 
 // --- 6. CAJA DIARIA ---

@@ -2665,9 +2665,18 @@
           <h4 style="font-size: 0.8rem; font-weight: 800; margin-bottom: 14px; color: var(--text-white);">Registrar Movimiento</h4>
           <form id="account-tx-form" onsubmit="saveAccountTransactionForm(event)">
             <input type="hidden" id="account-tx-id-input">
-            <div class="form-group">
-              <label class="form-label" for="tx-description">Descripción</label>
-              <input type="text" id="tx-description" class="form-input" placeholder="Ej. Pago a cuenta, Compra de mercadería" required>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label" for="tx-type">Tipo de Movimiento</label>
+                <select id="tx-type" class="form-select" onchange="toggleTxInterestFields()">
+                  <option value="normal">Normal</option>
+                  <option value="interest">Interés por Financiación</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="tx-description">Descripción</label>
+                <input type="text" id="tx-description" class="form-input" placeholder="Ej. Pago a cuenta, Recargo" required>
+              </div>
             </div>
             <div class="grid-2">
               <div class="form-group">
@@ -2679,7 +2688,21 @@
                 <input type="text" id="tx-payment" class="form-input" placeholder="0">
               </div>
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 0.8rem; padding: 10px;">Registrar Movimiento</button>
+
+            <div id="interest-afip-container" style="display: none; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.05);">
+               <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                 <input type="checkbox" id="tx-emit-debit-note" onchange="toggleDebitNoteInvoiceSelect()">
+                 <span>Emitir Nota de Débito en AFIP/ARCA (Incrementar Deuda)</span>
+               </label>
+               <div id="debit-note-invoice-select-container" style="display: none;">
+                  <label class="form-label" style="font-size: 0.75rem;">Factura Asociada Original <span style="color:var(--accent-red)">*</span></label>
+                  <select id="tx-debit-note-invoice" class="form-select">
+                    <option value="">Seleccione la factura de origen...</option>
+                  </select>
+               </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-save-tx" style="width: 100%; font-size: 0.8rem; padding: 10px;">Registrar Movimiento</button>
           </form>
         </div>
 
@@ -2693,6 +2716,7 @@
                 <th>Descripción</th>
                 <th style="text-align: right;" id="th-tx-amount">Deuda</th>
                 <th style="text-align: right;" id="th-tx-payment">Pago</th>
+                <th style="text-align: right;">Acciones</th>
               </tr>
             </thead>
             <tbody id="account-tx-table-body">

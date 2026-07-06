@@ -1240,13 +1240,107 @@ def add_account_transaction(acc_id):
             
         transactions = doc.get("transactions", [])
         
+        is_interest = data.get("is_interest", False)
+        emit_debit_note = data.get("emit_debit_note", False)
+        original_sale_id = data.get("original_sale_id")
+        
         new_tx = {
             "id": f"tx-{int(time.time() * 1000)}",
             "date": data.get("date", time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())),
             "description": str(data.get("description", "")),
             "amount": safe_float(data.get("amount", 0.0)),
-            "payment": safe_float(data.get("payment", 0.0))
+            "payment": safe_float(data.get("payment", 0.0)),
+            "is_interest": is_interest
         }
+        
+        nota_debito_emitida = False
+        if emit_debit_note and original_sale_id and new_tx["amount"] > 0:
+            sales = firebase_config.list_documents("sales", token)
+            sale = next((s for s in sales if s.get("id") == f"{prefix}{original_sale_id}" or s.get("id") == original_sale_id), None)
+            if not sale:
+                return jsonify({"error": "Venta original no encontrada para vincular la Nota de Débito"}), 404
+            
+            orig_invoice = sale.get("arca_invoice_id")
+            if not orig_invoice:
+                return jsonify({"error": "La Venta seleccionada no fue facturada en AFIP/ARCA."}), 400
+                
+            parts = orig_invoice.split("-")
+            if len(parts) == 2:
+                orig_pto_vta = int(parts[0])
+                orig_nro = int(parts[1])
+            else:
+                return jsonify({"error": "Formato de número de factura original inválido."}), 400
+            
+            email = get_email_from_token(token)
+            user_doc = firebase_config.get_document("users", email, token)
+            arca_config = user_doc.get("arca_config", {}) if user_doc else {}
+            if not arca_config.get("enabled"):
+                return jsonify({"error": "Integración ARCA desactivada."}), 400
+                
+            pos = int(arca_config.get("punto_venta", 1))
+            condicion_iva = arca_config.get("condicion_iva", "monotributo")
+            cuit_emisor = arca_config.get("cuit", "")
+            
+            invoice_type = "Nota de Débito B" if condicion_iva == "inscripto" else "Nota de Débito C"
+                
+            cert_content = arca_config.get("cert_content")
+            key_content = arca_config.get("key_content")
+            
+            if cert_content and key_content:
+                from arca_service import WSAAClient, WSFEClient, INVOICE_TYPES_MAP
+                from datetime import datetime, date as pydate
+                is_sandbox_cert = "homo" in str(cert_content).lower() or "wsaahomo" in str(cert_content).lower()
+                try:
+                    wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
+                    token_afip, sign_afip = wsaa.get_token_and_sign("wsfe")
+                    wsfe = WSFEClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
+                    
+                    cbte_tipo = INVOICE_TYPES_MAP.get(invoice_type, 12)
+                    orig_tipo = INVOICE_TYPES_MAP.get("Factura B", 6) if condicion_iva == "inscripto" else INVOICE_TYPES_MAP.get("Factura C", 11)
+                    
+                    last_authorized = wsfe.get_last_authorized_voucher(pos, cbte_tipo)
+                    cbte_nro = last_authorized + 1
+                    
+                    client_cuit = sale.get("client_cuit", "")
+                    cuit_to_use = client_cuit if client_cuit else "20-99999999-9"
+                    doc_tipo = 99
+                    doc_nro = 0
+                    client_doc = "".join(c for c in str(cuit_to_use) if c.isdigit())
+                    if client_doc and len(client_doc) >= 7 and client_doc != "20999999999":
+                        doc_nro = int(client_doc)
+                        doc_tipo = 80 if len(client_doc) == 11 else 96
+                            
+                    cbtes_asoc = {
+                        "tipo": orig_tipo,
+                        "pto_vta": orig_pto_vta,
+                        "nro": orig_nro
+                    }
+                    
+                    fch_val = pydate.today().strftime("%Y%m%d")
+                    cae, cae_due = wsfe.request_cae(
+                        pto_vta=pos,
+                        cbte_tipo=cbte_tipo,
+                        cbte_nro=cbte_nro,
+                        total=new_tx["amount"],
+                        doc_tipo=doc_tipo,
+                        doc_nro=doc_nro,
+                        concepto=1,
+                        cbte_fch=fch_val,
+                        cbtes_asoc=cbtes_asoc
+                    )
+                    
+                    if cae_due and len(cae_due) == 8:
+                        cae_due = f"{cae_due[0:4]}-{cae_due[4:6]}-{cae_due[6:8]}"
+                        
+                    new_tx["arca_debit_note_id"] = f"{str(pos).zfill(4)}-{str(cbte_nro).zfill(8)}"
+                    new_tx["cae"] = cae
+                    new_tx["cae_due"] = cae_due
+                    nota_debito_emitida = True
+                    
+                except Exception as afip_err:
+                    return jsonify({"error": f"Error AFIP al emitir Nota de Débito: {str(afip_err)}"}), 400
+            else:
+                return jsonify({"error": "Faltan credenciales AFIP configuradas."}), 400
         
         if not new_tx["date"]:
             new_tx["date"] = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
@@ -1278,6 +1372,7 @@ def add_account_transaction(acc_id):
             res["id"] = res["id"][len(prefix):]
             if "sku" in res and res["sku"].startswith(prefix):
                 res["sku"] = res["sku"][len(prefix):]
+            res["nota_debito_emitida"] = nota_debito_emitida
         return jsonify(res)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
