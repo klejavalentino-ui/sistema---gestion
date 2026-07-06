@@ -1679,7 +1679,6 @@
           <button type="button" class="subtab-btn active" id="btn-subtab-biz" onclick="switchSubTab('biz')">🏢 Mi Negocio</button>
           <button type="button" class="subtab-btn" id="btn-subtab-locations" onclick="switchSubTab('locations')">📍 Ubicaciones</button>
           <button type="button" class="subtab-btn" id="btn-subtab-channels" onclick="switchSubTab('channels')">📣 Canales de Venta</button>
-          <button type="button" class="subtab-btn" id="btn-subtab-prices" onclick="switchSubTab('prices')">💲 Listas de Precios</button>
           <button type="button" class="subtab-btn" id="btn-subtab-print" onclick="switchSubTab('print')">🖨️ Impresión</button>
           <button type="button" class="subtab-btn" id="btn-subtab-account" onclick="switchSubTab('account')">👤 Mi Cuenta</button>
           <button type="button" class="subtab-btn" id="btn-subtab-payments" onclick="switchSubTab('payments')">💳 Medios de Pago</button>
@@ -1766,26 +1765,6 @@
           </div>
         </div>
 
-        <!-- PANEL 4: LISTAS DE PRECIOS -->
-        <div id="panel-subtab-prices" class="subtab-panel" style="display: none;">
-          <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
-                💲 Listas de Precios
-              </h3>
-              <button type="button" class="btn btn-primary" onclick="addPriceListRow('')">+ Agregar Lista</button>
-            </div>
-            <p style="color: var(--text-gray); font-size: 0.85rem; margin: 0 0 20px 0;">Cada lista tiene un nombre. Al cargar productos podés asignar un precio distinto para cada lista.</p>
-            
-            <div id="prices-list-container" style="margin-bottom: 24px;">
-              <!-- Dynamic Rows here -->
-            </div>
-
-            <div style="text-align: right;">
-              <button type="button" class="btn btn-primary" onclick="savePricesSettings()">Guardar cambios</button>
-            </div>
-          </div>
-        </div>
 
         <!-- PANEL 5: IMPRESION -->
         <div id="panel-subtab-print" class="subtab-panel" style="display: none;">
@@ -2378,17 +2357,9 @@
               </select>
             </div>
           </div>
-          <div class="grid-2">
-            <div class="form-group">
-              <label id="prod-color-label" class="form-label" for="prod-color">Color</label>
-              <input type="text" id="prod-color" class="form-input" placeholder="Ej. Negro" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="prod-price-list">Lista de Precios</label>
-              <select id="prod-price-list" class="form-select">
-                <!-- Injected via JS -->
-              </select>
-            </div>
+          <div class="form-group">
+            <label id="prod-color-label" class="form-label" for="prod-color">Color</label>
+            <input type="text" id="prod-color" class="form-input" placeholder="Ej. Negro" required>
           </div>
 
           <!-- Talles y Stock -->
@@ -3162,10 +3133,10 @@
         <span class="modal-close" onclick="closeBulkPriceModal()">✕</span>
       </div>
       <div class="modal-body" style="text-align: left;">
-        <p style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px;">Seleccioná una lista de precios y el porcentaje para aumentar o disminuir los precios de todos sus productos.</p>
+        <p style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px;">Seleccioná una categoría y el porcentaje para aumentar o disminuir los precios de todos sus productos.</p>
         <div class="form-group">
-          <label class="form-label">Lista de Precios</label>
-          <select id="bulk-price-list-select" class="form-select">
+          <label class="form-label">Categoría</label>
+          <select id="bulk-price-category-select" class="form-select">
             <!-- Injected via JS -->
           </select>
         </div>

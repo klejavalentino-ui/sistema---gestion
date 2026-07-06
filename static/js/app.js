@@ -3483,15 +3483,15 @@ function exportSalesHistory() {
 
 // --- BULK PRICE UPDATE ---
 function openBulkPriceModal() {
-  const plSelect = document.getElementById("bulk-price-list-select");
-  if (!plSelect) return;
+  const catSelect = document.getElementById("bulk-price-category-select");
+  if (!catSelect) return;
   
-  plSelect.innerHTML = '<option value="">Sin Lista</option>';
-  (state.userProfile.priceLists || []).forEach(pl => {
+  catSelect.innerHTML = '<option value="Todas">Todas las Categorías</option>';
+  (state.categories || []).forEach(cat => {
     const opt = document.createElement("option");
-    opt.value = pl;
-    opt.innerText = pl;
-    plSelect.appendChild(opt);
+    opt.value = cat;
+    opt.innerText = cat;
+    catSelect.appendChild(opt);
   });
   
   document.getElementById("bulk-price-percent-input").value = "";
@@ -3503,10 +3503,10 @@ function closeBulkPriceModal() {
 }
 
 async function applyBulkPriceUpdate() {
-  const listName = document.getElementById("bulk-price-list-select").value;
+  const selectedCat = document.getElementById("bulk-price-category-select").value;
   const percentInput = document.getElementById("bulk-price-percent-input").value.trim();
-  if (!listName) {
-    showToast("Selecciona una lista de precios", true);
+  if (!selectedCat) {
+    showToast("Selecciona una categoría", true);
     return;
   }
   if (!percentInput) {
@@ -3520,10 +3520,16 @@ async function applyBulkPriceUpdate() {
     return;
   }
   
-  // Find all products with this price list
-  const productsToUpdate = state.products.filter(p => p.priceList === listName);
+  // Find all products within the selected category, or all products if "Todas" is selected
+  let productsToUpdate;
+  if (selectedCat === "Todas") {
+    productsToUpdate = state.products;
+  } else {
+    productsToUpdate = state.products.filter(p => p.category === selectedCat);
+  }
+  
   if (productsToUpdate.length === 0) {
-    showToast("No se encontraron productos en esa lista de precios", true);
+    showToast("No se encontraron productos en la categoría seleccionada", true);
     return;
   }
   
@@ -3876,19 +3882,6 @@ function openCreateProductModal() {
   currentLocationTab = defaultLoc;
   renderProductLocationTabs();
   
-  // Populate Price List selector
-  const plSelect = document.getElementById("prod-price-list");
-  if (plSelect) {
-    plSelect.innerHTML = '<option value="">Sin Lista</option>';
-    (state.userProfile.priceLists || []).forEach(pl => {
-      const opt = document.createElement("option");
-      opt.value = pl;
-      opt.innerText = pl;
-      plSelect.appendChild(opt);
-    });
-    plSelect.value = "";
-  }
-  
   const talleCard = document.getElementById("product-talles-card");
   const simpleStockContainer = document.getElementById("product-simple-stock-container");
   
@@ -4033,19 +4026,6 @@ function openEditProductModal(sku) {
 
   populateProductFormCategories(p.category);
   
-  // Populate Price List selector
-  const plSelect = document.getElementById("prod-price-list");
-  if (plSelect) {
-    plSelect.innerHTML = '<option value="">Sin Lista</option>';
-    (state.userProfile.priceLists || []).forEach(pl => {
-      const opt = document.createElement("option");
-      opt.value = pl;
-      opt.innerText = pl;
-      plSelect.appendChild(opt);
-    });
-    plSelect.value = p.priceList || "";
-  }
-  
   // Rellenar adicionales selectors con la configuración del producto (con fallback compatible)
   const selectedExtras = p.extras || {
     estampados: p.estampadoId || "",
@@ -4160,8 +4140,6 @@ async function saveProductForm(e) {
   const baseSku = document.getElementById("prod-sku").value.trim().toUpperCase();
   const category = document.getElementById("prod-category").value;
   const color = document.getElementById("prod-color").value;
-  const priceListSelect = document.getElementById("prod-price-list");
-  const priceList = priceListSelect ? priceListSelect.value : "";
   const cost = parseFloat(document.getElementById("prod-cost-input").value.replace(/\D/g, "")) || 0;
   const margin = parseFloat(document.getElementById("prod-margin").value);
   
@@ -4264,7 +4242,6 @@ async function saveProductForm(e) {
         baseCost: cost,
         margin: margin,
         cost: totalCost,
-        priceList: priceList,
         locationsStock: locationsStocksPerSize[size] || {},
         extras: extras,
         estampadoId: extras.estampados || null,
@@ -4296,7 +4273,6 @@ async function saveProductForm(e) {
         baseCost: cost,
         margin: margin,
         cost: totalCost,
-        priceList: priceList,
         locationsStock: locationsStocksPerSize[size] || {},
         extras: extras,
         estampadoId: extras.estampados || null,
@@ -9344,13 +9320,6 @@ function renderDynamicSettingsRows() {
     const channels = state.userProfile.salesChannels || ["Minorista", "Mayorista", "TiendaNube"];
     channels.forEach(chan => addChannelRow(chan));
   }
-
-  const priceContainer = document.getElementById("prices-list-container");
-  if (priceContainer) {
-    priceContainer.innerHTML = "";
-    const prices = state.userProfile.priceLists || ["Minorista", "Mayorista"];
-    prices.forEach(pr => addPriceListRow(pr));
-  }
 }
 
 function addLocationRow(value = "") {
@@ -9379,18 +9348,7 @@ function addChannelRow(value = "") {
 }
 window.addChannelRow = addChannelRow;
 
-function addPriceListRow(value = "") {
-  const container = document.getElementById("prices-list-container");
-  if (!container) return;
-  const div = document.createElement("div");
-  div.style = "display: flex; gap: 12px; align-items: center; margin-bottom: 12px;";
-  div.innerHTML = `
-    <input type="text" class="form-input price-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre de la lista">
-    <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
-  `;
-  container.appendChild(div);
-}
-window.addPriceListRow = addPriceListRow;
+
 
 async function saveLocationsSettings() {
   const inputs = document.querySelectorAll(".location-item-input");
@@ -9418,18 +9376,7 @@ async function saveChannelsSettings() {
 }
 window.saveChannelsSettings = saveChannelsSettings;
 
-async function savePricesSettings() {
-  const inputs = document.querySelectorAll(".price-item-input");
-  const priceLists = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
-  try {
-    const res = await apiRequest("/api/business/settings", "PUT", { priceLists });
-    state.userProfile = res.userProfile;
-    showToast("Listas de precios guardadas con éxito.");
-  } catch (e) {
-    showToast("Error: " + e.message, true);
-  }
-}
-window.savePricesSettings = savePricesSettings;
+
 
 async function savePrintSettings() {
   const printSettings = {
