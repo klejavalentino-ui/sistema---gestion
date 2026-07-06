@@ -159,8 +159,11 @@
         <div class="topbar-title">Sistema de Gestión</div>
       </div>
       <div class="topbar-right">
-        <div id="topbar-business-type-container" style="display: flex; align-items: center; background: rgba(239, 71, 111, 0.1); border: 1px solid rgba(239, 71, 111, 0.2); border-radius: 20px; padding: 4px 12px; margin-right: 15px;">
-          <span style="font-size: 0.7rem; font-weight: 800; color: var(--accent-red); letter-spacing: 0.5px; text-transform: uppercase;" id="user-display-business-type">Textil</span>
+        <div style="display: flex; flex-direction: column; text-align: right; margin-right: 20px; justify-content: center;">
+          <span style="font-size: 0.75rem; color: var(--text-gray); font-weight: 500; margin-bottom: 2px;" id="topbar-date"></span>
+          <span style="font-size: 0.8rem; color: var(--text-white); font-weight: 700;">
+            <span id="topbar-business-name">Negocio</span> • <span id="topbar-user-name" style="color: var(--accent-blue);">Usuario</span>
+          </span>
         </div>
         <!-- Trial Badge removed by user request -->
         <div class="notification-bell-container" id="bell-container">
@@ -1684,29 +1687,7 @@
               </div>
             </div>
 
-            <h4 style="font-size: 0.85rem; color: var(--text-gray); text-transform: uppercase; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Módulos del Sistema</h4>
-            <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
-              <label style="display: flex; align-items: center; gap: 10px; color: var(--text-dark); cursor: pointer; font-size: 0.85rem;">
-                <input type="checkbox" id="chk-module-treasury" style="accent-color: var(--accent-blue); width: 18px; height: 18px;">
-                <span>Activar módulo de Tesorería (cuentas, movimientos y calendario de pagos)</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 10px; color: var(--text-dark); cursor: pointer; font-size: 0.85rem;">
-                <input type="checkbox" id="chk-module-receivable" style="accent-color: var(--accent-blue); width: 18px; height: 18px;">
-                <span>Activar Cuentas a Cobrar (ventas fiadas con seguimiento de pagos)</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 10px; color: var(--text-dark); cursor: pointer; font-size: 0.85rem;">
-                <input type="checkbox" id="chk-module-commissions" style="accent-color: var(--accent-blue); width: 18px; height: 18px;">
-                <span>Activar módulo de Comisiones (asignar vendedores y calcular comisiones por venta)</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 10px; color: var(--text-dark); cursor: pointer; font-size: 0.85rem;">
-                <input type="checkbox" id="chk-module-orderstate" style="accent-color: var(--accent-blue); width: 18px; height: 18px;">
-                <span>Activar estado de pedidos en la tabla de ventas (En preparación, Finalizado, Pendiente)</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 10px; color: var(--text-dark); cursor: pointer; font-size: 0.85rem;">
-                <input type="checkbox" id="chk-module-nostock" style="accent-color: var(--accent-blue); width: 18px; height: 18px;">
-                <span>Activar venta sin stock (permite facturar aunque no haya unidades registradas)</span>
-              </label>
-            </div>
+
 
             <div style="text-align: right;">
               <button type="button" class="btn btn-primary" onclick="saveBusinessSettings()">Guardar Cambios</button>
@@ -1898,7 +1879,7 @@
         </div>
         <div class="form-group" style="margin: 0;">
           <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Contraseña</label>
-          <input type="password" id="modal-user-password" class="form-input" placeholder="(Dejar vacío para no cambiar)">
+          <input type="password" id="modal-user-password" class="form-input">
         </div>
       </div>
 

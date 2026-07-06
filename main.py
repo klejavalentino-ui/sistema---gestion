@@ -3303,6 +3303,7 @@ def update_business_settings():
             
         if "businessName" in data: doc["businessName"] = data["businessName"]
         if "userProfileName" in data: doc["name"] = data["userProfileName"]
+        if "userProfileUsername" in data: doc["username"] = data["userProfileUsername"]
         if "businessType" in data: doc["businessType"] = data["businessType"]
         if "ivaCondition" in data: doc["ivaCondition"] = data["ivaCondition"]
         if "businessModel" in data: doc["businessModel"] = data["businessModel"]

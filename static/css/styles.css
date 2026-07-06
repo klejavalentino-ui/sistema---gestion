@@ -32,6 +32,7 @@ body {
   background-color: var(--bg-darkest);
   color: var(--text-gray-light);
   min-height: 100vh;
+  width: 100%;
   overflow-x: hidden;
 }
 
@@ -39,6 +40,7 @@ body {
 .app-wrapper {
   display: flex;
   min-height: 100vh;
+  width: 100%;
 }
 
 /* Sidebar */

@@ -338,6 +338,27 @@ function updateSidebarProfile() {
     nameSpan.innerText = displayName;
     roleSpan.innerText = displayRole;
     avatarDiv.innerText = displayName.charAt(0).toUpperCase();
+    
+    // Update Topbar
+    const tbDate = document.getElementById("topbar-date");
+    const tbBizName = document.getElementById("topbar-business-name");
+    const tbUser = document.getElementById("topbar-user-name");
+    
+    if (tbDate) {
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      tbDate.innerText = `${dd}/${mm}/${yyyy}`;
+    }
+    
+    if (tbBizName) {
+      tbBizName.innerText = state.businessName || state.userProfile?.businessName || "Mi Negocio";
+    }
+    
+    if (tbUser) {
+      tbUser.innerText = displayName;
+    }
   }
 }
 
@@ -8720,14 +8741,7 @@ async function loadBusinessData() {
     document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Revendedor + Fabricante";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
     
-    // Mapear Checkboxes de Módulos Activos
-    const chk = state.userProfile.bizCheckboxes || {};
-    document.getElementById("chk-module-treasury").checked = chk.activeTreasury ?? false;
-    document.getElementById("chk-module-receivable").checked = chk.activeReceivable ?? false;
-    document.getElementById("chk-module-commissions").checked = chk.activeCommissions ?? false;
-    document.getElementById("chk-module-orderstate").checked = chk.activeOrderState ?? false;
-    document.getElementById("chk-module-nostock").checked = chk.activeNoStockSales ?? false;
-    
+
     // Mapear Configuración de Impresión
     const print = state.userProfile.printSettings || {};
     document.getElementById("print-settings-auto").checked = print.autoPrint ?? false;
@@ -8747,13 +8761,7 @@ async function saveBusinessSettings() {
       businessName: document.getElementById("business-settings-name").value,
       businessModel: document.getElementById("business-settings-model").value,
       ivaCondition: document.getElementById("business-settings-iva").value,
-      bizCheckboxes: {
-        activeTreasury: document.getElementById("chk-module-treasury").checked,
-        activeReceivable: document.getElementById("chk-module-receivable").checked,
-        activeCommissions: document.getElementById("chk-module-commissions").checked,
-        activeOrderState: document.getElementById("chk-module-orderstate").checked,
-        activeNoStockSales: document.getElementById("chk-module-nostock").checked,
-      }
+      bizCheckboxes: {}
     };
     const res = await apiRequest("/api/business/settings", "PUT", data);
     state.userProfile = res.userProfile;
@@ -8881,6 +8889,7 @@ function openNewUserModal() {
   document.getElementById("modal-user-email").value = "";
   document.getElementById("modal-user-username").value = "";
   document.getElementById("modal-user-password").value = "";
+  document.getElementById("modal-user-password").placeholder = "Contraseña";
   
   document.getElementById("modal-user-title").innerText = "Nuevo Usuario";
   document.getElementById("modal-user-email").disabled = false;
@@ -8904,9 +8913,10 @@ async function editBusinessUser(uid) {
     document.getElementById("modal-user-id").value = "admin";
     document.getElementById("modal-user-name").value = state.userProfile?.name || "";
     document.getElementById("modal-user-email").value = state.email || "";
-    document.getElementById("modal-user-username").value = "";
-    document.getElementById("modal-user-username").disabled = true;
+    document.getElementById("modal-user-username").value = state.userProfile?.username || "";
+    document.getElementById("modal-user-username").disabled = false;
     document.getElementById("modal-user-password").value = "";
+    document.getElementById("modal-user-password").placeholder = "(Dejar vacío para no cambiar)";
     document.getElementById("modal-user-password").disabled = true;
     
     document.getElementById("modal-user-title").innerText = "Editar Mi Perfil";
@@ -8930,6 +8940,7 @@ async function editBusinessUser(uid) {
     document.getElementById("modal-user-email").value = u.email || "";
     document.getElementById("modal-user-username").value = u.username || "";
     document.getElementById("modal-user-password").value = "";
+    document.getElementById("modal-user-password").placeholder = "(Dejar vacío para no cambiar)";
     
     document.getElementById("modal-user-username").disabled = false;
     document.getElementById("modal-user-password").disabled = false;
@@ -8976,7 +8987,7 @@ async function saveBusinessUser() {
   
   try {
     if (currentEditingUser === "admin") {
-      await apiRequest("/api/business/settings", "PUT", { userProfileName: name });
+      await apiRequest("/api/business/settings", "PUT", { userProfileName: name, userProfileUsername: username });
       showToast("Perfil de administrador actualizado.");
       closeBusinessUserModal();
       loadBusinessData();
