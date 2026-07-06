@@ -315,10 +315,27 @@ def get_email_for_username(username):
                     return email
         except Exception as e:
             print(f"Error consultando username mapping en Firestore: {e}")
+    else:
+        # Fallback using Firestore REST API directly
+        try:
+            project_id = firebase_config.PROJECT_ID
+            db_id = firebase_config.DATABASE_ID
+            url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/{db_id}/documents/username_mappings/{username}"
+            r = requests.get(url, timeout=10)
+            if r.status_code == 200:
+                doc_data = r.json()
+                fields = doc_data.get("fields", {})
+                email_field = fields.get("email", {})
+                email = email_field.get("stringValue")
+                if email:
+                    save_username_mapping(username, email, upload_to_firestore=False)
+                    return email
+        except Exception as e:
+            print(f"Error in REST fallback get_email_for_username: {e}")
             
     return None
 
-def save_username_mapping(username, email, upload_to_firestore=True):
+def save_username_mapping(username, email, upload_to_firestore=True, token=None):
     if not username or not email:
         return
     username = username.strip().lower()
@@ -336,11 +353,27 @@ def save_username_mapping(username, email, upload_to_firestore=True):
     except:
         pass
         
-    if upload_to_firestore and db_admin:
-        try:
-            db_admin.collection("username_mappings").document(username).set({"email": email})
-        except Exception as e:
-            print(f"Error guardando username mapping en Firestore: {e}")
+    if upload_to_firestore:
+        if db_admin:
+            try:
+                db_admin.collection("username_mappings").document(username).set({"email": email})
+            except Exception as e:
+                print(f"Error guardando username mapping en Firestore: {e}")
+        elif token:
+            try:
+                project_id = firebase_config.PROJECT_ID
+                db_id = firebase_config.DATABASE_ID
+                url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/{db_id}/documents/username_mappings/{username}"
+                headers = {"Authorization": f"Bearer {token}"}
+                payload = {
+                    "fields": {
+                        "email": {"stringValue": email}
+                    }
+                }
+                r = requests.patch(url, json=payload, headers=headers, timeout=10)
+                r.raise_for_status()
+            except Exception as e:
+                print(f"Error in REST save_username_mapping: {e}")
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
@@ -367,7 +400,7 @@ def login():
             for biz_type in ["textil", "comercio"]:
                 profile_doc = firebase_config.get_document("products", f"{biz_type}_user_profile", token)
                 if profile_doc and profile_doc.get("username"):
-                    save_username_mapping(profile_doc["username"], email)
+                    save_username_mapping(profile_doc["username"], email, token=token)
                     break
         except Exception as ex:
             print(f"Error al sincronizar username mapping durante login: {ex}")
@@ -399,7 +432,7 @@ def register():
         token = res.get("idToken")
         
         # Guardar mapeo de username localmente
-        save_username_mapping(username, email)
+        save_username_mapping(username, email, token=token)
         
         # Guardar el perfil extendido del usuario
         try:
