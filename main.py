@@ -408,6 +408,8 @@ def register():
                 "name": f"Perfil {biz_type.capitalize()}",
                 "contactName": name,
                 "businessName": businessName,
+                "businessModel": data.get("businessModel", "Textil / Indumentaria"),
+                "businessType": biz_type,
                 "username": username,
                 "contactPhone": phone,
                 "contactEmail": email,

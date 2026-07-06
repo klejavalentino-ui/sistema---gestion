@@ -289,7 +289,8 @@ async function handleRegister(e) {
   const phone = document.getElementById("register-phone").value;
   const password = document.getElementById("register-password").value;
   const confirmPassword = document.getElementById("register-password-confirm").value;
-  const bizType = document.getElementById("register-business-type").value || "textil";
+  const bizModel = document.getElementById("register-business-type").value || "Textil / Indumentaria";
+  const bizType = (bizModel === "Textil / Indumentaria" || bizModel === "Calzado") ? "textil" : "comercio";
   const errorDiv = document.getElementById("register-error");
   
   errorDiv.style.display = "none";
@@ -309,7 +310,7 @@ async function handleRegister(e) {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, businessName, username, email, phone, password, businessType: bizType })
+      body: JSON.stringify({ name, businessName, username, email, phone, password, businessType: bizType, businessModel: bizModel })
     });
     
     const data = await res.json();
@@ -8997,7 +8998,7 @@ const APP_SECTIONS = [
 async function loadBusinessData() {
   if (state.userProfile) {
     document.getElementById("business-settings-name").value = state.userProfile.businessName || "";
-    document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Revendedor + Fabricante";
+    document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Textil / Indumentaria";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
     
     // Dibujar filas dinámicas en las subpestañas
@@ -9019,16 +9020,22 @@ window.loadBusinessData = loadBusinessData;
 
 async function saveBusinessSettings() {
   try {
+    const model = document.getElementById("business-settings-model").value;
+    const type = (model === "Textil / Indumentaria" || model === "Calzado") ? "textil" : "comercio";
     const data = {
       businessName: document.getElementById("business-settings-name").value,
-      businessModel: document.getElementById("business-settings-model").value,
+      businessModel: model,
+      businessType: type,
       ivaCondition: document.getElementById("business-settings-iva").value,
       bizCheckboxes: {}
     };
     const res = await apiRequest("/api/business/settings", "PUT", data);
     state.userProfile = res.userProfile;
+    state.businessType = res.userProfile.businessType || "textil";
+    localStorage.setItem("datamargen_business_type", state.businessType);
     updateSidebarProfile();
-    showToast("Ajustes guardados con éxito.");
+    showToast("Ajustes guardados. Recargando...");
+    setTimeout(() => window.location.reload(), 1500);
   } catch(e) {
     showToast("Error: " + e.message, true);
   }
