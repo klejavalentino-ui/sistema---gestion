@@ -328,6 +328,7 @@ function updateSidebarProfile() {
   const nameSpan = document.getElementById("user-display-name");
   const roleSpan = document.getElementById("user-display-role");
   const avatarDiv = document.getElementById("user-display-avatar");
+  const businessSpan = document.getElementById("user-display-business");
   
   if (nameSpan && roleSpan && avatarDiv) {
     const usernameSpan = document.getElementById("user-display-username");
@@ -357,6 +358,9 @@ function updateSidebarProfile() {
     roleSpan.innerText = displayRole;
     avatarDiv.innerText = displayName.charAt(0).toUpperCase();
     if (usernameSpan) usernameSpan.innerText = displayUsername;
+    if (businessSpan) {
+      businessSpan.innerText = state.businessName || state.userProfile?.businessName || "Mi Negocio";
+    }
     
     // Update Topbar
     const tbDate = document.getElementById("topbar-date");
