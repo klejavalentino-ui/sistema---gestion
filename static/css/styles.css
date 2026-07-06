@@ -49,7 +49,6 @@ body {
   min-height: 100vh;
   width: 100%;
   overflow-x: hidden;
-  zoom: 0.85;
 }
 
 /* --- Layout --- */
@@ -182,6 +181,12 @@ body {
 
 .tab-content.active {
   display: block;
+}
+
+#sales-section.active {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
 }
 
 .idx-header {
@@ -322,12 +327,13 @@ input[type=number] {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  flex-grow: 1;
+  min-height: 0;
 }
 
 @media (min-width: 1024px) {
   .pos-wrapper {
     flex-direction: row;
-    height: calc(100vh - 230px);
   }
 }
 
@@ -339,6 +345,7 @@ input[type=number] {
   border-radius: 12px;
   border: 1px solid var(--border-color);
   overflow: hidden;
+  min-height: 0;
 }
 
 .pos-filter-bar {
@@ -500,6 +507,7 @@ input[type=number] {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 @media (min-width: 1024px) {
