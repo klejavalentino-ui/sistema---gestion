@@ -1697,10 +1697,12 @@ function renderPanel() {
   const channelsContainer = document.getElementById("dashboard-channels-container");
   
   if (channelsBreakdownDiv && channelsContainer) {
-    channelsBreakdownDiv.style.display = "block";
-    channelsContainer.innerHTML = "";
-    
-    Object.keys(channelStats).forEach(ch => {
+    const keys = Object.keys(channelStats);
+    if (keys.length > 1) {
+      channelsBreakdownDiv.style.display = "block";
+      channelsContainer.innerHTML = "";
+      
+      keys.forEach(ch => {
       const stats = channelStats[ch];
       const profit = stats.revenueNet - stats.cost;
       const isTN = ch === "Tiendanube Online";
@@ -1743,6 +1745,9 @@ function renderPanel() {
       `;
       channelsContainer.appendChild(card);
     });
+    } else {
+      channelsBreakdownDiv.style.display = "none";
+    }
   }
 
   // Renderizar Gráficos y Stock Crítico
