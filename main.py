@@ -392,7 +392,7 @@ def login():
         if mapped:
             email = mapped
         else:
-            return jsonify({"error": "Nombre de usuario no encontrado. Si acabas de crear tu cuenta o no tenés el acceso rápido vinculado, usá tu correo electrónico completo."}), 404
+            return jsonify({"error": "Nombre de usuario no encontrado. Inicie sesión con su CORREO ELECTRÓNICO (ej: mi@correo.com) por única vez para vincular su usuario automáticamente."}), 404
             
     try:
         res = firebase_config.sign_in(email, password)
@@ -1850,7 +1850,7 @@ def create_sale():
             "items": items,
             "extras": data.get("extras", {}),
             "origen": origen,
-            "canal_venta": data.get("canal_venta", "Minorista"),
+            "canal_venta": data.get("canal_venta", "Local Principal"),
             "ubicacion": ubicacion
         }
 

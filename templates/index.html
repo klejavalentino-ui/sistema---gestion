@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Datamargen - Sistema de Gestión ERP</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="/static/css/styles.css?v=2.0">
+  <link rel="stylesheet" href="/static/css/styles.css?v=1.0.5">
   <!-- Chart.js para estadísticas del Panel y Gastos -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS para exportación a Excel -->
@@ -198,7 +198,10 @@
     <aside class="idx-sidebar">
       
       <ul class="menu-list">
-        <li class="menu-item active" data-tab="sales">
+        <li class="menu-item active" data-tab="panel">
+          <a href="#" class="menu-link"><i>📊</i> Panel</a>
+        </li>
+        <li class="menu-item" data-tab="sales">
           <a href="#" class="menu-link"><i>🛒</i> Ventas</a>
         </li>
         <li class="menu-item" data-tab="inventory">
@@ -225,9 +228,7 @@
         <li class="menu-item" data-tab="marketing">
           <a href="#" class="menu-link"><i>🔗</i> Marketing</a>
         </li>
-        <li class="menu-item" data-tab="panel">
-          <a href="#" class="menu-link"><i>📊</i> Panel</a>
-        </li>
+
         <li class="menu-item" data-tab="tiendanube" id="sidebar-tiendanube-item" style="display: none;">
           <a href="#" class="menu-link"><i>☁️</i> TiendaNube</a>
         </li>
@@ -282,7 +283,7 @@
         <div class="dashboard-kpis">
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-title">Ventas Totales</span>
+              <span class="kpi-title" style="color: var(--text-heading);">Ventas Totales</span>
               <div class="kpi-icon emerald">💵</div>
             </div>
             <div id="panel-stat-revenue" class="kpi-value">$0</div>
@@ -290,7 +291,7 @@
           </div>
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-title">Ticket Promedio</span>
+              <span class="kpi-title" style="color: var(--text-heading);">Ticket Promedio</span>
               <div class="kpi-icon orange">💳</div>
             </div>
             <div id="panel-stat-ticket" class="kpi-value">$0</div>
@@ -298,7 +299,7 @@
           </div>
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-title">Unidades</span>
+              <span class="kpi-title" style="color: var(--text-heading);">Unidades</span>
               <div class="kpi-icon blue">📦</div>
             </div>
             <div id="panel-stat-units" class="kpi-value">0</div>
@@ -306,7 +307,7 @@
           </div>
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-title">Op. Comercial</span>
+              <span class="kpi-title" style="color: var(--text-heading);">Op. Comercial</span>
               <div class="kpi-icon emerald">📈</div>
             </div>
             <div id="panel-stat-operativo" class="kpi-value">$0</div>
@@ -314,7 +315,7 @@
           </div>
           <div class="kpi-card" onclick="openFixedCostsPanelModal()" style="cursor: pointer;">
             <div class="kpi-header">
-              <span class="kpi-title">Costos Mensuales</span>
+              <span class="kpi-title" style="color: var(--text-heading);">Costos Mensuales</span>
               <div class="kpi-icon rose">👛</div>
             </div>
             <div id="panel-stat-costs" class="kpi-value">$0</div>
@@ -322,7 +323,7 @@
           </div>
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-title">Resultado Neto</span>
+              <span class="kpi-title" style="color: var(--text-heading);">Resultado Neto</span>
               <div class="kpi-icon rose">💰</div>
             </div>
             <div id="panel-stat-neto" class="kpi-value">$0</div>
@@ -332,61 +333,11 @@
 
         <!-- Desglose de Canales (Local vs Tiendanube) -->
         <div id="dashboard-channels-breakdown" class="idx-card" style="margin-top: 24px; padding: 20px;">
-          <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; color: var(--text-white); display: flex; align-items: center; gap: 8px;">
+          <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; color: var(--text-heading); display: flex; align-items: center; gap: 8px;">
             📊 Desglose de Rendimiento por Canal de Venta
           </h3>
-          <div class="grid-2" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-            <!-- Tarjeta Local -->
-            <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <span style="font-weight: 700; color: var(--text-white); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">🏪 Local Físico</span>
-                <span class="badge-blue" style="font-size: 0.65rem; padding: 2px 6px;">Mostrador</span>
-              </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Facturado</p>
-                  <p id="channel-local-revenue" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">$0</p>
-                </div>
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas</p>
-                  <p id="channel-local-units" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">0 u.</p>
-                </div>
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costo de Mercadería</p>
-                  <p id="channel-local-cost" style="font-size: 1.1rem; font-weight: 800; color: var(--text-gray-light);">$0</p>
-                </div>
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Resultado Operativo</p>
-                  <p id="channel-local-profit" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-emerald); font-weight: bold;">$0</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tarjeta Tiendanube -->
-            <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <span style="font-weight: 700; color: var(--text-white); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">☁️ Tiendanube Online</span>
-                <span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px;">E-Commerce</span>
-              </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Facturado Bruto</p>
-                  <p id="channel-tn-revenue-gross" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">$0</p>
-                </div>
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Vendidas</p>
-                  <p id="channel-tn-units" style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);">0 u.</p>
-                </div>
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Financieros</p>
-                  <p id="channel-tn-fees" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-red);">$0</p>
-                </div>
-                <div>
-                  <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Resultado Operativo</p>
-                  <p id="channel-tn-profit" style="font-size: 1.1rem; font-weight: 800; color: var(--accent-emerald); font-weight: bold;">$0</p>
-                </div>
-              </div>
-            </div>
+          <div id="dashboard-channels-container" class="grid-2" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <!-- Rendered dynamically via app.js -->
           </div>
         </div>
 
@@ -417,7 +368,7 @@
 
         <!-- Stock Crítico Section -->
         <div class="idx-card" style="margin-top: 24px;">
-          <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; color: var(--text-white);">Stock Crítico (Punto de Pedido)</h3>
+          <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; color: var(--text-heading);">Stock Crítico (Punto de Pedido)</h3>
           
           <div id="panel-stock-critico-list" class="grid-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             <!-- Cargado dinámicamente -->
@@ -1917,8 +1868,7 @@
           <select id="modal-pm-type" class="form-select">
             <option value="Efectivo">Efectivo</option>
             <option value="Débito">Débito</option>
-            <option value="Crédito 1c">Crédito 1c</option>
-            <option value="Crédito 3c">Crédito 3c</option>
+            <option value="Crédito">Crédito</option>
             <option value="QR/Billetera">QR/Billetera</option>
             <option value="Transferencia">Transferencia</option>
           </select>
@@ -1980,12 +1930,7 @@
         </div>
         <div class="form-group" style="margin: 0;">
           <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Contraseña</label>
-          <div style="position: relative;">
-            <input type="password" id="modal-user-password" class="form-input" style="padding-right: 40px;">
-            <button type="button" onclick="togglePasswordVisibility('modal-user-password', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-gray); cursor: pointer; padding: 0;">
-              <i class="fa-regular fa-eye"></i>
-            </button>
-          </div>
+          <input type="password" id="modal-user-password" class="form-input">
         </div>
       </div>
 
@@ -2056,23 +2001,8 @@
           </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Efectivo')">
-            <span style="font-size: 1.2rem; margin-right: 12px;">💵</span> <strong>Efectivo</strong>
-          </button>
-          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Tarjeta de Crédito')">
-            <span style="font-size: 1.2rem; margin-right: 12px;">💳</span> <strong>Tarjeta de Crédito</strong>
-          </button>
-          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Tarjeta de Débito')">
-            <span style="font-size: 1.2rem; margin-right: 12px;">💳</span> <strong>Tarjeta de Débito</strong>
-          </button>
-          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Transferencia')">
-            <span style="font-size: 1.2rem; margin-right: 12px;">📱</span> <strong>Transferencia</strong>
-          </button>
-          <button class="btn btn-secondary" style="padding: 12px; font-size: 0.85rem; justify-content: flex-start; text-align: left; width: 100%;" onclick="confirmPayment('Financiado')">
-            <span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas</strong>
-          </button>
-          
+        <div id="pos-payment-methods-container" style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Dynamically populated from state.paymentMethods + Cobranzas -->
         </div>
       </div>
 

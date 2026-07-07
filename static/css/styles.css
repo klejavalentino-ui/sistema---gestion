@@ -12,6 +12,7 @@
   --text-gray-light: #f1f5f9; /* slate-100 */
   --text-gray: #94a3b8;       /* slate-400 */
   --text-muted: #475569;      /* slate-600 */
+  --text-heading: #ffffff;    /* Text that must be visible against bg-card */
   
   --accent-red: #e5383b;      /* Primary crimson */
   --accent-red-hover: #ba1826;
@@ -30,27 +31,28 @@
 }
 
 body.light-theme {
-  --bg-darkest: #f5ecd5;       /* Crema natural */
-  --bg-dark: #faf5e6;          /* Crema suave */
-  --bg-card: #ffffff;          /* Tarjetas blancas para mejor lectura */
-  --bg-input: #ffffff;         /* Inputs blancos */
-  --border-color: #e5d5b5;     /* Borde crema oscurecido */
+  --bg-darkest: #faf6f0;       /* Very soft warm cream */
+  --bg-dark: #f5f0e6;          /* Soft natural beige */
+  --bg-card: #ffffff;          /* Keep cards white for contrast, or very light cream */
+  --bg-input: #f5f0e6;         /* Match input background */
+  --border-color: #e2dcd0;     /* Warm beige border */
   
-  --text-white: #1a150e;       /* Marrón muy oscuro (casi negro) para legibilidad extrema */
-  --text-gray-light: #3b3226;  /* Texto secundario oscuro */
-  --text-gray: #635747;        /* Texto grisáceo cálido */
-  --text-muted: #8c8070;       /* Texto mutado */
+  --text-white: #2c221a;       /* Espresso dark brown */
+  --text-gray-light: #44372e;  /* Medium warm brown */
+  --text-gray: #6b5c52;        /* Soft taupe */
+  --text-muted: #96877b;       /* Warm grey */
+  --text-heading: #2c221a;     /* Dark text for headings over cards */
   
-  --text-dark: #1a150e;
+  --text-dark: #2c221a;
   
-  --bg-btn-secondary: #e8dbbe; /* Botón secundario cálido */
-  --text-btn-secondary: #3b3226;
-  --bg-btn-secondary-hover: #dccaa7;
+  --bg-btn-secondary: #ebdcb9; /* Warm button */
+  --text-btn-secondary: #44372e;
+  --bg-btn-secondary-hover: #decb9f;
 
-  --bg-hover-subtle: rgba(26, 21, 14, 0.03);
-  --bg-hover: rgba(26, 21, 14, 0.06);
-  --bg-hover-more: rgba(26, 21, 14, 0.1);
-  --border-translucent: rgba(26, 21, 14, 0.08);
+  --bg-hover-subtle: rgba(44, 34, 26, 0.02);
+  --bg-hover: rgba(44, 34, 26, 0.04);
+  --bg-hover-more: rgba(44, 34, 26, 0.08);
+  --border-translucent: rgba(44, 34, 26, 0.06);
 }
 
 * {

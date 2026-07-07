@@ -1199,7 +1199,7 @@ async function initApp() {
     populateMonthSelectors();
     
     await refreshState();
-    switchTab("sales");
+    switchTab("panel");
   } catch (error) {
     showToast(error.message, true);
   }
@@ -1630,13 +1630,31 @@ function renderPanel() {
           const extraId = sale.extras[catKey];
           if (extraId && extraId !== "0") {
             let hasStatic = false;
+    const origin = (sale.origin || "").toLowerCase();
+    let channel = sale.channel || "Local Físico";
+    if (origin === "tiendanube") channel = "Tiendanube Online";
+    
+    // Si el canal no está en la configuración, lo agregamos temporalmente para no perder la info
+    if (!channelStats[channel]) {
+      channelStats[channel] = { revenue: 0, units: 0, cost: 0, fees: 0, revenueNet: 0 };
+    }
+
+    const saleCost = sale.items ? sale.items.reduce((itemSum, item) => {
+      const p = item.product || {};
+      const extrasObj = p.extras || {};
+      let itemExtraCost = 0;
+      if (sale.extras) {
+        Object.keys(sale.extras).forEach(catKey => {
+          const extraId = sale.extras[catKey];
+          if (extraId && extraId !== "0") {
+            let hasStatic = false;
             if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
             else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
             else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
 
             if (!hasStatic) {
-              const list = state.extras[catKey] || [];
-              const found = list.find(o => o.id === extraId);
+              const opts = state.extras[catKey] || [];
+              const found = opts.find(o => String(o.id) === String(extraId));
               if (found) {
                 itemExtraCost += parseFloat(found.cost) || 0;
               }
@@ -1650,58 +1668,72 @@ function renderPanel() {
 
     const unitsSold = sale.items ? sale.items.reduce((itemSum, item) => itemSum + (parseInt(item.quantity) || 0), 0) : 0;
 
+    channelStats[channel].revenue += (sale.total || 0);
+    channelStats[channel].units += unitsSold;
+    channelStats[channel].cost += saleCost;
+
     if (origin === "tiendanube") {
-      tnRevenueGross += (sale.total || 0);
-      tnUnits += unitsSold;
-      tnCost += saleCost;
-      
       const fixedFee = sale.fee_fijo_tn !== undefined ? parseFloat(sale.fee_fijo_tn) : 300;
       const pctFee = sale.comision_pasarela_pago !== undefined ? parseFloat(sale.comision_pasarela_pago) : 5;
       const saleFees = fixedFee + (pctFee / 100 * (sale.total || 0));
-      tnFees += saleFees;
-      tnRevenueNet += (sale.total_neto !== undefined ? parseFloat(sale.total_neto) : (sale.total - saleFees));
+      channelStats[channel].fees += saleFees;
+      channelStats[channel].revenueNet += (sale.total_neto !== undefined ? parseFloat(sale.total_neto) : (sale.total - saleFees));
     } else {
-      localRevenue += (sale.total || 0);
-      localUnits += unitsSold;
-      localCost += saleCost;
+      channelStats[channel].revenueNet += (sale.total || 0); // Para locales, bruto = neto por ahora a menos que haya recargos
     }
   });
 
-  const localProfit = localRevenue - localCost;
-  const tnProfit = tnRevenueNet - tnCost;
-
   // Actualizar elementos en el DOM
   const channelsBreakdownDiv = document.getElementById("dashboard-channels-breakdown");
-  if (channelsBreakdownDiv) {
-    if (state.email === "matiascuchettidiaz@gmail.com") {
-      channelsBreakdownDiv.style.display = "block";
+  const channelsContainer = document.getElementById("dashboard-channels-container");
+  
+  if (channelsBreakdownDiv && channelsContainer) {
+    channelsBreakdownDiv.style.display = "block";
+    channelsContainer.innerHTML = "";
+    
+    Object.keys(channelStats).forEach(ch => {
+      const stats = channelStats[ch];
+      const profit = stats.revenueNet - stats.cost;
+      const isTN = ch === "Tiendanube Online";
       
-      const localRevEl = document.getElementById("channel-local-revenue");
-      if (localRevEl) localRevEl.innerText = `$ ${Math.round(localRevenue).toLocaleString()}`;
+      let badge = isTN ? '<span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px;">E-Commerce</span>' : '<span class="badge-blue" style="font-size: 0.65rem; padding: 2px 6px;">Mostrador</span>';
+      let icon = isTN ? '☁️' : '🏪';
       
-      const localUnitsEl = document.getElementById("channel-local-units");
-      if (localUnitsEl) localUnitsEl.innerText = `${localUnits} u.`;
-      
-      const localCostEl = document.getElementById("channel-local-cost");
-      if (localCostEl) localCostEl.innerText = `$ ${Math.round(localCost).toLocaleString()}`;
-      
-      const localProfitEl = document.getElementById("channel-local-profit");
-      if (localProfitEl) localProfitEl.innerText = `$ ${Math.round(localProfit).toLocaleString()}`;
+      let feeHtml = isTN ? `
+        <div>
+          <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costos Fin. / Comisiones</p>
+          <p style="font-size: 1.1rem; font-weight: 800; color: var(--accent-red);">$${Math.round(stats.fees).toLocaleString()}</p>
+        </div>` : `
+        <div>
+          <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Costo de Mercadería</p>
+          <p style="font-size: 1.1rem; font-weight: 800; color: var(--text-gray-light);">$${Math.round(stats.cost).toLocaleString()}</p>
+        </div>`;
 
-      const tnRevEl = document.getElementById("channel-tn-revenue-gross");
-      if (tnRevEl) tnRevEl.innerText = `$ ${Math.round(tnRevenueGross).toLocaleString()}`;
-      
-      const tnUnitsEl = document.getElementById("channel-tn-units");
-      if (tnUnitsEl) tnUnitsEl.innerText = `${tnUnits} u.`;
-      
-      const tnFeesEl = document.getElementById("channel-tn-fees");
-      if (tnFeesEl) tnFeesEl.innerText = `$ ${Math.round(tnFees).toLocaleString()}`;
-      
-      const tnProfitEl = document.getElementById("channel-tn-profit");
-      if (tnProfitEl) tnProfitEl.innerText = `$ ${Math.round(tnProfit).toLocaleString()}`;
-    } else {
-      channelsBreakdownDiv.style.display = "none";
-    }
+      const card = document.createElement("div");
+      card.style.cssText = "background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;";
+      card.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <span style="font-weight: 700; color: var(--text-heading); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">${icon} ${ch}</span>
+          ${badge}
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+          <div>
+            <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Facturado</p>
+            <p style="font-size: 1.1rem; font-weight: 800; color: var(--text-heading);">$${Math.round(stats.revenue).toLocaleString()}</p>
+          </div>
+          <div>
+            <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Unidades</p>
+            <p style="font-size: 1.1rem; font-weight: 800; color: var(--text-heading);">${stats.units} u.</p>
+          </div>
+          ${feeHtml}
+          <div>
+            <p style="font-size: 0.65rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Resultado Operativo</p>
+            <p style="font-size: 1.1rem; font-weight: 800; color: var(--accent-emerald); font-weight: bold;">$${Math.round(profit).toLocaleString()}</p>
+          </div>
+        </div>
+      `;
+      channelsContainer.appendChild(card);
+    });
   }
 
   // Renderizar Gráficos y Stock Crítico
@@ -2350,7 +2382,7 @@ function renderPOSCart(recalc = true) {
   // Populate configuration dropdowns if not populated yet
   const channelSelect = document.getElementById("pos-cart-channel-select");
   if (channelSelect && channelSelect.children.length === 0) {
-    (state.userProfile.salesChannels || ["Minorista", "Mayorista", "TiendaNube"]).forEach(c => {
+    (state.userProfile.salesChannels || ["Local Principal"]).forEach(c => {
       const opt = document.createElement("option");
       opt.value = c;
       opt.innerText = c;
@@ -2612,6 +2644,51 @@ function openCheckoutModal() {
     opt.value = acc.entityName;
     datalist.appendChild(opt);
   });
+  
+  // Renderizar métodos de pago dinámicos
+  const pmContainer = document.getElementById("pos-payment-methods-container");
+  if (pmContainer) {
+    pmContainer.innerHTML = "";
+    const defaultMethods = [
+      {name: "Efectivo", type: "Efectivo"}, 
+      {name: "Débito", type: "Débito"}, 
+      {name: "Crédito", type: "Crédito"}, 
+      {name: "Transferencia", type: "Transferencia"},
+      {name: "QR/Billetera", type: "QR/Billetera"}
+    ];
+    const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
+    
+    methods.forEach(pm => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-secondary";
+      btn.style.padding = "12px";
+      btn.style.fontSize = "0.85rem";
+      btn.style.justifyContent = "flex-start";
+      btn.style.textAlign = "left";
+      btn.style.width = "100%";
+      btn.onclick = () => confirmPayment(pm.name);
+      
+      let icon = "💳";
+      if (pm.type === "Efectivo") icon = "💵";
+      else if (pm.type === "Transferencia") icon = "📱";
+      else if (pm.type === "QR/Billetera") icon = "📲";
+      
+      btn.innerHTML = `<span style="font-size: 1.2rem; margin-right: 12px;">${icon}</span> <strong>${pm.name}</strong>`;
+      pmContainer.appendChild(btn);
+    });
+    
+    // Añadir botón de Cobranzas siempre al final
+    const btnCobranza = document.createElement("button");
+    btnCobranza.className = "btn btn-secondary";
+    btnCobranza.style.padding = "12px";
+    btnCobranza.style.fontSize = "0.85rem";
+    btnCobranza.style.justifyContent = "flex-start";
+    btnCobranza.style.textAlign = "left";
+    btnCobranza.style.width = "100%";
+    btnCobranza.onclick = () => confirmPayment("Financiado");
+    btnCobranza.innerHTML = `<span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas</strong>`;
+    pmContainer.appendChild(btnCobranza);
+  }
 
   // Mostrar step 1 por defecto
   document.getElementById("checkout-step-method").style.display = "block";
@@ -9157,7 +9234,7 @@ function applyPermissionsToUI() {
   
   const p = state.permissions;
   
-  getAppSections().forEach(sec => {
+  APP_SECTIONS.forEach(sec => {
     const access = p[sec.id] || "none";
     const menuItem = document.querySelector(`.menu-item[data-tab="${sec.id}"]`);
     const sectionEl = document.getElementById(`${sec.id}-section`);
@@ -9193,23 +9270,16 @@ function applyPermissionsToUI() {
   });
 }
 
-function getAppSections() {
-  const sections = [];
-  document.querySelectorAll('.menu-list .menu-item').forEach(item => {
-    if (item.style.display !== 'none') {
-      const id = item.getAttribute('data-tab');
-      const link = item.querySelector('.menu-link');
-      if (link) {
-        let name = "";
-        link.childNodes.forEach(n => {
-          if(n.nodeType === Node.TEXT_NODE) name += n.textContent;
-        });
-        sections.push({ id, name: name.trim() });
-      }
-    }
-  });
-  return sections;
-}
+const APP_SECTIONS = [
+  { id: "panel", name: "Panel Principal" },
+  { id: "sales", name: "Ventas" },
+  { id: "products", name: "Inventario" },
+  { id: "clients", name: "Agenda" },
+  { id: "expenses", name: "Gastos" },
+  { id: "marketing", name: "Marketing" },
+  { id: "integrations", name: "Integraciones" },
+  { id: "business", name: "Mi Negocio" }
+];
 
 async function loadBusinessData() {
   if (state.userProfile) {
@@ -9324,7 +9394,7 @@ function renderPermissionsMatrix() {
   if(!tbody) return;
   tbody.innerHTML = "";
   
-  getAppSections().forEach(sec => {
+  APP_SECTIONS.forEach(sec => {
     const val = currentUserPermissions[sec.id] || "none";
     const isView = val === "view" || val === "edit";
     const isEdit = val === "edit";
@@ -9360,7 +9430,7 @@ function togglePermission(secId, type, isChecked) {
 window.togglePermission = togglePermission;
 
 function setUserPermissionsAll(mode) {
-  getAppSections().forEach(sec => {
+  APP_SECTIONS.forEach(sec => {
     if (mode === "all") currentUserPermissions[sec.id] = "edit";
     else if (mode === "view") currentUserPermissions[sec.id] = "view";
     else currentUserPermissions[sec.id] = "none";
@@ -9540,7 +9610,7 @@ function renderDynamicSettingsRows() {
   const chanContainer = document.getElementById("channels-list-container");
   if (chanContainer) {
     chanContainer.innerHTML = "";
-    const channels = state.userProfile.salesChannels || ["Minorista", "Mayorista", "TiendaNube"];
+    const channels = state.userProfile.salesChannels || ["Local Principal"];
     channels.forEach(chan => addChannelRow(chan));
   }
 }
@@ -9642,7 +9712,14 @@ function renderPaymentMethods() {
   const tbody = document.getElementById('payment-methods-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  const methods = state.userProfile?.paymentMethods || [];
+  const defaultMethods = [
+    {name: "Efectivo", type: "Efectivo"}, 
+    {name: "Débito", type: "Débito"}, 
+    {name: "Crédito", type: "Crédito"}, 
+    {name: "Transferencia", type: "Transferencia"},
+    {name: "QR/Billetera", type: "QR/Billetera"}
+  ];
+  const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
   
   if (methods.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-gray); padding: 20px;">No hay medios de pago configurados.</td></tr>';
@@ -9669,7 +9746,14 @@ function renderPaymentMethods() {
 window.renderPaymentMethods = renderPaymentMethods;
 
 function openPaymentMethodModal(id = null) {
-  const methods = state.userProfile?.paymentMethods || [];
+  const defaultMethods = [
+    {name: "Efectivo", type: "Efectivo"}, 
+    {name: "Débito", type: "Débito"}, 
+    {name: "Crédito", type: "Crédito"}, 
+    {name: "Transferencia", type: "Transferencia"},
+    {name: "QR/Billetera", type: "QR/Billetera"}
+  ];
+  const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
   const pm = id ? methods.find(p => p.id === id) : null;
   
   document.getElementById('modal-pm-id').value = pm ? pm.id : '';
@@ -9702,7 +9786,14 @@ async function savePaymentMethod() {
     return;
   }
   
-  let methods = [...(state.userProfile?.paymentMethods || [])];
+  const defaultMethods = [
+    {name: "Efectivo", type: "Efectivo"}, 
+    {name: "Débito", type: "Débito"}, 
+    {name: "Crédito", type: "Crédito"}, 
+    {name: "Transferencia", type: "Transferencia"},
+    {name: "QR/Billetera", type: "QR/Billetera"}
+  ];
+  let methods = [...(state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods)];
   
   if (id) {
     const idx = methods.findIndex(p => p.id === id);
@@ -9731,7 +9822,14 @@ window.savePaymentMethod = savePaymentMethod;
 async function deletePaymentMethod(id) {
   if (!confirm('¿Seguro que querés eliminar este medio de pago?')) return;
   
-  let methods = [...(state.userProfile?.paymentMethods || [])];
+  const defaultMethods = [
+    {name: "Efectivo", type: "Efectivo"}, 
+    {name: "Débito", type: "Débito"}, 
+    {name: "Crédito", type: "Crédito"}, 
+    {name: "Transferencia", type: "Transferencia"},
+    {name: "QR/Billetera", type: "QR/Billetera"}
+  ];
+  let methods = [...(state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods)];
   methods = methods.filter(p => p.id !== id);
   
   try {
