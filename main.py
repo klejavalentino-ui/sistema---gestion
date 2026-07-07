@@ -3503,7 +3503,7 @@ def update_business_settings():
                 except:
                     pass
             if email:
-                save_username_mapping(new_username, email)
+                save_username_mapping(new_username, email, token=token)
         if "businessType" in data: doc["businessType"] = data["businessType"]
         if "ivaCondition" in data: doc["ivaCondition"] = data["ivaCondition"]
         if "businessModel" in data: doc["businessModel"] = data["businessModel"]
