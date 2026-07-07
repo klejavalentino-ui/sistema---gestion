@@ -521,7 +521,7 @@ function openPdfImportModal(data) {
     const tr = document.createElement("tr");
     const total = p.quantity * p.unitCost;
     tr.innerHTML = `
-      <td style="font-weight: 700; color: #fff;">${p.name}</td>
+      <td style="font-weight: 700; color: var(--text-white);">${p.name}</td>
       <td>${p.color}</td>
       <td style="text-align: center;"><span class="badge badge-gray">${p.size}</span></td>
       <td style="text-align: right; font-weight: 600;">${p.quantity}</td>
@@ -541,7 +541,7 @@ function openPdfImportModal(data) {
       const tr = document.createElement("tr");
       const total = e.quantity * e.unitCost;
       tr.innerHTML = `
-        <td style="font-weight: 700; color: #fff;">${e.name}</td>
+        <td style="font-weight: 700; color: var(--text-white);">${e.name}</td>
         <td style="text-align: right; font-weight: 600;">${e.quantity}</td>
         <td style="text-align: right;">$ ${Math.round(e.unitCost).toLocaleString("es-AR")}</td>
         <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$ ${Math.round(total).toLocaleString("es-AR")}</td>
@@ -1061,7 +1061,7 @@ function handleExcelImport(event) {
         const price = p.baseCost * (1 + p.margin / 100);
         tr.innerHTML = `
           <td style="font-family: monospace;">${p.sku}</td>
-          <td style="font-weight: 700; color: #fff;">${p.name}</td>
+          <td style="font-weight: 700; color: var(--text-white);">${p.name}</td>
           <td>${p.category}</td>
           <td style="text-align: right;">$ ${Math.round(p.baseCost).toLocaleString()}</td>
           <td style="text-align: right; color: var(--accent-emerald); font-weight: 700;">$ ${Math.round(price).toLocaleString()}</td>
@@ -1578,7 +1578,7 @@ function renderPanel() {
   const revDesc = document.getElementById("panel-stat-revenue-desc");
   if (state.email === "matiascuchettidiaz@gmail.com") {
     document.getElementById("panel-stat-revenue").innerHTML = `
-      <div style="font-size: 1.3rem; color: #fff;">$ ${Math.round(totalSalesValue).toLocaleString()}</div>
+      <div style="font-size: 1.3rem; color: var(--text-white);">$ ${Math.round(totalSalesValue).toLocaleString()}</div>
     `;
     if (revDesc) {
       revDesc.style.display = "block";
@@ -1883,7 +1883,7 @@ function renderPanelStockCritico() {
     
     card.innerHTML = `
       <div>
-        <h4 style="font-size: 0.8rem; font-weight: 800; color: #fff;">${item.name}</h4>
+        <h4 style="font-size: 0.8rem; font-weight: 800; color: var(--text-white);">${item.name}</h4>
         <p style="font-size: 0.65rem; color: var(--text-gray); font-family: monospace; margin-top: 4px;">SKU: ${item.sku}</p>
       </div>
       <div style="text-align: right;">
@@ -3023,7 +3023,7 @@ function openSalesHistoryModal() {
       el.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; ${sale.status === 'cancelled' ? 'opacity: 0.6;' : ''}">
           <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-            <span style="font-size: 1.1rem; font-weight: 900; color: #fff; margin-right: 4px; ${sale.status === 'cancelled' ? 'text-decoration: line-through;' : ''}">$ ${Math.round(sale.total).toLocaleString()}</span>
+            <span style="font-size: 1.1rem; font-weight: 900; color: var(--text-white); margin-right: 4px; ${sale.status === 'cancelled' ? 'text-decoration: line-through;' : ''}">$ ${Math.round(sale.total).toLocaleString()}</span>
             <span class="badge ${badgeClass}" style="text-transform: capitalize;">${translatedMethod}</span>
             ${originBadge}
           </div>
@@ -3675,7 +3675,7 @@ function renderInventory() {
 
     tr.innerHTML = `
       <td style="font-weight: 700;">
-        <div style="font-size: 0.85rem; color: #fff;">${g.name || ""}</div>
+        <div style="font-size: 0.85rem; color: var(--text-white);">${g.name || ""}</div>
         <div style="font-size: 0.65rem; color: var(--text-gray); font-family: monospace; margin-top: 2px;">${g.baseSku || ""}</div>
       </td>
       <td>
@@ -3686,7 +3686,7 @@ function renderInventory() {
         ${(state.businessType === "comercio" || tallesText === "Único" || !tallesText) ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talles: ${tallesText}</div>`}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
-        <div style="font-size: 0.8rem; color: #fff;">${g.totalStock} u.</div>
+        <div style="font-size: 0.8rem; color: var(--text-white);">${g.totalStock} u.</div>
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
         ${g.totalMinStock} un.
@@ -5717,7 +5717,7 @@ function renderSupplierAccounts() {
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
         <div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <h3 style="font-size: 1rem; font-weight: 800; color: #fff;">${acc.entityName}</h3>
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-white);">${acc.entityName}</h3>
           </div>
           <div style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap;">
             <span>📞 ${acc.phone || "-"}</span>
@@ -5811,7 +5811,7 @@ function renderCollections() {
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
         <div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <h3 style="font-size: 1rem; font-weight: 800; color: #fff;">${acc.entityName}</h3>
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-white);">${acc.entityName}</h3>
             <button class="btn-action" style="border: none; background: transparent; padding: 2px; color: var(--text-gray); cursor: pointer;" onclick="editAccount('${acc.id}')">✏️</button>
             <button class="btn-action btn-delete" style="border: none; background: transparent; padding: 2px; color: var(--text-gray); cursor: pointer;" onclick="deleteAccount('${acc.id}')">🗑️</button>
           </div>
@@ -9646,7 +9646,7 @@ function renderPaymentMethods() {
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid var(--border-color)';
     tr.innerHTML = `
-      <td style="padding: 12px 8px; color: #fff; font-weight: 500;">${pm.name}</td>
+      <td style="padding: 12px 8px; color: var(--text-white); font-weight: 500;">${pm.name}</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.type}</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.comission}%</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.retention}%</td>

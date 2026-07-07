@@ -30,27 +30,27 @@
 }
 
 body.light-theme {
-  --bg-darkest: #f1f5f9;
-  --bg-dark: #ffffff;
-  --bg-card: #ffffff;
-  --bg-input: #f8fafc;
-  --border-color: #cbd5e1; /* slightly darker slate border for better visibility */
+  --bg-darkest: #f4efe2;       /* Warm Cream */
+  --bg-dark: #fbfaf7;          /* Soft Off-white */
+  --bg-card: #fbfaf7;
+  --bg-input: #f1ebd9;         /* Soft Sand */
+  --border-color: #cbd5e1;     /* Let's keep it visible, but we can also use a warm beige: #d5cdbd */
   
-  --text-white: #0f172a;
-  --text-gray-light: #334155;
-  --text-gray: #475569; /* darker slate for better contrast */
-  --text-muted: #64748b;
+  --text-white: #2c221a;       /* Espresso dark brown */
+  --text-gray-light: #44372e;  /* Medium warm brown */
+  --text-gray: #6b5c52;        /* Soft taupe */
+  --text-muted: #96877b;       /* Warm grey */
   
-  --text-dark: #334155;
+  --text-dark: #2c221a;
   
-  --bg-btn-secondary: #e2e8f0;
-  --text-btn-secondary: #334155;
-  --bg-btn-secondary-hover: #cbd5e1;
+  --bg-btn-secondary: #ebdcb9; /* Warm button */
+  --text-btn-secondary: #44372e;
+  --bg-btn-secondary-hover: #decb9f;
 
-  --bg-hover-subtle: rgba(0, 0, 0, 0.02);
-  --bg-hover: rgba(0, 0, 0, 0.04);
-  --bg-hover-more: rgba(0, 0, 0, 0.08);
-  --border-translucent: rgba(0, 0, 0, 0.06);
+  --bg-hover-subtle: rgba(44, 34, 26, 0.02);
+  --bg-hover: rgba(44, 34, 26, 0.04);
+  --bg-hover-more: rgba(44, 34, 26, 0.08);
+  --border-translucent: rgba(44, 34, 26, 0.06);
 }
 
 * {
