@@ -1618,18 +1618,6 @@ function renderPanel() {
   let tnRevenueNet = 0;
 
   filteredSales.forEach(sale => {
-    const origin = sale.origen || "local";
-    
-    // Calcular costo de la venta
-    const saleCost = sale.items ? sale.items.reduce((itemSum, item) => {
-      const p = item.product || {};
-      const extrasObj = p.extras || {};
-      let itemExtraCost = 0;
-      if (sale.extras) {
-        Object.keys(sale.extras).forEach(catKey => {
-          const extraId = sale.extras[catKey];
-          if (extraId && extraId !== "0") {
-            let hasStatic = false;
     const origin = (sale.origin || "").toLowerCase();
     let channel = sale.channel || "Local Físico";
     if (origin === "tiendanube") channel = "Tiendanube Online";
