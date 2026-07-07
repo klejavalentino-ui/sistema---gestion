@@ -258,7 +258,7 @@
     <main class="idx-main">
       
       <!-- TAB 1: PANEL DE CONTROL -->
-      <section id="panel-section" class="tab-content">
+      <section id="panel-section" class="tab-content active">
         <div class="idx-header">
           <div class="idx-header-info">
             <h2>Panel de Control</h2>
@@ -342,26 +342,30 @@
         </div>
 
         <!-- Charts Row -->
-        <div class="charts-grid">
-          <!-- Line Chart: Evolución de Ventas -->
-          <div class="chart-card-wrapper" id="panel-evolution-chart-box">
-            <div class="chart-card-header">
-              <h3 class="chart-card-title">Evolución de Ventas</h3>
-              <span style="color: var(--text-gray); font-size: 0.75rem; font-weight: 500;">Histórico Dinámico</span>
+        <div class="charts-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px;">
+          <!-- Lista: Top 5 Productos -->
+          <div class="chart-card-wrapper" id="panel-top-products-box" style="background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column;">
+            <div class="chart-card-header" style="padding: 20px 20px 15px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <h3 class="chart-card-title" style="margin: 0; font-size: 1.1rem;">Top 5 Productos</h3>
+              <span style="color: var(--text-gray); font-size: 0.75rem; font-weight: 500;">Más vendidos en unidades</span>
             </div>
-            <div class="chart-container">
-              <canvas id="chart-evolution" style="width: 100%; height: 100%;"></canvas>
+            <div class="chart-container" style="flex-grow: 1; padding: 20px;">
+              <div id="top-products-list" style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- Cargado dinámicamente -->
+              </div>
             </div>
           </div>
 
-          <!-- Bar Chart: Top Categorías -->
-          <div class="chart-card-wrapper" id="panel-category-chart-box">
-            <div class="chart-card-header">
-              <h3 class="chart-card-title">Top Categorías</h3>
-              <span style="color: var(--text-gray); font-size: 0.75rem; font-weight: 500;">Unidades Vendidas</span>
+          <!-- Pie/Bar/List: Medios de Pago -->
+          <div class="chart-card-wrapper" id="panel-payment-methods-box" style="background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column;">
+            <div class="chart-card-header" style="padding: 20px 20px 15px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <h3 class="chart-card-title" style="margin: 0; font-size: 1.1rem;">Medios de Pago</h3>
+              <span style="color: var(--text-gray); font-size: 0.75rem; font-weight: 500;">% sobre ventas totales</span>
             </div>
-            <div class="chart-container">
-              <canvas id="chart-categories" style="width: 100%; height: 100%;"></canvas>
+            <div class="chart-container" style="flex-grow: 1; padding: 20px;">
+              <div id="payment-methods-list" style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- Cargado dinámicamente -->
+              </div>
             </div>
           </div>
         </div>
@@ -397,7 +401,7 @@
       </section>
 
       <!-- TAB 2: VENTAS (POS) -->
-      <section id="sales-section" class="tab-content active">
+      <section id="sales-section" class="tab-content">
         <div class="idx-header">
           <div class="idx-header-info">
             <h2>Punto de Venta (POS)</h2>
@@ -3082,6 +3086,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="/static/js/app.js?v=1.1.2"></script>
+  <script src="/static/js/app.js?v=1.2.0"></script>
 </body>
 </html>

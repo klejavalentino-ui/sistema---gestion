@@ -1756,108 +1756,79 @@ function renderPanel() {
 }
 
 function renderPanelCharts(filteredSales) {
-  // Gráfico 1: Evolución de Ventas (Líneas)
-  const evolutionCtx = document.getElementById("chart-evolution").getContext("2d");
-  
-  const salesMap = {};
-  if (state.panelPeriod === "mes") {
-    // Agrupar por semanas del mes
-    ["Sem 1", "Sem 2", "Sem 3", "Sem 4", "Sem 5"].forEach(w => salesMap[w] = 0);
-    filteredSales.forEach(s => {
-      const day = new Date(s.date).getDate();
-      const weekIndex = Math.min(Math.floor((day - 1) / 7), 4);
-      salesMap[`Sem ${weekIndex + 1}`] += s.total;
-    });
-  } else {
-    // Últimos 7 días
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const label = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-      salesMap[label] = 0;
-    }
-    filteredSales.forEach(s => {
-      const label = new Date(s.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-      if (label in salesMap) {
-        salesMap[label] += s.total;
-      }
-    });
-  }
-
-  const evolutionLabels = Object.keys(salesMap);
-  const evolutionData = Object.values(salesMap);
-
-  if (state.evolutionChart) state.evolutionChart.destroy();
-  state.evolutionChart = new Chart(evolutionCtx, {
-    type: 'line',
-    data: {
-      labels: evolutionLabels,
-      datasets: [{
-        label: 'Ventas ($)',
-        data: evolutionData,
-        borderColor: '#e5383b',
-        backgroundColor: 'rgba(229, 56, 59, 0.05)',
-        borderWidth: 2,
-        tension: 0.3,
-        fill: true,
-        pointBackgroundColor: '#e5383b',
-        pointRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
-      }
-    }
-  });
-
-  // Gráfico 2: Top Categorías (Barras Horizontales)
-  const categoriesCtx = document.getElementById("chart-categories").getContext("2d");
-  
-  const categoryCounts = {};
-  state.sales.forEach(sale => {
+  // Top 5 Productos
+  const productCounts = {};
+  filteredSales.forEach(sale => {
     if (sale.items) {
       sale.items.forEach(item => {
-        const cat = item.product.category || "Otros";
-        categoryCounts[cat] = (categoryCounts[cat] || 0) + (parseInt(item.quantity) || 0);
+        const p = item.product || {};
+        const key = p.sku || p.name || "Sin nombre";
+        const name = p.name || "Producto sin nombre";
+        productCounts[key] = productCounts[key] || { name: name, units: 0 };
+        productCounts[key].units += (parseInt(item.quantity) || 0);
       });
     }
   });
 
-  const sortedCategories = Object.entries(categoryCounts)
-    .sort((a, b) => b[1] - a[1])
+  const sortedProducts = Object.values(productCounts)
+    .sort((a, b) => b.units - a.units)
     .slice(0, 5);
 
-  const categoryLabels = sortedCategories.map(c => c[0]);
-  const categoryData = sortedCategories.map(c => c[1]);
+  const topProductsList = document.getElementById("top-products-list");
+  if (topProductsList) {
+    if (sortedProducts.length === 0) {
+      topProductsList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.85rem; text-align: center;">No hay datos en este período.</p>`;
+    } else {
+      topProductsList.innerHTML = sortedProducts.map((p, index) => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1rem; font-weight: 800; color: var(--accent-red); width: 20px;">#${index + 1}</span>
+            <span style="font-size: 0.85rem; color: var(--text-white); font-weight: 600;">${p.name}</span>
+          </div>
+          <span style="font-size: 0.85rem; color: var(--text-gray-light); font-weight: 700;">${p.units} u.</span>
+        </div>
+      `).join('');
+    }
+  }
 
-  if (state.categoriesChart) state.categoriesChart.destroy();
-  state.categoriesChart = new Chart(categoriesCtx, {
-    type: 'bar',
-    data: {
-      labels: categoryLabels,
-      datasets: [{
-        label: 'Unidades Vendidas',
-        data: categoryData,
-        backgroundColor: ['#e5383b', '#ca6702', '#0a9396', '#005f73', '#e9d8a6'],
-        borderRadius: 4
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-        y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } }
-      }
+  // Medios de Pago
+  const paymentTotals = {};
+  let totalSalesForPayments = 0;
+  
+  filteredSales.forEach(sale => {
+    const total = sale.total || 0;
+    totalSalesForPayments += total;
+    if (sale.payments && sale.payments.length > 0) {
+      sale.payments.forEach(pay => {
+        const m = pay.method || "Otro";
+        paymentTotals[m] = (paymentTotals[m] || 0) + (parseFloat(pay.amount) || 0);
+      });
+    } else {
+      const m = sale.paymentMethod || "Efectivo";
+      paymentTotals[m] = (paymentTotals[m] || 0) + total;
     }
   });
+
+  const paymentList = document.getElementById("payment-methods-list");
+  if (paymentList) {
+    if (totalSalesForPayments === 0) {
+      paymentList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.85rem; text-align: center;">No hay datos en este período.</p>`;
+    } else {
+      const sortedPayments = Object.entries(paymentTotals).sort((a, b) => b[1] - a[1]);
+      paymentList.innerHTML = sortedPayments.map(pay => {
+        const pct = ((pay[1] / totalSalesForPayments) * 100).toFixed(1);
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <span style="font-size: 0.85rem; color: var(--text-white); font-weight: 600;">${pay[0]}</span>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 0.85rem; color: var(--text-gray);">$${Math.round(pay[1]).toLocaleString()}</span>
+              <span style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; color: var(--text-white); min-width: 50px; text-align: center;">${pct}%</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
 }
 
 function getProductMinStock(p, salesByProduct) {
@@ -2080,12 +2051,48 @@ function exportPanelToExcel() {
   ];
   const wsExplanation = XLSX.utils.aoa_to_sheet(explanationRows);
 
-  // Crear libro y añadir las tres hojas
+  // 1.5 Hoja: Dashboard
+  const nowFilter = new Date();
+  const currentMonthSales = state.panelMonth !== "Todos" 
+    ? state.sales.filter(s => new Date(s.date).getMonth() === MONTHS.indexOf(state.panelMonth))
+    : state.sales;
+
+  const totalSalesVal = currentMonthSales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const totalUnits = currentMonthSales.reduce((sum, s) => sum + (s.items ? s.items.reduce((iSum, i) => iSum + (parseInt(i.quantity)||0), 0) : 0), 0);
+
+  const dashboardData = [
+    ["MÉTRICAS CLAVE - " + (state.panelMonth || "Todos"), ""],
+    ["Facturación Total", "$" + Math.round(totalSalesVal)],
+    ["Ticket Promedio", "$" + Math.round(totalSalesVal / (currentMonthSales.length || 1))],
+    ["Unidades Vendidas", totalUnits],
+    [],
+    ["EVOLUCIÓN DE VENTAS (POR DÍA)", ""]
+  ];
+  
+  const salesByDate = {};
+  currentMonthSales.forEach(s => {
+    const d = new Date(s.date).toLocaleDateString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric'});
+    salesByDate[d] = (salesByDate[d] || 0) + (s.total || 0);
+  });
+  
+  dashboardData.push(["Fecha", "Ventas ($)"]);
+  Object.keys(salesByDate).sort((a, b) => {
+    const [d1,m1,y1] = a.split('/');
+    const [d2,m2,y2] = b.split('/');
+    return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+  }).forEach(date => {
+    dashboardData.push([date, Math.round(salesByDate[date])]);
+  });
+  
+  const wsDashboard = XLSX.utils.aoa_to_sheet(dashboardData);
+
+  // Crear libro y añadir las cuatro hojas
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, wsPanel, "Panel");
+  XLSX.utils.book_append_sheet(wb, wsPanel, "Historial de Ventas");
+  XLSX.utils.book_append_sheet(wb, wsDashboard, "Dashboard");
   XLSX.utils.book_append_sheet(wb, wsStock, "Stock Critico");
   XLSX.utils.book_append_sheet(wb, wsExplanation, "Explicacion Stock Critico");
-  XLSX.writeFile(wb, `Reporte_Panel_${state.panelMonth}.xlsx`);
+  XLSX.writeFile(wb, `Reporte_Datamargen_${state.panelMonth}.xlsx`);
 }
 
 // --- 2. VENTAS (POS) ---
