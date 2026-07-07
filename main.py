@@ -564,9 +564,16 @@ def seed_db_if_empty(prefix, token):
                     "name": "Extras Config",
                     "cost": 0.0,
                     "stock": 0,
-                    "bolsas_caramelos": [],
-                    "envoltorios_regalo": [],
-                    "adicionales_kiosco": []
+                    "bolsas_caramelos": [
+                        { "id": "bol-kraft", "name": "Bolsa Kraft Chica", "cost": 150.0, "stock": 100 },
+                        { "id": "bol-plast", "name": "Bolsa Camiseta Mediana", "cost": 80.0, "stock": 200 }
+                    ],
+                    "envoltorios_regalo": [
+                        { "id": "env-premium", "name": "Papel de Regalo + Moño", "cost": 300.0, "stock": 50 }
+                    ],
+                    "adicionales_kiosco": [
+                        { "id": "adi-caramelos", "name": "Caramelos de Cortesía", "cost": 10.0, "stock": 1000 }
+                    ]
                 }
             else:
                 initial_extras = {
@@ -574,9 +581,17 @@ def seed_db_if_empty(prefix, token):
                     "name": "Extras Config",
                     "cost": 0.0,
                     "stock": 0,
-                    "estampados": [],
-                    "packagings": [],
-                    "bordados": []
+                    "estampados": [
+                        { "id": "est-frente", "name": "Estampado Frente 10x10", "cost": 450.0, "stock": 100 },
+                        { "id": "est-espalda", "name": "Estampado Espalda A4", "cost": 850.0, "stock": 100 }
+                    ],
+                    "packagings": [
+                        { "id": "pac-bolsa", "name": "Bolsa Kraft con Logo", "cost": 180.0, "stock": 150 },
+                        { "id": "pac-caja", "name": "Caja de Cartón para Remera", "cost": 400.0, "stock": 50 }
+                    ],
+                    "bordados": [
+                        { "id": "bor-logo", "name": "Bordado Logo Pecho", "cost": 600.0, "stock": 120 }
+                    ]
                 }
             firebase_config.set_document("products", f"{prefix}extras_config", initial_extras, token)
 

@@ -1314,7 +1314,6 @@ async function refreshState() {
     state.cashTransactions = data.cashTransactions || [];
     state.influencers = data.influencers || [];
     state.marketingExpenses = data.marketingExpenses || [];
-    state.extras = data.extras || {};
     state.stockIntakes = data.stockIntakes || [];
     
     state.businessName = data.businessName || "";
@@ -1325,6 +1324,32 @@ async function refreshState() {
     if (bizType === "clothing") bizType = "textil";
     if (bizType === "kiosk") bizType = "comercio";
     state.businessType = bizType;
+
+    const defaultExtras = (state.businessType === "comercio") ? {
+      bolsas_caramelos: [
+        { id: "bol-kraft", name: "Bolsa Kraft Chica", cost: 150, stock: 100 },
+        { id: "bol-plast", name: "Bolsa Camiseta Mediana", cost: 80, stock: 200 }
+      ],
+      envoltorios_regalo: [
+        { id: "env-premium", name: "Papel de Regalo + Moño", cost: 300, stock: 50 }
+      ],
+      adicionales_kiosco: [
+        { id: "adi-caramelos", name: "Caramelos de Cortesía", cost: 10, stock: 1000 }
+      ]
+    } : {
+      estampados: [
+        { id: "est-frente", name: "Estampado Frente 10x10", cost: 450, stock: 100 },
+        { id: "est-espalda", name: "Estampado Espalda A4", cost: 850, stock: 100 }
+      ],
+      packagings: [
+        { id: "pac-bolsa", name: "Bolsa Kraft con Logo", cost: 180, stock: 150 },
+        { id: "pac-caja", name: "Caja de Cartón para Remera", cost: 400, stock: 50 }
+      ],
+      bordados: [
+        { id: "bor-logo", name: "Bordado Logo Pecho", cost: 600, stock: 120 }
+      ]
+    };
+    state.extras = (data.extras && Object.keys(data.extras).length > 0) ? data.extras : defaultExtras;
     
     applyBusinessTypeUIUpdates();
     await syncSuppliersWithCurrentAccounts();
@@ -1332,13 +1357,13 @@ async function refreshState() {
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
       if (item.id === "sidebar-tiendanube-item") {
-        if (state.email === "matiascuchettidiaz@gmail.com") {
+        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
           item.style.display = "block";
         } else {
           item.style.display = "none";
         }
       } else if (item.id === "sidebar-arca-item") {
-        if (state.email === "klejavalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
+        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
           item.style.display = "block";
         } else {
           item.style.display = "none";
@@ -2691,7 +2716,7 @@ function openCheckoutModal() {
 
   const arcaBtn = document.getElementById("checkout-arca-btn");
   if (arcaBtn) {
-    const hasArcaAccess = (state.email === "klejavalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com");
+    const hasArcaAccess = (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com");
     arcaBtn.style.display = hasArcaAccess ? "block" : "none";
   }
 
@@ -7962,7 +7987,7 @@ async function renderIntegrationsStatus() {
     // Controlar visibilidad de Tiendanube para el usuario específico
     const tnCard = document.getElementById("tiendanube-integration-card");
     if (tnCard) {
-      if (state.email === "matiascuchettidiaz@gmail.com") {
+      if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
         tnCard.style.display = "block";
       } else {
         tnCard.style.display = "none";
@@ -9267,7 +9292,7 @@ const APP_SECTIONS = [
   { id: "expenses", name: "Gastos" },
   { id: "marketing", name: "Marketing" },
   { id: "integrations", name: "Integraciones" },
-  { id: "business", name: "Mi Negocio" }
+  { id: "business", name: "Configuración" }
 ];
 
 async function loadBusinessData() {
