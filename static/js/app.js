@@ -274,6 +274,7 @@ async function handleLogin(e) {
     showToast("¡Sesión iniciada!");
     checkAuth();
   } catch (error) {
+    console.error("Login Error:", error);
     errorDiv.innerText = translateError(error.message);
     errorDiv.style.display = "block";
   }

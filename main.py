@@ -395,6 +395,13 @@ def login():
             return jsonify({"error": "Nombre de usuario no encontrado. Inicie sesión con su CORREO ELECTRÓNICO (ej: mi@correo.com) por única vez para vincular su usuario automáticamente."}), 404
             
     try:
+        if firebase_config.HAS_SERVICE_ACCOUNT:
+            try:
+                from firebase_admin import auth as admin_auth
+                admin_auth.get_user_by_email(email)
+            except admin_auth.UserNotFoundError:
+                return jsonify({"error": "La cuenta no existe. Por favor, regístrese primero."}), 404
+
         res = firebase_config.sign_in(email, password)
         token = res.get("idToken")
         
