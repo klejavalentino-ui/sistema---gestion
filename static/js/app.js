@@ -1805,7 +1805,7 @@ function renderPanelCharts(filteredSales) {
         paymentTotals[m] = (paymentTotals[m] || 0) + (parseFloat(pay.amount) || 0);
       });
     } else {
-      const m = sale.paymentMethod || "Efectivo";
+      const m = sale.method || sale.paymentMethod || "Efectivo";
       paymentTotals[m] = (paymentTotals[m] || 0) + total;
     }
   });
@@ -9744,11 +9744,11 @@ function renderPaymentMethods() {
   if (!tbody) return;
   tbody.innerHTML = '';
   const defaultMethods = [
-    {name: "Efectivo", type: "Efectivo"}, 
-    {name: "Débito", type: "Débito"}, 
-    {name: "Crédito", type: "Crédito"}, 
-    {name: "Transferencia", type: "Transferencia"},
-    {name: "QR/Billetera", type: "QR/Billetera"}
+    {id: "pm_1", name: "Efectivo", type: "Efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_2", name: "Débito", type: "Débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_3", name: "Crédito", type: "Crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_4", name: "Transferencia", type: "Transferencia", comission: "0", retention: "0", adjustment: "Sin ajuste"},
+    {id: "pm_5", name: "QR/Billetera", type: "QR/Billetera", comission: "0", retention: "0", adjustment: "Sin ajuste"}
   ];
   const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
   
@@ -9763,9 +9763,9 @@ function renderPaymentMethods() {
     tr.innerHTML = `
       <td style="padding: 12px 8px; color: var(--text-white); font-weight: 500;">${pm.name}</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.type}</td>
-      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.comission}%</td>
-      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.retention}%</td>
-      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.adjustment}</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.comission || '0'}%</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.retention || '0'}%</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.adjustment || 'Sin ajuste'}</td>
       <td style="padding: 12px 8px; text-align: right;">
         <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="openPaymentMethodModal('${pm.id}')" title="Editar"><i class="fa-solid fa-pencil"></i></button>
         <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-red); font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="deletePaymentMethod('${pm.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
@@ -9778,11 +9778,11 @@ window.renderPaymentMethods = renderPaymentMethods;
 
 function openPaymentMethodModal(id = null) {
   const defaultMethods = [
-    {name: "Efectivo", type: "Efectivo"}, 
-    {name: "Débito", type: "Débito"}, 
-    {name: "Crédito", type: "Crédito"}, 
-    {name: "Transferencia", type: "Transferencia"},
-    {name: "QR/Billetera", type: "QR/Billetera"}
+    {id: "pm_1", name: "Efectivo", type: "Efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_2", name: "Débito", type: "Débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_3", name: "Crédito", type: "Crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_4", name: "Transferencia", type: "Transferencia", comission: "0", retention: "0", adjustment: "Sin ajuste"},
+    {id: "pm_5", name: "QR/Billetera", type: "QR/Billetera", comission: "0", retention: "0", adjustment: "Sin ajuste"}
   ];
   const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
   const pm = id ? methods.find(p => p.id === id) : null;
@@ -9790,9 +9790,9 @@ function openPaymentMethodModal(id = null) {
   document.getElementById('modal-pm-id').value = pm ? pm.id : '';
   document.getElementById('modal-pm-name').value = pm ? pm.name : '';
   document.getElementById('modal-pm-type').value = pm ? pm.type : 'Efectivo';
-  document.getElementById('modal-pm-comission').value = pm ? pm.comission : '0';
-  document.getElementById('modal-pm-retention').value = pm ? pm.retention : '0';
-  document.getElementById('modal-pm-adjustment').value = pm ? pm.adjustment : 'Sin ajuste';
+  document.getElementById('modal-pm-comission').value = pm ? (pm.comission || '0') : '0';
+  document.getElementById('modal-pm-retention').value = pm ? (pm.retention || '0') : '0';
+  document.getElementById('modal-pm-adjustment').value = pm ? (pm.adjustment || 'Sin ajuste') : 'Sin ajuste';
   document.getElementById('modal-pm-title').innerHTML = pm ? '💳 Editar Medio de Pago' : '💳 Nuevo Medio de Pago';
   
   document.getElementById('modal-payment-method').style.display = 'flex';
@@ -9818,11 +9818,11 @@ async function savePaymentMethod() {
   }
   
   const defaultMethods = [
-    {name: "Efectivo", type: "Efectivo"}, 
-    {name: "Débito", type: "Débito"}, 
-    {name: "Crédito", type: "Crédito"}, 
-    {name: "Transferencia", type: "Transferencia"},
-    {name: "QR/Billetera", type: "QR/Billetera"}
+    {id: "pm_1", name: "Efectivo", type: "Efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_2", name: "Débito", type: "Débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_3", name: "Crédito", type: "Crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_4", name: "Transferencia", type: "Transferencia", comission: "0", retention: "0", adjustment: "Sin ajuste"},
+    {id: "pm_5", name: "QR/Billetera", type: "QR/Billetera", comission: "0", retention: "0", adjustment: "Sin ajuste"}
   ];
   let methods = [...(state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods)];
   
@@ -9854,11 +9854,11 @@ async function deletePaymentMethod(id) {
   if (!confirm('¿Seguro que querés eliminar este medio de pago?')) return;
   
   const defaultMethods = [
-    {name: "Efectivo", type: "Efectivo"}, 
-    {name: "Débito", type: "Débito"}, 
-    {name: "Crédito", type: "Crédito"}, 
-    {name: "Transferencia", type: "Transferencia"},
-    {name: "QR/Billetera", type: "QR/Billetera"}
+    {id: "pm_1", name: "Efectivo", type: "Efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_2", name: "Débito", type: "Débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_3", name: "Crédito", type: "Crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_4", name: "Transferencia", type: "Transferencia", comission: "0", retention: "0", adjustment: "Sin ajuste"},
+    {id: "pm_5", name: "QR/Billetera", type: "QR/Billetera", comission: "0", retention: "0", adjustment: "Sin ajuste"}
   ];
   let methods = [...(state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods)];
   methods = methods.filter(p => p.id !== id);
