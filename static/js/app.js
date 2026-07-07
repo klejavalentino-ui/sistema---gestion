@@ -9157,7 +9157,7 @@ function applyPermissionsToUI() {
   
   const p = state.permissions;
   
-  APP_SECTIONS.forEach(sec => {
+  getAppSections().forEach(sec => {
     const access = p[sec.id] || "none";
     const menuItem = document.querySelector(`.menu-item[data-tab="${sec.id}"]`);
     const sectionEl = document.getElementById(`${sec.id}-section`);
@@ -9193,16 +9193,23 @@ function applyPermissionsToUI() {
   });
 }
 
-const APP_SECTIONS = [
-  { id: "panel", name: "Panel Principal" },
-  { id: "sales", name: "Ventas" },
-  { id: "products", name: "Inventario" },
-  { id: "clients", name: "Agenda" },
-  { id: "expenses", name: "Gastos" },
-  { id: "marketing", name: "Marketing" },
-  { id: "integrations", name: "Integraciones" },
-  { id: "business", name: "Mi Negocio" }
-];
+function getAppSections() {
+  const sections = [];
+  document.querySelectorAll('.menu-list .menu-item').forEach(item => {
+    if (item.style.display !== 'none') {
+      const id = item.getAttribute('data-tab');
+      const link = item.querySelector('.menu-link');
+      if (link) {
+        let name = "";
+        link.childNodes.forEach(n => {
+          if(n.nodeType === Node.TEXT_NODE) name += n.textContent;
+        });
+        sections.push({ id, name: name.trim() });
+      }
+    }
+  });
+  return sections;
+}
 
 async function loadBusinessData() {
   if (state.userProfile) {
@@ -9317,7 +9324,7 @@ function renderPermissionsMatrix() {
   if(!tbody) return;
   tbody.innerHTML = "";
   
-  APP_SECTIONS.forEach(sec => {
+  getAppSections().forEach(sec => {
     const val = currentUserPermissions[sec.id] || "none";
     const isView = val === "view" || val === "edit";
     const isEdit = val === "edit";
@@ -9353,7 +9360,7 @@ function togglePermission(secId, type, isChecked) {
 window.togglePermission = togglePermission;
 
 function setUserPermissionsAll(mode) {
-  APP_SECTIONS.forEach(sec => {
+  getAppSections().forEach(sec => {
     if (mode === "all") currentUserPermissions[sec.id] = "edit";
     else if (mode === "view") currentUserPermissions[sec.id] = "view";
     else currentUserPermissions[sec.id] = "none";

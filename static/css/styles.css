@@ -30,27 +30,27 @@
 }
 
 body.light-theme {
-  --bg-darkest: #f4efe2;       /* Warm Cream */
-  --bg-dark: #fbfaf7;          /* Soft Off-white */
-  --bg-card: #fbfaf7;
-  --bg-input: #f1ebd9;         /* Soft Sand */
-  --border-color: #cbd5e1;     /* Let's keep it visible, but we can also use a warm beige: #d5cdbd */
+  --bg-darkest: #f5ecd5;       /* Crema natural */
+  --bg-dark: #faf5e6;          /* Crema suave */
+  --bg-card: #ffffff;          /* Tarjetas blancas para mejor lectura */
+  --bg-input: #ffffff;         /* Inputs blancos */
+  --border-color: #e5d5b5;     /* Borde crema oscurecido */
   
-  --text-white: #2c221a;       /* Espresso dark brown */
-  --text-gray-light: #44372e;  /* Medium warm brown */
-  --text-gray: #6b5c52;        /* Soft taupe */
-  --text-muted: #96877b;       /* Warm grey */
+  --text-white: #1a150e;       /* Marrón muy oscuro (casi negro) para legibilidad extrema */
+  --text-gray-light: #3b3226;  /* Texto secundario oscuro */
+  --text-gray: #635747;        /* Texto grisáceo cálido */
+  --text-muted: #8c8070;       /* Texto mutado */
   
-  --text-dark: #2c221a;
+  --text-dark: #1a150e;
   
-  --bg-btn-secondary: #ebdcb9; /* Warm button */
-  --text-btn-secondary: #44372e;
-  --bg-btn-secondary-hover: #decb9f;
+  --bg-btn-secondary: #e8dbbe; /* Botón secundario cálido */
+  --text-btn-secondary: #3b3226;
+  --bg-btn-secondary-hover: #dccaa7;
 
-  --bg-hover-subtle: rgba(44, 34, 26, 0.02);
-  --bg-hover: rgba(44, 34, 26, 0.04);
-  --bg-hover-more: rgba(44, 34, 26, 0.08);
-  --border-translucent: rgba(44, 34, 26, 0.06);
+  --bg-hover-subtle: rgba(26, 21, 14, 0.03);
+  --bg-hover: rgba(26, 21, 14, 0.06);
+  --bg-hover-more: rgba(26, 21, 14, 0.1);
+  --border-translucent: rgba(26, 21, 14, 0.08);
 }
 
 * {

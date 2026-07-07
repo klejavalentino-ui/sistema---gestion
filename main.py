@@ -286,7 +286,9 @@ def index():
 
 # --- Rutas de Autenticación ---
 
-USERNAMES_FILE = "usernames.json"
+import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+USERNAMES_FILE = os.path.join(BASE_DIR, "usernames.json")
 
 def get_email_for_username(username):
     username = username.strip().lower()
