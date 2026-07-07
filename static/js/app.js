@@ -9204,6 +9204,7 @@ function toggleLoginPasswordVisibility() {
     }
   }
 }
+window.toggleLoginPasswordVisibility = toggleLoginPasswordVisibility;
 
 function formatCurrencyField(input) {
   if (!input) return;
