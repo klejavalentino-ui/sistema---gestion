@@ -1633,15 +1633,10 @@ function renderPanel() {
   netEl.style.color = netResult >= 0 ? "#10b981" : "#ef4444";
 
   // Calcular desglose de canales (Local vs Tiendanube)
-  let localRevenue = 0;
-  let localUnits = 0;
-  let localCost = 0;
-
-  let tnRevenueGross = 0;
-  let tnUnits = 0;
-  let tnCost = 0;
-  let tnFees = 0;
-  let tnRevenueNet = 0;
+  let channelStats = {};
+  (state.userProfile?.salesChannels || ["Local Principal"]).forEach(c => {
+    channelStats[c] = { revenue: 0, units: 0, cost: 0, fees: 0, revenueNet: 0 };
+  });
 
   filteredSales.forEach(sale => {
     const origin = (sale.origin || "").toLowerCase();
