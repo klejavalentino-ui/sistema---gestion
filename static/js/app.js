@@ -1697,11 +1697,12 @@ function renderPanel() {
   const channelsContainer = document.getElementById("dashboard-channels-container");
   
   if (channelsBreakdownDiv && channelsContainer) {
-    const keys = Object.keys(channelStats);
-    if (keys.length > 1) {
+    const configuredChannels = state.userProfile?.salesChannels || ["Local Principal"];
+    if (configuredChannels.length > 1) {
       channelsBreakdownDiv.style.display = "block";
       channelsContainer.innerHTML = "";
       
+      const keys = Object.keys(channelStats);
       keys.forEach(ch => {
       const stats = channelStats[ch];
       const profit = stats.revenueNet - stats.cost;
