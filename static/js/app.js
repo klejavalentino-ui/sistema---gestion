@@ -1816,14 +1816,22 @@ function renderPanelCharts(filteredSales) {
       paymentList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.85rem; text-align: center;">No hay datos en este período.</p>`;
     } else {
       const sortedPayments = Object.entries(paymentTotals).sort((a, b) => b[1] - a[1]);
-      paymentList.innerHTML = sortedPayments.map(pay => {
-        const pct = ((pay[1] / totalSalesForPayments) * 100).toFixed(1);
+      const colors = ['#0a9396', '#2176ff', '#e5383b', '#ca6702', '#9c89b8', '#005f73'];
+      paymentList.innerHTML = sortedPayments.map((pay, index) => {
+        const pctStr = ((pay[1] / totalSalesForPayments) * 100).toFixed(1);
+        const pct = Math.min(100, Math.max(0, parseFloat(pctStr)));
+        const color = colors[index % colors.length];
         return `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <span style="font-size: 0.85rem; color: var(--text-white); font-weight: 600;">${pay[0]}</span>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span style="font-size: 0.85rem; color: var(--text-gray);">$${Math.round(pay[1]).toLocaleString()}</span>
-              <span style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; color: var(--text-white); min-width: 50px; text-align: center;">${pct}%</span>
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 0.85rem; color: var(--text-white); font-weight: 500;">${pay[0]}</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.75rem; color: var(--text-gray);">$${Math.round(pay[1]).toLocaleString()}</span>
+                <span style="font-size: 0.85rem; color: var(--text-white); font-weight: 600;">${pctStr}%</span>
+              </div>
+            </div>
+            <div style="width: 100%; background-color: rgba(255,255,255,0.05); border-radius: 8px; height: 8px; overflow: hidden;">
+              <div style="width: ${pct}%; background-color: ${color}; height: 100%; border-radius: 8px;"></div>
             </div>
           </div>
         `;
