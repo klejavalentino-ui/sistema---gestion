@@ -367,7 +367,7 @@ function updateSidebarProfile() {
     avatarDiv.innerText = displayName.charAt(0).toUpperCase();
     if (usernameSpan) usernameSpan.innerText = displayUsername;
     if (businessSpan) {
-      businessSpan.innerText = state.businessName || state.userProfile?.businessName || "Mi Negocio";
+      businessSpan.innerText = state.userProfile?.businessName || state.businessName || "Mi Negocio";
     }
     
     // Update Topbar
@@ -384,7 +384,7 @@ function updateSidebarProfile() {
     }
     
     if (tbBizName) {
-      tbBizName.innerText = state.businessName || state.userProfile?.businessName || "Mi Negocio";
+      tbBizName.innerText = state.userProfile?.businessName || state.businessName || "Mi Negocio";
     }
     
     if (tbUser) {
@@ -9348,6 +9348,8 @@ async function saveBusinessSettings() {
     };
     const res = await apiRequest("/api/business/settings", "PUT", data);
     state.userProfile = res.userProfile;
+    state.businessName = res.userProfile.businessName || data.businessName;
+    localStorage.setItem("datamargen_business_name", state.businessName);
     state.businessType = res.userProfile.businessType || "textil";
     localStorage.setItem("datamargen_business_type", state.businessType);
     updateSidebarProfile();
