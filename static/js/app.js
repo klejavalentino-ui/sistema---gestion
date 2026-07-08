@@ -46,6 +46,13 @@ const state = {
 };
 
 let tempLocationStock = {};
+
+function getConfiguredSizes() {
+  if (state.userProfile && state.userProfile.sizeVariants && state.userProfile.sizeVariants.length > 0) {
+    return state.userProfile.sizeVariants;
+  }
+  return ["XS", "S", "M", "L", "XL", "XXL", "Único"];
+}
 let currentLocationTab = "";
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -413,7 +420,7 @@ function triggerExcelImport() {
       instructionsEl.innerHTML = `
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
           ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
-          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; border: 1px solid var(--border-color); line-height: 1.5; word-break: break-word;">
+          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: var(--text-white); border: 1px solid var(--border-color); line-height: 1.5; word-break: break-word;">
             <strong>SKU | Producto | Categoría | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
           </div>
         </div>
@@ -422,7 +429,7 @@ function triggerExcelImport() {
       instructionsEl.innerHTML = `
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
           ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
-          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: #fff; border: 1px solid var(--border-color); line-height: 1.5; word-break: break-word;">
+          <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: var(--text-white); border: 1px solid var(--border-color); line-height: 1.5; word-break: break-word;">
             <strong>SKU | Producto | Categoría | Talle | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
           </div>
         </div>
@@ -3142,7 +3149,7 @@ function openSalesHistoryModal() {
       else if (sale.method === "Canje" || sale.method === "custom") badgeClass = "badge-gray";
       
       const originBadge = (sale.origen === "tiendanube") 
-        ? `<span class="badge" style="margin-left: 4px; background: #8b5cf6; color: white; padding: 2px 6px; font-size: 0.65rem;">Tienda Nube</span>` 
+        ? `<span class="badge" style="margin-left: 4px; background: #8b5cf6; color: var(--text-white); padding: 2px 6px; font-size: 0.65rem;">Tienda Nube</span>` 
         : `<span class="badge" style="margin-left: 4px; background: rgba(255,255,255,0.1); color: #ccc; padding: 2px 6px; font-size: 0.65rem;">Local</span>`;
         
       el.innerHTML = `
@@ -3834,6 +3841,11 @@ function renderInventory() {
     `;
     tbody.appendChild(tr);
   });
+  
+  const countSpan = document.getElementById("inventory-total-count");
+  if (countSpan) {
+    countSpan.innerText = `${filtered.length} productos`;
+  }
 
   // Rellenar filtros de categorías en inventario
   populateInventoryCategorySelect(filterCat);
@@ -3903,11 +3915,12 @@ function renderProductLocationRows() {
     
     const table = document.createElement("table");
     table.style = "width: 100%; border-collapse: collapse; min-width: 600px;";
+    const configuredSizes = getConfiguredSizes();
     table.innerHTML = `
       <thead>
         <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
           <th style="padding: 6px 12px; font-size: 0.75rem; color: var(--text-gray-light); font-weight: 700; width: 140px;">Ubicación</th>
-          ${['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'].map(sz => `<th style="padding: 6px 6px; font-size: 0.75rem; color: var(--text-gray-light); font-weight: 700; text-align: center;">${sz}</th>`).join("")}
+          ${configuredSizes.map(sz => `<th style="padding: 6px 6px; font-size: 0.75rem; color: var(--text-gray-light); font-weight: 700; text-align: center;">${sz}</th>`).join("")}
           <th style="padding: 6px 12px; width: 50px;"></th>
         </tr>
       </thead>
@@ -3921,7 +3934,7 @@ function renderProductLocationRows() {
       tr.style = "border-bottom: 1px solid rgba(255,255,255,0.03);";
       
       let inputsHtml = "";
-      ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'].forEach(sz => {
+      getConfiguredSizes().forEach(sz => {
         const val = tempLocationStock[loc][sz] || 0;
         inputsHtml += `
           <td style="padding: 4px 6px; text-align: center;">
@@ -3991,9 +4004,11 @@ function addProductLocationRow() {
   const loc = select.value;
   if (!loc) return;
   
-  tempLocationStock[loc] = {
-    'XS': 0, 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, 'Único': 0
-  };
+  const configuredSizes = getConfiguredSizes();
+  const initSizes = {};
+  configuredSizes.forEach(sz => initSizes[sz] = 0);
+  
+  tempLocationStock[loc] = initSizes;
   renderProductLocationRows();
 }
 window.addProductLocationRow = addProductLocationRow;
@@ -4033,8 +4048,22 @@ function removeProductLocationSimpleRow(loc) {
 window.removeProductLocationSimpleRow = removeProductLocationSimpleRow;
 
 
+function renderSecurityStockGrid() {
+  const container = document.getElementById("talles-ss-grid-container");
+  if (!container) return;
+  
+  const sizes = getConfiguredSizes();
+  container.innerHTML = sizes.map(sz => `
+    <div>
+      <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">${sz}</label>
+      <input type="number" id="ss-${sz}" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
+    </div>
+  `).join("");
+}
+
 // Product Modal (Add/Edit)
 function openCreateProductModal() {
+  renderSecurityStockGrid();
   document.getElementById("modal-product-title").innerText = "Nuevo Producto";
   document.getElementById("prod-sku").value = "";
   document.getElementById("prod-sku").readOnly = false;
@@ -4063,7 +4092,7 @@ function openCreateProductModal() {
   document.getElementById("prod-te-textil").value = "";
   
   // Limpiar stocks de seguridad de talles
-  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
+  getConfiguredSizes().forEach(sz => {
     const ssEl = document.getElementById(`ss-${sz}`);
     if (ssEl) {
       ssEl.value = "";
@@ -4078,9 +4107,9 @@ function openCreateProductModal() {
   // Initialize locations stock
   tempLocationStock = {};
   const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
-  tempLocationStock[defaultLoc] = {
-    'XS': 0, 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, 'Único': 0
-  };
+  const initSizes = {};
+  getConfiguredSizes().forEach(sz => initSizes[sz] = 0);
+  tempLocationStock[defaultLoc] = initSizes;
   renderProductLocationRows();
   
   const talleCard = document.getElementById("product-talles-card");
@@ -4122,6 +4151,8 @@ function openCreateProductModal() {
 function openEditProductModal(sku) {
   const p = state.products.find(prod => prod.sku === sku);
   if (!p) return;
+
+  renderSecurityStockGrid();
 
   document.getElementById("modal-product-title").innerText = "Editar Variante";
   document.getElementById("prod-sku").value = p.sku;
@@ -4173,12 +4204,13 @@ function openEditProductModal(sku) {
   renderProductLocationRows();
 
   // Load security stock
-  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Unico'].forEach(sz => {
+  getConfiguredSizes().forEach(sz => {
+    // ssInput IDs may be problematic if sz contains spaces or special characters.
+    // It's assumed the DOM is updated to match.
     const ssInput = document.getElementById(`ss-${sz}`);
     if (ssInput) ssInput.readOnly = false;
     
-    const szVal = sz === 'Unico' ? 'Único' : sz;
-    const variant = variants.find(v => v.size === szVal);
+    const variant = variants.find(v => v.size === sz);
     if (variant) {
       if (ssInput) ssInput.value = (variant.securityStock !== undefined && variant.securityStock !== null && variant.securityStock !== "") ? variant.securityStock : "";
     } else {
@@ -4378,11 +4410,10 @@ async function saveProductForm(e) {
     const leadTimeVal = document.getElementById("prod-te-textil").value.trim();
     leadTime = leadTimeVal !== "" ? parseInt(leadTimeVal) || 0 : null;
     
-    const talleMapping = { 'XS': 'XS', 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL', 'Unico': 'Único' };
-    for (const [idKey, szVal] of Object.entries(talleMapping)) {
-      const ssInputVal = document.getElementById(`ss-${idKey}`).value.trim();
-      sizeSecurityStocks[szVal] = ssInputVal !== "" ? parseInt(ssInputVal) || 0 : null;
-    }
+    getConfiguredSizes().forEach(sz => {
+      const ssInputVal = document.getElementById(`ss-${sz}`).value.trim();
+      sizeSecurityStocks[sz] = ssInputVal !== "" ? parseInt(ssInputVal) || 0 : null;
+    });
   }
 
   // Recolectar stock por ubicaciones y calcular total por talle
@@ -5603,10 +5634,6 @@ async function handleStockIntakeSubmit(e) {
   const baseCost = parseFloat(document.getElementById("intake-materia-prima").value.replace(/\D/g, "")) || 0;
   
   const marginInput = document.getElementById("intake-margin").value;
-  if (!marginInput || marginInput.trim() === "") {
-    showToast("Por favor, ingresa el margen (%).", true);
-    return;
-  }
   const margin = parseFloat(marginInput) || 0;
   
   // Recolectar adicionales seleccionados
@@ -6528,7 +6555,7 @@ function renderFixedCosts() {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>
-          <div style="font-weight: 700; color: #fff;">${cost.concept}</div>
+          <div style="font-weight: 700; color: var(--text-white);">${cost.concept}</div>
           <div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">📅 ${cost.period}</div>
         </td>
         <td>
@@ -6906,7 +6933,7 @@ function renderMarketing() {
       for (const [infName, infCost] of Object.entries(influencerCosts)) {
         listHtml += `
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
-            <span style="font-weight: 700; color: #fff;">${infName}</span>
+            <span style="font-weight: 700; color: var(--text-white);">${infName}</span>
             <span style="font-weight: 800; color: var(--accent-red);">$ ${Math.round(infCost).toLocaleString()}</span>
           </div>
         `;
@@ -6926,7 +6953,7 @@ function renderMarketing() {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
-          <td style="font-weight: 700; color: #fff;">${exp.influencer}</td>
+          <td style="font-weight: 700; color: var(--text-white);">${exp.influencer}</td>
           <td>${exp.productName} (${exp.size})</td>
           <td style="text-align: center; font-weight: 700;">${exp.quantity}</td>
           <td style="text-align: right; font-weight: 900; color: var(--accent-red);">$ ${Math.round(exp.totalCost).toLocaleString()}</td>
@@ -6956,7 +6983,7 @@ function renderMarketing() {
         card.style.flexDirection = "column";
         card.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h4 style="font-size: 0.85rem; font-weight: 800; color: #fff;">${inf.name}</h4>
+            <h4 style="font-size: 0.85rem; font-weight: 800; color: var(--text-white);">${inf.name}</h4>
             <div style="display: flex; gap: 6px;">
               <button class="btn-action" style="width:24px; height:24px; border-color: rgba(255,255,255,0.05);" onclick="editInfluencer('${inf.id}')">✏️</button>
               <button class="btn-action btn-delete" style="width:24px; height:24px; border-color: rgba(255,255,255,0.05);" onclick="deleteInfluencer('${inf.id}')">🗑️</button>
@@ -6994,7 +7021,7 @@ function renderMarketing() {
       for (const [platform, pCost] of Object.entries(platformCosts)) {
         listHtml += `
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
-            <span style="font-weight: 700; color: #fff;">${platform}</span>
+            <span style="font-weight: 700; color: var(--text-white);">${platform}</span>
             <span style="font-weight: 800; color: var(--accent-emerald);">$ ${Math.round(pCost).toLocaleString()}</span>
           </div>
         `;
@@ -7014,7 +7041,7 @@ function renderMarketing() {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
-          <td style="font-weight: 700; color: #fff;">${exp.platform}</td>
+          <td style="font-weight: 700; color: var(--text-white);">${exp.platform}</td>
           <td>${exp.campaignName}</td>
           <td style="text-align: right; font-weight: 900; color: var(--accent-red);">$ ${Math.round(exp.totalCost).toLocaleString()}</td>
           <td style="text-align: center;">
@@ -7373,7 +7400,7 @@ function renderExtrasConfig() {
         optionsHtml += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 6px;">
             <div>
-              <span style="font-size: 0.8rem; font-weight: 700; color: #fff;">${opt.name}</span>
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-white);">${opt.name}</span>
               <span style="font-size: 0.75rem; color: var(--accent-blue); font-weight: 700; margin-left: 8px;">$${Math.round(opt.cost).toLocaleString('es-AR')}</span>
               <span style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700; margin-left: 8px;">Stock: ${stockVal} u.</span>
             </div>
@@ -7452,7 +7479,7 @@ function openFixedCostsPanelModal() {
         itemsHtml += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 6px;">
             <div>
-              <p style="font-size: 0.8rem; font-weight: 800; color: #fff;">${cost.concept}</p>
+              <p style="font-size: 0.8rem; font-weight: 800; color: var(--text-white);">${cost.concept}</p>
               <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 2px;">$ ${Math.round(cost.amount).toLocaleString()}</p>
             </div>
             <button class="btn ${isPaid ? 'btn-secondary' : 'btn-primary'}" style="padding: 6px 12px; font-size: 0.65rem;" onclick="submitPayFixedCost('${cost.id}')" ${isPaid ? 'disabled' : ''}>
@@ -8214,16 +8241,16 @@ async function renderIntegrationsStatus() {
         <div style="border-bottom: 1px solid rgba(255,255,255,0.03); padding: 8px 0;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <strong style="color: #fff;">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
+              <strong style="color: var(--text-white);">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
               <span style="margin-left: 8px;">
-                <select class="form-input" style="width: auto; padding: 2px 4px; font-size: 0.65rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: #fff; cursor: pointer;" onchange="changeSaleFiscalStatus('${s.id}', this.value)">
+                <select class="form-input" style="width: auto; padding: 2px 4px; font-size: 0.65rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white); cursor: pointer;" onchange="changeSaleFiscalStatus('${s.id}', this.value)">
                   <option value="no_declarada" ${(s.fiscal_status === 'no_declarada' || !s.fiscal_status) && !s.arca_cae && !s.arca_invoice_id ? 'selected' : ''}>No Declarada</option>
                   <option value="declarada" ${s.fiscal_status === 'declarada' || s.arca_cae || s.arca_invoice_id ? 'selected' : ''}>Facturada</option>
                 </select>
               </span>
             </div>
             <div style="text-align: right;">
-              <span style="color: #fff;">Bruto: $${Math.round(grossVal).toLocaleString()}</span> | 
+              <span style="color: var(--text-white);">Bruto: $${Math.round(grossVal).toLocaleString()}</span> | 
               <span style="color: var(--accent-emerald); font-weight: bold;">Neto: $${Math.round(sNet).toLocaleString()}</span>
             </div>
           </div>
@@ -9020,13 +9047,13 @@ async function loadArcaInvoices() {
       const assocText = inv.associated_invoice ? `<div style="font-size: 0.65rem; color: var(--text-gray);">Asoc: ${inv.associated_invoice}</div>` : "";
       return `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
-          <td style="padding: 8px; font-weight: 700; color: #fff;">
+          <td style="padding: 8px; font-weight: 700; color: var(--text-white);">
             <div>${inv.type || "Factura C"}</div>
             ${assocText}
           </td>
           <td style="padding: 8px;">${inv.invoice_number || "-"}</td>
           <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
-          <td style="padding: 8px; text-align: right; font-weight: 700; color: #fff;">$ ${Math.round(inv.total || 0).toLocaleString()}</td>
+          <td style="padding: 8px; text-align: right; font-weight: 700; color: var(--text-white);">$ ${Math.round(inv.total || 0).toLocaleString()}</td>
           <td style="padding: 8px;">
             <div>CAE: ${inv.cae || "-"}</div>
             <div style="font-size: 0.65rem; color: var(--text-gray);">Vto: ${inv.cae_due || "-"}</div>
@@ -9077,7 +9104,7 @@ function renderUninvoicedSales() {
     return `
       <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
         <td style="padding: 8px;">${formattedDate}</td>
-        <td style="padding: 8px; font-weight: 700; color: #fff;">$ ${Math.round(sale.total).toLocaleString("es-AR")}</td>
+        <td style="padding: 8px; font-weight: 700; color: var(--text-white);">$ ${Math.round(sale.total).toLocaleString("es-AR")}</td>
         <td style="padding: 8px;">
           <span class="badge badge-gray" style="font-size: 0.65rem;">${sale.method}</span>
         </td>
@@ -9173,7 +9200,7 @@ function renderExternalMonthlyBillingList() {
     const formattedAmount = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     
     const chip = document.createElement("div");
-    chip.style.cssText = "background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #fff;";
+    chip.style.cssText = "background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-white);";
     chip.innerHTML = `
       <div>
         <strong>${name}:</strong> 
@@ -9346,6 +9373,22 @@ async function loadBusinessData() {
     document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Indumentaria";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
     
+    // Configuración de Talles
+    const sizeVariantsInput = document.getElementById("business-settings-sizes");
+    const sizeVariantsContainer = document.getElementById("business-settings-sizes-container");
+    if (sizeVariantsInput && sizeVariantsContainer) {
+      const savedSizes = state.userProfile.sizeVariants || ["XS", "S", "M", "L", "XL", "XXL", "Único"];
+      sizeVariantsInput.value = savedSizes.join(", ");
+      
+      const updateSizesVisibility = () => {
+        const model = document.getElementById("business-settings-model").value;
+        sizeVariantsContainer.style.display = model === "Indumentaria" ? "block" : "none";
+      };
+      
+      document.getElementById("business-settings-model").addEventListener("change", updateSizesVisibility);
+      updateSizesVisibility();
+    }
+    
     // Dibujar filas dinámicas en las subpestañas
     renderDynamicSettingsRows();
     if (typeof renderPaymentMethods === 'function') renderPaymentMethods();
@@ -9372,6 +9415,9 @@ async function saveBusinessSettings() {
       businessModel: model,
       businessType: type,
       ivaCondition: document.getElementById("business-settings-iva").value,
+      sizeVariants: document.getElementById("business-settings-sizes") 
+                      ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 
+                      : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
       bizCheckboxes: {}
     };
     const res = await apiRequest("/api/business/settings", "PUT", data);

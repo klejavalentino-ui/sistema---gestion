@@ -504,7 +504,7 @@
             <p>Control de SKU variants, talle/color, precios y niveles de existencias físicas.</p>
           </div>
           <div style="display: flex; gap: 12px; align-items: center;">
-            <button id="tiendanube-sync-btn" class="btn" style="background: #3b82f6; color: white; display: none;" onclick="syncTiendanubeCatalog()">
+            <button id="tiendanube-sync-btn" class="btn" style="background: #3b82f6; color: var(--text-white); display: none;" onclick="syncTiendanubeCatalog()">
               <i>☁️</i> Sincronizar Tiendanube
             </button>
             <button class="btn btn-secondary" onclick="triggerExcelImport()">
@@ -529,7 +529,8 @@
               <i class="pos-search-icon">🔍</i>
               <input type="text" id="inventory-search-input" class="pos-search-input" placeholder="Buscar por SKU, nombre o categoría..." oninput="renderInventory()">
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span id="inventory-total-count" style="font-size: 0.75rem; font-weight: 800; color: var(--text-gray); margin-right: 8px; white-space: nowrap;"></span>
               <select id="inventory-category-filter" class="form-select" style="width: 180px; padding: 8px 12px;" onchange="renderInventory()">
                 <option value="Todas las Categorías">Todas las Categorías</option>
               </select>
@@ -630,42 +631,8 @@
                 <!-- Cantidades por Talle -->
                 <div class="form-group" id="intake-talles-container">
                   <label class="form-label">Cantidad a Ingresar por Talle</label>
-                  <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center;">
-                    <div>
-                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">XS</span>
-                      <input type="number" id="intake-qty-XS" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-                      <span id="intake-stock-XS" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
-                    </div>
-                    <div>
-                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">S</span>
-                      <input type="number" id="intake-qty-S" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-                      <span id="intake-stock-S" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
-                    </div>
-                    <div>
-                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">M</span>
-                      <input type="number" id="intake-qty-M" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-                      <span id="intake-stock-M" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
-                    </div>
-                    <div>
-                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">L</span>
-                      <input type="number" id="intake-qty-L" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-                      <span id="intake-stock-L" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
-                    </div>
-                    <div>
-                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">XL</span>
-                      <input type="number" id="intake-qty-XL" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-                      <span id="intake-stock-XL" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
-                    </div>
-                    <div>
-                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">XXL</span>
-                      <input type="number" id="intake-qty-XXL" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-                      <span id="intake-stock-XXL" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
-                    </div>
-                    <div>
-                      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">Único</span>
-                      <input type="number" id="intake-qty-U" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-                      <span id="intake-stock-U" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
-                    </div>
+                  <div id="intake-talles-grid-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); gap: 8px; text-align: center;">
+                    <!-- Dynamically populated by JS based on configured size variants -->
                   </div>
                 </div>
                 <div class="form-group" id="intake-simple-qty-container" style="display: none;">
@@ -705,8 +672,8 @@
 
                 <div class="grid-2">
                   <div class="form-group" id="intake-margin-container">
-                    <label class="form-label">Margen (%) *</label>
-                    <input type="number" id="intake-margin" class="form-input" placeholder="Ej. 30" required>
+                    <label class="form-label">Margen (%)</label>
+                    <input type="number" id="intake-margin" class="form-input" placeholder="Ej. 30">
                   </div>
                   <div class="form-group">
                     <label class="form-label">Fecha de Ingreso *</label>
@@ -1183,8 +1150,8 @@
               </div>
               <div style="display: flex; gap: 10px;">
                 <button type="submit" id="tiendanube-save-btn" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Credenciales</button>
-                <button type="button" id="tiendanube-disconnect-btn" class="btn" style="background: var(--accent-red); color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectTiendanube()">Desconectar</button>
-                <button type="button" id="tiendanube-sync-sales-btn" class="btn btn-primary" style="background: #3b82f6; color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="syncTiendanubeSales()">Sincronizar Ventas</button>
+                <button type="button" id="tiendanube-disconnect-btn" class="btn" style="background: var(--accent-red); color: var(--text-white); display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectTiendanube()">Desconectar</button>
+                <button type="button" id="tiendanube-sync-sales-btn" class="btn btn-primary" style="background: #3b82f6; color: var(--text-white); display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="syncTiendanubeSales()">Sincronizar Ventas</button>
               </div>
             </form>
 
@@ -1320,7 +1287,7 @@
               </div>
               <div style="display: flex; gap: 10px;">
                 <button type="submit" id="arca-save-btn" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Configuración Fiscal</button>
-                <button type="button" id="arca-disconnect-btn" class="btn" style="background: var(--accent-red); color: white; display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectArca()">Desconectar</button>
+                <button type="button" id="arca-disconnect-btn" class="btn" style="background: var(--accent-red); color: var(--text-white); display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectArca()">Desconectar</button>
               </div>
             </form>
 
@@ -1673,6 +1640,11 @@
                   <option value="responsable_inscripto">Responsable Inscripto</option>
                   <option value="exento">Exento</option>
                 </select>
+              </div>
+              <div class="form-group" id="business-settings-sizes-container" style="margin-bottom: 0; grid-column: span 2;">
+                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Variantes de Talle (Separados por coma)</label>
+                <input type="text" id="business-settings-sizes" class="form-input" placeholder="Ej: XS, S, M, L, XL, XXL, Único">
+                <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">Solo aplicable para el modelo de Indumentaria.</p>
               </div>
             </div>
 
@@ -2252,10 +2224,10 @@
 
         <!-- Pago Split -->
         <div class="form-group" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-          <label class="form-label">Condición de Pago (Importación)</label>
+          <label class="form-label">Condición de Pago</label>
           <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px;">
             <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-              <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">Efectivo ($):</span>
+              <span style="font-size: 0.75rem; color: var(--text-gray); white-space: nowrap;">Anticipo ($):</span>
               <input type="text" id="pdf-import-pay-cash" class="form-input" style="padding: 6px 8px; text-align: right;" oninput="updatePdfImportPaymentSplit('cash')">
             </div>
             <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
@@ -2373,35 +2345,8 @@
               </div>
               
               <label class="form-label" style="font-size: 0.75rem; margin-bottom: 8px;">Stock de Seguridad por Talle</label>
-              <div class="grid-3 sm:grid-7" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 12px;">
-                <div>
-                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XS</label>
-                  <input type="number" id="ss-XS" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
-                </div>
-                <div>
-                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">S</label>
-                  <input type="number" id="ss-S" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
-                </div>
-                <div>
-                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">M</label>
-                  <input type="number" id="ss-M" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
-                </div>
-                <div>
-                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">L</label>
-                  <input type="number" id="ss-L" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
-                </div>
-                <div>
-                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XL</label>
-                  <input type="number" id="ss-XL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
-                </div>
-                <div>
-                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">XXL</label>
-                  <input type="number" id="ss-XXL" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
-                </div>
-                <div>
-                  <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">Único</label>
-                  <input type="number" id="ss-Unico" class="form-input" style="text-align: center; padding: 6px;" placeholder="-" min="0">
-                </div>
+              <div id="talles-ss-grid-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); gap: 8px; margin-bottom: 12px;">
+                <!-- Dynamically populated by JS based on configured size variants -->
               </div>
             </div>
 
@@ -2941,7 +2886,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeCreditNoteModal()">Cancelar</button>
-        <button class="btn btn-primary" id="btn-confirm-credit-note" style="background: #f97316; border-color: #ea580c; color: white;" onclick="confirmCreditNote()">Emitir Nota de Crédito</button>
+        <button class="btn btn-primary" id="btn-confirm-credit-note" style="background: #f97316; border-color: #ea580c; color: var(--text-white);" onclick="confirmCreditNote()">Emitir Nota de Crédito</button>
       </div>
     </div>
   </div>

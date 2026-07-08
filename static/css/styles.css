@@ -354,7 +354,7 @@ input[type=number] {
 }
 
 .pos-products-panel {
-  flex: 1 1 450px;
+  flex: 1 1 300px;
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
@@ -517,7 +517,7 @@ input[type=number] {
 
 /* POS Cart / Sidebar */
 .pos-cart-panel {
-  flex: 1 1 320px;
+  flex: 0 0 320px;
   max-width: 100%;
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
