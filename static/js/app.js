@@ -4538,6 +4538,8 @@ function exportInventoryToExcel() {
     }
   });
 
+  const configuredLocations = state.userProfile?.locations || ["Local Principal"];
+
   const formatted = state.products.filter(p => p.sku && 
                                               !p.sku.startsWith("supplier_") && 
                                               !p.sku.startsWith("fixedcost_") && 
@@ -4551,18 +4553,26 @@ function exportInventoryToExcel() {
     .map(p => {
       const price = p.cost * (1 + p.margin / 100);
       const minStock = getProductMinStock(p, salesByProduct);
-      return {
+      
+      const row = {
         SKU: p.sku,
         Nombre: p.name,
         Categoria: p.category,
         Color: p.color,
-        Talle: p.size,
-        "Stock Actual": parseInt(p.stock) || 0,
-        "Unidades de Stock Critico": minStock,
-        CostoTotal: Math.round(p.cost),
-        PrecioVenta: Math.round(price),
-        Margen: p.margin
+        Talle: p.size
       };
+
+      configuredLocations.forEach(loc => {
+        row[`Stock Actual: ${loc}`] = p.locationsStock && p.locationsStock[loc] !== undefined ? parseInt(p.locationsStock[loc]) : 0;
+      });
+
+      row["Stock Total"] = parseInt(p.stock) || 0;
+      row["Unidades de Stock Critico"] = minStock;
+      row.CostoTotal = Math.round(p.cost);
+      row.PrecioVenta = Math.round(price);
+      row.Margen = p.margin;
+
+      return row;
     });
 
   const ws = XLSX.utils.json_to_sheet(formatted);
