@@ -1634,18 +1634,24 @@ function renderPanel() {
 
   // Calcular desglose de canales (Local vs Tiendanube)
   let channelStats = {};
-  (state.userProfile?.salesChannels || ["Local Principal"]).forEach(c => {
+  const configuredChannels = state.userProfile?.salesChannels || ["Local Principal"];
+  const fallbackChannel = configuredChannels[0] || "Local Principal";
+  
+  configuredChannels.forEach(c => {
     channelStats[c] = { revenue: 0, units: 0, cost: 0, fees: 0, revenueNet: 0 };
   });
 
   filteredSales.forEach(sale => {
     const origin = (sale.origin || "").toLowerCase();
-    let channel = sale.channel || "Local Físico";
-    if (origin === "tiendanube") channel = "Tiendanube Online";
+    let channel = sale.channel || fallbackChannel;
     
-    // Si el canal no está en la configuración, lo agregamos temporalmente para no perder la info
-    if (!channelStats[channel]) {
-      channelStats[channel] = { revenue: 0, units: 0, cost: 0, fees: 0, revenueNet: 0 };
+    if (origin === "tiendanube") {
+      const tnChannel = configuredChannels.find(c => c.toLowerCase().includes("tienda"));
+      channel = tnChannel ? tnChannel : fallbackChannel;
+    } else {
+      if (!channelStats[channel]) {
+        channel = fallbackChannel;
+      }
     }
 
     const saleCost = sale.items ? sale.items.reduce((itemSum, item) => {
@@ -1702,11 +1708,11 @@ function renderPanel() {
       channelsBreakdownDiv.style.display = "block";
       channelsContainer.innerHTML = "";
       
-      const keys = Object.keys(channelStats);
+      const keys = configuredChannels;
       keys.forEach(ch => {
-      const stats = channelStats[ch];
+      const stats = channelStats[ch] || { revenue: 0, units: 0, cost: 0, fees: 0, revenueNet: 0 };
       const profit = stats.revenueNet - stats.cost;
-      const isTN = ch === "Tiendanube Online";
+      const isTN = ch.toLowerCase().includes("tienda");
       
       let badge = isTN ? '<span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px;">E-Commerce</span>' : '<span class="badge-blue" style="font-size: 0.65rem; padding: 2px 6px;">Mostrador</span>';
       let icon = isTN ? '☁️' : '🏪';
@@ -1796,16 +1802,28 @@ function renderPanelCharts(filteredSales) {
   const paymentTotals = {};
   let totalSalesForPayments = 0;
   
+  const defaultMethods = [{name: "Efectivo"}, {name: "Débito"}, {name: "Crédito"}, {name: "Transferencia"}, {name: "QR/Billetera"}];
+  const configuredPaymentMethods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
+  const configuredPaymentNames = configuredPaymentMethods.map(m => m.name);
+  const fallbackPaymentName = configuredPaymentNames[0] || "Efectivo";
+
+  // Inicializar todos los medios configurados
+  configuredPaymentNames.forEach(name => {
+    paymentTotals[name] = 0;
+  });
+  
   filteredSales.forEach(sale => {
     const total = sale.total || 0;
     totalSalesForPayments += total;
     if (sale.payments && sale.payments.length > 0) {
       sale.payments.forEach(pay => {
-        const m = pay.method || "Otro";
+        let m = pay.method || fallbackPaymentName;
+        if (!configuredPaymentNames.includes(m)) m = fallbackPaymentName;
         paymentTotals[m] = (paymentTotals[m] || 0) + (parseFloat(pay.amount) || 0);
       });
     } else {
-      const m = sale.method || sale.paymentMethod || "Efectivo";
+      let m = sale.method || sale.paymentMethod || fallbackPaymentName;
+      if (!configuredPaymentNames.includes(m)) m = fallbackPaymentName;
       paymentTotals[m] = (paymentTotals[m] || 0) + total;
     }
   });
@@ -1815,7 +1833,7 @@ function renderPanelCharts(filteredSales) {
     if (totalSalesForPayments === 0) {
       paymentList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.85rem; text-align: center;">No hay datos en este período.</p>`;
     } else {
-      const sortedPayments = Object.entries(paymentTotals).sort((a, b) => b[1] - a[1]);
+      const sortedPayments = Object.entries(paymentTotals).sort((a, b) => b[1] - a[1]).filter(p => p[1] > 0 || configuredPaymentNames.includes(p[0]));
       const colors = ['#0a9396', '#2176ff', '#e5383b', '#ca6702', '#9c89b8', '#005f73'];
       paymentList.innerHTML = sortedPayments.map((pay, index) => {
         const pctStr = ((pay[1] / totalSalesForPayments) * 100).toFixed(1);
