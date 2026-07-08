@@ -983,8 +983,25 @@ function handleExcelImport(event) {
         const priceStr = String(cleanRow["precio de venta"] || "");
         const price = priceStr !== "" ? (parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
         
-        const stockStr = String(cleanRow["stock actual"] || "");
-        const stock = stockStr !== "" ? (parseInt(stockStr.replace(/[^0-9]/g, "")) || 0) : 0;
+        const locationsStock = {};
+        let totalStock = 0;
+        
+        Object.keys(cleanRow).forEach(key => {
+          if (key.startsWith("stock actual:")) {
+            const locName = key.replace("stock actual:", "").trim();
+            const stockVal = parseInt(String(cleanRow[key]).replace(/[^0-9]/g, "")) || 0;
+            locationsStock[locName] = stockVal;
+            totalStock += stockVal;
+          }
+        });
+        
+        if (Object.keys(locationsStock).length === 0) {
+          const stockStr = String(cleanRow["stock actual"] || "");
+          const stockVal = stockStr !== "" ? (parseInt(stockStr.replace(/[^0-9]/g, "")) || 0) : 0;
+          const defaultLoc = (state.userProfile?.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
+          locationsStock[defaultLoc] = stockVal;
+          totalStock = stockVal;
+        }
         
         let size = String(cleanRow["talle"] || "").trim();
         let color = String(cleanRow["variante"] || "").trim();
@@ -1022,10 +1039,17 @@ function handleExcelImport(event) {
           const skuLower = skuVal.toLowerCase().trim();
           const nameClean = cleanCompareText(name);
           
-          if (existingSkus.has(skuLower) || existingNames.has(nameClean)) {
+          let isUpdate = false;
+          let existingProduct = null;
+          
+          if (existingSkus.has(skuLower)) {
+            isUpdate = true;
+            existingProduct = state.products.find(p => p.sku.toLowerCase().trim() === skuLower);
+          } else if (existingNames.has(nameClean)) {
             omittedCount++;
             return;
           }
+          
           if (importedSkusInBatch.has(skuLower)) {
             omittedCount++;
             return;
@@ -1037,22 +1061,29 @@ function handleExcelImport(event) {
             ? (skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal)
             : (skuVal.split("-")[0] || skuVal);
             
-          parsedImportProducts.push({
-            id: Date.now() + Math.random(),
-            baseSku: baseSku,
-            sku: skuVal,
-            name: name,
-            category: category,
-            size: size,
-            color: color,
-            stock: stock,
-            baseCost: cost,
-            margin: Math.round(margin * 10) / 10,
-            cost: cost,
-            leadTime: leadTime,
-            securityStock: securityStock,
-            extras: {}
-          });
+          const prodPayload = existingProduct ? { ...existingProduct } : { id: Date.now() + Math.random(), extras: {} };
+          
+          prodPayload.baseSku = baseSku;
+          prodPayload.sku = skuVal;
+          prodPayload.name = name;
+          prodPayload.category = category;
+          prodPayload.size = size;
+          prodPayload.color = color;
+          prodPayload.stock = totalStock;
+          
+          if (Object.keys(locationsStock).length > 0) {
+            prodPayload.locationsStock = existingProduct && existingProduct.locationsStock 
+              ? { ...existingProduct.locationsStock, ...locationsStock }
+              : locationsStock;
+          }
+          
+          prodPayload.baseCost = cost;
+          prodPayload.margin = Math.round(margin * 10) / 10;
+          prodPayload.cost = cost;
+          if (leadTime !== "") prodPayload.leadTime = leadTime;
+          if (securityStock !== "") prodPayload.securityStock = securityStock;
+          
+          parsedImportProducts.push(prodPayload);
         }
       });
       
@@ -4946,6 +4977,8 @@ function setupStockIntakeForm() {
   const supplierSelect = document.getElementById("intake-supplier-select");
   const dateInput = document.getElementById("intake-date");
   
+  renderIntakeTallesGrid();
+  
   if (!searchInput) return;
   
   // Cargar fecha actual
@@ -4975,9 +5008,9 @@ function setupStockIntakeForm() {
   const inputsToRecalc = [
     "intake-materia-prima", "intake-margin",
     "intake-qty-simple",
-    "intake-qty-XS", "intake-qty-S", "intake-qty-M", "intake-qty-L", "intake-qty-XL", "intake-qty-XXL", "intake-qty-U",
     "intake-estampado-select", "intake-packaging-select", "intake-bordado-select"
   ];
+  getConfiguredSizes().forEach(sz => inputsToRecalc.push(`intake-qty-${sz}`));
   inputsToRecalc.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -5103,7 +5136,7 @@ function toggleIntakeFormType() {
   const qtySimple = document.getElementById("intake-qty-simple");
   if (qtySimple) qtySimple.value = "";
   
-  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'U'].forEach(sz => {
+  getConfiguredSizes().forEach(sz => {
     const el = document.getElementById(`intake-qty-${sz}`);
     if (el) el.value = "";
     const stEl = document.getElementById(`intake-stock-${sz}`);
@@ -5113,8 +5146,21 @@ function toggleIntakeFormType() {
   recalculateIntakeCosts();
 }
 
+function renderIntakeTallesGrid() {
+  const container = document.getElementById("intake-talles-grid-container");
+  if (!container) return;
+  const sizes = getConfiguredSizes();
+  container.innerHTML = sizes.map(sz => `
+    <div>
+      <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">${sz}</span>
+      <input type="number" id="intake-qty-${sz}" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
+      <span id="intake-stock-${sz}" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+    </div>
+  `).join("");
+}
+
 function clearIntakePreviews() {
-  ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'U'].forEach(key => {
+  getConfiguredSizes().forEach(key => {
     const el = document.getElementById(`intake-stock-${key}`);
     if (el) {
       el.style.display = "none";
@@ -5297,7 +5343,7 @@ function getIntakeTotalCostAndQuantity() {
     if (state.businessType === "comercio") {
       totalQuantity = parseInt(document.getElementById("intake-qty-simple").value) || 0;
     } else {
-      const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'U'];
+      const sizes = getConfiguredSizes();
       sizes.forEach(sz => {
         totalQuantity += parseInt(document.getElementById(`intake-qty-${sz}`).value) || 0;
       });
@@ -5614,15 +5660,10 @@ async function handleStockIntakeSubmit(e) {
     const qty = parseInt(document.getElementById("intake-qty-simple").value) || 0;
     sizesInput = { 'Único': qty };
   } else {
-    sizesInput = {
-      'XS': parseInt(document.getElementById("intake-qty-XS").value) || 0,
-      'S': parseInt(document.getElementById("intake-qty-S").value) || 0,
-      'M': parseInt(document.getElementById("intake-qty-M").value) || 0,
-      'L': parseInt(document.getElementById("intake-qty-L").value) || 0,
-      'XL': parseInt(document.getElementById("intake-qty-XL").value) || 0,
-      'XXL': parseInt(document.getElementById("intake-qty-XXL").value) || 0,
-      'Único': parseInt(document.getElementById("intake-qty-U").value) || 0
-    };
+    sizesInput = {};
+    getConfiguredSizes().forEach(sz => {
+      sizesInput[sz] = parseInt(document.getElementById(`intake-qty-${sz}`).value) || 0;
+    });
   }
   
   const sizesToUpdate = Object.entries(sizesInput).filter(([_, qty]) => qty > 0);
