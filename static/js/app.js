@@ -1680,7 +1680,7 @@ function renderPanel() {
   });
 
   filteredSales.forEach(sale => {
-    const origin = (sale.origin || "").toLowerCase();
+    const origin = (sale.origen || sale.origin || "").toLowerCase();
     let channel = sale.channel || fallbackChannel;
     
     if (origin === "tiendanube") {
@@ -1845,6 +1845,39 @@ function renderPanelCharts(filteredSales) {
   const configuredPaymentNames = configuredPaymentMethods.map(m => m.name);
   const fallbackPaymentName = configuredPaymentNames[0] || "Efectivo";
 
+  function resolvePaymentMethodName(rawMethod, configuredNames, fallback) {
+    if (!rawMethod) return fallback;
+    const mClean = rawMethod.toLowerCase().trim();
+    
+    const exactMatch = configuredNames.find(name => name.toLowerCase().trim() === mClean);
+    if (exactMatch) return exactMatch;
+    
+    let translated = rawMethod;
+    if (mClean === "credit_card" || mClean === "credit" || mClean.includes("crédito") || mClean.includes("credito")) {
+      translated = "Crédito";
+    } else if (mClean === "debit_card" || mClean === "debit" || mClean.includes("débito") || mClean.includes("debito")) {
+      translated = "Tarjeta de Debito";
+    } else if (mClean === "transfer" || mClean === "wire_transfer" || mClean.includes("transfer") || mClean.includes("depósito") || mClean.includes("deposito")) {
+      translated = "Transferencia";
+    } else if (mClean === "cash" || mClean === "efectivo") {
+      translated = "Efectivo";
+    } else if (mClean === "mercadopago" || mClean.includes("mercado") || mClean.includes("pago") || mClean.includes("mp")) {
+      translated = "Mercado Pago";
+    }
+    
+    const matchedName = configuredNames.find(name => {
+      const nClean = name.toLowerCase().trim();
+      const tClean = translated.toLowerCase().trim();
+      return nClean.includes(tClean) || tClean.includes(nClean);
+    });
+    if (matchedName) return matchedName;
+    
+    const fallbackMatch = configuredNames.find(name => name.toLowerCase().trim().includes(mClean) || mClean.includes(name.toLowerCase().trim()));
+    if (fallbackMatch) return fallbackMatch;
+    
+    return fallback;
+  }
+
   // Inicializar todos los medios configurados
   configuredPaymentNames.forEach(name => {
     paymentTotals[name] = 0;
@@ -1855,13 +1888,12 @@ function renderPanelCharts(filteredSales) {
     totalSalesForPayments += total;
     if (sale.payments && sale.payments.length > 0) {
       sale.payments.forEach(pay => {
-        let m = pay.method || fallbackPaymentName;
-        if (!configuredPaymentNames.includes(m)) m = fallbackPaymentName;
+        let m = resolvePaymentMethodName(pay.method, configuredPaymentNames, fallbackPaymentName);
         paymentTotals[m] = (paymentTotals[m] || 0) + (parseFloat(pay.amount) || 0);
       });
     } else {
-      let m = sale.method || sale.paymentMethod || fallbackPaymentName;
-      if (!configuredPaymentNames.includes(m)) m = fallbackPaymentName;
+      let rawM = sale.method || sale.paymentMethod;
+      let m = resolvePaymentMethodName(rawM, configuredPaymentNames, fallbackPaymentName);
       paymentTotals[m] = (paymentTotals[m] || 0) + total;
     }
   });
