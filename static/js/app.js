@@ -8258,6 +8258,9 @@ async function renderIntegrationsStatus() {
     // Ordenar de más nueva a más vieja
     tnSales.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    // Filter paid sales for metrics calculation
+    const paidTnSales = tnSales.filter(s => s.payment_status === undefined || s.payment_status === "paid");
+
     let tnGross = 0;
     let tnFees = 0;
     let tnNet = 0;
@@ -8298,15 +8301,20 @@ async function renderIntegrationsStatus() {
         
         const unitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
         saleOpCost += unitCost * qty;
-        tnUnits += qty;
       });
 
-      tnOperatingCosts += saleOpCost;
       const sNet = grossVal - sFees - saleOpCost;
       
-      tnGross += grossVal;
-      tnFees += sFees;
-      tnNet += sNet;
+      const isPaid = s.payment_status === undefined || s.payment_status === "paid";
+      if (isPaid) {
+        tnGross += grossVal;
+        tnFees += sFees;
+        tnNet += sNet;
+        tnOperatingCosts += saleOpCost;
+        items.forEach(it => {
+          tnUnits += parseInt(it.quantity) || 0;
+        });
+      }
       
       const formattedDate = new Date(s.date).toLocaleDateString("es-AR", {
         day: "2-digit",
@@ -8363,7 +8371,7 @@ async function renderIntegrationsStatus() {
     const tnReportNetEl = document.getElementById("tn-report-net");
     if (tnReportNetEl) tnReportNetEl.innerText = `$ ${Math.round(tnNet).toLocaleString()}`;
 
-    const tnTicket = tnSales.length > 0 ? (tnGross / tnSales.length) : 0;
+    const tnTicket = paidTnSales.length > 0 ? (tnGross / paidTnSales.length) : 0;
     const tnReportTicketEl = document.getElementById("tn-report-ticket");
     if (tnReportTicketEl) tnReportTicketEl.innerText = `$ ${Math.round(tnTicket).toLocaleString()}`;
 
@@ -8383,7 +8391,7 @@ async function renderIntegrationsStatus() {
     };
     let tnTotalSalesForPayments = 0;
 
-    tnSales.forEach(s => {
+    paidTnSales.forEach(s => {
       const total = s.total || 0;
       tnTotalSalesForPayments += total;
       

@@ -2716,7 +2716,8 @@ def sync_tiendanube_orders_route():
                 "origen": "tiendanube",
                 "fee_fijo_tn": fee_fijo,
                 "comision_pasarela_pago": comision,
-                "total_neto": total_neto
+                "total_neto": total_neto,
+                "payment_status": order.get("payment_status", "pending")
             }
             
             doc_id_with_prefix = f"{prefix}TN-{order_id}"
