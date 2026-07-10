@@ -4615,16 +4615,14 @@ function exportInventoryToExcel() {
 
   // Sort alphabetically by Name, and then by SKU
   filteredProducts.sort((a, b) => {
-    const nameA = (a.name || "").toLowerCase().trim();
-    const nameB = (b.name || "").toLowerCase().trim();
-    if (nameA < nameB) return -1;
-    if (nameA > nameB) return 1;
+    const nameA = (a.name || "").trim();
+    const nameB = (b.name || "").trim();
+    const comp = nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    if (comp !== 0) return comp;
     
-    const skuA = (a.sku || "").toLowerCase().trim();
-    const skuB = (b.sku || "").toLowerCase().trim();
-    if (skuA < skuB) return -1;
-    if (skuA > skuB) return 1;
-    return 0;
+    const skuA = (a.sku || "").trim();
+    const skuB = (b.sku || "").trim();
+    return skuA.localeCompare(skuB, 'es', { sensitivity: 'base' });
   });
 
   const formatted = filteredProducts.map(p => {

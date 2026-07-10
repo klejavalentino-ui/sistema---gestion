@@ -1769,6 +1769,36 @@ def get_sales():
         
     try:
         sales = firebase_config.list_documents("sales", token)
+        
+        # Self-healing for lost AFIP/ARCA data on Tiendanube synced sales
+        try:
+            invoices = firebase_config.list_documents("invoices", token)
+            # Map invoices by sale_id
+            invoices_by_sale_id = {}
+            for inv in invoices:
+                s_id = inv.get("sale_id")
+                if s_id:
+                    invoices_by_sale_id[str(s_id)] = inv
+            
+            updated_sales = False
+            for sale in sales:
+                doc_id = sale.get("id", "")
+                if doc_id.startswith(prefix):
+                    clean_id = doc_id[len(prefix):]
+                    # If this sale has a matching invoice but missing arca_invoice_id, restore it
+                    if clean_id in invoices_by_sale_id and not sale.get("arca_invoice_id"):
+                        inv = invoices_by_sale_id[clean_id]
+                        sale["arca_invoice_id"] = inv.get("invoice_number")
+                        sale["arca_cae"] = inv.get("cae")
+                        sale["arca_cae_due"] = inv.get("cae_due")
+                        sale["fiscal_status"] = "declarada"
+                        firebase_config.set_document("sales", doc_id, sale, token)
+                        updated_sales = True
+            if updated_sales:
+                sales = firebase_config.list_documents("sales", token)
+        except Exception as heal_err:
+            print(f"[AFIP SELF-HEALING ERROR] {heal_err}")
+            
         user_sales = filter_user_docs(sales, prefix)
         return jsonify(user_sales)
     except Exception as e:
@@ -2585,13 +2615,13 @@ def sync_tiendanube_orders_route():
                 clean_sku = doc_id[len(prefix):].upper()
                 products_by_sku[clean_sku] = p
 
-        # Fetch existing sales to count only new ones imported
+        # Fetch existing sales to count only new ones imported and merge existing fields
         sales_list = firebase_config.list_documents("sales", token)
-        existing_sale_ids = set()
+        existing_sales_by_id = {}
         for s in sales_list:
             doc_id = s.get("id", "")
             if doc_id.startswith(f"{prefix}TN-"):
-                existing_sale_ids.add(doc_id)
+                existing_sales_by_id[doc_id] = s
 
         fee_fijo = safe_float(config.get("fee_fijo_tn", 300.0))
         comision = safe_float(config.get("comision_pasarela_pago", 5.0))
@@ -2690,7 +2720,13 @@ def sync_tiendanube_orders_route():
             }
             
             doc_id_with_prefix = f"{prefix}TN-{order_id}"
-            if doc_id_with_prefix not in existing_sale_ids:
+            existing_sale = existing_sales_by_id.get(doc_id_with_prefix)
+            
+            if existing_sale:
+                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status"]:
+                    if k in existing_sale:
+                        sale_data[k] = existing_sale[k]
+            else:
                 new_sales_count += 1
                 
             firebase_config.set_document("sales", doc_id_with_prefix, sale_data, token)
