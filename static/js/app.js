@@ -4602,7 +4602,7 @@ function exportInventoryToExcel() {
 
   const configuredLocations = state.userProfile?.locations || ["Local Principal"];
 
-  const formatted = state.products.filter(p => p.sku && 
+  const filteredProducts = state.products.filter(p => p.sku && 
                                               !p.sku.startsWith("supplier_") && 
                                               !p.sku.startsWith("fixedcost_") && 
                                               !p.sku.startsWith("account_") && 
@@ -4611,8 +4611,23 @@ function exportInventoryToExcel() {
                                               !p.sku.startsWith("marketingexpense_") && 
                                               !p.sku.startsWith("stockintake_") && 
                                               p.sku !== "extras_config" && 
-                                              p.sku !== "categories_config")
-    .map(p => {
+                                              p.sku !== "categories_config");
+
+  // Sort alphabetically by Name, and then by SKU
+  filteredProducts.sort((a, b) => {
+    const nameA = (a.name || "").toLowerCase().trim();
+    const nameB = (b.name || "").toLowerCase().trim();
+    if (nameA < nameB) return -1;
+    if (nameA > nameB) return 1;
+    
+    const skuA = (a.sku || "").toLowerCase().trim();
+    const skuB = (b.sku || "").toLowerCase().trim();
+    if (skuA < skuB) return -1;
+    if (skuA > skuB) return 1;
+    return 0;
+  });
+
+  const formatted = filteredProducts.map(p => {
       const price = p.cost * (1 + p.margin / 100);
       const minStock = getProductMinStock(p, salesByProduct);
       
