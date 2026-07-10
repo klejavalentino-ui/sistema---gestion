@@ -1,0 +1,10 @@
+{
+  "projectId": "datamargen",
+  "appId": "1:293537830246:web:73484f4f5e315c876464a7",
+  "apiKey": "AIzaSyDEF951QOsOJSuPZAAgAZJOzAwbLyO85Ro",
+  "authDomain": "datamargen.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "datamargen.firebasestorage.app",
+  "messagingSenderId": "293537830246",
+  "measurementId": "G-GJK8926CW9"
+}

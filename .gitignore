@@ -1,5 +1,4 @@
 # Local credentials (secret config)
-firebase-applet-config.json
 
 # Python cache
 __pycache__/
