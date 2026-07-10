@@ -1883,7 +1883,12 @@ function renderPanelCharts(filteredSales) {
     paymentTotals[name] = 0;
   });
   
-  filteredSales.forEach(sale => {
+  const nonTnSales = filteredSales.filter(sale => {
+    const origin = (sale.origen || sale.origin || "").toLowerCase();
+    return origin !== "tiendanube";
+  });
+
+  nonTnSales.forEach(sale => {
     const total = sale.total || 0;
     totalSalesForPayments += total;
     if (sale.payments && sale.payments.length > 0) {
