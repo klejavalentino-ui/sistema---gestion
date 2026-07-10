@@ -2255,7 +2255,7 @@ def sync_tiendanube_catalog_route():
         tn_categories = {}
         cat_page = 1
         while True:
-            cat_url = f"https://api.tiendanube.com/v1/{user_id}/categories?page={cat_page}&limit=100"
+            cat_url = f"https://api.tiendanube.com/v1/{user_id}/categories?page={cat_page}&per_page=100"
             cat_r = requests.get(cat_url, headers=headers, timeout=30)
             if not cat_r.ok:
                 print(f"[CATEGORY SYNC] Failed to fetch categories: {cat_r.text}")
@@ -2286,7 +2286,7 @@ def sync_tiendanube_catalog_route():
         all_tn_products = []
         page = 1
         while True:
-            url = f"https://api.tiendanube.com/v1/{user_id}/products?page={page}&limit=100"
+            url = f"https://api.tiendanube.com/v1/{user_id}/products?page={page}&per_page=100"
             r = requests.get(url, headers=headers, timeout=30)
             if not r.ok:
                 return jsonify({"error": f"Error de Tiendanube API: {r.text}"}), 400
@@ -2554,7 +2554,7 @@ def sync_tiendanube_orders_route():
         all_orders = []
         page = 1
         while True:
-            url = f"https://api.tiendanube.com/v1/{user_id}/orders?page={page}&limit=100"
+            url = f"https://api.tiendanube.com/v1/{user_id}/orders?page={page}&per_page=100"
             r = requests.get(url, headers=headers, timeout=30)
             if not r.ok:
                 return jsonify({"error": f"Error de Tiendanube API: {r.text}"}), 400
