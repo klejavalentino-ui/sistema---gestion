@@ -3537,6 +3537,7 @@ def update_business_settings():
         if "printSettings" in data: doc["printSettings"] = data["printSettings"]
         if "bizCheckboxes" in data: doc["bizCheckboxes"] = data["bizCheckboxes"]
         if "paymentMethods" in data: doc["paymentMethods"] = data["paymentMethods"]
+        if "sizeVariants" in data: doc["sizeVariants"] = data["sizeVariants"]
         
         firebase_config.set_document("products", f"{prefix}user_profile", doc, token)
         return jsonify({"success": True, "userProfile": doc})
