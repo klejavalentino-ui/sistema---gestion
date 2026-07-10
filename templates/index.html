@@ -1201,11 +1201,30 @@
                 </div>
               </div>
 
-              <!-- Gráfico de Evolución Online -->
-              <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-                <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">📈 Evolución de Ventas Online</p>
-                <div style="position: relative; height: 160px; width: 100%;">
-                  <canvas id="chart-tiendanube-evolution"></canvas>
+              <!-- Reporte Detallado de Ventas Online -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                <!-- Card 1: Top 5 Productos -->
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px;">
+                  <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">👕 Top 5 Productos (Unidades)</p>
+                  <div id="tn-top-products-list" style="font-size: 0.8rem; color: var(--text-gray-light);">
+                    <!-- Dinámico -->
+                  </div>
+                </div>
+
+                <!-- Card 2: Top 5 Categorías -->
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px;">
+                  <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">🏷️ Top 5 Categorías</p>
+                  <div id="tn-top-categories-list" style="font-size: 0.8rem; color: var(--text-gray-light);">
+                    <!-- Dinámico -->
+                  </div>
+                </div>
+
+                <!-- Card 3: Medios de Pago -->
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px;">
+                  <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">💳 Medios de Pago Tiendanube</p>
+                  <div id="tn-payment-methods-list" style="font-size: 0.8rem; color: var(--text-gray-light);">
+                    <!-- Dinámico -->
+                  </div>
                 </div>
               </div>
 
@@ -3031,6 +3050,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="/static/js/app.js?v=1.2.9"></script>
+  <script src="/static/js/app.js?v=1.3.0"></script>
 </body>
 </html>

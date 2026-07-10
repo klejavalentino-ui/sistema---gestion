@@ -8323,16 +8323,18 @@ async function renderIntegrationsStatus() {
         return `<span style="color: var(--text-gray); font-size: 0.7rem;">${it.quantity} un. x ${p.name || 'Prenda'}${sizeText}${colorText}</span>`;
       }).join("<br>");
 
+      const isFacturada = s.fiscal_status === 'declarada' || s.arca_cae || s.arca_invoice_id;
+      const statusBadge = isFacturada 
+        ? `<span class="badge-green" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.1);">Facturada</span>`
+        : `<span class="badge-gray" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(148, 163, 184, 0.2); background: rgba(148, 163, 184, 0.05);">No Declarada</span>`;
+
       tnSalesHTML += `
         <div style="border-bottom: 1px solid rgba(255,255,255,0.03); padding: 8px 0;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
               <strong style="color: var(--text-white);">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
               <span style="margin-left: 8px;">
-                <select class="form-input" style="width: auto; padding: 2px 4px; font-size: 0.65rem; height: auto; display: inline-block; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white); cursor: pointer;" onchange="changeSaleFiscalStatus('${s.id}', this.value)">
-                  <option value="no_declarada" ${(s.fiscal_status === 'no_declarada' || !s.fiscal_status) && !s.arca_cae && !s.arca_invoice_id ? 'selected' : ''}>No Declarada</option>
-                  <option value="declarada" ${s.fiscal_status === 'declarada' || s.arca_cae || s.arca_invoice_id ? 'selected' : ''}>Facturada</option>
-                </select>
+                ${statusBadge}
               </span>
             </div>
             <div style="text-align: right;">
@@ -8371,51 +8373,113 @@ async function renderIntegrationsStatus() {
     const tnSalesLogEl = document.getElementById("tn-sales-log");
     if (tnSalesLogEl) tnSalesLogEl.innerHTML = tnSalesHTML;
 
-    // Renderizar gráfico de evolución online (líneas)
-    const evolutionCtx = document.getElementById("chart-tiendanube-evolution");
-    if (evolutionCtx) {
-      const salesMap = {};
-      ["Sem 1", "Sem 2", "Sem 3", "Sem 4", "Sem 5"].forEach(w => salesMap[w] = 0);
+    // Renderizar métricas detalladas online (Top 5 Productos, Top 5 Categorías, Medios de Pago)
+    const tnProductCounts = {};
+    const tnCategoryCounts = {};
+    const tnPaymentTotals = {
+      "Pago Nube": 0,
+      "Mercado Pago": 0,
+      "Personalizado": 0
+    };
+    let tnTotalSalesForPayments = 0;
+
+    tnSales.forEach(s => {
+      const total = s.total || 0;
+      tnTotalSalesForPayments += total;
       
-      tnSales.forEach(s => {
-        const day = new Date(s.date).getDate();
-        const weekIndex = Math.min(Math.floor((day - 1) / 7), 4);
-        salesMap[`Sem ${weekIndex + 1}`] += s.total || 0;
-      });
-
-      const evolutionLabels = Object.keys(salesMap);
-      const evolutionData = Object.values(salesMap);
-
-      if (state.tiendanubeEvolutionChart) {
-        state.tiendanubeEvolutionChart.destroy();
+      // 1. Productos y Categorías
+      if (s.items) {
+        s.items.forEach(item => {
+          const p = item.product || {};
+          const label = p.name || "Producto sin nombre";
+          const cat = p.category || "General";
+          const qty = parseInt(item.quantity) || 0;
+          
+          tnProductCounts[label] = tnProductCounts[label] || { label: label, units: 0 };
+          tnProductCounts[label].units += qty;
+          
+          tnCategoryCounts[cat] = tnCategoryCounts[cat] || { label: cat, units: 0 };
+          tnCategoryCounts[cat].units += qty;
+        });
       }
       
-      state.tiendanubeEvolutionChart = new Chart(evolutionCtx.getContext("2d"), {
-        type: 'line',
-        data: {
-          labels: evolutionLabels,
-          datasets: [{
-            label: 'Ventas Online ($)',
-            data: evolutionData,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.05)',
-            borderWidth: 2,
-            tension: 0.3,
-            fill: true,
-            pointBackgroundColor: '#3b82f6',
-            pointRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-            y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
-          }
-        }
-      });
+      // 2. Medios de pago
+      let rawM = (s.method || s.paymentMethod || "").toLowerCase().trim();
+      if (rawM.includes("pagonube") || rawM.includes("pago nube")) {
+        tnPaymentTotals["Pago Nube"] += total;
+      } else if (rawM.includes("mercadopago") || rawM.includes("mercado pago") || rawM.includes("mp")) {
+        tnPaymentTotals["Mercado Pago"] += total;
+      } else {
+        tnPaymentTotals["Personalizado"] += total;
+      }
+    });
+
+    // Top 5 Productos en pantalla
+    const tnSortedProducts = Object.values(tnProductCounts).sort((a, b) => b.units - a.units).slice(0, 5);
+    const tnTopProductsList = document.getElementById("tn-top-products-list");
+    if (tnTopProductsList) {
+      if (tnSortedProducts.length === 0) {
+        tnTopProductsList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.8rem; text-align: center; margin-top: 20px;">No hay datos en este período.</p>`;
+      } else {
+        tnTopProductsList.innerHTML = tnSortedProducts.map((p, idx) => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03);">
+            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
+              <span style="font-weight: 800; color: var(--accent-red); font-size: 0.85rem;">#${idx + 1}</span>
+              <span style="font-weight: 600; color: var(--text-white); font-size: 0.75rem;">${p.label}</span>
+            </div>
+            <span style="font-weight: 700; color: var(--text-gray-light); font-size: 0.75rem;">${p.units} u.</span>
+          </div>
+        `).join("");
+      }
+    }
+
+    // Top 5 Categorías en pantalla
+    const tnSortedCategories = Object.values(tnCategoryCounts).sort((a, b) => b.units - a.units).slice(0, 5);
+    const tnTopCategoriesList = document.getElementById("tn-top-categories-list");
+    if (tnTopCategoriesList) {
+      if (tnSortedCategories.length === 0) {
+        tnTopCategoriesList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.8rem; text-align: center; margin-top: 20px;">No hay datos en este período.</p>`;
+      } else {
+        tnTopCategoriesList.innerHTML = tnSortedCategories.map((c, idx) => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 800; color: var(--accent-blue); font-size: 0.85rem;">#${idx + 1}</span>
+              <span style="font-weight: 600; color: var(--text-white); font-size: 0.75rem;">${c.label}</span>
+            </div>
+            <span style="font-weight: 700; color: var(--text-gray-light); font-size: 0.75rem;">${c.units} u.</span>
+          </div>
+        `).join("");
+      }
+    }
+
+    // Medios de pago en pantalla
+    const tnPaymentMethodsList = document.getElementById("tn-payment-methods-list");
+    if (tnPaymentMethodsList) {
+      if (tnTotalSalesForPayments === 0) {
+        tnPaymentMethodsList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.8rem; text-align: center; margin-top: 20px;">No hay datos en este período.</p>`;
+      } else {
+        const sortedTNPayments = Object.entries(tnPaymentTotals).sort((a, b) => b[1] - a[1]);
+        const colors = ['#0a9396', '#2176ff', '#ca6702'];
+        tnPaymentMethodsList.innerHTML = sortedTNPayments.map((pay, index) => {
+          const pctStr = ((pay[1] / tnTotalSalesForPayments) * 100).toFixed(1);
+          const pct = Math.min(100, Math.max(0, parseFloat(pctStr)));
+          const color = colors[index % colors.length];
+          return `
+            <div style="margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 0.75rem; color: var(--text-white); font-weight: 500;">${pay[0]}</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 0.65rem; color: var(--text-gray);">$${Math.round(pay[1]).toLocaleString()}</span>
+                  <span style="font-size: 0.75rem; color: var(--text-white); font-weight: 600;">${pctStr}%</span>
+                </div>
+              </div>
+              <div style="width: 100%; background-color: rgba(255,255,255,0.05); border-radius: 4px; height: 6px; overflow: hidden;">
+                <div style="width: ${pct}%; background-color: ${color}; height: 100%; border-radius: 4px;"></div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
     }
 
     // Renderizar ARCA Config
