@@ -13,29 +13,29 @@ from cryptography.x509 import load_pem_x509_certificate
 
 fb_config = None
 
-# 1. Intentar cargar desde variables de entorno (producción en Render)
-env_config = os.environ.get("FIREBASE_CONFIG")
-if env_config:
-    try:
-        fb_config = json.loads(env_config)
-    except Exception as e:
-        print(f"Error parseando la variable de entorno FIREBASE_CONFIG: {e}")
+# 1. Intentar cargar desde el archivo de configuración local primero
+possible_paths = [
+    os.path.join(os.path.dirname(__file__), 'mazo', 'firebase-applet-config.json'),
+    os.path.join(os.path.dirname(__file__), 'firebase-applet-config.json'),
+    'firebase-applet-config.json'
+]
+for path in possible_paths:
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                fb_config = json.load(f)
+            break
+        except Exception as e:
+            print(f"Error cargando {path}: {e}")
 
-# 2. Si no está en las variables de entorno, buscar el archivo de configuración local
+# 2. Si no está en el archivo local, buscar en las variables de entorno (Render)
 if not fb_config:
-    possible_paths = [
-        os.path.join(os.path.dirname(__file__), 'mazo', 'firebase-applet-config.json'),
-        os.path.join(os.path.dirname(__file__), 'firebase-applet-config.json'),
-        'firebase-applet-config.json'
-    ]
-    for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    fb_config = json.load(f)
-                break
-            except Exception as e:
-                print(f"Error cargando {path}: {e}")
+    env_config = os.environ.get("FIREBASE_CONFIG")
+    if env_config:
+        try:
+            fb_config = json.loads(env_config)
+        except Exception as e:
+            print(f"Error parseando la variable de entorno FIREBASE_CONFIG: {e}")
 
 if not fb_config:
     raise FileNotFoundError("No se encontró la configuración de Firebase (definir FIREBASE_CONFIG o crear 'firebase-applet-config.json').")
