@@ -2633,8 +2633,13 @@ def sync_tiendanube_orders_route():
                 continue
             order_id = str(order.get("id"))
             
-            raw_gateway = str(order.get("gateway", "")).lower().strip()
-            raw_method = str(order.get("payment_details", {}).get("method", "")).lower().strip()
+            raw_gateway = str(order.get("gateway") or "").lower().strip()
+            
+            payment_details = order.get("payment_details") or {}
+            if isinstance(payment_details, dict):
+                raw_method = str(payment_details.get("method") or "").lower().strip()
+            else:
+                raw_method = ""
             
             resolved_method = "Personalizado"
             if "pagonube" in raw_gateway or "pago_nube" in raw_gateway:

@@ -8264,7 +8264,7 @@ async function renderIntegrationsStatus() {
     tnSales.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // Filter paid sales for metrics calculation
-    const paidTnSales = tnSales.filter(s => s.payment_status === undefined || s.payment_status === "paid");
+    const paidTnSales = tnSales.filter(s => s.payment_status === "paid" || s.payment_status === "authorized");
 
     let tnGross = 0;
     let tnFees = 0;
@@ -8310,7 +8310,7 @@ async function renderIntegrationsStatus() {
 
       const sNet = grossVal - sFees - saleOpCost;
       
-      const isPaid = s.payment_status === undefined || s.payment_status === "paid";
+      const isPaid = s.payment_status === "paid" || s.payment_status === "authorized";
       if (isPaid) {
         tnGross += grossVal;
         tnFees += sFees;
