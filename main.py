@@ -2633,9 +2633,30 @@ def sync_tiendanube_orders_route():
                 continue
             order_id = str(order.get("id"))
             
-            gateway = order.get("payment_details", {}).get("method", "Tiendanube")
-            if not gateway:
-                gateway = "Tiendanube"
+            raw_gateway = str(order.get("gateway", "")).lower().strip()
+            raw_method = str(order.get("payment_details", {}).get("method", "")).lower().strip()
+            
+            resolved_method = "Personalizado"
+            if "pagonube" in raw_gateway or "pago_nube" in raw_gateway:
+                if "transfer" in raw_method or "bank" in raw_method:
+                    resolved_method = "Pago Nube - Transferencia"
+                elif "wallet" in raw_method or "billetera" in raw_method:
+                    resolved_method = "Pago Nube - Billetera Virtual"
+                else:
+                    resolved_method = "Pago Nube - Tarjeta"
+            elif "mercadopago" in raw_gateway or "mercado_pago" in raw_gateway:
+                resolved_method = "Mercado Pago"
+            elif "custom" in raw_gateway or "personalizado" in raw_gateway:
+                resolved_method = "Personalizado"
+            else:
+                payment_name = str(order.get("payment_name", "")).lower()
+                if "mercado" in raw_gateway or "mercado" in payment_name:
+                    resolved_method = "Mercado Pago"
+                elif "pago" in raw_gateway or "pagonube" in payment_name:
+                    resolved_method = "Pago Nube - Tarjeta"
+                else:
+                    resolved_method = "Personalizado"
+            gateway = resolved_method
                 
             created_at = order.get("created_at")
             total_price = safe_float(order.get("total"))

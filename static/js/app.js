@@ -8390,7 +8390,9 @@ async function renderIntegrationsStatus() {
     const tnProductCounts = {};
     const tnCategoryCounts = {};
     const tnPaymentTotals = {
-      "Pago Nube": 0,
+      "Pago Nube - Tarjeta": 0,
+      "Pago Nube - Billetera Virtual": 0,
+      "Pago Nube - Transferencia": 0,
       "Mercado Pago": 0,
       "Personalizado": 0
     };
@@ -8417,13 +8419,26 @@ async function renderIntegrationsStatus() {
       }
       
       // 2. Medios de pago
-      let rawM = (s.method || s.paymentMethod || "").toLowerCase().trim();
-      if (rawM.includes("pagonube") || rawM.includes("pago nube")) {
-        tnPaymentTotals["Pago Nube"] += total;
-      } else if (rawM.includes("mercadopago") || rawM.includes("mercado pago") || rawM.includes("mp")) {
-        tnPaymentTotals["Mercado Pago"] += total;
+      let m = s.method || "Personalizado";
+      if (tnPaymentTotals[m] !== undefined) {
+        tnPaymentTotals[m] += total;
       } else {
-        tnPaymentTotals["Personalizado"] += total;
+        let mLower = m.toLowerCase();
+        if (mLower.includes("tarjeta") || mLower.includes("card") || mLower.includes("débito") || mLower.includes("crédito")) {
+          tnPaymentTotals["Pago Nube - Tarjeta"] += total;
+        } else if (mLower.includes("billetera") || mLower.includes("wallet")) {
+          tnPaymentTotals["Pago Nube - Billetera Virtual"] += total;
+        } else if (mLower.includes("transferencia")) {
+          if (mLower.includes("nube")) {
+            tnPaymentTotals["Pago Nube - Transferencia"] += total;
+          } else {
+            tnPaymentTotals["Personalizado"] += total;
+          }
+        } else if (mLower.includes("mercadopago") || mLower.includes("mercado pago") || mLower.includes("mp")) {
+          tnPaymentTotals["Mercado Pago"] += total;
+        } else {
+          tnPaymentTotals["Personalizado"] += total;
+        }
       }
     });
 
@@ -8472,7 +8487,7 @@ async function renderIntegrationsStatus() {
         tnPaymentMethodsList.innerHTML = `<p style="color: var(--text-gray); font-size: 0.8rem; text-align: center; margin-top: 20px;">No hay datos en este período.</p>`;
       } else {
         const sortedTNPayments = Object.entries(tnPaymentTotals).sort((a, b) => b[1] - a[1]);
-        const colors = ['#0a9396', '#2176ff', '#ca6702'];
+        const colors = ['#0a9396', '#2176ff', '#4ea8de', '#e5383b', '#ca6702'];
         tnPaymentMethodsList.innerHTML = sortedTNPayments.map((pay, index) => {
           const pctStr = ((pay[1] / tnTotalSalesForPayments) * 100).toFixed(1);
           const pct = Math.min(100, Math.max(0, parseFloat(pctStr)));
