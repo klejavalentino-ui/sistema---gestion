@@ -8380,6 +8380,9 @@ async function renderIntegrationsStatus() {
     const tnReportTicketEl = document.getElementById("tn-report-ticket");
     if (tnReportTicketEl) tnReportTicketEl.innerText = `$ ${Math.round(tnTicket).toLocaleString()}`;
 
+    const tnReportOrdersEl = document.getElementById("tn-report-orders");
+    if (tnReportOrdersEl) tnReportOrdersEl.innerText = `${paidTnSales.length}`;
+
     const tnReportUnitsEl = document.getElementById("tn-report-units");
     if (tnReportUnitsEl) tnReportUnitsEl.innerText = `${tnUnits} u.`;
     
