@@ -32,7 +32,7 @@ def handle_error(e):
     return jsonify({"error": str(e)}), 500
 
 def send_admin_email(subject, body):
-    sender = "datamargen.ss@gmail.com"
+    sender = "datamargen@gmail.com"
     pwd = os.environ.get("SMTP_PASSWORD", "")
     if not pwd:
         print("Advertencia: SMTP_PASSWORD no configurada. No se pudo enviar el correo.")
@@ -283,6 +283,10 @@ def sync_stock_to_tiendanube(uid, items, token=None, db_client=None, prefix=None
 @app.route("/")
 def index():
     return render_template("index.html")
+
+@app.route("/favicon.ico")
+def favicon():
+    return "", 204
 
 # --- Rutas de Autenticación ---
 

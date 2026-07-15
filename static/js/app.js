@@ -1240,7 +1240,9 @@ async function initApp() {
     await refreshState();
     switchTab("panel");
   } catch (error) {
-    showToast(error.message, true);
+    if (error.message !== "Sesión expirada.") {
+      showToast(error.message, true);
+    }
   }
 }
 
@@ -1427,15 +1429,19 @@ async function refreshState() {
       }, 3000);
     }
   } catch (error) {
-    console.error("Error loading states:", error);
     if (error.message !== "Sesión expirada.") {
+      console.error("Error loading states:", error);
       showToast("Error al sincronizar con la base de datos", true);
+    } else {
+      throw error;
     }
   } finally {
-    // Inicializar formulario de ingreso de stock cada vez que se refresca el estado
-    setupStockIntakeForm();
-    checkBusinessNameSetup();
-    renderAll();
+    if (state.token) {
+      // Inicializar formulario de ingreso de stock cada vez que se refresca el estado
+      setupStockIntakeForm();
+      checkBusinessNameSetup();
+      renderAll();
+    }
   }
 }
 
