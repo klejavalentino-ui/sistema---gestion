@@ -174,7 +174,8 @@ def send_verification_email(id_token):
         "requestType": "VERIFY_EMAIL",
         "idToken": id_token
     }
-    r = _session.post(url, json=payload, timeout=30)
+    headers = {"x-firebase-locale": "es"}
+    r = _session.post(url, json=payload, headers=headers, timeout=30)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de verificación.")
         raise Exception(error_msg)
@@ -186,7 +187,8 @@ def send_password_reset_email(email):
         "requestType": "PASSWORD_RESET",
         "email": email
     }
-    r = _session.post(url, json=payload, timeout=30)
+    headers = {"x-firebase-locale": "es"}
+    r = _session.post(url, json=payload, headers=headers, timeout=30)
     if not r.ok:
         error_msg = r.json().get("error", {}).get("message", "Error al enviar el correo de restablecimiento de contraseña.")
         raise Exception(error_msg)

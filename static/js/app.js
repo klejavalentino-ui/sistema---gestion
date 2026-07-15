@@ -1396,13 +1396,13 @@ async function refreshState() {
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
       if (item.id === "sidebar-tiendanube-item") {
-        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
+        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
           item.style.display = "block";
         } else {
           item.style.display = "none";
         }
       } else if (item.id === "sidebar-arca-item") {
-        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
+        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
           item.style.display = "block";
         } else {
           item.style.display = "none";
@@ -1640,7 +1640,7 @@ function renderPanel() {
 
   // Actualizar KPIs en el HTML
   const revDesc = document.getElementById("panel-stat-revenue-desc");
-  if (state.email === "matiascuchettidiaz@gmail.com") {
+  if (state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
     document.getElementById("panel-stat-revenue").innerHTML = `
       <div style="font-size: 1.3rem; color: var(--text-white);">$ ${Math.round(totalSalesValue).toLocaleString()}</div>
     `;
@@ -2826,7 +2826,7 @@ function openCheckoutModal() {
 
   const arcaBtn = document.getElementById("checkout-arca-btn");
   if (arcaBtn) {
-    const hasArcaAccess = (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com");
+    const hasArcaAccess = (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com");
     arcaBtn.style.display = hasArcaAccess ? "block" : "none";
   }
 
@@ -8150,7 +8150,7 @@ async function renderIntegrationsStatus() {
     // Controlar visibilidad de Tiendanube para el usuario específico
     const tnCard = document.getElementById("tiendanube-integration-card");
     if (tnCard) {
-      if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
+      if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
         tnCard.style.display = "block";
       } else {
         tnCard.style.display = "none";
