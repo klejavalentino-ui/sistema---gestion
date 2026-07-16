@@ -8415,7 +8415,14 @@ async function renderIntegrationsStatus() {
       } else if (shStatus === "shipped") {
         shippingBadge = `<span class="badge-blue" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.2); background: rgba(59, 130, 246, 0.1); color: #3b82f6; font-weight: 600;">Enviado</span>`;
       } else if (shStatus === "delivered") {
-        shippingBadge = `<span class="badge-green" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.1); color: #10b981; font-weight: 600;">Entregado</span>`;
+        const isPickup = s.shipping_pickup_type === "pickup" || 
+                        (s.shipping_option && s.shipping_option.toLowerCase().includes("retiro")) ||
+                        (s.shipping_option && s.shipping_option.toLowerCase().includes("retirar"));
+        if (isPickup) {
+          shippingBadge = `<span class="badge-green" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.1); color: #10b981; font-weight: 600;">Retirado</span>`;
+        } else {
+          shippingBadge = `<span class="badge-green" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.1); color: #10b981; font-weight: 600;">Entregado</span>`;
+        }
       }
 
       // Customer info display

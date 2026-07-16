@@ -2587,17 +2587,32 @@ def sync_tiendanube_orders_route():
         
         all_orders = []
         page = 1
-        while True:
+        max_pages = 5
+        import time
+        
+        while page <= max_pages:
             url = f"https://api.tiendanube.com/v1/{user_id}/orders?page={page}&per_page=100"
-            r = requests.get(url, headers=headers, timeout=30)
-            if not r.ok:
-                return jsonify({"error": f"Error de Tiendanube API: {r.text}"}), 400
+            r = None
+            for attempt in range(3):
+                try:
+                    r = requests.get(url, headers=headers, timeout=20)
+                    if r.ok:
+                        break
+                except Exception as e:
+                    if attempt == 2:
+                        print(f"Error de red Tiendanube en pagina {page}: {e}")
+                    time.sleep(1)
+            
+            if not r or not r.ok:
+                # Si falla una pagina, no abortamos todo el sync; procesamos lo que ya tenemos
+                print(f"Error de Tiendanube API al traer pagina {page}: {r.text if r else 'Timeout'}")
+                break
+                
             data = r.json()
             if not data:
                 break
             all_orders.extend(data)
             
-            # Stop if last order in page is older than 2025
             last_order_date_str = data[-1].get("created_at")
             if last_order_date_str:
                 try:
@@ -2769,14 +2784,16 @@ def sync_tiendanube_orders_route():
                 "client_email": client_email,
                 "client_phone": client_phone,
                 "client_cuit": client_cuit,
-                "tn_number": tn_number
+                "tn_number": tn_number,
+                "shipping_option": order.get("shipping_option"),
+                "shipping_pickup_type": order.get("shipping_pickup_type")
             }
             
             doc_id_with_prefix = f"{prefix}TN-{order_id}"
             existing_sale = existing_sales_by_id.get(doc_id_with_prefix)
             
             if existing_sale:
-                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status", "shipping_status", "ubicacion"]:
+                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status", "shipping_status", "ubicacion", "shipping_option", "shipping_pickup_type"]:
                     if k in existing_sale:
                         sale_data[k] = existing_sale[k]
             else:
