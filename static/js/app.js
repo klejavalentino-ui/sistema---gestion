@@ -8278,14 +8278,13 @@ async function renderIntegrationsStatus() {
     let tnUnits = 0;
     let tnOperatingCosts = 0;
     
-    let tnSalesHTML = "";
+    // 1. Calculate general metrics for the month first
     tnSales.forEach(s => {
       const grossVal = s.total || 0;
       const fixedFee = s.fee_fijo_tn !== undefined ? parseFloat(s.fee_fijo_tn) : 300;
       const pctFee = s.comision_pasarela_pago !== undefined ? parseFloat(s.comision_pasarela_pago) : 5;
       const sFees = fixedFee + (pctFee / 100 * grossVal);
       
-      // Calculate operating cost for this sale
       let saleOpCost = 0;
       const items = s.items || [];
       items.forEach(it => {
@@ -8326,6 +8325,67 @@ async function renderIntegrationsStatus() {
           tnUnits += parseInt(it.quantity) || 0;
         });
       }
+    });
+
+    // 2. Set active style on filters UI
+    state.tiendanubeShippingFilter = state.tiendanubeShippingFilter || "unshipped";
+    const shippingFilters = ["unshipped", "shipped", "delivered", "all"];
+    shippingFilters.forEach(f => {
+      const btn = document.getElementById(`tn-filter-${f}`);
+      if (btn) {
+        if (f === state.tiendanubeShippingFilter) {
+          btn.style.background = "var(--accent-blue)";
+          btn.style.color = "var(--text-white)";
+        } else {
+          btn.style.background = "transparent";
+          btn.style.color = "var(--text-gray)";
+        }
+      }
+    });
+
+    // 3. Filter orders based on shipping filter tab
+    const filteredTnSales = tnSales.filter(s => {
+      if (state.tiendanubeShippingFilter === "all") return true;
+      const shStatus = s.shipping_status || "unshipped";
+      return shStatus === state.tiendanubeShippingFilter;
+    });
+
+    let tnSalesHTML = "";
+    filteredTnSales.forEach(s => {
+      const grossVal = s.total || 0;
+      const fixedFee = s.fee_fijo_tn !== undefined ? parseFloat(s.fee_fijo_tn) : 300;
+      const pctFee = s.comision_pasarela_pago !== undefined ? parseFloat(s.comision_pasarela_pago) : 5;
+      const sFees = fixedFee + (pctFee / 100 * grossVal);
+      
+      let saleOpCost = 0;
+      const items = s.items || [];
+      items.forEach(it => {
+        const p = it.product || {};
+        const qty = parseInt(it.quantity) || 0;
+        
+        let itemExtraCost = 0;
+        if (s.extras) {
+          Object.keys(s.extras).forEach(catKey => {
+            const extraId = s.extras[catKey];
+            if (extraId && extraId !== "0") {
+              const extrasObj = p.extras || {};
+              let hasStatic = false;
+              if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
+              else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
+              else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
+
+              if (!hasStatic) {
+                itemExtraCost += getExtraCost(catKey, extraId);
+              }
+            }
+          });
+        }
+        
+        const unitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
+        saleOpCost += unitCost * qty;
+      });
+
+      const sNet = grossVal - sFees - saleOpCost;
       
       const formattedDate = new Date(s.date).toLocaleDateString("es-AR", {
         day: "2-digit",
@@ -8347,27 +8407,85 @@ async function renderIntegrationsStatus() {
         ? `<span class="badge-green" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.1);">Facturada</span>`
         : `<span class="badge-gray" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(148, 163, 184, 0.2); background: rgba(148, 163, 184, 0.05);">No Declarada</span>`;
 
+      // shipping status badge
+      const shStatus = s.shipping_status || "unshipped";
+      let shippingBadge = "";
+      if (shStatus === "unshipped") {
+        shippingBadge = `<span class="badge-orange" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.1); color: #f59e0b; font-weight: 600;">Por empaquetar</span>`;
+      } else if (shStatus === "shipped") {
+        shippingBadge = `<span class="badge-blue" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.2); background: rgba(59, 130, 246, 0.1); color: #3b82f6; font-weight: 600;">Enviado</span>`;
+      } else if (shStatus === "delivered") {
+        shippingBadge = `<span class="badge-green" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.1); color: #10b981; font-weight: 600;">Entregado</span>`;
+      }
+
+      // Customer info display
+      let clientInfoText = "";
+      if (s.client_name) {
+        const phoneText = s.client_phone ? ` | Tel: ${s.client_phone}` : "";
+        const emailText = s.client_email ? ` | ${s.client_email}` : "";
+        clientInfoText = `<div style="font-size: 0.68rem; color: var(--text-gray); margin-top: 2px;">👤 ${s.client_name}${phoneText}${emailText}</div>`;
+      }
+
+      // Actions/Locations display
+      let actionHTML = "";
+      if (shStatus === "unshipped") {
+        const configuredLocations = state.userProfile?.locations || ["Local Principal"];
+        const optionsHTML = configuredLocations.map(loc => `<option value="${loc}">${loc}</option>`).join("");
+        actionHTML = `
+          <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end; width: 100%;">
+            <span style="font-size: 0.68rem; color: var(--text-gray);">Despachar desde:</span>
+            <select id="ship-loc-${s.id}" style="font-size: 0.68rem; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-dark); color: var(--text-white); outline: none;">
+              ${optionsHTML}
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="shipTiendanubeOrder('${s.id}', 'shipped', 'ship-loc-${s.id}')" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 4px; font-weight: bold; background: var(--accent-blue); border-color: var(--accent-blue); color: var(--text-white); cursor: pointer; border: none;">
+              📦 Despachar
+            </button>
+          </div>
+        `;
+      } else if (shStatus === "shipped") {
+        actionHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <span style="font-size: 0.68rem; color: var(--text-gray); font-style: italic;">📍 Despachado de: <strong>${s.ubicacion || 'Sin especificar'}</strong></span>
+            <button class="btn btn-sm" onclick="shipTiendanubeOrder('${s.id}', 'delivered')" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 6px; background: #10b981; border: none; color: var(--text-white); font-weight: bold; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              ✔️ Entregar
+            </button>
+          </div>
+        `;
+      } else {
+        actionHTML = `
+          <div style="display: flex; justify-content: flex-start; align-items: center; width: 100%;">
+            <span style="font-size: 0.68rem; color: var(--text-gray); font-style: italic;">📍 Despachado de: <strong>${s.ubicacion || 'Sin especificar'}</strong></span>
+          </div>
+        `;
+      }
+
       tnSalesHTML += `
-        <div style="border-bottom: 1px solid rgba(255,255,255,0.03); padding: 8px 0;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 6px;">
             <div>
-              <strong style="color: var(--text-white);">${s.id}</strong> - <span style="color: var(--text-gray);">${formattedDate}</span>
-              <span style="margin-left: 8px;">
+              <strong style="color: var(--text-white);">${s.id}</strong> 
+              <span style="color: var(--text-gray); margin-left: 4px; font-size: 0.68rem;">(${formattedDate})</span>
+              <span style="margin-left: 8px; display: inline-flex; gap: 4px;">
                 ${statusBadge}
+                ${shippingBadge}
               </span>
+              ${clientInfoText}
             </div>
-            <div style="text-align: right;">
-              <span style="color: var(--text-white);">Bruto: $${Math.round(grossVal).toLocaleString()}</span> | 
-              <span style="color: var(--accent-emerald); font-weight: bold;">Neto: $${Math.round(sNet).toLocaleString()}</span>
+            <div style="text-align: right; min-width: 120px;">
+              <div style="color: var(--text-white); font-size: 0.72rem;">Bruto: $${Math.round(grossVal).toLocaleString()}</div>
+              <div style="color: var(--accent-emerald); font-weight: bold; font-size: 0.75rem;">Neto: $${Math.round(sNet).toLocaleString()}</div>
             </div>
           </div>
-          ${itemsListText ? `<div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--accent-blue); line-height: 1.4;">${itemsListText}</div>` : ""}
+          ${itemsListText ? `<div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid var(--accent-blue); line-height: 1.4; font-size: 0.7rem; display: flex; flex-direction: column; gap: 2px;">${itemsListText}</div>` : ""}
+          <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 8px; display: flex; justify-content: flex-end; align-items: center;">
+            ${actionHTML}
+          </div>
         </div>
       `;
     });
     
-    if (tnSales.length === 0) {
-      tnSalesHTML = `<div style="text-align: center; color: var(--text-gray); padding: 10px;">No hay ventas registradas con origen Tiendanube.</div>`;
+    if (filteredTnSales.length === 0) {
+      tnSalesHTML = `<div style="text-align: center; color: var(--text-gray); padding: 20px;">No hay ventas registradas con este estado de envío.</div>`;
     }
     
     const tnReportGrossEl = document.getElementById("tn-report-gross");
@@ -10136,3 +10254,43 @@ async function deletePaymentMethod(id) {
   }
 }
 window.deletePaymentMethod = deletePaymentMethod;
+
+function setTiendanubeShippingFilter(filter) {
+  state.tiendanubeShippingFilter = filter;
+  renderIntegrationsStatus();
+}
+window.setTiendanubeShippingFilter = setTiendanubeShippingFilter;
+
+async function shipTiendanubeOrder(saleId, status, selectElId = null) {
+  let location = null;
+  if (selectElId) {
+    const selectEl = document.getElementById(selectElId);
+    if (selectEl) {
+      location = selectEl.value;
+    }
+  }
+  
+  if (status === "shipped" && !location) {
+    showToast("Por favor selecciona una ubicación para descontar stock.", true);
+    return;
+  }
+  
+  const actionText = status === "shipped" ? "despachar" : "entregar";
+  
+  try {
+    showToast("Procesando despacho...");
+    const res = await apiRequest("/api/integrations/tiendanube/ship-order", "POST", {
+      sale_id: saleId,
+      status: status,
+      ubicacion: location
+    });
+    
+    if (res.success) {
+      showToast(`Pedido ${saleId} marcado como ${status === "shipped" ? "enviado" : "entregado"} con éxito.`);
+      await refreshState();
+    }
+  } catch (error) {
+    showToast(`Error al ${actionText} pedido: ${error.message}`, true);
+  }
+}
+window.shipTiendanubeOrder = shipTiendanubeOrder;

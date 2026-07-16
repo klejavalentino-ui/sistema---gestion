@@ -1233,9 +1233,18 @@
               </div>
 
               <!-- Listado de Ventas Recientes de Tiendanube -->
-              <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; max-height: 180px; overflow-y: auto;">
-                <p style="font-size: 0.7rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Ventas Recientes Online</p>
-                <div id="tn-sales-log" style="font-size: 0.75rem; color: var(--text-gray-light);">
+              <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                  <p style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; margin: 0;">📦 Envíos y Ventas Online</p>
+                  <!-- Filtros de Envío -->
+                  <div style="display: flex; gap: 6px; background: rgba(0, 0, 0, 0.2); padding: 4px; border-radius: 6px;">
+                    <button type="button" class="btn" id="tn-filter-unshipped" onclick="setTiendanubeShippingFilter('unshipped')" style="font-size: 0.65rem; padding: 4px 8px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; color: var(--text-gray); background: transparent; transition: all 0.2s;">Por Empaquetar</button>
+                    <button type="button" class="btn" id="tn-filter-shipped" onclick="setTiendanubeShippingFilter('shipped')" style="font-size: 0.65rem; padding: 4px 8px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; color: var(--text-gray); background: transparent; transition: all 0.2s;">Enviados</button>
+                    <button type="button" class="btn" id="tn-filter-delivered" onclick="setTiendanubeShippingFilter('delivered')" style="font-size: 0.65rem; padding: 4px 8px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; color: var(--text-gray); background: transparent; transition: all 0.2s;">Entregados</button>
+                    <button type="button" class="btn" id="tn-filter-all" onclick="setTiendanubeShippingFilter('all')" style="font-size: 0.65rem; padding: 4px 8px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; color: var(--text-gray); background: transparent; transition: all 0.2s;">Todos</button>
+                  </div>
+                </div>
+                <div id="tn-sales-log" style="font-size: 0.75rem; color: var(--text-gray-light); max-height: 480px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;">
                   No hay ventas registradas con origen Tiendanube.
                 </div>
               </div>

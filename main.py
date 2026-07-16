@@ -2735,6 +2735,18 @@ def sync_tiendanube_orders_route():
             discount_amount = safe_float(order.get("discount"))
             discount_pct = (discount_amount / subtotal_price * 100.0) if (subtotal_price > 0 and discount_amount > 0) else 0.0
             
+            shipping_status = order.get("shipping_status", "unshipped")
+            if shipping_status not in ["unshipped", "shipped", "delivered"]:
+                if shipping_status == "fulfilled":
+                    shipping_status = "delivered"
+                else:
+                    shipping_status = "unshipped"
+
+            customer_info = order.get("customer") or {}
+            client_name = str(customer_info.get("name") or "").strip()
+            client_email = str(customer_info.get("email") or "").strip()
+            client_phone = str(customer_info.get("phone") or "").strip()
+
             sale_data = {
                 "date": created_at,
                 "total": total_price,
@@ -2747,14 +2759,18 @@ def sync_tiendanube_orders_route():
                 "fee_fijo_tn": fee_fijo,
                 "comision_pasarela_pago": comision,
                 "total_neto": total_neto,
-                "payment_status": order.get("payment_status", "pending")
+                "payment_status": order.get("payment_status", "pending"),
+                "shipping_status": shipping_status,
+                "client_name": client_name,
+                "client_email": client_email,
+                "client_phone": client_phone
             }
             
             doc_id_with_prefix = f"{prefix}TN-{order_id}"
             existing_sale = existing_sales_by_id.get(doc_id_with_prefix)
             
             if existing_sale:
-                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status"]:
+                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status", "shipping_status", "ubicacion"]:
                     if k in existing_sale:
                         sale_data[k] = existing_sale[k]
             else:
@@ -2767,6 +2783,115 @@ def sync_tiendanube_orders_route():
             "success": True,
             "count": new_sales_count
         })
+    except Exception as e:
+        return handle_error(e)
+
+def notify_tiendanube_shipped(uid, order_id, token):
+    try:
+        config = firebase_config.get_document("integrations", "tiendanube", token)
+        if not config or not config.get("activo"):
+            return
+        user_id = config.get("user_id")
+        access_token = config.get("access_token")
+        
+        if access_token:
+            access_token = "".join(c for c in str(access_token) if ord(c) < 128).strip()
+        if user_id:
+            user_id = "".join(c for c in str(user_id) if ord(c) < 128).strip()
+            
+        if not access_token or not user_id:
+            return
+            
+        url = f"https://api.tiendanube.com/v1/{user_id}/orders/{order_id}/ship"
+        headers = {
+            "Authentication": f"bearer {access_token}",
+            "User-Agent": "Datamargen (klejavalentino@gmail.com)",
+            "Content-Type": "application/json"
+        }
+        r = requests.post(url, headers=headers, timeout=30)
+        if r.ok:
+            print(f"Pedido Tiendanube {order_id} marcado como enviado exitosamente.")
+        else:
+            print(f"Error al marcar pedido {order_id} como enviado en Tiendanube: {r.text}")
+    except Exception as e:
+        print(f"Excepcion al marcar pedido {order_id} como enviado en Tiendanube: {e}")
+
+@app.route("/api/integrations/tiendanube/ship-order", methods=["POST"])
+def ship_tiendanube_order_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token invalido o expirado"}), 401
+        
+    data = request.json or {}
+    sale_id = data.get("sale_id")
+    ubicacion = data.get("ubicacion")
+    status = data.get("status")
+    
+    if not sale_id or not status:
+        return jsonify({"error": "Campos obligatorios faltantes"}), 400
+        
+    doc_id = f"{prefix}{sale_id}" if not sale_id.startswith(prefix) else sale_id
+    
+    try:
+        sale = firebase_config.get_document("sales", doc_id, token)
+        if not sale:
+            return jsonify({"error": "Venta no encontrada"}), 404
+            
+        old_status = sale.get("shipping_status", "unshipped")
+        
+        if status == "shipped" and old_status == "unshipped":
+            if not ubicacion:
+                return jsonify({"error": "Ubicacion requerida para descontar stock"}), 400
+                
+            items = sale.get("items", [])
+            for it in items:
+                prod_info = it.get("product", {})
+                sku = prod_info.get("sku")
+                qty = safe_int(it.get("quantity", 0))
+                if sku and qty > 0:
+                    prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
+                    if prod:
+                        loc_stock = prod.get("locationsStock", {})
+                        if not isinstance(loc_stock, dict):
+                            loc_stock = {}
+                        if ubicacion in loc_stock:
+                            loc_stock[ubicacion] = max(0, safe_int(loc_stock[ubicacion]) - qty)
+                        else:
+                            current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                            prod["stock_local"] = max(0, current_stock - qty)
+                            prod["stock"] = prod["stock_local"]
+                            
+                        prod["locationsStock"] = loc_stock
+                        if loc_stock:
+                            total_stock = sum(safe_int(v) for v in loc_stock.values())
+                            prod["stock"] = total_stock
+                            prod["stock_local"] = total_stock
+                            
+                        firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
+            
+            uid = get_uid_from_token(token)
+            import threading
+            threading.Thread(
+                target=sync_stock_to_tiendanube,
+                args=(uid, items),
+                kwargs={"token": token, "prefix": prefix}
+            ).start()
+            
+            clean_order_id = sale_id.replace("TN-", "").replace(prefix, "")
+            threading.Thread(
+                target=notify_tiendanube_shipped,
+                args=(uid, clean_order_id, token)
+            ).start()
+            
+            sale["ubicacion"] = ubicacion
+
+        sale["shipping_status"] = status
+        firebase_config.set_document("sales", doc_id, sale, token)
+        
+        return jsonify({"success": True, "shipping_status": status})
     except Exception as e:
         return handle_error(e)
 
