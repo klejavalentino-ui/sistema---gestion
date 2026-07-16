@@ -3439,7 +3439,7 @@ def emit_credit_note():
         last_nc = wsfe.get_last_authorized_voucher(pos, nc_tipo)
         next_nc = last_nc + 1
         
-        total = safe_float(sale.get("total", 0.0))
+        total = safe_float(data.get("amount", sale.get("total", 0.0)))
         
         # Parse client document
         client_cuit = sale.get("client_cuit", "").strip()
@@ -3513,6 +3513,217 @@ def emit_credit_note():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Error al emitir Nota de Crédito: {str(e)}"}), 500
+
+@app.route("/api/returns", methods=["GET"])
+def get_returns_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        returns_list = firebase_config.list_documents("returns", token)
+        filtered = []
+        for r in returns_list:
+            doc_id = r.get("id", "")
+            if doc_id.startswith(prefix):
+                r_copy = dict(r)
+                r_copy["id"] = doc_id[len(prefix):]
+                filtered.append(r_copy)
+        return jsonify(filtered)
+    except Exception as e:
+        return handle_error(e)
+
+@app.route("/api/returns", methods=["POST"])
+def create_return_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        from arca_service import WSAAClient, WSFEClient
+        from datetime import datetime
+        import time
+        import threading
+        
+        data = request.json or {}
+        sale_id = data.get("sale_id")
+        client_name = data.get("client_name", "Consumidor Final")
+        client_cuit = data.get("client_cuit", "")
+        returned_items = data.get("returned_items", [])
+        exchange_items = data.get("exchange_items", [])
+        ubicacion_destino = data.get("ubicacion_destino")
+        emit_credit_note = data.get("emit_credit_note", False)
+        credit_note_reason = data.get("credit_note_reason", "Devolución técnica")
+        
+        if not ubicacion_destino:
+            return jsonify({"error": "Falta la sucursal de destino para el stock."}), 400
+            
+        # 1. Devolver stock de returned_items a la sucursal
+        for item in returned_items:
+            sku = item.get("sku")
+            qty = safe_int(item.get("quantity", 0))
+            if sku and qty > 0:
+                prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
+                if prod:
+                    loc_stock = prod.get("locationsStock", {})
+                    if not isinstance(loc_stock, dict):
+                        loc_stock = {}
+                    loc_stock[ubicacion_destino] = safe_int(loc_stock.get(ubicacion_destino, 0)) + qty
+                    prod["locationsStock"] = loc_stock
+                    total_stock = sum(safe_int(v) for v in loc_stock.values())
+                    prod["stock"] = total_stock
+                    prod["stock_local"] = total_stock
+                    prod["sku"] = f"{prefix}{sku}"
+                    firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
+                    
+        # 2. Descontar stock de exchange_items de la sucursal
+        for item in exchange_items:
+            sku = item.get("sku")
+            qty = safe_int(item.get("quantity", 0))
+            if sku and qty > 0:
+                prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
+                if prod:
+                    loc_stock = prod.get("locationsStock", {})
+                    if not isinstance(loc_stock, dict):
+                        loc_stock = {}
+                    loc_stock[ubicacion_destino] = max(0, safe_int(loc_stock.get(ubicacion_destino, 0)) - qty)
+                    prod["locationsStock"] = loc_stock
+                    total_stock = sum(safe_int(v) for v in loc_stock.values())
+                    prod["stock"] = total_stock
+                    prod["stock_local"] = total_stock
+                    prod["sku"] = f"{prefix}{sku}"
+                    firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
+                    
+        # 3. Sincronizar stock a Tiendanube en segundo plano
+        skus_to_sync = set()
+        for item in returned_items:
+            if item.get("sku"): skus_to_sync.add(item.get("sku"))
+        for item in exchange_items:
+            if item.get("sku"): skus_to_sync.add(item.get("sku"))
+            
+        sync_payload_items = [{"product": {"sku": sku}} for sku in skus_to_sync]
+        if sync_payload_items:
+            uid = get_uid_from_token(token)
+            threading.Thread(
+                target=sync_stock_to_tiendanube,
+                args=(uid, sync_payload_items),
+                kwargs={"token": token, "prefix": prefix}
+            ).start()
+            
+        # 4. Emitir Nota de Crédito en AFIP si aplica
+        arca_credit_note_id = ""
+        arca_cae = ""
+        arca_cae_due = ""
+        
+        if emit_credit_note and sale_id:
+            sales = firebase_config.list_documents("sales", token)
+            sale = next((s for s in sales if s.get("id") == f"{prefix}{sale_id}"), None)
+            if sale and sale.get("arca_invoice_id") and not sale.get("credit_note_cae"):
+                orig_invoice = sale.get("arca_invoice_id")
+                parts = orig_invoice.split("-")
+                if len(parts) == 2:
+                    orig_pto_vta = int(parts[0])
+                    orig_nro = int(parts[1])
+                    orig_tipo = 11
+                    nc_tipo = 13
+                    
+                    arca_config = firebase_config.get_document("integrations", "arca", token) or {}
+                    pos = int(arca_config.get("pos", "2"))
+                    cert_content = arca_config.get("cert_content")
+                    key_content = arca_config.get("key_content")
+                    cuit = arca_config.get("cuit")
+                    
+                    if cert_content and key_content and cuit:
+                        is_sandbox_cert = "homo" in str(cert_content).lower() or "wsaahomo" in str(cert_content).lower()
+                        wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
+                        arca_token, sign = wsaa.get_token_and_sign()
+                        wsfe = WSFEClient(arca_token, sign, cuit, sandbox=is_sandbox_cert)
+                        
+                        last_nc = wsfe.get_last_authorized_voucher(pos, nc_tipo)
+                        next_nc = last_nc + 1
+                        
+                        return_total = sum(safe_float(item.get("price", 0.0)) * safe_int(item.get("quantity", 0)) for item in returned_items)
+                        if return_total <= 0:
+                            return_total = safe_float(sale.get("total", 0.0))
+                            
+                        # Parse client document
+                        client_cuit_clean = "".join(c for c in str(client_cuit) if c.isdigit())
+                        doc_tipo = 99
+                        doc_nro = 0
+                        if client_cuit_clean and len(client_cuit_clean) >= 7 and client_cuit_clean != "20999999999":
+                            doc_nro = int(client_cuit_clean)
+                            doc_tipo = 80 if len(client_cuit_clean) == 11 else 96
+                            
+                        cbtes_asoc = {
+                            "tipo": orig_tipo,
+                            "pto_vta": orig_pto_vta,
+                            "nro": orig_nro
+                        }
+                        
+                        cae, cae_due = wsfe.request_cae(pos, nc_tipo, next_nc, return_total, doc_tipo, doc_nro, cbtes_asoc=cbtes_asoc)
+                        nc_invoice_number = f"{pos:04d}-{next_nc:08d}"
+                        
+                        arca_credit_note_id = nc_invoice_number
+                        arca_cae = cae
+                        arca_cae_due = cae_due
+                        
+                        # Generar transaccion de caja
+                        caja_payload = {
+                            "description": f"Devolución NC {nc_invoice_number} (Ref: {orig_invoice}) - {credit_note_reason}",
+                            "type": "expense",
+                            "amount": return_total,
+                            "date": datetime.now().isoformat()
+                        }
+                        caja_id = int(time.time() * 1000)
+                        caja_payload["sku"] = f"cashtransaction_{caja_id}"
+                        caja_payload["name"] = caja_payload["description"]
+                        caja_payload["cost"] = return_total
+                        caja_payload["stock"] = 0
+                        caja_payload["id"] = str(caja_id)
+                        firebase_config.set_document("products", f"{prefix}{caja_payload['sku']}", caja_payload, token)
+                        
+                        # Actualizar venta
+                        if abs(return_total - safe_float(sale.get("total", 0.0))) < 1.0:
+                            sale["status"] = "cancelled"
+                        sale["credit_note_id"] = nc_invoice_number
+                        sale["credit_note_cae"] = cae
+                        sale["credit_note_cae_due"] = cae_due
+                        sale["cancel_reason"] = credit_note_reason
+                        firebase_config.set_document("sales", f"{prefix}{sale_id}", sale, token)
+                        
+        # 5. Guardar registro de la devolucion
+        return_id = f"ret_{int(time.time() * 1000)}"
+        return_data = {
+            "date": datetime.now().isoformat(),
+            "sale_id": sale_id,
+            "client_name": client_name,
+            "client_cuit": client_cuit,
+            "returned_items": returned_items,
+            "exchange_items": exchange_items,
+            "ubicacion_destino": ubicacion_destino,
+            "arca_credit_note_id": arca_credit_note_id,
+            "arca_cae": arca_cae,
+            "arca_cae_due": arca_cae_due,
+            "reason": credit_note_reason
+        }
+        firebase_config.set_document("returns", f"{prefix}{return_id}", return_data, token)
+        
+        return jsonify({
+            "success": True,
+            "return_id": return_id,
+            "credit_note_id": arca_credit_note_id,
+            "cae": arca_cae
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Error al procesar devolución: {str(e)}"}), 500
 
 @app.route("/api/invoices/fix-failed-ncs", methods=["POST"])
 def fix_failed_ncs():

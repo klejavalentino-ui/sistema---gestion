@@ -7637,6 +7637,7 @@ function switchTab(tabId) {
   if (tabId === "tiendanube") renderIntegrationsStatus();
   if (tabId === "arca") renderIntegrationsStatus();
   if (tabId === "business") loadBusinessData();
+  if (tabId === "returns") renderReturns();
 }
 
 // --- Asignación de Listeners ---
@@ -10323,3 +10324,489 @@ async function shipTiendanubeOrder(saleId, status, selectElId = null) {
   }
 }
 window.shipTiendanubeOrder = shipTiendanubeOrder;
+
+// --- Gestión de Devoluciones y Cambios ---
+window.selectedReturnSale = null;
+window.returnedItemsList = [];
+window.exchangeItemsList = [];
+
+async function renderReturns() {
+  if (!state.token) return;
+  
+  // 1. Poblar ubicaciones
+  const locSelect = document.getElementById("return-stock-location");
+  if (locSelect) {
+    const locations = state.userProfile?.locations || ["Local Principal", "Bahía Blanca", "Buenos Aires"];
+    locSelect.innerHTML = locations.map(loc => `<option value="${loc}">${loc}</option>`).join("");
+  }
+  
+  // 2. Limpiar y resetear vistas de items si no hay nada seleccionado
+  if (!window.selectedReturnSale && window.returnedItemsList.length === 0) {
+    clearSelectedReturnSale();
+  }
+  
+  // 3. Cargar historial de devoluciones
+  const tbody = document.getElementById("returns-history-tbody");
+  const emptyMsg = document.getElementById("returns-history-empty");
+  
+  try {
+    const returns = await apiRequest("/api/returns");
+    if (!returns || returns.length === 0) {
+      if (tbody) tbody.innerHTML = "";
+      if (emptyMsg) emptyMsg.style.display = "block";
+      return;
+    }
+    
+    if (emptyMsg) emptyMsg.style.display = "none";
+    if (tbody) {
+      tbody.innerHTML = returns.map(r => {
+        const dateStr = r.date ? new Date(r.date).toLocaleString('es-AR') : "-";
+        
+        // Detalle de devueltos
+        const retDetails = (r.returned_items || []).map(it => {
+          return `<div style="font-size: 0.7rem; color: var(--text-white); font-weight: 500;">- ${it.name} (x${it.quantity})</div>`;
+        }).join("");
+        
+        // Detalle de cambios
+        const exDetails = (r.exchange_items || []).map(it => {
+          return `<div style="font-size: 0.7rem; color: #10b981; font-weight: 500;">- ${it.name} (x${it.quantity})</div>`;
+        }).join("");
+        
+        // Comprobante AFIP
+        let afipCell = `<span style="color: var(--text-gray); font-style: italic;">Sin comprobante fiscal</span>`;
+        if (r.arca_credit_note_id) {
+          afipCell = `
+            <div style="font-weight: bold; color: var(--accent-red); font-size: 0.75rem;">NC: ${r.arca_credit_note_id}</div>
+            <div style="font-size: 0.65rem; color: var(--text-gray);">CAE: ${r.arca_cae || "-"}</div>
+          `;
+        }
+        
+        return `
+          <tr>
+            <td><strong>${dateStr}</strong></td>
+            <td>
+              <div style="font-weight: 600;">${r.client_name || "Consumidor Final"}</div>
+              <div style="font-size: 0.65rem; color: var(--text-gray);">${r.client_cuit || "-"}</div>
+            </td>
+            <td>${retDetails || "-"}</td>
+            <td>${exDetails || `<span style="color: var(--text-gray); font-style: italic;">Solo devolución</span>`}</td>
+            <td><span class="badge-blue" style="font-size: 0.65rem;">${r.ubicacion_destino || "-"}</span></td>
+            <td>${afipCell}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+  } catch (error) {
+    showToast("Error al cargar historial de devoluciones: " + error.message, true);
+  }
+}
+
+// Búsqueda de venta
+function searchSaleForReturn() {
+  const query = document.getElementById("return-search-sale").value.toLowerCase().trim();
+  const resultsDiv = document.getElementById("return-sale-search-results");
+  if (!resultsDiv) return;
+  
+  if (query.length < 2) {
+    resultsDiv.style.display = "none";
+    return;
+  }
+  
+  const matches = state.sales.filter(s => {
+    const idMatch = s.id && s.id.toLowerCase().includes(query);
+    const clientMatch = s.client_name && s.client_name.toLowerCase().includes(query);
+    const cuitMatch = s.client_cuit && s.client_cuit.includes(query);
+    const tnMatch = s.tn_number && String(s.tn_number).includes(query);
+    return idMatch || clientMatch || cuitMatch || tnMatch;
+  }).slice(0, 10);
+  
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = `<div style="padding: 10px; font-size: 0.75rem; color: var(--text-gray); font-style: italic;">No se encontraron ventas</div>`;
+  } else {
+    resultsDiv.innerHTML = matches.map(s => {
+      const tnLabel = s.tn_number ? `TN-#${s.tn_number}` : s.id;
+      const clientLabel = s.client_name ? ` - ${s.client_name}` : " - Consumidor Final";
+      const totalLabel = ` ($${s.total})`;
+      return `
+        <div onclick="selectReturnSale('${s.id}')" style="padding: 8px 12px; font-size: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border-color); color: var(--text-white);" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
+          <strong>${tnLabel}</strong>${clientLabel}${totalLabel}
+        </div>
+      `;
+    }).join("");
+  }
+  resultsDiv.style.display = "block";
+}
+
+function selectReturnSale(saleId) {
+  const sale = state.sales.find(s => s.id === saleId);
+  document.getElementById("return-sale-search-results").style.display = "none";
+  if (!sale) return;
+  
+  window.selectedReturnSale = sale;
+  document.getElementById("return-search-sale").value = sale.tn_number ? `TN-#${sale.tn_number}` : sale.id;
+  
+  document.getElementById("return-client-name").value = sale.client_name || "Consumidor Final";
+  document.getElementById("return-client-cuit").value = sale.client_cuit || "";
+  document.getElementById("return-sale-ref").innerText = sale.tn_number ? `Pedido TN-#${sale.tn_number}` : `Ref: ${sale.id}`;
+  document.getElementById("return-manual-product-search-box").style.display = "none";
+  
+  const container = document.getElementById("returned-items-container");
+  const items = sale.items || [];
+  if (items.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.75rem; color: var(--text-gray); font-style: italic;">La venta seleccionada no contiene productos.</p>`;
+  } else {
+    container.innerHTML = items.map((it, idx) => {
+      const prod = it.product || {};
+      const maxQty = it.quantity || 1;
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--border-color);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="ret-cb-${idx}" data-sku="${prod.sku}" data-name="${prod.name}" data-price="${prod.price_tiendanube || prod.price_local || prod.price}" onchange="toggleReturnedItem(${idx})" style="accent-color: var(--accent-blue);">
+            <div style="font-size: 0.75rem;">
+              <div style="font-weight: 500; color: var(--text-white);">${prod.name}</div>
+              <div style="font-size: 0.65rem; color: var(--text-gray);">SKU: ${prod.sku} | Unit: $${prod.price}</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 0.65rem; color: var(--text-gray);">Cant:</label>
+            <input type="number" id="ret-qty-${idx}" min="1" max="${maxQty}" value="${maxQty}" oninput="validateReturnQty(${idx}); updateReturnsSummary();" style="width: 50px; font-size: 0.7rem; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: var(--text-white);" disabled>
+            <span style="font-size: 0.7rem; color: var(--text-gray);">/ ${maxQty}</span>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+  
+  const arcaBox = document.getElementById("return-arca-box");
+  if (arcaBox) {
+    if (sale.arca_invoice_id && !sale.credit_note_id) {
+      arcaBox.style.display = "block";
+      document.getElementById("return-emit-credit-note").checked = true;
+    } else {
+      arcaBox.style.display = "none";
+      document.getElementById("return-emit-credit-note").checked = false;
+    }
+  }
+  
+  updateReturnsSummary();
+}
+
+function clearSelectedReturnSale() {
+  window.selectedReturnSale = null;
+  window.returnedItemsList = [];
+  
+  document.getElementById("return-search-sale").value = "";
+  document.getElementById("return-client-name").value = "Consumidor Final";
+  document.getElementById("return-client-cuit").value = "";
+  document.getElementById("return-sale-ref").innerText = "Manual";
+  document.getElementById("return-manual-product-search-box").style.display = "block";
+  document.getElementById("returned-items-container").innerHTML = `<p style="font-size: 0.75rem; color: var(--text-gray); font-style: italic; margin: 5px 0;">No se han agregado productos para la devolución.</p>`;
+  
+  const arcaBox = document.getElementById("return-arca-box");
+  if (arcaBox) arcaBox.style.display = "none";
+  
+  updateReturnsSummary();
+}
+
+function searchProductForReturn() {
+  const query = document.getElementById("return-search-product").value.toLowerCase().trim();
+  const resultsDiv = document.getElementById("return-product-search-results");
+  if (!resultsDiv) return;
+  
+  if (query.length < 2) {
+    resultsDiv.style.display = "none";
+    return;
+  }
+  
+  const matches = state.products.filter(p => {
+    return (p.name && p.name.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
+  }).slice(0, 10);
+  
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = `<div style="padding: 10px; font-size: 0.75rem; color: var(--text-gray); font-style: italic;">No se encontraron productos</div>`;
+  } else {
+    resultsDiv.innerHTML = matches.map(p => {
+      return `
+        <div onclick="addManualReturnProduct('${p.sku}', '${p.name.replace(/'/g, "\\'")}', ${p.price_tiendanube || p.price_local || p.price || 0})" style="padding: 8px 12px; font-size: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border-color); color: var(--text-white);" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
+          <strong>${p.sku}</strong> - ${p.name} ($${p.price})
+        </div>
+      `;
+    }).join("");
+  }
+  resultsDiv.style.display = "block";
+}
+
+function addManualReturnProduct(sku, name, price) {
+  document.getElementById("return-product-search-results").style.display = "none";
+  document.getElementById("return-search-product").value = "";
+  
+  const existing = window.returnedItemsList.find(it => it.sku === sku);
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    window.returnedItemsList.push({ sku, name, price, quantity: 1 });
+  }
+  renderManualReturnedItems();
+}
+
+function renderManualReturnedItems() {
+  const container = document.getElementById("returned-items-container");
+  if (window.returnedItemsList.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.75rem; color: var(--text-gray); font-style: italic; margin: 5px 0;">No se han agregado productos para la devolución.</p>`;
+    updateReturnsSummary();
+    return;
+  }
+  
+  container.innerHTML = window.returnedItemsList.map((it, idx) => {
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--border-color);">
+        <div style="font-size: 0.75rem;">
+          <div style="font-weight: 500; color: var(--text-white);">${it.name}</div>
+          <div style="font-size: 0.65rem; color: var(--text-gray);">SKU: ${it.sku} | Unit: $${it.price}</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" min="1" value="${it.quantity}" oninput="updateManualReturnQty(${idx}, this.value)" style="width: 50px; font-size: 0.7rem; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: var(--text-white);">
+          <button class="btn btn-sm" onclick="removeManualReturnProduct(${idx})" style="background: var(--accent-red); border: none; color: var(--text-white); padding: 2px 6px;"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+    `;
+  }).join("");
+  updateReturnsSummary();
+}
+
+function updateManualReturnQty(index, val) {
+  const qty = parseInt(val) || 1;
+  if (window.returnedItemsList[index]) {
+    window.returnedItemsList[index].quantity = qty;
+  }
+  updateReturnsSummary();
+}
+
+function removeManualReturnProduct(index) {
+  window.returnedItemsList.splice(index, 1);
+  renderManualReturnedItems();
+}
+
+function toggleReturnedItem(idx) {
+  const cb = document.getElementById(`ret-cb-${idx}`);
+  const qtyInput = document.getElementById(`ret-qty-${idx}`);
+  if (cb && qtyInput) {
+    qtyInput.disabled = !cb.checked;
+  }
+  updateReturnsSummary();
+}
+
+function validateReturnQty(idx) {
+  const input = document.getElementById(`ret-qty-${idx}`);
+  if (!input) return;
+  const val = parseInt(input.value) || 1;
+  const max = parseInt(input.getAttribute("max")) || 1;
+  if (val > max) input.value = max;
+  if (val < 1) input.value = 1;
+}
+
+function searchProductForExchange() {
+  const query = document.getElementById("exchange-search-product").value.toLowerCase().trim();
+  const resultsDiv = document.getElementById("exchange-product-search-results");
+  if (!resultsDiv) return;
+  
+  if (query.length < 2) {
+    resultsDiv.style.display = "none";
+    return;
+  }
+  
+  const matches = state.products.filter(p => {
+    return (p.name && p.name.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
+  }).slice(0, 10);
+  
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = `<div style="padding: 10px; font-size: 0.75rem; color: var(--text-gray); font-style: italic;">No se encontraron productos</div>`;
+  } else {
+    resultsDiv.innerHTML = matches.map(p => {
+      return `
+        <div onclick="addExchangeProduct('${p.sku}', '${p.name.replace(/'/g, "\\'")}', ${p.price_tiendanube || p.price_local || p.price || 0})" style="padding: 8px 12px; font-size: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border-color); color: var(--text-white);" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
+          <strong>${p.sku}</strong> - ${p.name} ($${p.price})
+        </div>
+      `;
+    }).join("");
+  }
+  resultsDiv.style.display = "block";
+}
+
+function addExchangeProduct(sku, name, price) {
+  document.getElementById("exchange-product-search-results").style.display = "none";
+  document.getElementById("exchange-search-product").value = "";
+  
+  const existing = window.exchangeItemsList.find(it => it.sku === sku);
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    window.exchangeItemsList.push({ sku, name, price, quantity: 1 });
+  }
+  renderExchangeItems();
+}
+
+function renderExchangeItems() {
+  const container = document.getElementById("exchange-items-container");
+  if (window.exchangeItemsList.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.75rem; color: var(--text-gray); font-style: italic; margin: 5px 0;">No se han seleccionado productos de cambio.</p>`;
+    updateReturnsSummary();
+    return;
+  }
+  
+  container.innerHTML = window.exchangeItemsList.map((it, idx) => {
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--border-color);">
+        <div style="font-size: 0.75rem;">
+          <div style="font-weight: 500; color: var(--text-white);">${it.name}</div>
+          <div style="font-size: 0.65rem; color: var(--text-gray);">SKU: ${it.sku} | Unit: $${it.price}</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" min="1" value="${it.quantity}" oninput="updateExchangeQty(${idx}, this.value)" style="width: 50px; font-size: 0.7rem; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: var(--text-white);">
+          <button class="btn btn-sm" onclick="removeExchangeProduct(${idx})" style="background: var(--accent-red); border: none; color: var(--text-white); padding: 2px 6px;"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+    `;
+  }).join("");
+  updateReturnsSummary();
+}
+
+function updateExchangeQty(index, val) {
+  const qty = parseInt(val) || 1;
+  if (window.exchangeItemsList[index]) {
+    window.exchangeItemsList[index].quantity = qty;
+  }
+  updateReturnsSummary();
+}
+
+function removeExchangeProduct(index) {
+  window.exchangeItemsList.splice(index, 1);
+  renderExchangeItems();
+}
+
+function updateReturnsSummary() {
+  let returnedTotal = 0;
+  
+  if (window.selectedReturnSale) {
+    const container = document.getElementById("returned-items-container");
+    const checkboxes = container.querySelectorAll("input[type='checkbox']");
+    checkboxes.forEach((cb, idx) => {
+      if (cb.checked) {
+        const price = parseFloat(cb.getAttribute("data-price")) || 0;
+        const qtyInput = document.getElementById(`ret-qty-${idx}`);
+        const qty = parseInt(qtyInput ? qtyInput.value : 1) || 1;
+        returnedTotal += price * qty;
+      }
+    });
+  } else {
+    returnedTotal = window.returnedItemsList.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+  }
+  
+  const exchangeTotal = window.exchangeItemsList.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+  const balance = exchangeTotal - returnedTotal;
+  
+  document.getElementById("return-summary-returned").innerText = `$${returnedTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+  document.getElementById("return-summary-exchange").innerText = `$${exchangeTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+  
+  const balanceSpan = document.getElementById("return-summary-balance");
+  if (balance < 0) {
+    balanceSpan.innerHTML = `<span style="color: #10b981;">A favor del cliente: $${Math.abs(balance).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`;
+  } else if (balance > 0) {
+    balanceSpan.innerHTML = `<span style="color: #ef4444;">A pagar por cliente: $${balance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`;
+  } else {
+    balanceSpan.innerHTML = `<span style="color: var(--text-white);">$0.00</span>`;
+  }
+}
+
+async function confirmRegisterReturn() {
+  const ubicacion = document.getElementById("return-stock-location").value;
+  const clientName = document.getElementById("return-client-name").value.trim();
+  const clientCuit = document.getElementById("return-client-cuit").value.trim();
+  
+  if (!ubicacion) {
+    showToast("Por favor selecciona una sucursal de destino.", true);
+    return;
+  }
+  
+  const finalReturned = [];
+  if (window.selectedReturnSale) {
+    const container = document.getElementById("returned-items-container");
+    const checkboxes = container.querySelectorAll("input[type='checkbox']");
+    checkboxes.forEach((cb, idx) => {
+      if (cb.checked) {
+        finalReturned.push({
+          sku: cb.getAttribute("data-sku"),
+          name: cb.getAttribute("data-name"),
+          price: parseFloat(cb.getAttribute("data-price")) || 0,
+          quantity: parseInt(document.getElementById(`ret-qty-${idx}`).value) || 1
+        });
+      }
+    });
+  } else {
+    window.returnedItemsList.forEach(it => {
+      finalReturned.push({ sku: it.sku, name: it.name, price: it.price, quantity: it.quantity });
+    });
+  }
+  
+  if (finalReturned.length === 0) {
+    showToast("Debes agregar al menos un producto devuelto.", true);
+    return;
+  }
+  
+  const emitAFIP = document.getElementById("return-emit-credit-note") ? document.getElementById("return-emit-credit-note").checked : false;
+  const reason = document.getElementById("return-credit-note-reason") ? document.getElementById("return-credit-note-reason").value : "Devolución técnica";
+  
+  const payload = {
+    sale_id: window.selectedReturnSale ? window.selectedReturnSale.id : null,
+    client_name: clientName,
+    client_cuit: clientCuit,
+    returned_items: finalReturned,
+    exchange_items: window.exchangeItemsList,
+    ubicacion_destino: ubicacion,
+    emit_credit_note: emitAFIP,
+    credit_note_reason: reason
+  };
+  
+  const btn = document.getElementById("btn-submit-return");
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = "Procesando devolución <i class='fas fa-spinner fa-spin'></i>";
+  btn.disabled = true;
+  
+  try {
+    const res = await apiRequest("/api/returns", "POST", payload);
+    if (res.success) {
+      if (res.credit_note_id) {
+        showToast(`¡Devolución registrada! Nota de Crédito ${res.credit_note_id} emitida en AFIP.`, false);
+      } else {
+        showToast("Devolución registrada con éxito. Stocks actualizados.", false);
+      }
+      clearSelectedReturnSale();
+      window.exchangeItemsList = [];
+      renderExchangeItems();
+      await refreshState();
+      await renderReturns();
+    }
+  } catch (error) {
+    showToast("Error al registrar devolución: " + error.message, true);
+  } finally {
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
+
+window.renderReturns = renderReturns;
+window.searchSaleForReturn = searchSaleForReturn;
+window.selectReturnSale = selectReturnSale;
+window.clearSelectedReturnSale = clearSelectedReturnSale;
+window.searchProductForReturn = searchProductForReturn;
+window.addManualReturnProduct = addManualReturnProduct;
+window.removeManualReturnProduct = removeManualReturnProduct;
+window.toggleReturnedItem = toggleReturnedItem;
+window.validateReturnQty = validateReturnQty;
+window.searchProductForExchange = searchProductForExchange;
+window.addExchangeProduct = addExchangeProduct;
+window.removeExchangeProduct = removeExchangeProduct;
+window.updateReturnsSummary = updateReturnsSummary;
+window.confirmRegisterReturn = confirmRegisterReturn;
+window.updateManualReturnQty = updateManualReturnQty;
+window.updateExchangeQty = updateExchangeQty;

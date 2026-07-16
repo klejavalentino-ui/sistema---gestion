@@ -204,6 +204,9 @@
         <li class="menu-item" data-tab="sales">
           <a href="#" class="menu-link"><i>🛒</i> Ventas</a>
         </li>
+        <li class="menu-item" data-tab="returns">
+          <a href="#" class="menu-link"><i>🔄</i> Devoluciones</a>
+        </li>
         <li class="menu-item" data-tab="inventory">
           <a href="#" class="menu-link"><i>📦</i> Inventario</a>
         </li>
@@ -1534,6 +1537,153 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- TAB: DEVOLUCIONES -->
+      <section id="returns-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Gestión de Devoluciones y Cambios</h2>
+            <p>Registrá devoluciones, realizá cambios de productos y emití Notas de Crédito AFIP/ARCA automáticamente.</p>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: start;">
+          <!-- COLUMNA IZQUIERDA: REGISTRAR DEVOLUCION -->
+          <div class="idx-card" style="padding: 20px;">
+            <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--text-white); display: flex; align-items: center; gap: 8px;">🔄 Registrar Nueva Devolución / Cambio</h3>
+            
+            <!-- 1. Buscar Venta o Modo Manual -->
+            <div class="form-group">
+              <label class="form-label" style="font-weight: 600;">Venta Original (Opcional)</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="return-search-sale" class="form-input" placeholder="Buscar por ID de Venta, cliente o número de Tiendanube..." oninput="searchSaleForReturn()">
+                <button class="btn btn-secondary" onclick="clearSelectedReturnSale()" style="padding: 0 15px; font-size: 0.8rem;">Limpiar</button>
+              </div>
+              <div id="return-sale-search-results" style="position: absolute; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; width: 45%; max-height: 200px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
+            </div>
+
+            <!-- Datos del Cliente (siempre visibles, se autocompletan al seleccionar venta) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Cliente</label>
+                <input type="text" id="return-client-name" class="form-input" placeholder="Nombre del cliente" value="Consumidor Final">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">CUIT/DNI</label>
+                <input type="text" id="return-client-cuit" class="form-input" placeholder="Ej: 20999999999">
+              </div>
+            </div>
+
+            <!-- Sucursal de Destino para el Stock -->
+            <div class="form-group">
+              <label class="form-label" style="font-weight: 600;">Sucursal Destino (Reingreso de Stock)</label>
+              <select id="return-stock-location" class="form-input">
+                <!-- Se poblará dinámicamente -->
+              </select>
+            </div>
+
+            <!-- Productos Devueltos -->
+            <div class="form-group" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.01);">
+              <label class="form-label" style="font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                <span>📦 Productos Devueltos por el Cliente</span>
+                <span id="return-sale-ref" style="font-size: 0.7rem; color: var(--accent-blue); font-weight: bold;">Manual</span>
+              </label>
+              
+              <!-- Si es venta manual, buscador de productos para agregar a la devolución -->
+              <div id="return-manual-product-search-box" style="margin-bottom: 10px;">
+                <input type="text" id="return-search-product" class="form-input" placeholder="Buscar producto para devolver..." oninput="searchProductForReturn()">
+                <div id="return-product-search-results" style="position: absolute; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; width: 40%; max-height: 180px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
+              </div>
+
+              <!-- Listado de items para devolver -->
+              <div id="returned-items-container" style="max-height: 180px; overflow-y: auto; margin-top: 10px;">
+                <p style="font-size: 0.75rem; color: var(--text-gray); font-style: italic; margin: 5px 0;">No se han agregado productos para la devolución.</p>
+              </div>
+            </div>
+
+            <!-- Productos a Entregar (Cambio) -->
+            <div class="form-group" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.01);">
+              <label class="form-label" style="font-weight: 600;">🛍️ Productos Entregados a Cambio (Opcional)</label>
+              
+              <div style="margin-bottom: 10px;">
+                <input type="text" id="exchange-search-product" class="form-input" placeholder="Buscar producto para entregar..." oninput="searchProductForExchange()">
+                <div id="exchange-product-search-results" style="position: absolute; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; width: 40%; max-height: 180px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
+              </div>
+
+              <!-- Listado de items de cambio -->
+              <div id="exchange-items-container" style="max-height: 180px; overflow-y: auto; margin-top: 10px;">
+                <p style="font-size: 0.75rem; color: var(--text-gray); font-style: italic; margin: 5px 0;">No se han seleccionado productos de cambio.</p>
+              </div>
+            </div>
+
+            <!-- Facturación Electrónica Nota de Crédito (ARCA/AFIP) -->
+            <div id="return-arca-box" class="form-group" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; background: rgba(244, 63, 94, 0.02); display: none;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <label style="font-weight: 600; font-size: 0.8rem; color: var(--text-white); display: flex; align-items: center; gap: 6px;">
+                  <input type="checkbox" id="return-emit-credit-note" style="accent-color: var(--accent-red);" onchange="updateReturnsSummary()">
+                  Emitir Nota de Crédito Oficial en AFIP (ARCA)
+                </label>
+                <span style="font-size: 0.65rem; background: var(--accent-red); color: var(--text-white); padding: 2px 6px; border-radius: 4px; font-weight: bold;">AFIP</span>
+              </div>
+              <div style="margin-top: 8px;">
+                <label class="form-label" style="font-size: 0.7rem;">Concepto/Motivo de la Nota de Crédito</label>
+                <select id="return-credit-note-reason" class="form-input" style="font-size: 0.75rem; padding: 4px 8px;">
+                  <option value="Devolución técnica">Devolución técnica (Ajusta stock)</option>
+                  <option value="Anulación por mercadería dañada">Mercadería dañada</option>
+                  <option value="Error de facturación">Error de facturación</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Resumen Financiero y Botón -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-gray); margin-bottom: 6px;">
+                <span>Total devuelto por cliente:</span>
+                <span id="return-summary-returned" style="font-weight: bold; color: var(--text-white);">$0.00</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-gray); margin-bottom: 10px;">
+                <span>Total entregado en cambio:</span>
+                <span id="return-summary-exchange" style="font-weight: bold; color: var(--text-white);">$0.00</span>
+              </div>
+              <hr style="border-color: var(--border-color); margin: 8px 0;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; color: var(--text-white);">
+                <span>Balance Neto:</span>
+                <span id="return-summary-balance">$0.00</span>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-primary" onclick="confirmRegisterReturn()" id="btn-submit-return" style="width: 100%; padding: 12px; font-weight: bold; background: var(--accent-blue);">
+              Confirmar Devolución / Cambio
+            </button>
+          </div>
+
+          <!-- COLUMNA DERECHA: HISTORIAL DE DEVOLUCIONES -->
+          <div class="idx-card" style="padding: 20px;">
+            <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--text-white); display: flex; align-items: center; gap: 8px;">📋 Historial de Devoluciones</h3>
+            
+            <div style="max-height: 600px; overflow-y: auto;">
+              <table class="idx-table" style="font-size: 0.75rem;">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Detalle Devolución</th>
+                    <th>Detalle Cambio</th>
+                    <th>Sucursal</th>
+                    <th>Comprobante AFIP</th>
+                  </tr>
+                </thead>
+                <tbody id="returns-history-tbody">
+                  <!-- Se cargará dinámicamente -->
+                </tbody>
+              </table>
+              <div id="returns-history-empty" style="text-align: center; padding: 30px; color: var(--text-gray); font-style: italic; display: none;">
+                No se registraron devoluciones todavía.
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
