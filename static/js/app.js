@@ -408,6 +408,7 @@ function handleLogout() {
   showToast("Sesión cerrada");
   checkAuth();
 }
+window.handleLogout = handleLogout;
 
 // --- Importación y Configuración Excel / Multi-negocio ---
 let parsedImportProducts = [];
