@@ -2741,11 +2741,15 @@ def sync_tiendanube_orders_route():
                     shipping_status = "delivered"
                 else:
                     shipping_status = "unshipped"
+            
+            if order.get("status") == "closed":
+                shipping_status = "delivered"
 
-            customer_info = order.get("customer") or {}
-            client_name = str(customer_info.get("name") or "").strip()
-            client_email = str(customer_info.get("email") or "").strip()
-            client_phone = str(customer_info.get("phone") or "").strip()
+            client_name = str(order.get("contact_name") or "").strip()
+            client_email = str(order.get("contact_email") or "").strip()
+            client_phone = str(order.get("contact_phone") or "").strip()
+            client_cuit = str(order.get("contact_identification") or "").strip()
+            tn_number = order.get("number")
 
             sale_data = {
                 "date": created_at,
@@ -2763,7 +2767,9 @@ def sync_tiendanube_orders_route():
                 "shipping_status": shipping_status,
                 "client_name": client_name,
                 "client_email": client_email,
-                "client_phone": client_phone
+                "client_phone": client_phone,
+                "client_cuit": client_cuit,
+                "tn_number": tn_number
             }
             
             doc_id_with_prefix = f"{prefix}TN-{order_id}"
@@ -2841,8 +2847,15 @@ def ship_tiendanube_order_route():
             return jsonify({"error": "Venta no encontrada"}), 404
             
         old_status = sale.get("shipping_status", "unshipped")
+        old_ubicacion = sale.get("ubicacion")
         
-        if status == "shipped" and old_status == "unshipped":
+        should_discount = False
+        if status in ["shipped", "delivered"] and not old_ubicacion:
+            should_discount = True
+        elif status == "shipped" and old_status == "unshipped":
+            should_discount = True
+            
+        if should_discount:
             if not ubicacion:
                 return jsonify({"error": "Ubicacion requerida para descontar stock"}), 400
                 
@@ -2880,11 +2893,12 @@ def ship_tiendanube_order_route():
                 kwargs={"token": token, "prefix": prefix}
             ).start()
             
-            clean_order_id = sale_id.replace("TN-", "").replace(prefix, "")
-            threading.Thread(
-                target=notify_tiendanube_shipped,
-                args=(uid, clean_order_id, token)
-            ).start()
+            if status == "shipped":
+                clean_order_id = sale_id.replace("TN-", "").replace(prefix, "")
+                threading.Thread(
+                    target=notify_tiendanube_shipped,
+                    args=(uid, clean_order_id, token)
+                ).start()
             
             sale["ubicacion"] = ubicacion
 

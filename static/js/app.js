@@ -8424,11 +8424,33 @@ async function renderIntegrationsStatus() {
         const phoneText = s.client_phone ? ` | Tel: ${s.client_phone}` : "";
         const emailText = s.client_email ? ` | ${s.client_email}` : "";
         clientInfoText = `<div style="font-size: 0.68rem; color: var(--text-gray); margin-top: 2px;">👤 ${s.client_name}${phoneText}${emailText}</div>`;
+      } else {
+        clientInfoText = `<div style="font-size: 0.68rem; color: var(--text-gray); margin-top: 2px; font-style: italic;">👤 Sin datos de contacto (sincronizar para actualizar)</div>`;
       }
+
+      const orderDisplayId = s.tn_number ? `TN-#${s.tn_number}` : s.id;
 
       // Actions/Locations display
       let actionHTML = "";
-      if (shStatus === "unshipped") {
+      const missingLocation = !s.ubicacion;
+
+      if (missingLocation && (shStatus === "shipped" || shStatus === "delivered")) {
+        const configuredLocations = state.userProfile?.locations || ["Local Principal"];
+        const optionsHTML = configuredLocations.map(loc => `<option value="${loc}">${loc}</option>`).join("");
+        actionHTML = `
+          <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between; width: 100%;">
+            <span style="font-size: 0.68rem; color: var(--accent-red); font-weight: bold; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Falta origen de stock</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <select id="ship-loc-${s.id}" style="font-size: 0.68rem; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-dark); color: var(--text-white); outline: none;">
+                ${optionsHTML}
+              </select>
+              <button class="btn btn-sm" onclick="shipTiendanubeOrder('${s.id}', '${shStatus}', 'ship-loc-${s.id}')" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 6px; background: var(--accent-blue); border: none; color: var(--text-white); font-weight: bold; cursor: pointer;">
+                Asignar y Restar
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (shStatus === "unshipped") {
         const configuredLocations = state.userProfile?.locations || ["Local Principal"];
         const optionsHTML = configuredLocations.map(loc => `<option value="${loc}">${loc}</option>`).join("");
         actionHTML = `
@@ -8463,7 +8485,7 @@ async function renderIntegrationsStatus() {
         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 6px;">
             <div>
-              <strong style="color: var(--text-white);">${s.id}</strong> 
+              <strong style="color: var(--text-white);">${orderDisplayId}</strong> 
               <span style="color: var(--text-gray); margin-left: 4px; font-size: 0.68rem;">(${formattedDate})</span>
               <span style="margin-left: 8px; display: inline-flex; gap: 4px;">
                 ${statusBadge}
