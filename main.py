@@ -2557,6 +2557,14 @@ def sync_tiendanube_catalog_route():
     except Exception as e:
         return handle_error(e)
 
+def resolve_shipping_status(local_val, remote_val):
+    order_map = {"unshipped": 1, "shipped": 2, "delivered": 3}
+    local_weight = order_map.get(local_val, 1)
+    remote_weight = order_map.get(remote_val, 1)
+    if remote_weight >= local_weight:
+        return remote_val
+    return local_val
+
 @app.route("/api/integrations/tiendanube/sync-orders", methods=["POST"])
 def sync_tiendanube_orders_route():
     token = get_auth_token()
@@ -2792,15 +2800,37 @@ def sync_tiendanube_orders_route():
             doc_id_with_prefix = f"{prefix}TN-{order_id}"
             existing_sale = existing_sales_by_id.get(doc_id_with_prefix)
             
-            if existing_sale:
-                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status", "shipping_status", "ubicacion", "shipping_option", "shipping_pickup_type"]:
+            is_changed = False
+            if not existing_sale:
+                is_changed = True
+                new_sales_count += 1
+            else:
+                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status", "ubicacion", "shipping_option", "shipping_pickup_type"]:
                     if k in existing_sale:
                         sale_data[k] = existing_sale[k]
-            else:
-                new_sales_count += 1
                 
-            firebase_config.set_document("sales", doc_id_with_prefix, sale_data, token)
-            sales_saved += 1
+                local_sh = existing_sale.get("shipping_status", "unshipped")
+                sale_data["shipping_status"] = resolve_shipping_status(local_sh, shipping_status)
+                
+                for k, v in sale_data.items():
+                    if k == "items":
+                        if json.dumps(v, sort_keys=True) != json.dumps(existing_sale.get(k), sort_keys=True):
+                            is_changed = True
+                            break
+                    elif k == "date":
+                        d1 = str(v).replace("+00:00", "").replace("Z", "")
+                        d2 = str(existing_sale.get(k, "")).replace("+00:00", "").replace("Z", "")
+                        if d1 != d2:
+                            is_changed = True
+                            break
+                    else:
+                        if existing_sale.get(k) != v:
+                            is_changed = True
+                            break
+            
+            if is_changed:
+                firebase_config.set_document("sales", doc_id_with_prefix, sale_data, token)
+                sales_saved += 1
             
         return jsonify({
             "success": True,
