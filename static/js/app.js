@@ -308,7 +308,7 @@ async function handleLogin(e) {
     
     state.token = data.token;
     state.email = data.email;
-    const bizType = document.getElementById("login-business-type").value || "textil";
+    const bizType = data.businessType || document.getElementById("login-business-type").value || "textil";
     state.businessType = bizType;
     localStorage.setItem("datamargen_token", data.token);
     localStorage.setItem("datamargen_email", data.email);
@@ -1429,6 +1429,7 @@ async function refreshState() {
     if (bizType === "clothing") bizType = "textil";
     if (bizType === "kiosk") bizType = "comercio";
     state.businessType = bizType;
+    localStorage.setItem("datamargen_business_type", bizType);
 
     const defaultExtras = (state.businessType === "comercio") ? {
       bolsas_caramelos: [

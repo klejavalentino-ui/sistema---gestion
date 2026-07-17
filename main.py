@@ -410,11 +410,14 @@ def login():
         res = firebase_config.sign_in(email, password)
         token = res.get("idToken")
         
+        detected_biz_type = "textil"
         try:
             for biz_type in ["textil", "comercio"]:
                 profile_doc = firebase_config.get_document("products", f"{biz_type}_user_profile", token)
-                if profile_doc and profile_doc.get("username"):
-                    save_username_mapping(profile_doc["username"], email, token=token)
+                if profile_doc:
+                    detected_biz_type = biz_type
+                    if profile_doc.get("username"):
+                        save_username_mapping(profile_doc["username"], email, token=token)
                     break
         except Exception as ex:
             print(f"Error al sincronizar username mapping durante login: {ex}")
@@ -422,7 +425,8 @@ def login():
         return jsonify({
             "token": token,
             "email": res.get("email"),
-            "localId": res.get("localId")
+            "localId": res.get("localId"),
+            "businessType": detected_biz_type
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 401
@@ -731,6 +735,17 @@ def get_all_state():
         
         # 2. Get or initialize user profile (SaaS details)
         profile_doc = next((d for d in user_docs if d.get("id") == "user_profile"), None)
+        if not profile_doc:
+            # Auto-detect correct prefix if a profile exists under a different prefix
+            profile_doc_raw = next((d for d in all_products if d.get("id", "").endswith("_user_profile")), None)
+            if profile_doc_raw:
+                actual_id = profile_doc_raw.get("id")
+                actual_prefix = actual_id.split("user_profile")[0] # e.g. "comercio_"
+                prefix = actual_prefix
+                user_docs = filter_user_docs(all_products, prefix)
+                user_sales = filter_user_docs(all_sales, prefix)
+                profile_doc = next((d for d in user_docs if d.get("id") == "user_profile"), None)
+
         if not profile_doc:
             biz_type = request.headers.get("X-Business-Type", "textil")
             if biz_type not in ["textil", "comercio"]:
