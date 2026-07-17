@@ -9882,6 +9882,11 @@ async function loadArcaInvoices() {
               ✓ ${inv.status || "Aprobado"}
             </span>
           </td>
+          <td style="padding: 8px; text-align: center;">
+            <button class="btn btn-secondary" onclick="printSaleTicket('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);">
+              <i class="fas fa-print" style="color: var(--accent-blue);"></i> Imprimir
+            </button>
+          </td>
         </tr>
       `;
     }).join("");
