@@ -793,6 +793,18 @@ def get_all_state():
             user_docs.append(profile_doc_copy)
             profile_doc = profile_doc_copy
 
+        # Auto-sync profile to Google Sheets if not already synced
+        if not profile_doc.get("googleSheetsSynced"):
+            try:
+                import threading
+                profile_doc["googleSheetsSynced"] = True
+                # Trigger webhook
+                threading.Thread(target=send_registration_webhook, args=(profile_doc,), daemon=True).start()
+                # Save flag in Firestore
+                firebase_config.set_document("products", f"{prefix}user_profile", profile_doc, token)
+            except Exception as sync_ex:
+                print(f"Error auto-syncing profile to Google Sheets on get_all_state: {sync_ex}")
+
         # Calculate trial remaining days
         created_at_raw = profile_doc.get("createdAt")
         created_at_val = None
@@ -4356,40 +4368,80 @@ def sync_existing_to_sheets():
         if not email or email not in ["valentinoklcv@gmail.com", "matiascuchettidiaz@gmail.com"]:
             return jsonify({"error": "Acceso denegado: solo administradores del sistema pueden ejecutar esta sincronización."}), 403
             
-        from firebase_admin import firestore
-        db = firestore.client()
-        docs = db.collection_group("products").stream()
+        prefix = get_user_prefix(token)
+        my_profile = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
         
-        profiles = []
-        for doc in docs:
-            doc_id = doc.id
-            if doc_id.endswith("_user_profile"):
-                data = doc.to_dict()
-                profiles.append(data)
-                
-        webhook_url = "https://script.google.com/macros/s/AKfycbwSkMgXOvzW4vyOfJzZmVtgP0V1mhY2Y-fzv6eKYECO1GsODMnxkJDxd5IRdcN_GGBV/exec"
-        import requests
-        import threading
-        
-        def bulk_sync(p_list):
-            for p in p_list:
-                payload = {
-                    "name": p.get("contactName", p.get("name", "")),
-                    "businessName": p.get("businessName", ""),
-                    "email": p.get("contactEmail", ""),
-                    "phone": p.get("contactPhone", ""),
-                    "businessType": p.get("businessType", ""),
-                    "businessModel": p.get("businessModel", "")
-                }
-                if not payload["email"]:
-                    continue
-                try:
-                    requests.post(webhook_url, json=payload, timeout=10)
-                except Exception as ex:
-                    print(f"Error bulk syncing user: {ex}")
+        try:
+            from firebase_admin import firestore
+            db = firestore.client()
+            docs = db.collection_group("products").stream()
+            
+            profiles = []
+            for doc in docs:
+                doc_id = doc.id
+                if doc_id.endswith("_user_profile"):
+                    data = doc.to_dict()
+                    profiles.append(data)
                     
-        threading.Thread(target=bulk_sync, args=(profiles,), daemon=True).start()
-        return jsonify({"success": True, "message": f"Sincronización masiva de {len(profiles)} cuentas iniciada en segundo plano."})
+            webhook_url = "https://script.google.com/macros/s/AKfycbwSkMgXOvzW4vyOfJzZmVtgP0V1mhY2Y-fzv6eKYECO1GsODMnxkJDxd5IRdcN_GGBV/exec"
+            import requests
+            import threading
+            
+            def bulk_sync(p_list):
+                for p in p_list:
+                    payload = {
+                        "name": p.get("contactName", p.get("name", "")),
+                        "businessName": p.get("businessName", ""),
+                        "email": p.get("contactEmail", ""),
+                        "phone": p.get("contactPhone", ""),
+                        "businessType": p.get("businessType", ""),
+                        "businessModel": p.get("businessModel", "")
+                    }
+                    if not payload["email"]:
+                        continue
+                    try:
+                        requests.post(webhook_url, json=payload, timeout=10)
+                    except Exception as ex:
+                        print(f"Error bulk syncing user: {ex}")
+                        
+            threading.Thread(target=bulk_sync, args=(profiles,), daemon=True).start()
+            return jsonify({"success": True, "message": f"Sincronización masiva de {len(profiles)} cuentas iniciada en segundo plano."})
+            
+        except Exception as admin_sdk_err:
+            # Fallback to syncing only the caller's profile
+            print(f"Admin SDK failed (will fallback to single user sync): {admin_sdk_err}")
+            
+            webhook_url = "https://script.google.com/macros/s/AKfycbwSkMgXOvzW4vyOfJzZmVtgP0V1mhY2Y-fzv6eKYECO1GsODMnxkJDxd5IRdcN_GGBV/exec"
+            import requests
+            import threading
+            
+            if my_profile:
+                my_profile["googleSheetsSynced"] = True
+                try:
+                    firebase_config.set_document("products", f"{prefix}user_profile", my_profile, token)
+                except Exception as save_err:
+                    print(f"Error saving synced flag: {save_err}")
+                    
+                def single_sync(p):
+                    payload = {
+                        "name": p.get("contactName", p.get("name", "")),
+                        "businessName": p.get("businessName", ""),
+                        "email": p.get("contactEmail", ""),
+                        "phone": p.get("contactPhone", ""),
+                        "businessType": p.get("businessType", ""),
+                        "businessModel": p.get("businessModel", "")
+                    }
+                    try:
+                        requests.post(webhook_url, json=payload, timeout=10)
+                    except Exception as ex:
+                        print(f"Error syncing user: {ex}")
+                        
+                threading.Thread(target=single_sync, args=(my_profile,), daemon=True).start()
+                
+            return jsonify({
+                "success": True, 
+                "message": "Tu cuenta de administrador fue sincronizada con éxito. Para el resto de los comercios existentes, hemos activado un autodetector: se sincronizarán automáticamente con la planilla a medida que abran el sistema."
+            })
     except Exception as e:
         return handle_error(e)
 
