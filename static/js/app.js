@@ -6164,16 +6164,63 @@ function renderSupplierAccounts() {
     const balance = acc.transactions ? acc.transactions.reduce((sum, tx) => sum + (tx.amount - tx.payment), 0) : 0;
     const metrics = acc._metrics;
     
+    // Pre-calcular deudas impagas mediante FIFO
+    const txs = acc.transactions || [];
+    txs.forEach(t => t._remaining = t.amount || 0);
+    const sortedTxs = [...txs].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const debts = sortedTxs.filter(t => (t.amount || 0) > 0);
+    const payments = sortedTxs.filter(t => (t.payment || 0) > 0);
+    
+    let debtIdx = 0;
+    payments.forEach(p => {
+      let payAmt = p.payment || p.amount;
+      while (payAmt > 0 && debtIdx < debts.length) {
+        const activeDebt = debts[debtIdx];
+        const portion = Math.min(payAmt, activeDebt._remaining);
+        activeDebt._remaining -= portion;
+        payAmt -= portion;
+        if (activeDebt._remaining <= 0.001) {
+          debtIdx++;
+        }
+      }
+    });
+    
     let txRows = "";
     if (!acc.transactions || acc.transactions.length === 0) {
-      txRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-gray); padding: 12px; font-size: 0.75rem;">No hay movimientos registrados.</td></tr>`;
+      txRows = `<tr><td colspan="5" style="text-align: center; color: var(--text-gray); padding: 12px; font-size: 0.75rem;">No hay movimientos registrados.</td></tr>`;
     } else {
       const sorted = [...acc.transactions].reverse();
       sorted.forEach(tx => {
         const dateStr = new Date(tx.date).toLocaleDateString('es-AR');
+        let dueDateStr = "-";
+        let dueStyle = "color: var(--text-gray); font-size: 0.75rem;";
+        
+        if ((tx.amount || 0) > 0) {
+          const termDays = acc.paymentTerms !== undefined ? parseInt(acc.paymentTerms, 10) : 30;
+          const dDate = new Date(tx.date);
+          dDate.setDate(dDate.getDate() + termDays);
+          dueDateStr = dDate.toLocaleDateString('es-AR');
+          
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          
+          if (tx._remaining > 0.01) {
+            if (dDate < today) {
+              dueStyle = "color: #f87171; font-weight: 800; font-size: 0.75rem;";
+              dueDateStr = `⚠️ Vencido (${dueDateStr})`;
+            } else {
+              dueStyle = "color: #f59e0b; font-weight: 700; font-size: 0.75rem;";
+            }
+          } else {
+            dueStyle = "color: #10b981; font-size: 0.75rem; text-decoration: line-through; opacity: 0.6;";
+            dueDateStr = `Saldado`;
+          }
+        }
+        
         txRows += `
           <tr>
             <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
+            <td style="${dueStyle}">${dueDateStr}</td>
             <td style="font-weight: 600;">${tx.description}</td>
             <td style="text-align: right; color: #f87171;">$ ${Math.round(tx.amount).toLocaleString()}</td>
             <td style="text-align: right; color: #10b981;">$ ${Math.round(tx.payment).toLocaleString()}</td>
@@ -6219,6 +6266,7 @@ function renderSupplierAccounts() {
           <thead>
             <tr>
               <th>FECHA</th>
+              <th>VENCIMIENTO</th>
               <th>CONCEPTO</th>
               <th style="text-align: right;">DEUDA</th>
               <th style="text-align: right;">PAGO</th>
@@ -6292,16 +6340,63 @@ function renderCollections() {
     const balance = Math.max(0, acc.transactions ? acc.transactions.reduce((sum, tx) => sum + (tx.amount - tx.payment), 0) : 0);
     const metrics = acc._metrics;
     
+    // Pre-calcular deudas impagas mediante FIFO
+    const txs = acc.transactions || [];
+    txs.forEach(t => t._remaining = t.amount || 0);
+    const sortedTxs = [...txs].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const debts = sortedTxs.filter(t => (t.amount || 0) > 0);
+    const payments = sortedTxs.filter(t => (t.payment || 0) > 0);
+    
+    let debtIdx = 0;
+    payments.forEach(p => {
+      let payAmt = p.payment || p.amount;
+      while (payAmt > 0 && debtIdx < debts.length) {
+        const activeDebt = debts[debtIdx];
+        const portion = Math.min(payAmt, activeDebt._remaining);
+        activeDebt._remaining -= portion;
+        payAmt -= portion;
+        if (activeDebt._remaining <= 0.001) {
+          debtIdx++;
+        }
+      }
+    });
+    
     let txRows = "";
     if (!acc.transactions || acc.transactions.length === 0) {
-      txRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-gray); padding: 12px; font-size: 0.75rem;">No hay movimientos registrados.</td></tr>`;
+      txRows = `<tr><td colspan="5" style="text-align: center; color: var(--text-gray); padding: 12px; font-size: 0.75rem;">No hay movimientos registrados.</td></tr>`;
     } else {
       const sorted = [...acc.transactions].reverse();
       sorted.forEach(tx => {
         const dateStr = new Date(tx.date).toLocaleDateString('es-AR');
+        let dueDateStr = "-";
+        let dueStyle = "color: var(--text-gray); font-size: 0.75rem;";
+        
+        if ((tx.amount || 0) > 0) {
+          const termDays = acc.paymentTerms !== undefined ? parseInt(acc.paymentTerms, 10) : 30;
+          const dDate = new Date(tx.date);
+          dDate.setDate(dDate.getDate() + termDays);
+          dueDateStr = dDate.toLocaleDateString('es-AR');
+          
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          
+          if (tx._remaining > 0.01) {
+            if (dDate < today) {
+              dueStyle = "color: #f87171; font-weight: 800; font-size: 0.75rem;";
+              dueDateStr = `⚠️ Vencido (${dueDateStr})`;
+            } else {
+              dueStyle = "color: #f59e0b; font-weight: 700; font-size: 0.75rem;";
+            }
+          } else {
+            dueStyle = "color: #10b981; font-size: 0.75rem; text-decoration: line-through; opacity: 0.6;";
+            dueDateStr = `Saldado`;
+          }
+        }
+        
         txRows += `
           <tr>
             <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
+            <td style="${dueStyle}">${dueDateStr}</td>
             <td style="font-weight: 600;">${tx.description}</td>
             <td style="text-align: right; color: #f87171;">$ ${Math.round(tx.amount).toLocaleString()}</td>
             <td style="text-align: right; color: #10b981;">$ ${Math.round(tx.payment).toLocaleString()}</td>
@@ -6349,6 +6444,7 @@ function renderCollections() {
           <thead>
             <tr>
               <th>FECHA</th>
+              <th>VENCIMIENTO</th>
               <th>CONCEPTO</th>
               <th style="text-align: right;">DEUDA</th>
               <th style="text-align: right;">COBRO</th>
@@ -10905,8 +11001,8 @@ function searchSaleForReturn() {
   
   if (query.length < 2) {
     if (query.length === 0) {
-      // Show 5 most recent sales as suggestions
-      const matches = [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+      // Show 10 most recent sales as suggestions
+      const matches = [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
       if (matches.length > 0) {
         resultsDiv.innerHTML = `<div style="padding: 6px 12px; font-size: 0.65rem; color: var(--text-gray); font-weight: 800; border-bottom: 1px solid var(--border-color); text-transform: uppercase;">Ventas Recientes:</div>` + matches.map(s => {
           const tnLabel = s.tn_number ? `TN-#${s.tn_number}` : s.id;
