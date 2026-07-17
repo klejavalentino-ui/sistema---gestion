@@ -1455,7 +1455,15 @@ async function refreshState() {
         { id: "bor-logo", name: "Bordado Logo Pecho", cost: 600, stock: 120 }
       ]
     };
-    state.extras = (data.extras && Object.keys(data.extras).length > 0) ? data.extras : defaultExtras;
+    const isMatias = state.email === "matiascuchettidiaz@gmail.com";
+    let finalExtras = data.extras || {};
+    const hasAnyItems = Object.keys(finalExtras).some(k => !["sku", "name", "cost", "stock", "id"].includes(k) && Array.isArray(finalExtras[k]) && finalExtras[k].length > 0);
+    if (!hasAnyItems && !isMatias) {
+      finalExtras = {};
+    } else if (!data.extras && isMatias) {
+      finalExtras = defaultExtras;
+    }
+    state.extras = finalExtras;
     
     applyBusinessTypeUIUpdates();
     await syncSuppliersWithCurrentAccounts();
@@ -4242,6 +4250,8 @@ function openCreateProductModal() {
   const isComercio = state.businessType === "comercio";
   document.getElementById("prod-color-label").innerText = isComercio ? "Variante" : "Color";
   document.getElementById("prod-color").placeholder = isComercio ? "Ej. Chocolate, Pack x3, etc." : "Ej. Negro";
+  document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Básica";
+  document.getElementById("prod-sku").placeholder = isComercio ? "Ej. ALFA-CHO-01" : "Ej. REM-OVR-N";
   
   // Initialize locations stock
   tempLocationStock = {};
@@ -4360,6 +4370,8 @@ function openEditProductModal(sku) {
   const isComercio = state.businessType === "comercio";
   document.getElementById("prod-color-label").innerText = isComercio ? "Variante" : "Color";
   document.getElementById("prod-color").placeholder = isComercio ? "Ej. Chocolate, Pack x3, etc." : "Ej. Negro";
+  document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Básica";
+  document.getElementById("prod-sku").placeholder = isComercio ? "Ej. ALFA-CHO-01" : "Ej. REM-OVR-N";
   
   const talleCard = document.getElementById("product-talles-card");
   const simpleStockContainer = document.getElementById("product-simple-stock-container");
@@ -7743,6 +7755,7 @@ function renderExtrasConfig() {
   container.innerHTML = "";
 
   Object.keys(state.extras).forEach(catKey => {
+    if (["sku", "name", "cost", "stock", "id"].includes(catKey)) return;
     const title = getCategoryTitle(catKey);
     const options = state.extras[catKey] || [];
 

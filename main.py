@@ -635,6 +635,8 @@ def seed_db_if_empty(prefix, token):
         # 3. Adicionales (Extras Config) (Vacíos por defecto)
         extras_config = next((d for d in user_docs if d.get("id") == "extras_config"), None)
         if not extras_config:
+            email = get_email_from_token(token)
+            is_matias = email == "matiascuchettidiaz@gmail.com"
             biz_type = request.headers.get("X-Business-Type", "textil")
             if biz_type not in ["textil", "comercio"]:
                 biz_type = "textil"
@@ -647,13 +649,13 @@ def seed_db_if_empty(prefix, token):
                     "bolsas_caramelos": [
                         { "id": "bol-kraft", "name": "Bolsa Kraft Chica", "cost": 150.0, "stock": 100 },
                         { "id": "bol-plast", "name": "Bolsa Camiseta Mediana", "cost": 80.0, "stock": 200 }
-                    ],
+                    ] if is_matias else [],
                     "envoltorios_regalo": [
                         { "id": "env-premium", "name": "Papel de Regalo + Moño", "cost": 300.0, "stock": 50 }
-                    ],
+                    ] if is_matias else [],
                     "adicionales_kiosco": [
                         { "id": "adi-caramelos", "name": "Caramelos de Cortesía", "cost": 10.0, "stock": 1000 }
-                    ]
+                    ] if is_matias else []
                 }
             else:
                 initial_extras = {
@@ -664,14 +666,14 @@ def seed_db_if_empty(prefix, token):
                     "estampados": [
                         { "id": "est-frente", "name": "Estampado Frente 10x10", "cost": 450.0, "stock": 100 },
                         { "id": "est-espalda", "name": "Estampado Espalda A4", "cost": 850.0, "stock": 100 }
-                    ],
+                    ] if is_matias else [],
                     "packagings": [
                         { "id": "pac-bolsa", "name": "Bolsa Kraft con Logo", "cost": 180.0, "stock": 150 },
                         { "id": "pac-caja", "name": "Caja de Cartón para Remera", "cost": 400.0, "stock": 50 }
-                    ],
+                    ] if is_matias else [],
                     "bordados": [
                         { "id": "bor-logo", "name": "Bordado Logo Pecho", "cost": 600.0, "stock": 120 }
-                    ]
+                    ] if is_matias else []
                 }
             firebase_config.set_document("products", f"{prefix}extras_config", initial_extras, token)
 
