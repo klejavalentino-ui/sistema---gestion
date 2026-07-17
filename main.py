@@ -492,6 +492,22 @@ def delete_account():
     except Exception as e:
         return handle_error(e)
 
+def send_registration_webhook(profile):
+    import requests
+    url = "https://script.google.com/macros/s/AKfycbwSkMgXOvzW4vyOfJzZmVtgP0V1mhY2Y-fzv6eKYECO1GsODMnxkJDxd5IRdcN_GGBV/exec"
+    payload = {
+        "name": profile.get("contactName", ""),
+        "businessName": profile.get("businessName", ""),
+        "email": profile.get("contactEmail", ""),
+        "phone": profile.get("contactPhone", ""),
+        "businessType": profile.get("businessType", ""),
+        "businessModel": profile.get("businessModel", "")
+    }
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Error sending registration webhook: {e}")
+
 @app.route("/api/auth/register", methods=["POST"])
 def register():
     data = request.json or {}
@@ -537,6 +553,13 @@ def register():
             "createdAt": datetime.utcnow().isoformat()
         }
         firebase_config.set_document("products", f"{biz_type}_user_profile", profile_payload, token)
+        
+        # Trigger background webhook send to Google Sheets
+        try:
+            import threading
+            threading.Thread(target=send_registration_webhook, args=(profile_payload,), daemon=True).start()
+        except Exception as thread_ex:
+            print(f"Error launching registration webhook thread: {thread_ex}")
         
         # Send verification email immediately on registration
         try:
