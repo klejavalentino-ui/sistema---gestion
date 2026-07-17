@@ -219,15 +219,18 @@ function toggleAuthView(showRegister) {
   const loginForm = document.getElementById("login-container");
   const registerForm = document.getElementById("register-container");
   const resetForm = document.getElementById("reset-password-container");
+  const authCard = document.getElementById("auth-card");
   
   if (resetForm) resetForm.style.display = "none";
   
   if (showRegister) {
     loginForm.style.display = "none";
     registerForm.style.display = "block";
+    if (authCard) authCard.style.maxWidth = "540px";
   } else {
     loginForm.style.display = "block";
     registerForm.style.display = "none";
+    if (authCard) authCard.style.maxWidth = "400px";
   }
 }
 
@@ -235,6 +238,7 @@ function toggleResetPasswordView(showReset) {
   const loginForm = document.getElementById("login-container");
   const registerForm = document.getElementById("register-container");
   const resetForm = document.getElementById("reset-password-container");
+  const authCard = document.getElementById("auth-card");
   
   // Clear messages
   const resetError = document.getElementById("reset-error");
@@ -249,10 +253,12 @@ function toggleResetPasswordView(showReset) {
     loginForm.style.display = "none";
     registerForm.style.display = "none";
     if (resetForm) resetForm.style.display = "block";
+    if (authCard) authCard.style.maxWidth = "400px";
   } else {
     loginForm.style.display = "block";
     registerForm.style.display = "none";
     if (resetForm) resetForm.style.display = "none";
+    if (authCard) authCard.style.maxWidth = "400px";
   }
 }
 
