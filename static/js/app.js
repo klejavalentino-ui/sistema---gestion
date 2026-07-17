@@ -9882,11 +9882,10 @@ function renderUninvoicedSales() {
   // Show only up to 20 recent uninvoiced sales to keep it clean
   const recent = uninvoiced.slice(0, 20);
   
-  // Hide bulk invoice button by default on render
-  const bulkBtn = document.getElementById("arca-bulk-invoice-btn");
-  if (bulkBtn) bulkBtn.style.display = "none";
+  // Reset bulk count and checkbox states on render
   const selectAllCb = document.getElementById("arca-select-all-uninvoiced");
   if (selectAllCb) selectAllCb.checked = false;
+  updateBulkInvoiceButtonVisibility();
   
   if (recent.length === 0) {
     tbody.innerHTML = `
@@ -9906,8 +9905,8 @@ function renderUninvoicedSales() {
       minute: "2-digit"
     });
     return `
-      <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
-        <td style="padding: 8px; text-align: center;">
+      <tr onclick="toggleRowCheckbox(event, '${sale.id}')" style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='none'">
+        <td style="padding: 8px; text-align: center;" onclick="event.stopPropagation();">
           <input type="checkbox" class="arca-select-uninvoiced" value="${sale.id}" onchange="updateBulkInvoiceButtonVisibility()" style="cursor: pointer;">
         </td>
         <td style="padding: 8px;">${formattedDate}</td>
@@ -9915,7 +9914,7 @@ function renderUninvoicedSales() {
         <td style="padding: 8px;">
           <span class="badge badge-gray" style="font-size: 0.65rem;">${sale.method}</span>
         </td>
-        <td style="padding: 8px; text-align: right;">
+        <td style="padding: 8px; text-align: right;" onclick="event.stopPropagation();">
           <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">
             ⚡ Facturar
           </button>
@@ -9933,14 +9932,44 @@ function toggleSelectAllUninvoiced(source) {
   updateBulkInvoiceButtonVisibility();
 }
 
+function toggleRowCheckbox(event, saleId) {
+  const cb = event.currentTarget.querySelector(".arca-select-uninvoiced");
+  if (cb && !cb.disabled) {
+    cb.checked = !cb.checked;
+    updateBulkInvoiceButtonVisibility();
+  }
+}
+
+function selectAllUninvoicedSales(check) {
+  const checkboxes = document.querySelectorAll(".arca-select-uninvoiced");
+  checkboxes.forEach(cb => {
+    if (!cb.disabled) cb.checked = check;
+  });
+  const selectAllCb = document.getElementById("arca-select-all-uninvoiced");
+  if (selectAllCb) selectAllCb.checked = check;
+  updateBulkInvoiceButtonVisibility();
+}
+
 function updateBulkInvoiceButtonVisibility() {
   const checked = document.querySelectorAll(".arca-select-uninvoiced:checked");
   const btn = document.getElementById("arca-bulk-invoice-btn");
+  const countSpan = document.getElementById("arca-bulk-count");
+  
+  if (countSpan) {
+    countSpan.innerText = checked.length;
+  }
+  
   if (btn) {
     if (checked.length > 0) {
-      btn.style.display = "inline-flex";
+      btn.disabled = false;
+      btn.style.opacity = "1";
+      btn.style.cursor = "pointer";
+      btn.style.boxShadow = "0 0 12px rgba(16, 185, 129, 0.4)";
     } else {
-      btn.style.display = "none";
+      btn.disabled = true;
+      btn.style.opacity = "0.5";
+      btn.style.cursor = "not-allowed";
+      btn.style.boxShadow = "none";
     }
   }
 }
@@ -11424,3 +11453,5 @@ window.updateReturnsSummary = updateReturnsSummary;
 window.confirmRegisterReturn = confirmRegisterReturn;
 window.updateManualReturnQty = updateManualReturnQty;
 window.updateExchangeQty = updateExchangeQty;
+window.selectAllUninvoicedSales = selectAllUninvoicedSales;
+window.toggleRowCheckbox = toggleRowCheckbox;

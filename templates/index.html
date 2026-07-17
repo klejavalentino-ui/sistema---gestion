@@ -1519,11 +1519,15 @@
 
             <!-- PANEL DE FACTURACIÓN ELECTRÓNICA -->
             <div style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 12px;">
                 <h5 style="color: var(--text-gray); margin: 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">Ventas Recientes (No Facturadas)</h5>
-                <button class="btn btn-emerald" id="arca-bulk-invoice-btn" onclick="emitBulkArcaInvoices()" style="padding: 6px 14px; font-size: 0.75rem; font-weight: bold; display: none; align-items: center; gap: 6px;">
-                  ⚡ Facturación Masiva
-                </button>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <button class="btn btn-secondary" onclick="selectAllUninvoicedSales(true)" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 700; height: auto;">Marcar Todo</button>
+                  <button class="btn btn-secondary" onclick="selectAllUninvoicedSales(false)" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 700; height: auto;">Desmarcar Todo</button>
+                  <button class="btn btn-emerald" id="arca-bulk-invoice-btn" onclick="emitBulkArcaInvoices()" style="padding: 6px 14px; font-size: 0.75rem; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; opacity: 0.5; cursor: not-allowed; transition: all 0.2s ease;" disabled>
+                    ⚡ Facturar Seleccionados (<span id="arca-bulk-count">0</span>)
+                  </button>
+                </div>
               </div>
               <div style="overflow-x: auto; margin-bottom: 25px;">
                 <table class="inventory-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left;">
