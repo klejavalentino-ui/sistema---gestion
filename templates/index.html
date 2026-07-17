@@ -117,11 +117,27 @@
             </div>
             <div class="form-group" style="margin-bottom: 0;">
               <label class="form-label" for="register-password">CONTRASEÑA <span style="color: var(--accent-red);">*</span></label>
-              <input type="password" id="register-password" class="form-input" placeholder="••••••••" required autocomplete="new-password">
+              <div style="position: relative;">
+                <input type="password" id="register-password" class="form-input" placeholder="••••••••" required autocomplete="new-password" style="padding-right: 40px;">
+                <button type="button" onclick="toggleRegisterPasswordVisibility('register-password', 'register-password-eye-icon')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-gray); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                  <svg id="register-password-eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
               <label class="form-label" for="register-password-confirm">CONFIRMAR <span style="color: var(--accent-red);">*</span></label>
-              <input type="password" id="register-password-confirm" class="form-input" placeholder="••••••••" required autocomplete="new-password">
+              <div style="position: relative;">
+                <input type="password" id="register-password-confirm" class="form-input" placeholder="••••••••" required autocomplete="new-password" style="padding-right: 40px;">
+                <button type="button" onclick="toggleRegisterPasswordVisibility('register-password-confirm', 'register-password-confirm-eye-icon')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-gray); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                  <svg id="register-password-confirm-eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
           <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.85rem; font-weight: 700;">Crear cuenta gratis &rarr;</button>
