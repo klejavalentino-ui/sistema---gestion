@@ -440,6 +440,33 @@ function handleLogout() {
 }
 window.handleLogout = handleLogout;
 
+async function handleDeleteAccount() {
+  const confirm1 = confirm("¿Estás seguro que deseas eliminar esta cuenta de forma permanente? Se borrarán todos los datos del negocio, productos, ventas y configuraciones de forma irreversible.");
+  if (!confirm1) return;
+  
+  const confirm2 = prompt("Esta acción NO se puede deshacer. Por seguridad, escribe 'ELIMINAR' para confirmar la eliminación definitiva:");
+  if (confirm2 !== "ELIMINAR") {
+    showToast("Eliminación cancelada o palabra de confirmación incorrecta.", true);
+    return;
+  }
+  
+  try {
+    const res = await apiRequest("/api/auth/delete-account", "POST");
+    showToast("Cuenta eliminada correctamente.");
+    state.token = null;
+    state.email = null;
+    localStorage.removeItem("datamargen_token");
+    localStorage.removeItem("datamargen_email");
+    setTimeout(() => {
+      checkAuth();
+      window.location.reload();
+    }, 1500);
+  } catch (e) {
+    showToast("Error: " + e.message, true);
+  }
+}
+window.handleDeleteAccount = handleDeleteAccount;
+
 // --- Importación y Configuración Excel / Multi-negocio ---
 let parsedImportProducts = [];
 
@@ -9697,6 +9724,11 @@ function formatAllCurrencyInputs() {
 // ==========================================
 
 function applyPermissionsToUI() {
+  const delAccBtn = document.getElementById("sidebar-delete-account-btn");
+  if (delAccBtn) {
+    delAccBtn.style.display = state.role === "admin" ? "flex" : "none";
+  }
+
   // Solo aplicamos bloqueo si es subuser y tiene permissions
   if (state.role === "admin" || !state.permissions) {
     // Restaurar todo a visible/habilitado si es admin (por si deslogueó y re-logueó)

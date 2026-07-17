@@ -426,6 +426,67 @@ def login():
     except Exception as e:
         return jsonify({"error": str(e)}), 401
 
+@app.route("/api/auth/delete-account", methods=["POST"])
+def delete_account():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    try:
+        uid = firebase_config.verify_id_token(token)
+        real_uid = firebase_config.get_real_uid(uid, token)
+        if real_uid != uid:
+            return jsonify({"error": "Solo el administrador principal puede eliminar la cuenta del comercio."}), 403
+            
+        # 1. Recuperar el perfil para saber el username
+        username = None
+        for b_type in ["textil", "comercio"]:
+            profile = firebase_config.get_document("products", f"{b_type}_user_profile", token)
+            if profile:
+                username = profile.get("username")
+                break
+                
+        # 2. Eliminar mapeo global de username
+        if username:
+            try:
+                if os.path.exists(USERNAMES_FILE):
+                    with open(USERNAMES_FILE, "r") as f:
+                        data = json.load(f)
+                    key_to_del = None
+                    for k in data.keys():
+                        if k.strip().lower() == username.strip().lower():
+                            key_to_del = k
+                            break
+                    if key_to_del:
+                        del data[key_to_del]
+                        with open(USERNAMES_FILE, "w") as f:
+                            json.dump(data, f, indent=4)
+            except Exception as e:
+                print(f"Error borrando de usernames.json: {e}")
+                
+            try:
+                firebase_config.delete_document("username_mappings", username.strip().lower(), token)
+            except Exception as e:
+                print(f"Error eliminando username mapping global: {e}")
+                
+        # 3. Eliminar subcolecciones conocidas
+        collections_to_delete = ["products", "sales", "integrations", "invoices", "subusers"]
+        for col in collections_to_delete:
+            try:
+                docs = firebase_config.list_documents(col, token) or []
+                for d in docs:
+                    doc_id = d.get("id")
+                    if doc_id:
+                        firebase_config.delete_document(col, doc_id, token)
+            except Exception as col_err:
+                print(f"Error eliminando colección {col}: {col_err}")
+                
+        # 4. Eliminar el usuario en Firebase Authentication
+        firebase_config.delete_user_account(token)
+        
+        return jsonify({"success": True, "message": "Cuenta eliminada correctamente."})
+    except Exception as e:
+        return handle_error(e)
+
 @app.route("/api/auth/register", methods=["POST"])
 def register():
     data = request.json or {}
@@ -440,6 +501,12 @@ def register():
     if not email or not password:
         return jsonify({"error": "Correo y contraseña son requeridos"}), 400
         
+    if username:
+        clean_user = username.strip().lower()
+        existing_email = get_email_for_username(clean_user)
+        if existing_email:
+            return jsonify({"error": f"El nombre de usuario '@{username}' ya está en uso por otro comercio. Por favor elige otro."}), 400
+            
     try:
         res = firebase_config.sign_up(email, password)
         token = res.get("idToken")

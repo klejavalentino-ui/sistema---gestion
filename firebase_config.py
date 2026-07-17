@@ -398,3 +398,10 @@ def delete_document(collection, doc_id, id_token):
         return False
     r.raise_for_status()
     return True
+
+def delete_user_account(id_token):
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:delete?key={API_KEY}"
+    payload = {"idToken": id_token}
+    r = _session.post(url, json=payload, timeout=30)
+    r.raise_for_status()
+    return r.json()
