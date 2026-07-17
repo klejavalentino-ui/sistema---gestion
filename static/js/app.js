@@ -9762,10 +9762,16 @@ function renderUninvoicedSales() {
   // Show only up to 20 recent uninvoiced sales to keep it clean
   const recent = uninvoiced.slice(0, 20);
   
+  // Hide bulk invoice button by default on render
+  const bulkBtn = document.getElementById("arca-bulk-invoice-btn");
+  if (bulkBtn) bulkBtn.style.display = "none";
+  const selectAllCb = document.getElementById("arca-select-all-uninvoiced");
+  if (selectAllCb) selectAllCb.checked = false;
+  
   if (recent.length === 0) {
     tbody.innerHTML = `
       <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
-        <td colspan="4" style="padding: 15px; text-align: center;">No hay ventas recientes pendientes de facturar.</td>
+        <td colspan="5" style="padding: 15px; text-align: center;">No hay ventas recientes pendientes de facturar.</td>
       </tr>
     `;
     return;
@@ -9781,6 +9787,9 @@ function renderUninvoicedSales() {
     });
     return `
       <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
+        <td style="padding: 8px; text-align: center;">
+          <input type="checkbox" class="arca-select-uninvoiced" value="${sale.id}" onchange="updateBulkInvoiceButtonVisibility()" style="cursor: pointer;">
+        </td>
         <td style="padding: 8px;">${formattedDate}</td>
         <td style="padding: 8px; font-weight: 700; color: var(--text-white);">$ ${Math.round(sale.total).toLocaleString("es-AR")}</td>
         <td style="padding: 8px;">
@@ -9794,6 +9803,83 @@ function renderUninvoicedSales() {
       </tr>
     `;
   }).join("");
+}
+
+function toggleSelectAllUninvoiced(source) {
+  const checkboxes = document.querySelectorAll(".arca-select-uninvoiced");
+  checkboxes.forEach(cb => {
+    if (!cb.disabled) cb.checked = source.checked;
+  });
+  updateBulkInvoiceButtonVisibility();
+}
+
+function updateBulkInvoiceButtonVisibility() {
+  const checked = document.querySelectorAll(".arca-select-uninvoiced:checked");
+  const btn = document.getElementById("arca-bulk-invoice-btn");
+  if (btn) {
+    if (checked.length > 0) {
+      btn.style.display = "inline-flex";
+    } else {
+      btn.style.display = "none";
+    }
+  }
+}
+
+async function emitBulkArcaInvoices() {
+  const checked = document.querySelectorAll(".arca-select-uninvoiced:checked");
+  if (checked.length === 0) {
+    showToast("Selecciona al menos una venta para facturar", true);
+    return;
+  }
+  
+  const selectedIds = Array.from(checked).map(cb => cb.value);
+  
+  showConfirmModal(`¿Deseas facturar de forma masiva estas ${selectedIds.length} ventas?`, async () => {
+    let successCount = 0;
+    let failCount = 0;
+    let errors = [];
+    
+    // Disable select all checkbox and all sale checkboxes during emission
+    const selectAllCb = document.getElementById("arca-select-all-uninvoiced");
+    if (selectAllCb) selectAllCb.disabled = true;
+    checked.forEach(cb => cb.disabled = true);
+    
+    showToast(`Iniciando facturación masiva de ${selectedIds.length} comprobantes...`);
+    
+    for (let i = 0; i < selectedIds.length; i++) {
+      const saleId = selectedIds[i];
+      // Find local sale for name reference
+      const sale = state.sales.find(s => s.id === saleId);
+      const saleDesc = sale ? `$ ${Math.round(sale.total).toLocaleString("es-AR")}` : `#${saleId}`;
+      
+      showToast(`[${i+1}/${selectedIds.length}] Facturando venta de ${saleDesc}...`);
+      
+      try {
+        const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
+        successCount++;
+      } catch (error) {
+        failCount++;
+        errors.push(`Venta ${saleDesc}: ${error.message}`);
+      }
+    }
+    
+    // Refresh all states
+    await refreshState();
+    if (typeof renderUninvoicedSales === 'function') renderUninvoicedSales();
+    
+    // Re-enable select all
+    if (selectAllCb) {
+      selectAllCb.disabled = false;
+      selectAllCb.checked = false;
+    }
+    
+    if (failCount === 0) {
+      showToast(`¡Facturación masiva completada con éxito! Se emitieron ${successCount} comprobantes.`);
+    } else {
+      showToast(`Facturación masiva finalizada. Éxitos: ${successCount}. Errores: ${failCount}.`, true);
+      alert(`Errores durante la facturación masiva:\n\n` + errors.join("\n"));
+    }
+  });
 }
 
 async function changeSaleFiscalStatus(saleId, status) {

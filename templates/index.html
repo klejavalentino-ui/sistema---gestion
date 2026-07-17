@@ -258,7 +258,7 @@
           <a href="#" class="menu-link"><i>☁️</i> TiendaNube</a>
         </li>
         <li class="menu-item" data-tab="arca" id="sidebar-arca-item" style="display: none;">
-          <a href="#" class="menu-link"><i>🧾</i> Facturación ARCA</a>
+          <a href="#" class="menu-link"><i>🧾</i> ARCA</a>
         </li>
         <li class="menu-item" data-tab="integrations">
           <a href="#" class="menu-link"><i>🔌</i> Integraciones</a>
@@ -1517,52 +1517,21 @@
               </div>
             </div>
 
-            <!-- PANEL DE FACTURACIÓN ELECTRÓNICA SIMULADA -->
+            <!-- PANEL DE FACTURACIÓN ELECTRÓNICA -->
             <div style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-              <h4 style="color: var(--text-white); margin: 0 0 15px 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">📄 Facturación de Comprobantes Oficiales</h4>
-              
-              <!-- Formulario de Simulación/Emisión de Comprobante -->
-              <form id="arca-invoicing-form" onsubmit="emitArcaInvoice(event)" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                  <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label" for="arca-invoice-type">Tipo de Comprobante</label>
-                    <select id="arca-invoice-type" class="form-input" onchange="toggleArcaAssociatedInvoiceField()">
-                      <!-- Inyectado dinámicamente en JS -->
-                    </select>
-                  </div>
-                  <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label" for="arca-invoice-concept">Concepto</label>
-                    <select id="arca-invoice-concept" class="form-input">
-                      <option value="bienes">Venta de Productos (Bienes Muebles)</option>
-                      <option value="servicios">Prestación de Servicios</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                  <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label" for="arca-invoice-date">Fecha de Facturación</label>
-                    <input type="date" id="arca-invoice-date" class="form-input">
-                  </div>
-                  <div class="form-group" id="arca-associated-invoice-group" style="margin-bottom: 0; display: none;">
-                    <label class="form-label" for="arca-associated-invoice">Comprobante Asociado (Factura de Origen) *</label>
-                    <input type="text" id="arca-associated-invoice" class="form-input" placeholder="Ej: 0002-00000001">
-                    <small style="font-size: 0.6rem; color: var(--text-gray);">RG 4540: Obligatorio vincular Notas de Crédito/Débito al comprobante original.</small>
-                  </div>
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 15px;">
-                  <button type="submit" class="btn btn-emerald" style="padding: 8px 16px; font-size: 0.75rem; height: auto;">
-                    ⚡ Emitir Comprobante
-                  </button>
-                </div>
-              </form>
-
-              <h5 style="color: var(--text-gray); margin: 0 0 10px 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 25px;">Ventas Recientes (No Facturadas)</h5>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <h5 style="color: var(--text-gray); margin: 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">Ventas Recientes (No Facturadas)</h5>
+                <button class="btn btn-emerald" id="arca-bulk-invoice-btn" onclick="emitBulkArcaInvoices()" style="padding: 6px 14px; font-size: 0.75rem; font-weight: bold; display: none; align-items: center; gap: 6px;">
+                  ⚡ Facturación Masiva
+                </button>
+              </div>
               <div style="overflow-x: auto; margin-bottom: 25px;">
                 <table class="inventory-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left;">
                   <thead>
                     <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
+                      <th style="padding: 8px; width: 40px; text-align: center;">
+                        <input type="checkbox" id="arca-select-all-uninvoiced" onclick="toggleSelectAllUninvoiced(this)" style="cursor: pointer;">
+                      </th>
                       <th style="padding: 8px;">Fecha</th>
                       <th style="padding: 8px;">Monto Total</th>
                       <th style="padding: 8px;">Medio de Pago</th>
