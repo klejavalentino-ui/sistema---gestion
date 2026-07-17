@@ -2211,6 +2211,28 @@ def save_integration(integration_id):
     except Exception as e:
         return handle_error(e)
 
+@app.route("/api/integrations/arca/update-category", methods=["POST"])
+def update_arca_category():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    data = request.json or {}
+    categoria = data.get("categoria")
+    if not categoria:
+        return jsonify({"error": "Categoría inválida"}), 400
+        
+    try:
+        arca = firebase_config.get_document("integrations", "arca", token) or {}
+        arca["categoria_monotributo"] = categoria
+        firebase_config.set_document("integrations", "arca", arca, token)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 def normalize_size(sz):
     if not sz:
         return "Único"

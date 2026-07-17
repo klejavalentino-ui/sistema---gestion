@@ -8709,7 +8709,7 @@ async function renderIntegrationsStatus() {
       }
       if (categoriaSelect) {
         categoriaSelect.value = arca.categoria_monotributo || "A";
-        categoriaSelect.disabled = true;
+        categoriaSelect.disabled = false;
       }
       if (posInput) {
         posInput.value = arca.pos || "0002";
@@ -9213,6 +9213,27 @@ async function updateMonotributoTrackerUI(invoicesList) {
     }
   }
 }
+
+async function updateArcaCategoryOnAFIPChange() {
+  const categorySelect = document.getElementById("arca-categoria-monotributo");
+  if (!categorySelect) return;
+  const newCategory = categorySelect.value;
+  
+  if (state.integrations?.arca) {
+    state.integrations.arca.categoria_monotributo = newCategory;
+  }
+  
+  // Actualizar interfaz
+  await updateMonotributoTrackerUI();
+  
+  // Persistir en Firestore
+  try {
+    await apiRequest("/api/integrations/arca/update-category", "POST", { categoria: newCategory });
+  } catch (e) {
+    console.error("Error al guardar categoría en AFIP:", e);
+  }
+}
+window.updateArcaCategoryOnAFIPChange = updateArcaCategoryOnAFIPChange;
 
 async function saveArcaConfig(event) {
   event.preventDefault();

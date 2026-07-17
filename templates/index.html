@@ -1323,19 +1323,19 @@
               </div>
               
               <!-- FILTROS DE CONTROL (LADO A LADO) -->
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 15px;">
                 <!-- Filtro de tipo de venta -->
-                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.01); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
-                  <span style="font-size: 0.7rem; color: var(--text-gray-light);">Computar para Recategorización:</span>
-                  <select id="arca-tracker-filter" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);" onchange="updateMonotributoTrackerUI()">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.01); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color);">
+                  <span style="font-size: 0.8rem; color: var(--text-gray-light); font-weight: bold;">Computar para Recategorización:</span>
+                  <select id="arca-tracker-filter" class="form-input" style="width: auto; padding: 6px 12px; font-size: 0.8rem; height: 38px; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white); border-radius: 6px;" onchange="updateMonotributoTrackerUI()">
                     <option value="solo_facturadas" selected>Solo Ventas Facturadas (Fiscal)</option>
                     <option value="todas">Total de Ventas Comerciales (Con y Sin Facturar)</option>
                   </select>
                 </div>
                 <!-- Categoría Monotributo -->
-                <div id="arca-categoria-group" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.01); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 0;">
-                  <span style="font-size: 0.7rem; color: var(--text-gray-light);">Categoría Monotributo:</span>
-                  <select id="arca-categoria-monotributo" class="form-input" style="width: auto; padding: 2px 6px; font-size: 0.7rem; height: auto; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white);" onchange="updateMonotributoTrackerUI()">
+                <div id="arca-categoria-group" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.01); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 0;">
+                  <span style="font-size: 0.8rem; color: var(--text-gray-light); font-weight: bold;">Categoría Monotributo:</span>
+                  <select id="arca-categoria-monotributo" class="form-input" style="width: auto; padding: 6px 12px; font-size: 0.8rem; height: 38px; background: var(--bg-dark); border-color: var(--border-color); color: var(--text-white); border-radius: 6px;" onchange="updateArcaCategoryOnAFIPChange()">
                     <option value="A">Categoría A ($10.277.988,13)</option>
                     <option value="B">Categoría B ($15.058.447,71)</option>
                     <option value="C">Categoría C ($21.113.696,52)</option>
