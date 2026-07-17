@@ -3241,9 +3241,50 @@ def get_invoices():
     email = get_email_from_token(token)
     if email not in ["klejavalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"]:
         return jsonify({"error": "ARCA no está habilitado para este usuario."}), 400
+    prefix = get_user_prefix(token)
     try:
-        # Recuperar facturas del usuario desde la subcolección invoices
-        docs = firebase_config.list_documents("invoices", token)
+        # 1. Recuperar facturas del usuario desde la subcolección invoices
+        docs = firebase_config.list_documents("invoices", token) or []
+        
+        # 2. Recuperar ventas para auto-recuperar facturas perdidas
+        sales = firebase_config.list_documents("sales", token) or []
+        
+        # Mapear números de facturas ya presentes en la colección invoices
+        existing_invoice_numbers = {d.get("invoice_number") for d in docs if d.get("invoice_number")}
+        
+        updated_any = False
+        for s in sales:
+            doc_id = s.get("id", "")
+            if doc_id.startswith(prefix) and s.get("arca_invoice_id"):
+                inv_num = s.get("arca_invoice_id")
+                if inv_num not in existing_invoice_numbers:
+                    clean_sale_id = doc_id[len(prefix):]
+                    inv_data = {
+                        "sale_id": clean_sale_id,
+                        "type": "Factura C",
+                        "invoice_number": inv_num,
+                        "cuit_emisor": "",
+                        "client_cuit": s.get("client_cuit", "20-99999999-9"),
+                        "total": safe_float(s.get("total", 0.0)),
+                        "cae": s.get("arca_cae", ""),
+                        "cae_due": s.get("arca_cae_due", ""),
+                        "status": "Aprobado",
+                        "date": s.get("date"),
+                        "associated_invoice": ""
+                    }
+                    invoice_id = f"FC-{inv_num}"
+                    firebase_config.set_document("invoices", invoice_id, inv_data, token)
+                    inv_data["id"] = invoice_id
+                    docs.append(inv_data)
+                    existing_invoice_numbers.add(inv_num)
+                    updated_any = True
+                    
+        if updated_any:
+            try:
+                docs.sort(key=lambda x: x.get("date", ""), reverse=True)
+            except Exception:
+                pass
+                
         return jsonify(docs)
     except Exception as e:
         return handle_error(e)

@@ -1,3 +1,33 @@
+// --- Patchear Constructor Date para compatibilidad con offsets de zona horaria sin dos puntos (ej: +0000) ---
+(function() {
+  const OriginalDate = window.Date;
+  function PatchedDate(...args) {
+    if (!(this instanceof PatchedDate)) {
+      return OriginalDate(...args);
+    }
+    if (args.length === 1 && typeof args[0] === 'string') {
+      let dateStr = args[0].trim();
+      if (/\d{2}[+-]\d{4}$/.test(dateStr)) {
+        const len = dateStr.length;
+        dateStr = dateStr.substring(0, len - 2) + ":" + dateStr.substring(len - 2);
+      }
+      return new OriginalDate(dateStr);
+    }
+    return new OriginalDate(...args);
+  }
+  PatchedDate.prototype = OriginalDate.prototype;
+  PatchedDate.now = OriginalDate.now;
+  PatchedDate.UTC = OriginalDate.UTC;
+  PatchedDate.parse = function(dateStr) {
+    if (typeof dateStr === 'string' && /\d{2}[+-]\d{4}$/.test(dateStr)) {
+      const len = dateStr.length;
+      dateStr = dateStr.substring(0, len - 2) + ":" + dateStr.substring(len - 2);
+    }
+    return OriginalDate.parse(dateStr);
+  };
+  window.Date = PatchedDate;
+})();
+
 // --- Estado Global ---
 const state = {
   token: localStorage.getItem("datamargen_token"),
