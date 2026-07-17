@@ -754,9 +754,26 @@ def get_all_state():
             profile_doc = profile_doc_copy
 
         # Calculate trial remaining days
-        created_at = profile_doc.get("createdAt", int(time.time()))
+        created_at_raw = profile_doc.get("createdAt")
+        created_at_val = None
+        if isinstance(created_at_raw, str):
+            try:
+                clean_str = created_at_raw.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(clean_str)
+                created_at_val = dt.timestamp()
+            except Exception as parse_ex:
+                print(f"Error parsing createdAt string {created_at_raw}: {parse_ex}")
+                try:
+                    created_at_val = float(created_at_raw)
+                except Exception:
+                    created_at_val = time.time()
+        elif isinstance(created_at_raw, (int, float)):
+            created_at_val = float(created_at_raw)
+        else:
+            created_at_val = time.time()
+
         trial_days = profile_doc.get("trialDays", 15)
-        elapsed_seconds = time.time() - created_at
+        elapsed_seconds = time.time() - created_at_val
         elapsed_days = elapsed_seconds / 86400.0
         days_left = max(0, int(trial_days - elapsed_days))
 
