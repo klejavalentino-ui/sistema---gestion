@@ -403,5 +403,6 @@ def delete_user_account(id_token):
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:delete?key={API_KEY}"
     payload = {"idToken": id_token}
     r = _session.post(url, json=payload, timeout=30)
-    r.raise_for_status()
+    if r.status_code != 200:
+        raise Exception(f"Error al eliminar usuario en Firebase Auth: {r.text}")
     return r.json()

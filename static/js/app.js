@@ -9724,9 +9724,9 @@ function formatAllCurrencyInputs() {
 // ==========================================
 
 function applyPermissionsToUI() {
-  const delAccBtn = document.getElementById("sidebar-delete-account-btn");
+  const delAccBtn = document.getElementById("business-delete-account-btn");
   if (delAccBtn) {
-    delAccBtn.style.display = state.role === "admin" ? "flex" : "none";
+    delAccBtn.style.display = state.role === "admin" ? "inline-flex" : "none";
   }
 
   // Solo aplicamos bloqueo si es subuser y tiene permissions
