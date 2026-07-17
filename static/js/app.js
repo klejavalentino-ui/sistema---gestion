@@ -389,10 +389,12 @@ function updateSidebarProfile() {
     let displayRole = "Administrador";
     let displayUsername = "";
     
-    if (state.userProfile && state.userProfile.name) {
-      displayName = state.userProfile.name;
-    } else if (state.userProfile && state.userProfile.contactName) {
+    if (state.userProfile && state.userProfile.contactName && state.userProfile.contactName.trim() !== "") {
       displayName = state.userProfile.contactName;
+    } else if (state.userProfile && state.userProfile.name && !state.userProfile.name.startsWith("Perfil ")) {
+      displayName = state.userProfile.name;
+    } else if (state.userProfile && state.userProfile.name) {
+      displayName = state.userProfile.name;
     } else if (state.email) {
       displayName = state.email.split("@")[0];
     }

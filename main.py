@@ -522,7 +522,7 @@ def register():
         # Guardar el perfil extendido del usuario
         profile_payload = {
             "sku": f"{biz_type}_user_profile",
-            "name": f"Perfil {biz_type.capitalize()}",
+            "name": name if name else f"Perfil {biz_type.capitalize()}",
             "contactName": name,
             "businessName": businessName,
             "businessModel": data.get("businessModel", "Indumentaria"),
@@ -4154,7 +4154,24 @@ def update_business_settings():
                     pass
             if email:
                 save_username_mapping(new_username, email, token=token)
-        if "businessType" in data: doc["businessType"] = data["businessType"]
+        biz_type_changed = False
+        old_prefix = prefix
+        new_prefix = prefix
+        
+        if "businessType" in data:
+            new_biz_type = data["businessType"]
+            if new_biz_type in ["textil", "comercio"]:
+                current_biz_type = doc.get("businessType")
+                if current_biz_type and current_biz_type != new_biz_type:
+                    biz_type_changed = True
+                    new_prefix = f"{new_biz_type}_"
+                    doc["businessType"] = new_biz_type
+                    doc["sku"] = f"{new_prefix}user_profile"
+                else:
+                    doc["businessType"] = new_biz_type
+            else:
+                doc["businessType"] = new_biz_type
+                
         if "ivaCondition" in data: doc["ivaCondition"] = data["ivaCondition"]
         if "businessModel" in data: doc["businessModel"] = data["businessModel"]
         if "locations" in data: doc["locations"] = data["locations"]
@@ -4165,7 +4182,15 @@ def update_business_settings():
         if "paymentMethods" in data: doc["paymentMethods"] = data["paymentMethods"]
         if "sizeVariants" in data: doc["sizeVariants"] = data["sizeVariants"]
         
-        firebase_config.set_document("products", f"{prefix}user_profile", doc, token)
+        if biz_type_changed:
+            firebase_config.set_document("products", f"{new_prefix}user_profile", doc, token)
+            try:
+                firebase_config.delete_document("products", f"{old_prefix}user_profile", token)
+            except Exception as del_err:
+                print(f"Error deleting old profile document: {del_err}")
+        else:
+            firebase_config.set_document("products", f"{prefix}user_profile", doc, token)
+            
         return jsonify({"success": True, "userProfile": doc})
     except Exception as e:
         return handle_error(e)
