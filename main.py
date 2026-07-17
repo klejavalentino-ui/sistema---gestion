@@ -9,6 +9,7 @@ import hashlib
 import concurrent.futures
 from flask import Flask, request, jsonify, render_template, session
 import firebase_config
+from datetime import datetime
 from flask_cors import CORS
 from flask_compress import Compress
 from cachetools import TTLCache
@@ -515,26 +516,23 @@ def register():
         save_username_mapping(username, email, token=token)
         
         # Guardar el perfil extendido del usuario
-        try:
-            profile_payload = {
-                "sku": f"{biz_type}_user_profile",
-                "name": f"Perfil {biz_type.capitalize()}",
-                "contactName": name,
-                "businessName": businessName,
-                "businessModel": data.get("businessModel", "Indumentaria"),
-                "businessType": biz_type,
-                "username": username,
-                "contactPhone": phone,
-                "contactEmail": email,
-                "subscriptionStatus": "trial",
-                "trialStartDate": datetime.utcnow().isoformat(),
-                "role": "admin",
-                "currency": "ARS",
-                "createdAt": datetime.utcnow().isoformat()
-            }
-            firebase_config.set_document("products", f"{biz_type}_user_profile", profile_payload, token)
-        except Exception as ex:
-            print(f"Error guardando perfil extendido: {ex}")
+        profile_payload = {
+            "sku": f"{biz_type}_user_profile",
+            "name": f"Perfil {biz_type.capitalize()}",
+            "contactName": name,
+            "businessName": businessName,
+            "businessModel": data.get("businessModel", "Indumentaria"),
+            "businessType": biz_type,
+            "username": username,
+            "contactPhone": phone,
+            "contactEmail": email,
+            "subscriptionStatus": "trial",
+            "trialStartDate": datetime.utcnow().isoformat(),
+            "role": "admin",
+            "currency": "ARS",
+            "createdAt": datetime.utcnow().isoformat()
+        }
+        firebase_config.set_document("products", f"{biz_type}_user_profile", profile_payload, token)
         
         # Send verification email immediately on registration
         try:

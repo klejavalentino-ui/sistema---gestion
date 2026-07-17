@@ -9964,7 +9964,7 @@ async function loadBusinessUsers() {
     // Inyectar el administrador principal
     const adminUser = {
       id: "admin",
-      name: state.userProfile?.name || state.userProfile?.contactName || state.businessName || state.email.split('@')[0],
+      name: state.userProfile?.contactName || state.userProfile?.name || state.businessName || state.email.split('@')[0],
       username: state.userProfile?.username || state.email.split('@')[0],
       email: state.email,
       status: "Activo",
