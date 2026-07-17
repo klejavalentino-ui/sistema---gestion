@@ -4345,6 +4345,54 @@ def delete_business_user(sub_uid):
     except Exception as e:
         return handle_error(e)
 
+@app.route("/api/admin/sync-existing-to-sheets", methods=["POST"])
+def sync_existing_to_sheets():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    try:
+        acc_info = firebase_config.get_account_info(token)
+        email = acc_info.get("email") if acc_info else None
+        if not email or email not in ["valentinoklcv@gmail.com", "matiascuchettidiaz@gmail.com"]:
+            return jsonify({"error": "Acceso denegado: solo administradores del sistema pueden ejecutar esta sincronización."}), 403
+            
+        from firebase_admin import firestore
+        db = firestore.client()
+        docs = db.collection_group("products").stream()
+        
+        profiles = []
+        for doc in docs:
+            doc_id = doc.id
+            if doc_id.endswith("_user_profile"):
+                data = doc.to_dict()
+                profiles.append(data)
+                
+        webhook_url = "https://script.google.com/macros/s/AKfycbwSkMgXOvzW4vyOfJzZmVtgP0V1mhY2Y-fzv6eKYECO1GsODMnxkJDxd5IRdcN_GGBV/exec"
+        import requests
+        import threading
+        
+        def bulk_sync(p_list):
+            for p in p_list:
+                payload = {
+                    "name": p.get("contactName", p.get("name", "")),
+                    "businessName": p.get("businessName", ""),
+                    "email": p.get("contactEmail", ""),
+                    "phone": p.get("contactPhone", ""),
+                    "businessType": p.get("businessType", ""),
+                    "businessModel": p.get("businessModel", "")
+                }
+                if not payload["email"]:
+                    continue
+                try:
+                    requests.post(webhook_url, json=payload, timeout=10)
+                except Exception as ex:
+                    print(f"Error bulk syncing user: {ex}")
+                    
+        threading.Thread(target=bulk_sync, args=(profiles,), daemon=True).start()
+        return jsonify({"success": True, "message": f"Sincronización masiva de {len(profiles)} cuentas iniciada en segundo plano."})
+    except Exception as e:
+        return handle_error(e)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

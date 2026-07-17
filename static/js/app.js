@@ -435,6 +435,16 @@ function updateSidebarProfile() {
     if (tbUser) {
       tbUser.innerText = displayName;
     }
+    
+    // Mostrar/ocultar herramientas de administrador en la pestaña de Suscripción
+    const adminSyncContainer = document.getElementById("admin-sync-container");
+    if (adminSyncContainer) {
+      if (state.email === "valentinoklcv@gmail.com" || state.email === "matiascuchettidiaz@gmail.com") {
+        adminSyncContainer.style.display = "block";
+      } else {
+        adminSyncContainer.style.display = "none";
+      }
+    }
   }
 }
 
@@ -10387,6 +10397,21 @@ async function saveBusinessSettings() {
   }
 }
 window.saveBusinessSettings = saveBusinessSettings;
+
+async function triggerAdminSyncGoogleSheets() {
+  try {
+    showToast("Iniciando sincronización masiva...");
+    const res = await apiRequest("/api/admin/sync-existing-to-sheets", "POST");
+    if (res.success) {
+      showToast(res.message);
+    } else {
+      showToast(res.error || "Error al sincronizar", true);
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+window.triggerAdminSyncGoogleSheets = triggerAdminSyncGoogleSheets;
 
 async function loadBusinessUsers() {
   try {
