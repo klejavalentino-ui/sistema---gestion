@@ -3000,7 +3000,12 @@
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-extra-stock">Stock Físico</label>
-            <input type="number" id="edit-extra-stock" class="form-input" min="0" step="1" required placeholder="0">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="number" id="edit-extra-stock" class="form-input" min="0" step="1" required placeholder="0" style="flex-grow: 1;">
+              <label style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--text-gray); cursor: pointer; white-space: nowrap; margin-bottom: 0;">
+                <input type="checkbox" id="edit-extra-infinite" onchange="toggleEditExtraInfiniteInput()"> Infinito
+              </label>
+            </div>
           </div>
         </div>
         <div class="modal-footer">

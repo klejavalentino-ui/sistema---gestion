@@ -7528,6 +7528,23 @@ function deleteInfluencer(id) {
   });
 }
 
+function toggleStockInfiniteInput(catKey) {
+  const stockInput = document.getElementById(`new-opt-stock-${catKey}`);
+  const infiniteCheckbox = document.getElementById(`new-opt-infinite-${catKey}`);
+  if (stockInput && infiniteCheckbox) {
+    if (infiniteCheckbox.checked) {
+      stockInput.disabled = true;
+      stockInput.required = false;
+      stockInput.value = "";
+    } else {
+      stockInput.disabled = false;
+      stockInput.required = true;
+      stockInput.value = "0";
+    }
+  }
+}
+window.toggleStockInfiniteInput = toggleStockInfiniteInput;
+
 // --- 9. CONFIGURACION DE ADICIONALES ---
 function renderExtrasConfig() {
   const container = document.getElementById("extras-categories-container");
@@ -7552,12 +7569,13 @@ function renderExtrasConfig() {
     } else {
       options.forEach(opt => {
         const stockVal = opt.stock !== undefined && opt.stock !== null ? opt.stock : 0;
+        const stockText = opt.isInfinite ? "∞ (Infinito)" : `${stockVal} u.`;
         optionsHtml += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 6px;">
             <div>
               <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-white);">${opt.name}</span>
               <span style="font-size: 0.75rem; color: var(--accent-blue); font-weight: 700; margin-left: 8px;">$${Math.round(opt.cost).toLocaleString('es-AR')}</span>
-              <span style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700; margin-left: 8px;">Stock: ${stockVal} u.</span>
+              <span style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700; margin-left: 8px;">Stock: ${stockText}</span>
             </div>
             <div style="display: flex; gap: 4px;">
               <button class="btn-action" style="width:24px; height:24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); color: #3b82f6;" onclick="editExtraOption('${catKey}', '${opt.id}')">✏️</button>
@@ -7594,7 +7612,12 @@ function renderExtrasConfig() {
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" style="font-size: 0.65rem;">Stock Físico</label>
-            <input type="number" id="new-opt-stock-${catKey}" class="form-input" style="padding: 6px 10px; font-size: 0.8rem;" placeholder="0" min="0" required>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="number" id="new-opt-stock-${catKey}" class="form-input" style="padding: 6px 10px; font-size: 0.8rem; flex-grow: 1;" placeholder="0" min="0" required>
+              <label style="display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--text-gray); cursor: pointer; white-space: nowrap; margin-bottom: 0;">
+                <input type="checkbox" id="new-opt-infinite-${catKey}" onchange="toggleStockInfiniteInput('${catKey}')"> Infinito
+              </label>
+            </div>
           </div>
           <button type="submit" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem; margin-top: 4px; width: 100%;">+ Agregar Opción</button>
         </form>
@@ -8013,10 +8036,13 @@ async function addExtraOption(e, categoryKey) {
   const nameInput = document.getElementById(`new-opt-name-${categoryKey}`);
   const costInput = document.getElementById(`new-opt-cost-${categoryKey}`);
   const stockInput = document.getElementById(`new-opt-stock-${categoryKey}`);
+  const infiniteCheckbox = document.getElementById(`new-opt-infinite-${categoryKey}`);
   
   const name = nameInput.value.trim();
   const cost = parseLocalFloat(costInput.value) || 0;
-  const stock = stockInput ? (parseInt(stockInput.value) || 0) : 0;
+  
+  const isInfinite = infiniteCheckbox ? infiniteCheckbox.checked : false;
+  const stock = isInfinite ? 999999 : (stockInput ? (parseInt(stockInput.value) || 0) : 0);
   
   if (!name) return;
 
@@ -8030,7 +8056,7 @@ async function addExtraOption(e, categoryKey) {
   }
 
   // Agregar opción con stock físico especificado
-  state.extras[categoryKey].push({ id, name, cost, stock });
+  state.extras[categoryKey].push({ id, name, cost, stock, isInfinite });
 
   try {
     showToast("Guardando opción...");
@@ -8056,6 +8082,23 @@ async function deleteExtraOption(categoryKey, optionId) {
   });
 }
 
+function toggleEditExtraInfiniteInput() {
+  const stockInput = document.getElementById("edit-extra-stock");
+  const infiniteCheckbox = document.getElementById("edit-extra-infinite");
+  if (stockInput && infiniteCheckbox) {
+    if (infiniteCheckbox.checked) {
+      stockInput.disabled = true;
+      stockInput.required = false;
+      stockInput.value = "";
+    } else {
+      stockInput.disabled = false;
+      stockInput.required = true;
+      stockInput.value = "0";
+    }
+  }
+}
+window.toggleEditExtraInfiniteInput = toggleEditExtraInfiniteInput;
+
 function editExtraOption(categoryKey, optionId) {
   const option = state.extras[categoryKey].find(opt => opt.id === optionId);
   if (!option) return;
@@ -8065,7 +8108,17 @@ function editExtraOption(categoryKey, optionId) {
   document.getElementById("edit-extra-name").value = option.name;
   document.getElementById("edit-extra-cost").value = option.cost;
   formatCurrencyField(document.getElementById("edit-extra-cost"));
-  document.getElementById("edit-extra-stock").value = option.stock !== undefined && option.stock !== null ? option.stock : 0;
+  
+  const isInfinite = !!option.isInfinite;
+  const infCheckbox = document.getElementById("edit-extra-infinite");
+  if (infCheckbox) infCheckbox.checked = isInfinite;
+  
+  const editStockInput = document.getElementById("edit-extra-stock");
+  if (editStockInput) {
+    editStockInput.value = isInfinite ? "" : (option.stock !== undefined && option.stock !== null ? option.stock : 0);
+    editStockInput.disabled = isInfinite;
+    editStockInput.required = !isInfinite;
+  }
 
   document.getElementById("edit-extra-modal").className = "modal-backdrop active";
 }
@@ -8080,7 +8133,10 @@ async function saveEditExtraForm(e) {
   const optionId = document.getElementById("edit-extra-id").value;
   const name = document.getElementById("edit-extra-name").value.trim();
   const cost = parseLocalFloat(document.getElementById("edit-extra-cost").value);
-  const stock = parseInt(document.getElementById("edit-extra-stock").value);
+  
+  const infiniteCheckbox = document.getElementById("edit-extra-infinite");
+  const isInfinite = infiniteCheckbox ? infiniteCheckbox.checked : false;
+  const stock = isInfinite ? 999999 : parseInt(document.getElementById("edit-extra-stock").value);
 
   if (!name) {
     showToast("Por favor, ingrese un nombre válido", true);
@@ -8090,7 +8146,7 @@ async function saveEditExtraForm(e) {
     showToast("Precio/costo inválido", true);
     return;
   }
-  if (isNaN(stock) || stock < 0) {
+  if (!isInfinite && (isNaN(stock) || stock < 0)) {
     showToast("Stock físico inválido", true);
     return;
   }
@@ -8101,6 +8157,7 @@ async function saveEditExtraForm(e) {
   option.name = name;
   option.cost = cost;
   option.stock = stock;
+  option.isInfinite = isInfinite;
 
   try {
     showToast("Actualizando adicional...");
