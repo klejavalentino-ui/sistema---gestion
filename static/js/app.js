@@ -10017,6 +10017,20 @@ function closeBusinessUserModal() {
 }
 window.closeBusinessUserModal = closeBusinessUserModal;
 
+function toggleModalUserPasswordVisibility() {
+  const passwordInput = document.getElementById("modal-user-password");
+  const eyeIcon = document.getElementById("modal-user-password-eye");
+  if (!passwordInput || !eyeIcon) return;
+  if (passwordInput.type === "password") {
+    passwordInput.type = "text";
+    eyeIcon.className = "fa-solid fa-eye-slash";
+  } else {
+    passwordInput.type = "password";
+    eyeIcon.className = "fa-solid fa-eye";
+  }
+}
+window.toggleModalUserPasswordVisibility = toggleModalUserPasswordVisibility;
+
 async function saveBusinessUser() {
   const name = document.getElementById("modal-user-name").value;
   const email = document.getElementById("modal-user-email").value;

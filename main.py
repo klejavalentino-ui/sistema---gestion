@@ -4085,7 +4085,15 @@ def get_business_users():
         if real_uid != admin_uid:
             return jsonify({"error": "Acceso denegado: solo el administrador puede gestionar usuarios."}), 403
             
-        docs = firebase_config.list_documents(f"users/{admin_uid}/subusers", token)
+        docs = firebase_config.list_documents(f"users/{admin_uid}/subusers", token) or []
+        updated_any = False
+        for doc in docs:
+            if not doc.get("username") and doc.get("email"):
+                username = doc.get("email").split("@")[0]
+                doc["username"] = username
+                firebase_config.set_document(f"users/{admin_uid}/subusers", doc.get("id"), doc, token)
+                save_username_mapping(username, doc.get("email"), token=token)
+                updated_any = True
         return jsonify(docs)
     except Exception as e:
         return handle_error(e)
@@ -4099,6 +4107,7 @@ def create_business_user():
     email = data.get("email")
     password = data.get("password")
     name = data.get("name")
+    username = data.get("username")
     access = data.get("access", {})
     
     if not email or not password or not name:
@@ -4121,6 +4130,7 @@ def create_business_user():
         subuser_doc = {
             "name": name,
             "email": email,
+            "username": username,
             "access": access,
             "status": "Activo",
             "createdAt": int(time.time()),
@@ -4134,6 +4144,10 @@ def create_business_user():
             "createdAt": int(time.time())
         }
         firebase_config.set_document("subuser_mapping", sub_uid, mapping_doc, token)
+        
+        # 4. Save username mapping for login
+        if username:
+            save_username_mapping(username, email, token=token)
         
         return jsonify({"success": True, "user": subuser_doc})
     except Exception as e:
@@ -4157,6 +4171,10 @@ def update_business_user(sub_uid):
         if "name" in data: doc["name"] = data["name"]
         if "access" in data: doc["access"] = data["access"]
         if "status" in data: doc["status"] = data["status"]
+        if "username" in data:
+            doc["username"] = data["username"]
+            if data["username"] and doc.get("email"):
+                save_username_mapping(data["username"], doc["email"], token=token)
         
         firebase_config.set_document(f"users/{admin_uid}/subusers", sub_uid, doc, token)
         return jsonify({"success": True, "user": doc})

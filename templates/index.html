@@ -2097,7 +2097,12 @@
         </div>
         <div class="form-group" style="margin: 0;">
           <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Contraseña</label>
-          <input type="password" id="modal-user-password" class="form-input">
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="modal-user-password" class="form-input" style="padding-right: 40px; width: 100%;">
+            <button type="button" onclick="toggleModalUserPasswordVisibility()" style="position: absolute; right: 10px; background: none; border: none; color: var(--text-gray); cursor: pointer; display: flex; align-items: center; justify-content: center; height: 100%; padding: 0;">
+              <i id="modal-user-password-eye" class="fa-solid fa-eye"></i>
+            </button>
+          </div>
         </div>
       </div>
 
