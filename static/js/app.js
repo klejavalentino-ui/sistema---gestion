@@ -2840,12 +2840,21 @@ function openCheckoutModal() {
   document.getElementById("checkout-total-display").innerText = `$ ${Math.round(total).toLocaleString()}`;
   document.getElementById("checkout-finance-total-display").innerText = `$ ${Math.round(total).toLocaleString()}`;
   
-  // Rellenar clientes en datalist de Cobranzas
+  // Limpiar y resetear los campos del formulario de cobranzas
+  document.getElementById("chk-client-name").value = "";
+  document.getElementById("chk-client-phone").value = "";
+  document.getElementById("chk-client-address").value = "";
+  document.getElementById("chk-client-paid").value = "";
+  document.getElementById("checkout-debt-display").innerText = `$ ${Math.round(total).toLocaleString()}`;
+  
+  // Rellenar clientes en datalist de Cobranzas con datasets de teléfono y dirección
   const datalist = document.getElementById("chk-client-list");
   datalist.innerHTML = "";
   state.currentAccounts.filter(a => a.type === "cliente").forEach(acc => {
     const opt = document.createElement("option");
     opt.value = acc.entityName;
+    opt.dataset.phone = acc.phone || "";
+    opt.dataset.address = acc.address || "";
     datalist.appendChild(opt);
   });
   

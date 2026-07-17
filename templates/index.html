@@ -2245,7 +2245,7 @@
         <div class="space-y-4">
           <div class="form-group">
             <label class="form-label" for="chk-client-name">Nombre del Cliente / Entidad *</label>
-            <input type="text" id="chk-client-name" class="form-input" list="chk-client-list" placeholder="Ej. Juan Pérez" onchange="autoFillClientInfo()" required>
+            <input type="text" id="chk-client-name" class="form-input" list="chk-client-list" placeholder="Ej. Juan Pérez" onchange="autoFillClientInfo()" oninput="autoFillClientInfo()" required>
             <datalist id="chk-client-list">
               <!-- Cargado dinámicamente -->
             </datalist>
