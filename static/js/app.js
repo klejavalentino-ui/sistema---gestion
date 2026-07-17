@@ -1376,9 +1376,9 @@ async function refreshState() {
       // Update WhatsApp link dynamic prefilled message
       const waBtn = document.getElementById("paywall-wa-btn");
       if (waBtn) {
-        const adminPhone = "542914445566"; // Simulated Admin WhatsApp Phone Number
+        const adminPhone = "5492915744578"; // Valentino Admin WhatsApp
         const msg = encodeURIComponent(`Hola! Quiero renovar mi suscripción de Datamargen para el correo: ${state.email}`);
-        waBtn.href = `https://wa.me/542914445566?text=${msg}`;
+        waBtn.href = `https://wa.me/${adminPhone}?text=${msg}`;
       }
       return;
     }
