@@ -4574,6 +4574,7 @@ async function saveProductForm(e) {
   
   Object.keys(tempLocationStock).forEach(loc => {
     Object.keys(tempLocationStock[loc]).forEach(sz => {
+      if (isComercio && sz !== "Único") return;
       const qty = tempLocationStock[loc][sz] || 0;
       if (!sizeStocks[sz]) {
         sizeStocks[sz] = 0;
@@ -7996,14 +7997,24 @@ function setupEventListeners() {
     }
   });
 
-  // Click fuera para cerrar dropdown de notificaciones
+  // Click fuera para cerrar dropdown de notificaciones y sugerencias de devolución
   window.addEventListener("click", () => {
     const dropdown = document.getElementById("notifications-dropdown");
     if (dropdown) dropdown.classList.remove("active");
+    const returnResults = document.getElementById("return-sale-search-results");
+    if (returnResults) returnResults.style.display = "none";
   });
   const bellContainer = document.getElementById("bell-container");
   if (bellContainer) {
     bellContainer.addEventListener("click", (e) => e.stopPropagation());
+  }
+  const returnSearchInput = document.getElementById("return-search-sale");
+  if (returnSearchInput) {
+    returnSearchInput.addEventListener("click", (e) => e.stopPropagation());
+  }
+  const returnSearchResults = document.getElementById("return-sale-search-results");
+  if (returnSearchResults) {
+    returnSearchResults.addEventListener("click", (e) => e.stopPropagation());
   }
 }
 
@@ -10893,6 +10904,24 @@ function searchSaleForReturn() {
   if (!resultsDiv) return;
   
   if (query.length < 2) {
+    if (query.length === 0) {
+      // Show 5 most recent sales as suggestions
+      const matches = [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+      if (matches.length > 0) {
+        resultsDiv.innerHTML = `<div style="padding: 6px 12px; font-size: 0.65rem; color: var(--text-gray); font-weight: 800; border-bottom: 1px solid var(--border-color); text-transform: uppercase;">Ventas Recientes:</div>` + matches.map(s => {
+          const tnLabel = s.tn_number ? `TN-#${s.tn_number}` : s.id;
+          const clientLabel = s.client_name ? ` - ${s.client_name}` : " - Consumidor Final";
+          const totalLabel = ` ($ ${Math.round(s.total).toLocaleString("es-AR")})`;
+          return `
+            <div onclick="selectReturnSale('${s.id}')" style="padding: 8px 12px; font-size: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border-color); color: var(--text-white);" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
+              <strong>${tnLabel}</strong>${clientLabel}${totalLabel}
+            </div>
+          `;
+        }).join("");
+        resultsDiv.style.display = "block";
+        return;
+      }
+    }
     resultsDiv.style.display = "none";
     return;
   }
@@ -10911,7 +10940,7 @@ function searchSaleForReturn() {
     resultsDiv.innerHTML = matches.map(s => {
       const tnLabel = s.tn_number ? `TN-#${s.tn_number}` : s.id;
       const clientLabel = s.client_name ? ` - ${s.client_name}` : " - Consumidor Final";
-      const totalLabel = ` ($${s.total})`;
+      const totalLabel = ` ($ ${Math.round(s.total).toLocaleString("es-AR")})`;
       return `
         <div onclick="selectReturnSale('${s.id}')" style="padding: 8px 12px; font-size: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border-color); color: var(--text-white);" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
           <strong>${tnLabel}</strong>${clientLabel}${totalLabel}
@@ -11003,7 +11032,9 @@ function searchProductForReturn() {
     return;
   }
   
+  const isComercio = state.businessType === "comercio";
   const matches = state.products.filter(p => {
+    if (isComercio && p.size && p.size !== "Único") return false;
     return (p.name && p.name.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
   }).slice(0, 10);
   
@@ -11100,7 +11131,9 @@ function searchProductForExchange() {
     return;
   }
   
+  const isComercio = state.businessType === "comercio";
   const matches = state.products.filter(p => {
+    if (isComercio && p.size && p.size !== "Único") return false;
     return (p.name && p.name.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
   }).slice(0, 10);
   

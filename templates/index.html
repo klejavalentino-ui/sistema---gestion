@@ -1602,7 +1602,7 @@
             <div class="form-group">
               <label class="form-label" style="font-weight: 600;">Venta Original (Opcional)</label>
               <div style="display: flex; gap: 8px;">
-                <input type="text" id="return-search-sale" class="form-input" placeholder="Buscar por ID de Venta, cliente o número de Tiendanube..." oninput="searchSaleForReturn()">
+                <input type="text" id="return-search-sale" class="form-input" placeholder="Buscar por ID de Venta, cliente o número de Tiendanube..." oninput="searchSaleForReturn()" onfocus="searchSaleForReturn()">
                 <button class="btn btn-secondary" onclick="clearSelectedReturnSale()" style="padding: 0 15px; font-size: 0.8rem;">Limpiar</button>
               </div>
               <div id="return-sale-search-results" style="position: absolute; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; width: 45%; max-height: 200px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
