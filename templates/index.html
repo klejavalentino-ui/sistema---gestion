@@ -779,13 +779,38 @@
           </div>
         </div>
 
-        <!-- KPI Card -->
-        <div class="idx-card" style="max-width: 480px; padding: 20px; margin-bottom: 24px; border-left: 4px solid var(--accent-red); display: flex; align-items: center; justify-content: space-between;">
-          <div>
-            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Pagar (Proveedores)</span>
-            <div id="supplier-accounts-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">$ 0</div>
+        <!-- KPI Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          <!-- KPI 1: A Pagar -->
+          <div class="idx-card" style="padding: 20px; border-left: 4px solid var(--accent-red); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Pagar (Proveedores)</span>
+              <div id="supplier-accounts-kpi-val" style="font-size: 1.8rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">$ 0</div>
+            </div>
+            <div style="font-size: 1.6rem; color: var(--accent-red); opacity: 0.8;">📉</div>
           </div>
-          <div style="font-size: 2rem; color: var(--accent-red); opacity: 0.8;">📉</div>
+          <!-- KPI 2: Días Prom. Pago -->
+          <div class="idx-card" style="padding: 20px; border-left: 4px solid var(--accent-blue); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">Días Prom. Pago</span>
+              <div id="supplier-accounts-kpi-avg-days" style="font-size: 1.8rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">-</div>
+            </div>
+            <div style="font-size: 1.6rem; color: var(--accent-blue); opacity: 0.8;">⏱️</div>
+          </div>
+          <!-- KPI 3: Vence en Periodo -->
+          <div class="idx-card" style="padding: 20px; border-left: 4px solid #f59e0b; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">Vence en</span>
+                <select id="supplier-kpi-due-period" onchange="renderSupplierAccounts()" style="font-size: 0.65rem; padding: 2px 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: var(--text-white); border-radius: 4px; outline: none; cursor: pointer;">
+                  <option value="week">Semanal</option>
+                  <option value="month">Mensual</option>
+                </select>
+              </div>
+              <div id="supplier-accounts-kpi-due-soon" style="font-size: 1.8rem; font-weight: 900; color: #f59e0b; margin-top: 6px;">$ 0</div>
+            </div>
+            <div style="font-size: 1.6rem; color: #f59e0b; opacity: 0.8;">📅</div>
+          </div>
         </div>
 
         <!-- Main Card Container -->
@@ -818,13 +843,32 @@
           </div>
         </div>
 
-        <!-- KPI Card -->
-        <div class="idx-card" style="max-width: 480px; padding: 20px; margin-bottom: 24px; border-left: 4px solid var(--accent-emerald); display: flex; align-items: center; justify-content: space-between;">
-          <div>
-            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Cobrar (Clientes)</span>
-            <div id="collections-kpi-val" style="font-size: 2.2rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">$ 0</div>
+        <!-- KPI Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          <!-- KPI 1: A Cobrar -->
+          <div class="idx-card" style="padding: 20px; border-left: 4px solid var(--accent-emerald); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">A Cobrar (Clientes)</span>
+              <div id="collections-kpi-val" style="font-size: 1.8rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">$ 0</div>
+            </div>
+            <div style="font-size: 1.6rem; color: var(--accent-emerald); opacity: 0.8;">📈</div>
           </div>
-          <div style="font-size: 2rem; color: var(--accent-emerald); opacity: 0.8;">📈</div>
+          <!-- KPI 2: Días Prom. Cobro -->
+          <div class="idx-card" style="padding: 20px; border-left: 4px solid var(--accent-blue); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">Días Prom. Cobro</span>
+              <div id="collections-kpi-avg-days" style="font-size: 1.8rem; font-weight: 900; color: var(--text-white); margin-top: 6px;">-</div>
+            </div>
+            <div style="font-size: 1.6rem; color: var(--accent-blue); opacity: 0.8;">⏱️</div>
+          </div>
+          <!-- KPI 3: Total Vencido -->
+          <div class="idx-card" style="padding: 20px; border-left: 4px solid var(--accent-red); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px;">Total Vencido</span>
+              <div id="collections-kpi-overdue" style="font-size: 1.8rem; font-weight: 900; color: var(--accent-red); margin-top: 6px;">$ 0</div>
+            </div>
+            <div style="font-size: 1.6rem; color: var(--accent-red); opacity: 0.8;">⚠️</div>
+          </div>
         </div>
 
         <!-- Main Card Container -->
@@ -2740,6 +2784,10 @@
               <label class="form-label" for="acc-address">Dirección</label>
               <input type="text" id="acc-address" class="form-input" placeholder="Opcional">
             </div>
+          </div>
+          <div class="form-group" style="margin-top: 15px;">
+            <label class="form-label" for="acc-payment-terms">Plazo Acordado (Días)</label>
+            <input type="number" id="acc-payment-terms" class="form-input" placeholder="Ej. 30 (Por defecto 30 días)" min="0">
           </div>
         </div>
         <div class="modal-footer">

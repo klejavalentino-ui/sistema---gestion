@@ -5990,6 +5990,110 @@ function renderStockIntakes() {
 
 // --- 5. CUENTAS CORRIENTES (Cuentas a Pagar & Cobranzas) ---
 // --- 5. CUENTAS CORRIENTES (Cuentas a Pagar & Cobranzas) ---
+// FIFO matching helper to calculate payment metrics
+function calculateAccountMetrics(acc) {
+  const txs = acc.transactions || [];
+  // Sort chronologically
+  const sortedTxs = [...txs].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  const debts = [];
+  const payments = [];
+  
+  sortedTxs.forEach(tx => {
+    const amt = tx.amount || 0;
+    const pay = tx.payment || 0;
+    if (amt > 0) {
+      debts.push({
+        date: new Date(tx.date),
+        amount: amt,
+        originalAmount: amt
+      });
+    }
+    if (pay > 0) {
+      payments.push({
+        date: new Date(tx.date),
+        amount: pay
+      });
+    }
+  });
+  
+  let totalDaysSum = 0;
+  let totalPortionSum = 0;
+  
+  // FIFO matching
+  let debtIdx = 0;
+  payments.forEach(p => {
+    let payAmt = p.amount;
+    const paymentDate = p.date;
+    
+    while (payAmt > 0 && debtIdx < debts.length) {
+      const activeDebt = debts[debtIdx];
+      const portion = Math.min(payAmt, activeDebt.amount);
+      
+      const diffTime = paymentDate - activeDebt.date;
+      const diffDays = Math.max(0, diffTime / (1000 * 60 * 60 * 24));
+      
+      totalDaysSum += diffDays * portion;
+      totalPortionSum += portion;
+      
+      payAmt -= portion;
+      activeDebt.amount -= portion;
+      
+      if (activeDebt.amount <= 0.001) {
+        debtIdx++;
+      }
+    }
+  });
+  
+  const avgDays = totalPortionSum > 0 ? (totalDaysSum / totalPortionSum) : null;
+  
+  // Calculate overdue/due soon on the remaining unpaid debts
+  const termDays = acc.paymentTerms !== undefined ? parseInt(acc.paymentTerms, 10) : 30;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  let overdueAmount = 0;
+  let dueSoonWeek = 0;
+  let dueSoonMonth = 0;
+  
+  for (let i = debtIdx; i < debts.length; i++) {
+    const activeDebt = debts[i];
+    const unpaidAmt = activeDebt.amount;
+    if (unpaidAmt <= 0) continue;
+    
+    // Calculate difference in days since the debt was incurred
+    const diffTime = today - activeDebt.date;
+    const elapsedDays = diffTime / (1000 * 60 * 60 * 24);
+    
+    // If it exceeded payment terms, it is overdue (vencido)
+    if (elapsedDays > termDays) {
+      overdueAmount += unpaidAmt;
+    } else {
+      // It is not overdue yet. Calculate due date.
+      const dueDate = new Date(activeDebt.date);
+      dueDate.setDate(dueDate.getDate() + termDays);
+      dueDate.setHours(0,0,0,0);
+      
+      const timeToDue = dueDate - today;
+      const daysToDue = timeToDue / (1000 * 60 * 60 * 24);
+      
+      if (daysToDue >= 0 && daysToDue <= 7) {
+        dueSoonWeek += unpaidAmt;
+      }
+      if (daysToDue >= 0 && daysToDue <= 30) {
+        dueSoonMonth += unpaidAmt;
+      }
+    }
+  }
+  
+  return {
+    avgDays: avgDays !== null ? Math.round(avgDays) : null,
+    overdueAmount: Math.round(overdueAmount),
+    dueSoonWeek: Math.round(dueSoonWeek),
+    dueSoonMonth: Math.round(dueSoonMonth)
+  };
+}
+
 function renderSupplierAccounts() {
   const container = document.getElementById("supplier-accounts-list");
   if (!container) return;
@@ -5998,10 +6102,45 @@ function renderSupplierAccounts() {
   const searchVal = (document.getElementById("supplier-accounts-search")?.value || "").toLowerCase();
   const proveedors = state.currentAccounts.filter(a => a.type === "proveedor" && a.entityName.toLowerCase().includes(searchVal));
 
-  // Calcular total de deuda adeudada a proveedores
-  const total = proveedors.reduce((sum, acc) => sum + (acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0), 0);
+  // Calcular métricas globales
+  let globalTotal = 0;
+  let totalAvgDaysSum = 0;
+  let accountsWithPayments = 0;
+  let totalDueSoonWeek = 0;
+  let totalDueSoonMonth = 0;
+
+  proveedors.forEach(acc => {
+    const balance = acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0;
+    globalTotal += Math.max(0, balance);
+
+    const metrics = calculateAccountMetrics(acc);
+    acc._metrics = metrics; // cache to use during render
+
+    if (metrics.avgDays !== null) {
+      totalAvgDaysSum += metrics.avgDays;
+      accountsWithPayments++;
+    }
+    totalDueSoonWeek += metrics.dueSoonWeek;
+    totalDueSoonMonth += metrics.dueSoonMonth;
+  });
+
+  const globalAvgDays = accountsWithPayments > 0 ? Math.round(totalAvgDaysSum / accountsWithPayments) : null;
+
+  // Actualizar KPIs del header
   const kpiVal = document.getElementById("supplier-accounts-kpi-val");
-  if (kpiVal) kpiVal.innerText = `$ ${Math.round(total).toLocaleString()}`;
+  if (kpiVal) kpiVal.innerText = `$ ${Math.round(globalTotal).toLocaleString()}`;
+
+  const kpiAvgDays = document.getElementById("supplier-accounts-kpi-avg-days");
+  if (kpiAvgDays) {
+    kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays} días` : "-";
+  }
+
+  const periodSelect = document.getElementById("supplier-kpi-due-period")?.value || "week";
+  const dueSoonVal = periodSelect === "week" ? totalDueSoonWeek : totalDueSoonMonth;
+  const kpiDueSoon = document.getElementById("supplier-accounts-kpi-due-soon");
+  if (kpiDueSoon) {
+    kpiDueSoon.innerText = `$ ${Math.round(dueSoonVal).toLocaleString()}`;
+  }
 
   if (proveedors.length === 0) {
     container.innerHTML = `<div style="text-align: center; color: var(--text-gray); padding: 40px; font-size: 0.8rem;">No hay cuentas de proveedores registradas.</div>`;
@@ -6010,6 +6149,7 @@ function renderSupplierAccounts() {
 
   proveedors.forEach(acc => {
     const balance = acc.transactions ? acc.transactions.reduce((sum, tx) => sum + (tx.amount - tx.payment), 0) : 0;
+    const metrics = acc._metrics;
     
     let txRows = "";
     if (!acc.transactions || acc.transactions.length === 0) {
@@ -6046,6 +6186,11 @@ function renderSupplierAccounts() {
           <div style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap;">
             <span>📞 ${acc.phone || "-"}</span>
             <span>📍 ${acc.address || "-"}</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--text-gray-light); margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; background: rgba(255,255,255,0.02); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.03);">
+            <span>⏱️ Pago Prom.: <strong style="color: var(--accent-blue);">${metrics.avgDays !== null ? metrics.avgDays + ' días' : 'Sin pagos'}</strong></span>
+            <span>📅 Vence pronto: <strong style="color: #f59e0b;">$ ${metrics.dueSoonMonth.toLocaleString()} (mes)</strong></span>
+            <span>Plazo Acordado: <strong>${acc.paymentTerms !== undefined ? acc.paymentTerms : 30} días</strong></span>
           </div>
         </div>
         <div style="text-align: right;">
@@ -6089,13 +6234,41 @@ function renderCollections() {
   const searchVal = (document.getElementById("collections-search")?.value || "").toLowerCase();
   const clientes = state.currentAccounts.filter(a => a.type === "cliente" && a.entityName.toLowerCase().includes(searchVal));
 
-  // Calcular total a cobrar de clientes
-  const total = clientes.reduce((sum, acc) => {
-    const bal = acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0;
-    return sum + Math.max(0, bal);
-  }, 0);
+  // Calcular métricas globales
+  let globalTotal = 0;
+  let totalAvgDaysSum = 0;
+  let accountsWithPayments = 0;
+  let totalOverdue = 0;
+
+  clientes.forEach(acc => {
+    const balance = acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0;
+    globalTotal += Math.max(0, balance);
+
+    const metrics = calculateAccountMetrics(acc);
+    acc._metrics = metrics;
+
+    if (metrics.avgDays !== null) {
+      totalAvgDaysSum += metrics.avgDays;
+      accountsWithPayments++;
+    }
+    totalOverdue += metrics.overdueAmount;
+  });
+
+  const globalAvgDays = accountsWithPayments > 0 ? Math.round(totalAvgDaysSum / accountsWithPayments) : null;
+
+  // Actualizar KPIs del header
   const kpiVal = document.getElementById("collections-kpi-val");
-  if (kpiVal) kpiVal.innerText = `$ ${Math.round(total).toLocaleString()}`;
+  if (kpiVal) kpiVal.innerText = `$ ${Math.round(globalTotal).toLocaleString()}`;
+
+  const kpiAvgDays = document.getElementById("collections-kpi-avg-days");
+  if (kpiAvgDays) {
+    kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays} días` : "-";
+  }
+
+  const kpiOverdue = document.getElementById("collections-kpi-overdue");
+  if (kpiOverdue) {
+    kpiOverdue.innerText = `$ ${Math.round(totalOverdue).toLocaleString()}`;
+  }
 
   if (clientes.length === 0) {
     container.innerHTML = `<div style="text-align: center; color: var(--text-gray); padding: 40px; font-size: 0.8rem;">No hay cuentas corrientes de clientes registradas.</div>`;
@@ -6104,6 +6277,7 @@ function renderCollections() {
 
   clientes.forEach(acc => {
     const balance = Math.max(0, acc.transactions ? acc.transactions.reduce((sum, tx) => sum + (tx.amount - tx.payment), 0) : 0);
+    const metrics = acc._metrics;
     
     let txRows = "";
     if (!acc.transactions || acc.transactions.length === 0) {
@@ -6142,6 +6316,11 @@ function renderCollections() {
           <div style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap;">
             <span>📞 ${acc.phone || "-"}</span>
             <span>📍 ${acc.address || "-"}</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--text-gray-light); margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; background: rgba(255,255,255,0.02); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.03);">
+            <span>⏱️ Tardanza Prom.: <strong style="color: var(--accent-blue);">${metrics.avgDays !== null ? metrics.avgDays + ' días' : 'Sin pagos'}</strong></span>
+            <span>⚠️ Vencido: <strong style="color: var(--accent-red);">$ ${metrics.overdueAmount.toLocaleString()}</strong></span>
+            <span>Plazo Acordado: <strong>${acc.paymentTerms !== undefined ? acc.paymentTerms : 30} días</strong></span>
           </div>
         </div>
         <div style="text-align: right;">
@@ -6184,6 +6363,7 @@ function openAccountModal(type) {
   document.getElementById("acc-entity-name").value = "";
   document.getElementById("acc-phone").value = "";
   document.getElementById("acc-address").value = "";
+  document.getElementById("acc-payment-terms").value = "";
   
   document.getElementById("account-modal").className = "modal-backdrop active";
 }
@@ -6199,8 +6379,10 @@ async function saveAccountForm(e) {
   const entityName = document.getElementById("acc-entity-name").value;
   const phone = document.getElementById("acc-phone").value;
   const address = document.getElementById("acc-address").value;
+  const termsVal = document.getElementById("acc-payment-terms").value.trim();
+  const paymentTerms = termsVal !== "" ? parseInt(termsVal, 10) : 30;
 
-  const payload = { entityName, type, phone, address };
+  const payload = { entityName, type, phone, address, paymentTerms };
   if (accId) payload.id = accId;
 
   try {
@@ -6222,6 +6404,7 @@ function editAccount(accId) {
   document.getElementById("acc-entity-name").value = acc.entityName;
   document.getElementById("acc-phone").value = acc.phone || "";
   document.getElementById("acc-address").value = acc.address || "";
+  document.getElementById("acc-payment-terms").value = acc.paymentTerms !== undefined ? acc.paymentTerms : "";
   
   document.getElementById("account-modal").className = "modal-backdrop active";
 }
