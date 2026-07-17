@@ -404,5 +404,7 @@ def delete_user_account(id_token):
     payload = {"idToken": id_token}
     r = _session.post(url, json=payload, timeout=30)
     if r.status_code != 200:
+        if "CREDENTIAL_TOO_OLD_LOGIN_AGAIN" in r.text:
+            raise Exception("Por razones de seguridad, debes cerrar sesión y volver a ingresar antes de eliminar la cuenta permanentemente.")
         raise Exception(f"Error al eliminar usuario en Firebase Auth: {r.text}")
     return r.json()
