@@ -7672,8 +7672,25 @@ async function submitPayFixedCost(cId) {
   }
 }
 
+function toggleSidebar() {
+  const sidebar = document.getElementById("app-sidebar");
+  const overlay = document.getElementById("sidebar-overlay");
+  if (!sidebar) return;
+  sidebar.classList.toggle("show-sidebar");
+  if (overlay) {
+    overlay.classList.toggle("show-overlay");
+  }
+}
+window.toggleSidebar = toggleSidebar;
+
 // --- Navegación y Pestañas ---
 function switchTab(tabId) {
+  // Cerrar sidebar móvil si está abierto
+  const sidebar = document.getElementById("app-sidebar");
+  const overlay = document.getElementById("sidebar-overlay");
+  if (sidebar) sidebar.classList.remove("show-sidebar");
+  if (overlay) overlay.classList.remove("show-overlay");
+
   // Desactivar links
   document.querySelectorAll(".menu-item").forEach(el => el.classList.remove("active"));
   // Activar link

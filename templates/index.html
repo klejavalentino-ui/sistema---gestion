@@ -156,6 +156,9 @@
     <!-- TOP BAR -->
     <header class="app-topbar">
       <div class="topbar-left">
+        <button type="button" class="hamburger-btn" onclick="toggleSidebar()" aria-label="Abrir menú">
+          <i class="fa-solid fa-bars"></i>
+        </button>
         <div class="topbar-logo">
           <h1 class="logo-main" style="font-size: 1.6rem; letter-spacing: 0.5px;">Datamargen.</h1>
         </div>
@@ -194,8 +197,11 @@
       </div>
     </header>
 
+    <!-- SIDEBAR OVERLAY FOR MOBILE -->
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <!-- LEFT SIDEBAR -->
-    <aside class="idx-sidebar">
+    <aside class="idx-sidebar" id="app-sidebar">
       
       <ul class="menu-list">
         <li class="menu-item active" data-tab="panel">

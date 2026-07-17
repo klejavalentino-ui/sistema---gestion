@@ -1564,3 +1564,133 @@ input[type=number] {
   font-size: 0.75rem;
 }
 
+/* ==========================================================================
+   RESPONSIVE DESIGN (Celular y Tablet)
+   ========================================================================== */
+
+/* Botón Hamburger */
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-gray);
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 8px 12px;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.hamburger-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-white);
+}
+
+/* Overlay para cerrar el menú en móvil */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 60px;
+  left: 0;
+  width: 100vw;
+  height: calc(100vh - 60px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 99;
+}
+
+@media (max-width: 992px) {
+  .hamburger-btn {
+    display: flex !important;
+  }
+  
+  .idx-sidebar {
+    left: -260px;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+  }
+  
+  .idx-sidebar.show-sidebar {
+    left: 0 !important;
+  }
+  
+  .sidebar-overlay.show-overlay {
+    display: block !important;
+  }
+  
+  .idx-main {
+    margin-left: 0 !important;
+    padding: 16px !important;
+  }
+  
+  /* Redefinir columnas en Topbar */
+  .topbar-logo {
+    width: auto !important;
+  }
+  .topbar-divider {
+    display: none !important;
+  }
+  .topbar-title {
+    display: none !important;
+  }
+  
+  /* Ajustar topbar-right para pantallas angostas */
+  .topbar-right span[id="topbar-date"] {
+    display: none !important;
+  }
+  
+  .topbar-right span[id="topbar-business-name"] {
+    font-size: 0.75rem !important;
+  }
+  
+  /* Forzar grids de configuración y de formularios a 1 columna */
+  div[style*="display: grid"][style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  
+  /* Grids nativos CSS */
+  .grid-5, .grid-4, .grid-3 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  /* Modales */
+  .modal-card {
+    width: 95% !important;
+    padding: 16px !important;
+    margin: 10px !important;
+  }
+  
+  /* Tablas responsivas */
+  .idx-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 576px) {
+  .grid-5, .grid-4, .grid-3, .grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Panel de control */
+  .panel-metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Ajustes de tipografía en móvil */
+  h2, h3 {
+    font-size: 1.1rem !important;
+  }
+  
+  /* Botones de acción principal */
+  .topbar-right {
+    gap: 10px !important;
+  }
+}
+
