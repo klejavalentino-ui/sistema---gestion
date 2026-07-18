@@ -601,13 +601,9 @@
             <p>Gestiona tus proveedores y registra la entrada de mercadería.</p>
           </div>
           <div style="display: flex; gap: 12px; align-items: center;">
-            <button class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px;" onclick="exportStockIntakesToExcel()">
+            <button class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;" onclick="exportStockIntakesToExcel()">
               <i>📥</i> Exportar Excel
             </button>
-            <button class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;" onclick="document.getElementById('pdf-import-input').click()">
-              <i>📄</i> Importar Remito (PDF)
-            </button>
-            <input type="file" id="pdf-import-input" accept=".pdf" style="display: none;" onchange="handlePdfImport(event)">
           </div>
         </div>
 
