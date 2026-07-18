@@ -7106,17 +7106,67 @@ function renderFixedCostsConceptPills() {
 
   if (currentSelectedCategory === "Personal") {
     if (employeeGroup) employeeGroup.style.display = "block";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "pos-category-btn active";
-    btn.innerText = "Sueldo Empleado";
-    container.appendChild(btn);
+    
+    // Buscar empleados únicos en el historial
+    const existingEmployees = new Set();
+    if (state.fixedCosts) {
+      state.fixedCosts.forEach(cost => {
+        if (cost.category === "Personal" && cost.concept && cost.concept.startsWith("Sueldo: ")) {
+          const empName = cost.concept.substring(8).trim();
+          if (empName) existingEmployees.add(empName);
+        }
+      });
+    }
     
     const empInput = document.getElementById("cost-employee-name-input");
+    
+    if (existingEmployees.size > 0) {
+      const label = document.createElement("p");
+      label.style.fontSize = "0.7rem";
+      label.style.color = "var(--text-gray)";
+      label.style.margin = "0 0 8px 0";
+      label.innerText = "Empleados Guardados (Haz clic para seleccionar):";
+      container.appendChild(label);
+      
+      const pillsContainer = document.createElement("div");
+      pillsContainer.className = "flex-wrap-gap-1";
+      pillsContainer.style.marginBottom = "10px";
+      
+      existingEmployees.forEach(emp => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        const isActive = empInput && empInput.value.trim() === emp;
+        btn.className = "pos-category-btn" + (isActive ? " active" : "");
+        btn.innerText = emp;
+        btn.onclick = () => {
+          if (empInput) {
+            empInput.value = emp;
+            currentSelectedConcept = `Sueldo: ${emp}`;
+            pillsContainer.querySelectorAll("button").forEach(b => {
+              b.className = "pos-category-btn" + (b.innerText === emp ? " active" : "");
+            });
+            updateCostPeriodDisplay();
+          }
+        };
+        pillsContainer.appendChild(btn);
+      });
+      container.appendChild(pillsContainer);
+    } else {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pos-category-btn active";
+      btn.innerText = "Sueldo Empleado";
+      container.appendChild(btn);
+    }
+    
     if (empInput) {
       currentSelectedConcept = empInput.value.trim() ? `Sueldo: ${empInput.value.trim()}` : "Sueldo Empleado";
       empInput.oninput = () => {
-        currentSelectedConcept = empInput.value.trim() ? `Sueldo: ${empInput.value.trim()}` : "Sueldo Empleado";
+        const val = empInput.value.trim();
+        currentSelectedConcept = val ? `Sueldo: ${val}` : "Sueldo Empleado";
+        container.querySelectorAll(".pos-category-btn").forEach(b => {
+          b.className = "pos-category-btn" + (b.innerText.toLowerCase() === val.toLowerCase() ? " active" : "");
+        });
         updateCostPeriodDisplay();
       };
     }
