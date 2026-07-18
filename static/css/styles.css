@@ -1665,11 +1665,26 @@ input[type=number] {
   }
   
   /* Tablas responsivas */
-  .idx-table {
+  .idx-table, .data-table {
     display: block;
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Dashboard y Layout Principal */
+  .dashboard-kpis {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  
+  /* POS Responsivo Tablet/Mobile */
+  .pos-wrapper {
+    flex-direction: column !important;
+  }
+  .pos-cart-panel {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }
 
@@ -1679,8 +1694,19 @@ input[type=number] {
   }
   
   /* Panel de control */
-  .panel-metrics-grid {
+  .panel-metrics-grid, .dashboard-kpis {
     grid-template-columns: 1fr !important;
+  }
+  
+  /* Cabeceras de Secciones (Apilar botones de acción) */
+  .idx-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .idx-header > div {
+    width: 100% !important;
+    flex-wrap: wrap !important;
   }
   
   /* Ajustes de tipografía en móvil */
