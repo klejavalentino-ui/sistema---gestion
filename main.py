@@ -4193,6 +4193,23 @@ def update_business_settings():
         if "userProfileName" in data: doc["name"] = data["userProfileName"]
         if "userProfileUsername" in data:
             new_username = data["userProfileUsername"]
+            old_username = doc.get("username")
+            if old_username and old_username.strip().lower() != new_username.strip().lower():
+                clean_old = old_username.strip().lower()
+                try:
+                    firebase_config.delete_document("username_mappings", clean_old, token)
+                except Exception as del_map_err:
+                    print(f"Error deleting old username mapping in settings: {del_map_err}")
+                if os.path.exists(USERNAMES_FILE):
+                    try:
+                        with open(USERNAMES_FILE, "r") as f:
+                            users_data = json.load(f)
+                        if clean_old in users_data:
+                            del users_data[clean_old]
+                            with open(USERNAMES_FILE, "w") as f:
+                                json.dump(users_data, f, indent=4)
+                    except Exception as json_del_err:
+                        print(f"Error deleting old username from usernames.json: {json_del_err}")
             doc["username"] = new_username
             email = doc.get("contactEmail")
             if not email:
