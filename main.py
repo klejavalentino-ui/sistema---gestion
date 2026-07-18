@@ -427,13 +427,30 @@ def login():
         
         detected_biz_type = "textil"
         try:
-            for biz_type in ["textil", "comercio"]:
-                profile_doc = firebase_config.get_document("products", f"{biz_type}_user_profile", token)
-                if profile_doc:
-                    detected_biz_type = biz_type
-                    if profile_doc.get("username"):
-                        save_username_mapping(profile_doc["username"], email, token=token)
-                    break
+            profiles = {}
+            for b_type in ["textil", "comercio"]:
+                p_doc = firebase_config.get_document("products", f"{b_type}_user_profile", token)
+                if p_doc:
+                    profiles[b_type] = p_doc
+            
+            if len(profiles) == 1:
+                detected_biz_type = list(profiles.keys())[0]
+            elif len(profiles) > 1:
+                matched = None
+                for b_type, p_doc in profiles.items():
+                    if p_doc.get("businessType") == b_type:
+                        matched = b_type
+                        break
+                if matched:
+                    detected_biz_type = matched
+                else:
+                    detected_biz_type = "comercio"
+            else:
+                detected_biz_type = "textil"
+                
+            active_profile = profiles.get(detected_biz_type)
+            if active_profile and active_profile.get("username"):
+                save_username_mapping(active_profile["username"], email, token=token)
         except Exception as ex:
             print(f"Error al sincronizar username mapping durante login: {ex}")
             
@@ -4476,6 +4493,35 @@ def sync_existing_to_sheets():
             })
     except Exception as e:
         return handle_error(e)
+
+
+@app.route("/api/admin/cleanup-valentino-textil", methods=["POST"])
+def cleanup_valentino_textil():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    try:
+        acc_info = firebase_config.get_account_info(token)
+        email = acc_info.get("email") if acc_info else None
+        if not email or email not in ["valentinoklcv@gmail.com", "matiascuchettidiaz@gmail.com"]:
+            return jsonify({"error": "Acceso denegado"}), 403
+            
+        from firebase_admin import firestore
+        db = firestore.client()
+        docs = db.collection_group("products").stream()
+        
+        deleted_count = 0
+        for doc in docs:
+            doc_id = doc.id
+            if doc_id == "textil_user_profile":
+                data = doc.to_dict()
+                if data.get("contactEmail") == "valentinoklcv@gmail.com" or data.get("email") == "valentinoklcv@gmail.com":
+                    doc.reference.delete()
+                    deleted_count += 1
+                    
+        return jsonify({"success": True, "deleted_count": deleted_count})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
