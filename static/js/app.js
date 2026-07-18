@@ -7054,18 +7054,17 @@ function renderFixedCosts() {
   renderFixedCostsCategoryGrid();
 }
 
-const GASTOS_CATEGORIES = ['Servicios', 'Personal', 'Impuestos', 'Mantenimiento', 'Deuda', 'Otros'];
+const GASTOS_CATEGORIES = ['Estructura', 'Personal', 'Dirección', 'Marketing Fijo', 'Servicios Digitales'];
 const GASTOS_SUBCATEGORIES = {
-  Servicios: ['Luz', 'Agua', 'Gas', 'Internet', 'Teléfono', 'Electricidad', 'Alquiler'],
-  Personal: ['Sueldos', 'Diseñador'],
-  Impuestos: ['Monotributo', 'Ingresos Brutos', 'Tasa Municipal', 'Contador'],
-  Mantenimiento: ['Limpieza', 'Reparaciones', 'Art. Oficina'],
-  Deuda: ['Préstamo', 'Tarjeta de Crédito', 'Plan de Pago'],
-  Otros: ['Varios', 'Seguro', 'Suscripciones']
+  Estructura: ['Alquiler', 'Luz', 'Internet', 'Expensas', 'Mantenimiento', 'Servicios', 'Otros'],
+  Personal: ['Sueldo Empleado'],
+  Dirección: ['Sueldo del Dueño'],
+  'Marketing Fijo': ['Pauta Digital Fija', 'Embajadores/Influencers Recurrentes'],
+  'Servicios Digitales': ['Tiendanube', 'Pasarelas de Pago Fijas', 'Software/Suscripciones']
 };
 
-let currentSelectedCategory = 'Servicios';
-let currentSelectedConcept = 'Luz';
+let currentSelectedCategory = 'Estructura';
+let currentSelectedConcept = 'Alquiler';
 let currentPeriodType = 'MENSUAL'; // 'MENSUAL', 'QUINCENAL', 'SEMANAL'
 let currentQuincena = '1ª';
 let currentSemana = '1';
@@ -7102,23 +7101,47 @@ function renderFixedCostsCategoryGrid() {
 
 function renderFixedCostsConceptPills() {
   const container = document.getElementById("cost-concept-pills");
+  const employeeGroup = document.getElementById("cost-employee-name-group");
   container.innerHTML = "";
 
-  const subs = GASTOS_SUBCATEGORIES[currentSelectedCategory];
-  subs.forEach(sub => {
+  if (currentSelectedCategory === "Personal") {
+    if (employeeGroup) employeeGroup.style.display = "block";
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "pos-category-btn" + (sub === currentSelectedConcept ? " active" : "");
-    btn.innerText = sub;
-    btn.onclick = () => {
-      currentSelectedConcept = sub;
-      document.querySelectorAll("#cost-concept-pills button").forEach(b => {
-        b.className = "pos-category-btn" + (b.innerText === sub ? " active" : "");
-      });
-      updateCostPeriodDisplay();
-    };
+    btn.className = "pos-category-btn active";
+    btn.innerText = "Sueldo Empleado";
     container.appendChild(btn);
-  });
+    
+    const empInput = document.getElementById("cost-employee-name-input");
+    if (empInput) {
+      currentSelectedConcept = empInput.value.trim() ? `Sueldo: ${empInput.value.trim()}` : "Sueldo Empleado";
+      empInput.oninput = () => {
+        currentSelectedConcept = empInput.value.trim() ? `Sueldo: ${empInput.value.trim()}` : "Sueldo Empleado";
+        updateCostPeriodDisplay();
+      };
+    }
+  } else {
+    if (employeeGroup) {
+      employeeGroup.style.display = "none";
+      const empInput = document.getElementById("cost-employee-name-input");
+      if (empInput) empInput.value = "";
+    }
+    const subs = GASTOS_SUBCATEGORIES[currentSelectedCategory];
+    subs.forEach(sub => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pos-category-btn" + (sub === currentSelectedConcept ? " active" : "");
+      btn.innerText = sub;
+      btn.onclick = () => {
+        currentSelectedConcept = sub;
+        document.querySelectorAll("#cost-concept-pills button").forEach(b => {
+          b.className = "pos-category-btn" + (b.innerText === sub ? " active" : "");
+        });
+        updateCostPeriodDisplay();
+      };
+      container.appendChild(btn);
+    });
+  }
   
   updateCostPeriodDisplay();
 }
@@ -7190,6 +7213,15 @@ async function handleAddExpenseSubmit(e) {
     return;
   }
 
+  if (currentSelectedCategory === "Personal") {
+    const empInput = document.getElementById("cost-employee-name-input");
+    if (!empInput || !empInput.value.trim()) {
+      showToast("Por favor ingresa el nombre del empleado", true);
+      return;
+    }
+    currentSelectedConcept = `Sueldo: ${empInput.value.trim()}`;
+  }
+
   const month = document.getElementById("cost-period-month").value;
   let finalPeriod = month;
   if (currentPeriodType === "QUINCENAL") finalPeriod = `${currentQuincena} Quincena ${month}`;
@@ -7207,6 +7239,8 @@ async function handleAddExpenseSubmit(e) {
     await apiRequest("/api/fixed-costs", "POST", costPayload);
     showToast("Gasto agregado");
     amtInput.value = "";
+    const empInput = document.getElementById("cost-employee-name-input");
+    if (empInput) empInput.value = "";
     refreshState();
   } catch (error) {
     showToast(error.message, true);
