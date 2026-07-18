@@ -1483,13 +1483,15 @@ async function refreshState() {
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
       if (item.id === "sidebar-tiendanube-item") {
-        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
+        if (state.email === "klejavalentino@gmail.com" || state.email === "valentinoklcv@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
           item.style.display = "block";
         } else {
           item.style.display = "none";
         }
       } else if (item.id === "sidebar-arca-item") {
-        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
+        const isArcaAllowed = (state.userProfile?.arcaEnabled === true) || 
+                              ["klejavalentino@gmail.com", "valentinoklcv@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"].includes(state.email);
+        if (isArcaAllowed) {
           item.style.display = "block";
         } else {
           item.style.display = "none";
