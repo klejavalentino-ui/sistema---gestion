@@ -1593,7 +1593,7 @@
         <div class="idx-header">
           <div class="idx-header-info">
             <h2>Gestión de Devoluciones y Cambios</h2>
-            <p>Registrá devoluciones, realizá cambios de productos y emití Notas de Crédito AFIP/ARCA automáticamente.</p>
+            <p>Registrá devoluciones, realizá cambios de productos, anulá/eliminá facturas y emití Notas de Crédito AFIP/ARCA automáticamente.</p>
           </div>
         </div>
 
@@ -1656,7 +1656,7 @@
               <label class="form-label" style="font-weight: 600;">🛍️ Productos Entregados a Cambio (Opcional)</label>
               
               <div style="margin-bottom: 10px;">
-                <input type="text" id="exchange-search-product" class="form-input" placeholder="Buscar producto para entregar..." oninput="searchProductForExchange()">
+                <input type="text" id="exchange-search-product" class="form-input" placeholder="Buscar producto para entregar..." oninput="searchProductForExchange()" onfocus="searchProductForExchange()">
                 <div id="exchange-product-search-results" style="position: absolute; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; width: 40%; max-height: 180px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
               </div>
 

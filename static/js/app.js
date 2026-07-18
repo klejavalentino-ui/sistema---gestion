@@ -1483,7 +1483,7 @@ async function refreshState() {
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
       if (item.id === "sidebar-tiendanube-item") {
-        if (state.email === "klejavalentino@gmail.com" || state.email === "valentinoklcv@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
+        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
           item.style.display = "block";
         } else {
           item.style.display = "none";
@@ -11137,6 +11137,7 @@ async function renderReturns() {
             <td>
               <div style="font-weight: 600;">${r.client_name || "Consumidor Final"}</div>
               <div style="font-size: 0.65rem; color: var(--text-gray);">${r.client_cuit || "-"}</div>
+              ${r.sale_id ? `<div style="font-size: 0.65rem; color: var(--accent-blue); font-weight: bold; margin-top: 4px;">Venta: ${r.sale_id}</div>` : ""}
             </td>
             <td>${retDetails || "-"}</td>
             <td>${exDetails || `<span style="color: var(--text-gray); font-style: italic;">Solo devolución</span>`}</td>
@@ -11376,20 +11377,26 @@ function validateReturnQty(idx) {
 }
 
 function searchProductForExchange() {
-  const query = document.getElementById("exchange-search-product").value.toLowerCase().trim();
+  const queryInput = document.getElementById("exchange-search-product");
+  if (!queryInput) return;
+  const query = queryInput.value.toLowerCase().trim();
   const resultsDiv = document.getElementById("exchange-product-search-results");
   if (!resultsDiv) return;
   
-  if (query.length < 2) {
-    resultsDiv.style.display = "none";
-    return;
-  }
-  
   const isComercio = state.businessType === "comercio";
-  const matches = state.products.filter(p => {
-    if (isComercio && p.size && p.size !== "Único") return false;
-    return (p.name && p.name.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
-  }).slice(0, 10);
+  let matches = [];
+  
+  if (query.length === 0) {
+    matches = state.products.filter(p => {
+      if (isComercio && p.size && p.size !== "Único") return false;
+      return true;
+    }).slice(0, 10);
+  } else {
+    matches = state.products.filter(p => {
+      if (isComercio && p.size && p.size !== "Único") return false;
+      return (p.name && p.name.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
+    }).slice(0, 10);
+  }
   
   if (matches.length === 0) {
     resultsDiv.innerHTML = `<div style="padding: 10px; font-size: 0.75rem; color: var(--text-gray); font-style: italic;">No se encontraron productos</div>`;
@@ -11583,4 +11590,12 @@ window.confirmRegisterReturn = confirmRegisterReturn;
 window.updateManualReturnQty = updateManualReturnQty;
 window.updateExchangeQty = updateExchangeQty;
 window.selectAllUninvoicedSales = selectAllUninvoicedSales;
+
+document.addEventListener("click", (e) => {
+  const input = document.getElementById("exchange-search-product");
+  const resultsDiv = document.getElementById("exchange-product-search-results");
+  if (input && resultsDiv && !input.contains(e.target) && !resultsDiv.contains(e.target)) {
+    resultsDiv.style.display = "none";
+  }
+});
 window.toggleRowCheckbox = toggleRowCheckbox;
