@@ -11082,7 +11082,9 @@ async function renderReturns() {
   // 1. Poblar ubicaciones
   const locSelect = document.getElementById("return-stock-location");
   if (locSelect) {
-    const locations = state.userProfile?.locations || ["Local Principal", "Bahía Blanca", "Buenos Aires"];
+    const locations = (state.userProfile?.locations && state.userProfile.locations.length > 0)
+      ? state.userProfile.locations
+      : ["Local Principal"];
     locSelect.innerHTML = locations.map(loc => `<option value="${loc}">${loc}</option>`).join("");
   }
   
