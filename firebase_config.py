@@ -341,7 +341,7 @@ def get_document(collection, doc_id, id_token):
     r.raise_for_status()
     return from_firestore_document(r.json())
 
-def list_documents(collection, id_token):
+def list_documents(collection, id_token, limit=None, order_by=None, descending=True):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
@@ -362,6 +362,15 @@ def list_documents(collection, id_token):
             "from": [{"collectionId": collection_id}]
         }
     }
+    
+    if order_by:
+        payload["structuredQuery"]["orderBy"] = [{
+            "field": {"fieldPath": order_by},
+            "direction": "DESCENDING" if descending else "ASCENDING"
+        }]
+        
+    if limit:
+        payload["structuredQuery"]["limit"] = limit
     r = _session.post(url, json=payload, headers=headers, timeout=30)
     if r.status_code == 404:
         return []

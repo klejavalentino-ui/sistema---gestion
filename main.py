@@ -398,6 +398,7 @@ def save_username_mapping(username, email, upload_to_firestore=True, token=None)
                 print(f"Error in REST save_username_mapping: {e}")
 
 @app.route("/api/auth/login", methods=["POST"])
+@limiter.limit("5 per minute")
 def login():
     data = request.json or {}
     email = data.get("email", "").strip() # Podría ser un username
@@ -541,6 +542,7 @@ def send_registration_webhook(profile):
         print(f"Error sending registration webhook: {e}")
 
 @app.route("/api/auth/register", methods=["POST"])
+@limiter.limit("5 per minute")
 def register():
     data = request.json or {}
     email = data.get("email")
