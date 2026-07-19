@@ -2012,50 +2012,96 @@ def create_sale():
         
     data = request.json or {}
     date = data.get("date")
-    total = data.get("total")
+    total = safe_float(data.get("total"))
+    
+    # 1. MITIGACIÓN CWE-20: Prevenir Inyección Financiera Negativa
+    if total < 0:
+        return jsonify({"error": "El total de la venta no puede ser negativo."}), 400
+        
     items = data.get("items")
     method = data.get("method", "Efectivo")
     origen = data.get("origen", "local")
     ubicacion = data.get("ubicacion", "Local Principal")
     
-    if not date or total is None or items is None:
+    if not date or total is None or not items:
         return jsonify({"error": "Campos obligatorios faltantes"}), 400
         
+    uid = get_uid_from_token(token)
+    if not uid:
+        return jsonify({"error": "UID inválido"}), 401
+
     try:
-        # 1. Recuperar productos en paralelo para validar stock
-        def get_single_prod(cart_item):
-            prod_info = cart_item.get("product", {})
-            sku = prod_info.get("sku")
-            qty = safe_int(cart_item.get("quantity", 0))
-            if sku and qty > 0:
-                prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
-                return sku, qty, prod
-            return None, 0, None
+        from firebase_admin import firestore
+        try:
+            db_admin = firestore.client()
+        except ValueError:
+            return jsonify({"error": "Firestore client no inicializado"}), 500
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            prods_data = list(executor.map(get_single_prod, items))
-
-        # Validar stock (sólo para origen local)
+        # 2. MITIGACIÓN OWASP A01 (Race Condition): Transacción Atómica de Inventario
+        # Solo ejecutamos la validación estricta de stock si es origen local.
         if origen == "local":
-            for sku, qty, prod in prods_data:
-                if not sku or qty <= 0:
-                    continue
-                if not prod:
-                    return jsonify({"error": f"Producto con SKU {sku} no encontrado en inventario"}), 400
-                
-                # Retrieve stock from specific location or fallback
-                loc_stock = prod.get("locationsStock", {})
-                if isinstance(loc_stock, dict) and ubicacion in loc_stock:
-                    current_stock = safe_int(loc_stock[ubicacion])
-                else:
-                    current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
-                
-                if current_stock < qty:
-                    return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}' (Talle {prod.get('size')}) en la ubicación '{ubicacion}'. Disponible: {current_stock}, Solicitado: {qty}"}), 400
+            transaction = db_admin.transaction()
+            
+            @firestore.transactional
+            def atomic_stock_deduction(transaction, cart_items):
+                docs_to_update = []
+                # Paso A: Lectura y Validación de todo el carrito
+                for cart_item in cart_items:
+                    prod_info = cart_item.get("product", {})
+                    sku = prod_info.get("sku")
+                    qty = safe_int(cart_item.get("quantity", 0))
+                    
+                    if not sku or qty <= 0:
+                        continue
+                        
+                    # Mazo usa aislamiento de inquilino (Tenant) para la db Admin SDK
+                    doc_ref = db_admin.collection("users").document(uid).collection("products").document(f"{prefix}{sku}")
+                    snapshot = doc_ref.get(transaction=transaction)
+                    
+                    if not snapshot.exists:
+                        raise ValueError(f"Producto con SKU {sku} no encontrado en inventario")
+                        
+                    prod = snapshot.to_dict()
+                    
+                    loc_stock = prod.get("locationsStock", {})
+                    if isinstance(loc_stock, dict) and ubicacion in loc_stock:
+                        current_stock = safe_int(loc_stock[ubicacion])
+                    else:
+                        current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                        
+                    if current_stock < qty:
+                        raise ValueError(f"Stock insuficiente para '{prod.get('name')}'. Disponible: {current_stock}, Solicitado: {qty}")
+                        
+                    # Preparar mutación de datos
+                    if isinstance(loc_stock, dict) and ubicacion in loc_stock:
+                        loc_stock[ubicacion] = current_stock - qty
+                        total_stock = sum(safe_int(v) for v in loc_stock.values())
+                        prod["locationsStock"] = loc_stock
+                        prod["stock"] = total_stock
+                        prod["stock_local"] = total_stock
+                    else:
+                        prod["stock_local"] = current_stock - qty
+                        prod["stock"] = prod["stock_local"]
+                        
+                    prod["sku"] = f"{prefix}{sku}"
+                    docs_to_update.append((doc_ref, prod))
+                    
+                # Paso B: Escritura Atómica (solo si todas las lecturas fueron válidas)
+                for ref, updated_prod in docs_to_update:
+                    transaction.set(ref, updated_prod, merge=True)
+                    
+                return True
+
+            try:
+                atomic_stock_deduction(transaction, items)
+            except ValueError as ve:
+                return jsonify({"error": str(ve)}), 400
+            except Exception as e:
+                return jsonify({"error": f"Error transaccional de inventario: {str(e)}"}), 500
 
         sale_id = f"V-{time.strftime('%H%M%S', time.localtime())}"
         
-        # Desprender el prefijo del payload antes de guardarlo para que quede limpio en el registro de ventas
+        # Desprender el prefijo del payload antes de guardarlo
         for cart_item in items:
             prod_info = cart_item.get("product", {})
             if "sku" in prod_info and str(prod_info["sku"]).startswith(prefix):
@@ -2065,7 +2111,7 @@ def create_sale():
 
         sale_data = {
             "date": str(date),
-            "total": safe_float(total),
+            "total": total,
             "subtotal": safe_float(data.get("subtotal", total)),
             "discount_pct": safe_float(data.get("discount_pct", 0.0)),
             "method": str(method),
@@ -2080,13 +2126,13 @@ def create_sale():
         if origen == "tiendanube":
             fee_fijo = safe_float(data.get("fee_fijo_tn", 300.0))
             comision = safe_float(data.get("comision_pasarela_pago", 5.0))
-            costos_fin = fee_fijo + (comision / 100.0 * safe_float(total))
-            total_neto = max(0.0, safe_float(total) - costos_fin)
+            costos_fin = fee_fijo + (comision / 100.0 * total)
+            total_neto = max(0.0, total - costos_fin)
             sale_data["fee_fijo_tn"] = fee_fijo
             sale_data["comision_pasarela_pago"] = comision
             sale_data["total_neto"] = total_neto
         else:
-            sale_data["total_neto"] = safe_float(total)
+            sale_data["total_neto"] = total
 
         # Flujo especial para ARCA Pago
         if method == "ARCA":
@@ -2101,7 +2147,6 @@ def create_sale():
                 webhook_url = f"{host_url}/api/webhooks/arca"
                 return_url = f"{host_url}/"
                 
-                uid = get_uid_from_token(token)
                 arca_res = create_arca_payment(
                     sale_id=sale_id,
                     amount=total,
@@ -2127,30 +2172,6 @@ def create_sale():
 
         # Registro normal de venta (Efectivo/Tarjeta/Transferencia/Financiado)
         res = firebase_config.set_document("sales", f"{prefix}{sale_id}", sale_data, token)
-        
-        # Descontar stock local en paralelo (sólo para origen local)
-        if origen == "local":
-            def update_local_stock(prod_data):
-                sku, qty, prod = prod_data
-                if sku and qty > 0 and prod:
-                    loc_stock = prod.get("locationsStock", {})
-                    if isinstance(loc_stock, dict) and ubicacion in loc_stock:
-                        loc_stock[ubicacion] = max(0, safe_int(loc_stock[ubicacion]) - qty)
-                        prod["locationsStock"] = loc_stock
-                        # Update total stock by summing all locations
-                        total_stock = sum(safe_int(v) for v in loc_stock.values())
-                        prod["stock"] = total_stock
-                        prod["stock_local"] = total_stock
-                    else:
-                        current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
-                        prod["stock_local"] = max(0, current_stock - qty)
-                        prod["stock"] = prod["stock_local"]
-                    
-                    prod["sku"] = f"{prefix}{sku}"
-                    firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                executor.map(update_local_stock, prods_data)
                     
         # Registrar en la caja diaria si corresponde
         if method in ["Efectivo", "Transferencia"]:
