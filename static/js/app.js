@@ -2867,6 +2867,9 @@ function openCheckoutModal() {
     opt.value = acc.entityName;
     opt.dataset.phone = acc.phone || "";
     opt.dataset.address = acc.address || "";
+    opt.dataset.cuit = acc.cuit || "";
+    opt.dataset.razonSocial = acc.razonSocial || acc.entityName || "";
+    opt.dataset.condicionIva = acc.condicionIva || "CONSUMIDOR FINAL";
     datalist.appendChild(opt);
   });
   
@@ -3099,8 +3102,11 @@ function autoFillClientInfo() {
   const selectedOpt = Array.from(options).find(o => o.value.toLowerCase() === name);
   
   if (selectedOpt) {
-    document.getElementById("chk-client-phone").value = selectedOpt.dataset.phone || "";
-    document.getElementById("chk-client-address").value = selectedOpt.dataset.address || "";
+    if (document.getElementById("chk-client-phone")) document.getElementById("chk-client-phone").value = selectedOpt.dataset.phone || "";
+    if (document.getElementById("chk-client-address")) document.getElementById("chk-client-address").value = selectedOpt.dataset.address || "";
+    if (document.getElementById("chk-client-cuit")) document.getElementById("chk-client-cuit").value = selectedOpt.dataset.cuit || "";
+    if (document.getElementById("chk-client-razon-social")) document.getElementById("chk-client-razon-social").value = selectedOpt.dataset.razonSocial || "";
+    if (document.getElementById("chk-client-condicion-iva")) document.getElementById("chk-client-condicion-iva").value = selectedOpt.dataset.condicionIva || "CONSUMIDOR FINAL";
   }
 }
 
@@ -3162,6 +3168,9 @@ async function submitCheckoutFinance() {
   const name = document.getElementById("chk-client-name").value.trim();
   const phone = document.getElementById("chk-client-phone").value.trim();
   const address = document.getElementById("chk-client-address").value.trim();
+  const cuit = document.getElementById("chk-client-cuit") ? document.getElementById("chk-client-cuit").value.trim() : "";
+  const razonSocial = document.getElementById("chk-client-razon-social") ? document.getElementById("chk-client-razon-social").value.trim() : "";
+  const condicionIva = document.getElementById("chk-client-condicion-iva") ? document.getElementById("chk-client-condicion-iva").value : "CONSUMIDOR FINAL";
   const paidRaw = document.getElementById("chk-client-paid").value.replace(/\D/g, "");
   
   if (!name) {
@@ -3186,7 +3195,10 @@ async function submitCheckoutFinance() {
         entityName: name,
         type: "cliente",
         phone: phone,
-        address: address
+        address: address,
+        cuit: cuit,
+        razonSocial: razonSocial,
+        condicionIva: condicionIva
       });
       accId = account.id;
     }
@@ -3225,7 +3237,12 @@ async function submitCheckoutFinance() {
       extras: extras,
       origen: origin,
       canal_venta: canalVenta,
-      ubicacion: ubicacion
+      ubicacion: ubicacion,
+      client_name: name,
+      client_cuit: cuit,
+      client_razon_social: razonSocial,
+      client_condicion_iva: condicionIva,
+      client_address: address
     };
 
 
@@ -3572,22 +3589,52 @@ function printSaleTicket(saleId) {
       </html>
     `;
   } else {
-    // Factura C (Legal)
+  } else {
+    // Factura Oficial (A, B o C)
     let arca = {};
     if (state.integrations && state.integrations.arca) {
         arca = state.integrations.arca;
     }
     const cuit = arca.cuit || "00-00000000-0";
     const pos = arca.pos || "0002";
-    const businessName = arca.businessName || state.businessName || "Responsable Monotributo";
+    const condicionEmisor = (arca.condicion_iva || "monotributo").toUpperCase();
+    const businessName = arca.businessName || state.businessName || "Empresa / Monotributista";
     const address = arca.address || "Domicilio Comercial";
     const iibb = arca.iibb || cuit;
     const incioAct = arca.inicio_actividades || "01/01/2020";
     const nroFactura = sale.arca_invoice_id || "";
     const cae = sale.arca_cae || "";
     const caeDue = sale.arca_cae_due || "";
-    const clientCuit = sale.client_cuit ? sale.client_cuit.replace(/[^0-9]/g, '') : "0";
-    const isAnonymous = clientCuit === "0" || clientCuit === "20999999999" || clientCuit === "";
+    
+    // Tax fields of client
+    const clientCuit = sale.client_cuit ? sale.client_cuit.replace(/[^0-9]/g, '') : "";
+    const clientName = sale.client_name || sale.client_razon_social || "Consumidor Final";
+    const clientCondicionIva = (sale.client_condicion_iva || "CONSUMIDOR FINAL").toUpperCase();
+    const clientAddress = sale.client_address || "";
+    const isAnonymous = !clientCuit || clientCuit === "0" || clientCuit === "20999999999";
+
+    // Determine Factura Letter (A, B, C)
+    let voucherLetter = "C";
+    let voucherCode = "011";
+    let cbteTipoCode = 11;
+
+    if (condicionEmisor.includes("INSCRIPTO")) {
+      if (clientCuit.length === 11 && (clientCondicionIva.includes("MONOTRIBUTO") || clientCondicionIva.includes("INSCRIPTO"))) {
+        voucherLetter = "A";
+        voucherCode = "001";
+        cbteTipoCode = 1;
+      } else {
+        voucherLetter = "B";
+        voucherCode = "006";
+        cbteTipoCode = 6;
+      }
+    } else {
+      voucherLetter = "C";
+      voucherCode = "011";
+      cbteTipoCode = 11;
+    }
+
+    const leyendaMonotributo = sale.leyenda_monotributo || (voucherLetter === "A" && clientCondicionIva.includes("MONOTRIBUTO") ? "El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado a efectos del Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley Nº 27.618" : "");
 
     let qrImgHtml = "";
     if (cae) {
@@ -3597,12 +3644,12 @@ function printSaleTicket(saleId) {
           "fecha": sale.date.split("T")[0],
           "cuit": parseInt(cuit.replace(/[^0-9]/g, '') || 0),
           "ptoVta": parseInt(pos),
-          "tipoCmp": 11,
+          "tipoCmp": cbteTipoCode,
           "nroCmp": parseInt(nroFactura.split("-")[1] || 0),
           "importe": parseFloat(sale.total),
           "moneda": "PES",
           "ctz": 1.0,
-          "tipoDocRec": parseInt(clientCuit) > 0 ? 80 : 99,
+          "tipoDocRec": parseInt(clientCuit) > 0 ? (clientCuit.length === 11 ? 80 : 96) : 99,
           "nroDocRec": parseInt(clientCuit) > 0 ? parseInt(clientCuit) : 0,
           "tipoCodAut": "E",
           "codAut": parseInt(cae)
@@ -3620,7 +3667,7 @@ function printSaleTicket(saleId) {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Factura C ${nroFactura}</title>
+        <title>Factura ${voucherLetter} ${nroFactura}</title>
         <style>
           @page { margin: 0; }
           body { font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.2; color: #000; background: #fff; margin: 0; padding: 10px; width: 72mm; box-sizing: border-box; }
@@ -3636,36 +3683,37 @@ function printSaleTicket(saleId) {
           .totals-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
           .afip-box { border: 1px solid #000; padding: 4px; text-align: center; margin: 5px 0; }
           .c-letter { font-size: 24px; font-weight: bold; margin: 0; }
+          .leyenda-box { font-size: 8px; border: 1px solid #000; padding: 4px; margin: 6px 0; text-align: justify; }
           .exchange-ticket { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; }
         </style>
       </head>
       <body>
         <div class="header text-center">
           <div class="afip-box">
-            <p class="c-letter">C</p>
-            <p style="font-size: 9px; margin: 0;">COD. 011</p>
+            <p class="c-letter">${voucherLetter}</p>
+            <p style="font-size: 9px; margin: 0;">COD. ${voucherCode}</p>
           </div>
           <h2 style="margin: 3px 0; font-size: 14px; text-transform: uppercase;">${businessName}</h2>
           <p style="margin: 2px 0; font-size: 10px;">${address}</p>
           <p style="margin: 2px 0; font-size: 10px;">CUIT: ${cuit}</p>
           <p style="margin: 2px 0; font-size: 10px;">IIBB: ${iibb}</p>
           <p style="margin: 2px 0; font-size: 10px;">Inicio Actividades: ${incioAct}</p>
-          <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">RESPONSABLE MONOTRIBUTO</p>
+          <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">${condicionEmisor}</p>
         </div>
         <div class="separator"></div>
         <div class="text-center" style="margin: 5px 0;">
-          <p class="bold" style="margin: 0; font-size: 14px;">FACTURA</p>
+          <p class="bold" style="margin: 0; font-size: 14px;">FACTURA ${voucherLetter}</p>
           <p style="margin: 2px 0;">Nro: ${pos}-${nroFactura.split("-")[1] || "00000000"}</p>
           <p style="margin: 2px 0;">Fecha: ${dateStr}</p>
         </div>
         <div class="separator"></div>
         <div style="margin: 5px 0; font-size: 10px;">
-          <p style="margin: 2px 0;"><span class="bold">A CONSUMIDOR FINAL</span></p>
-          ${!isAnonymous ? `
-            <p style="margin: 2px 0;">CUIT/DNI: ${clientCuit}</p>
-            <p style="margin: 2px 0;">Cliente: ${sale.client_name || "Consumidor"}</p>
-          ` : ''}
+          <p style="margin: 2px 0;"><span class="bold">CLIENTE:</span> ${clientName}</p>
+          <p style="margin: 2px 0;"><span class="bold">CONDICION IVA:</span> ${clientCondicionIva}</p>
+          ${!isAnonymous ? `<p style="margin: 2px 0;"><span class="bold">CUIT/DNI:</span> ${clientCuit}</p>` : ''}
+          ${clientAddress ? `<p style="margin: 2px 0;"><span class="bold">DOMICILIO:</span> ${clientAddress}</p>` : ''}
         </div>
+        ${leyendaMonotributo ? `<div class="leyenda-box">${leyendaMonotributo}</div>` : ''}
         <div class="separator"></div>
         <table class="items-table">
           <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">Total</th></tr></thead>
@@ -6493,6 +6541,9 @@ function openAccountModal(type) {
   document.getElementById("account-id-input").value = "";
   document.getElementById("modal-account-title").innerText = type === "proveedor" ? "Registrar Cta. Proveedor" : "Registrar Cta. Cliente";
   document.getElementById("acc-entity-name").value = "";
+  if (document.getElementById("acc-cuit")) document.getElementById("acc-cuit").value = "";
+  if (document.getElementById("acc-razon-social")) document.getElementById("acc-razon-social").value = "";
+  if (document.getElementById("acc-condicion-iva")) document.getElementById("acc-condicion-iva").value = "CONSUMIDOR FINAL";
   document.getElementById("acc-phone").value = "";
   document.getElementById("acc-address").value = "";
   document.getElementById("acc-payment-terms").value = "";
@@ -6509,12 +6560,15 @@ async function saveAccountForm(e) {
   const type = document.getElementById("account-type-input").value;
   const accId = document.getElementById("account-id-input").value;
   const entityName = document.getElementById("acc-entity-name").value;
+  const cuit = document.getElementById("acc-cuit") ? document.getElementById("acc-cuit").value.trim() : "";
+  const razonSocial = document.getElementById("acc-razon-social") ? document.getElementById("acc-razon-social").value.trim() : "";
+  const condicionIva = document.getElementById("acc-condicion-iva") ? document.getElementById("acc-condicion-iva").value : "CONSUMIDOR FINAL";
   const phone = document.getElementById("acc-phone").value;
   const address = document.getElementById("acc-address").value;
   const termsVal = document.getElementById("acc-payment-terms").value.trim();
   const paymentTerms = termsVal !== "" ? parseInt(termsVal, 10) : 30;
 
-  const payload = { entityName, type, phone, address, paymentTerms };
+  const payload = { entityName, type, phone, address, paymentTerms, cuit, razonSocial, condicionIva };
   if (accId) payload.id = accId;
 
   try {
@@ -6534,6 +6588,9 @@ function editAccount(accId) {
   document.getElementById("account-id-input").value = acc.id;
   document.getElementById("modal-account-title").innerText = acc.type === "proveedor" ? "Editar Cta. Proveedor" : "Editar Cta. Cliente";
   document.getElementById("acc-entity-name").value = acc.entityName;
+  if (document.getElementById("acc-cuit")) document.getElementById("acc-cuit").value = acc.cuit || "";
+  if (document.getElementById("acc-razon-social")) document.getElementById("acc-razon-social").value = acc.razonSocial || "";
+  if (document.getElementById("acc-condicion-iva")) document.getElementById("acc-condicion-iva").value = acc.condicionIva || "CONSUMIDOR FINAL";
   document.getElementById("acc-phone").value = acc.phone || "";
   document.getElementById("acc-address").value = acc.address || "";
   document.getElementById("acc-payment-terms").value = acc.paymentTerms !== undefined ? acc.paymentTerms : "";
@@ -9263,6 +9320,16 @@ async function renderIntegrationsStatus() {
         posInput.value = arca.pos || "0002";
         posInput.disabled = true;
       }
+      const topeEfectivoInput = document.getElementById("arca-tope-efectivo");
+      const topeElectronicoInput = document.getElementById("arca-tope-electronico");
+      if (topeEfectivoInput) {
+        topeEfectivoInput.value = arca.tope_efectivo !== undefined ? arca.tope_efectivo : 208644;
+        topeEfectivoInput.disabled = true;
+      }
+      if (topeElectronicoInput) {
+        topeElectronicoInput.value = arca.tope_electronico !== undefined ? arca.tope_electronico : 417288;
+        topeElectronicoInput.disabled = true;
+      }
       if (arcaCertFile) arcaCertFile.disabled = true;
       if (arcaKeyFile) arcaKeyFile.disabled = true;
       
@@ -9812,6 +9879,9 @@ async function saveArcaConfig(event) {
     return;
   }
   
+  const topeEfectivo = parseFloat(document.getElementById("arca-tope-efectivo")?.value) || 208644;
+  const topeElectronico = parseFloat(document.getElementById("arca-tope-electronico")?.value) || 417288;
+  
   try {
     showToast("Guardando configuración fiscal de ARCA...");
     const payload = {
@@ -9819,6 +9889,8 @@ async function saveArcaConfig(event) {
       condicion_iva: condicion,
       categoria_monotributo: categoria,
       pos: pos,
+      tope_efectivo: topeEfectivo,
+      tope_electronico: topeElectronico,
       activo: true
     };
     

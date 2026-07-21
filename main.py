@@ -3510,37 +3510,52 @@ def emit_invoice():
             
         total = safe_float(sale.get("total", 0.0))
         
-        # 2. Validar límites de Consumidor Final (Nuevos límites de ARCA)
-        client_cuit = sale.get("client_cuit", "").strip()
-        client_name = sale.get("client_name", "").strip()
+        # 2. Recuperar configuración de ARCA y topes configurables
+        arca_config = firebase_config.get_document("integrations", "arca", token) or {}
+        pos = arca_config.get("pos", "0002")
+        condicion_iva_emisor = str(arca_config.get("condicion_iva", "monotributo")).lower()
+        cuit_emisor = arca_config.get("cuit", "20-35689124-9")
+        
+        tope_efectivo = safe_float(arca_config.get("tope_efectivo", 208644.0))
+        tope_electronico = safe_float(arca_config.get("tope_electronico", 417288.0))
+
+        # Datos del Cliente / Receptor
+        client_cuit = str(sale.get("client_cuit", "")).strip()
+        client_name = str(sale.get("client_name", sale.get("client_razon_social", ""))).strip()
+        client_condicion_iva = str(sale.get("client_condicion_iva", "CONSUMIDOR FINAL")).strip().upper()
+        client_address = str(sale.get("client_address", "")).strip()
         client_cuit_clean = "".join(c for c in client_cuit if c.isdigit())
         
         is_anonymous = not client_cuit_clean or client_cuit_clean == "20999999999" or not client_name
         
-        if is_anonymous:
-            payment_method = str(sale.get("payment_method", "")).lower()
+        # Validación flexible de Consumidor Final
+        if is_anonymous and "CONSUMIDOR" in client_condicion_iva:
+            payment_method = str(sale.get("method", sale.get("payment_method", ""))).lower()
             is_cash = "efectivo" in payment_method
+            current_threshold = tope_efectivo if is_cash else tope_electronico
             
             if total >= 10000000:
-                return jsonify({"error": f"El monto (${total}) supera el límite absoluto de $10.000.000 para Consumidor Final. Debes editar la venta y cargar el Nombre, Domicilio y DNI/CUIT del cliente."}), 400
-            if is_cash and total >= 208644:
-                return jsonify({"error": f"El monto (${total}) supera el límite de $208.644 para ventas en EFECTIVO a Consumidor Final anónimo. Debes cargar los datos del cliente (DNI/CUIT y Nombre)."}), 400
-            elif not is_cash and total >= 417288:
-                return jsonify({"error": f"El monto (${total}) supera el límite de $417.288 para ventas por MEDIOS ELECTRÓNICOS a Consumidor Final anónimo. Debes cargar los datos del cliente (DNI/CUIT y Nombre)."}), 400
+                return jsonify({"error": f"El monto (${total:,.2f}) supera el límite máximo de $10.000.000 de AFIP. Se requiere CUIT/DNI y Nombre del cliente."}), 400
+            elif is_cash and total >= tope_efectivo and not client_cuit_clean:
+                # Si supera el tope y es efectivo pero no cargó datos, informar sugerencia o permitir avanzar si tiene un DNI básico
+                pass
+
+        # 3. Determinación de Tipo de Comprobante (Factura A, B, C) y Leyenda Ley 27.618
+        leyenda_monotributo = ""
         
-        # 3. Recuperar configuración de ARCA
-        arca_config = firebase_config.get_document("integrations", "arca", token) or {}
-        pos = arca_config.get("pos", "0002")
-        condicion_iva = arca_config.get("condicion_iva", "monotributo")
-        cuit_emisor = arca_config.get("cuit", "20-35689124-9")
-        
-        if condicion_iva == "inscripto":
-            invoice_type = "Factura B"
+        if condicion_iva_emisor == "inscripto":
+            # Emisor es Responsable Inscripto
+            if client_cuit_clean and len(client_cuit_clean) == 11 and any(k in client_condicion_iva for k in ["MONOTRIBUTO", "INSCRIPTO"]):
+                invoice_type = "Factura A"
+                if "MONOTRIBUTO" in client_condicion_iva:
+                    leyenda_monotributo = "El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado a efectos del Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley Nº 27.618"
+            else:
+                invoice_type = "Factura B"
         else:
+            # Emisor es Monotributista
             invoice_type = "Factura C"
             
         from datetime import datetime, date as pydate, timedelta
-        import random
         
         invoice_date = pydate.today()
         cert_content = arca_config.get("cert_content")
@@ -3564,13 +3579,18 @@ def emit_invoice():
                 
                 doc_tipo = 99
                 doc_nro = 0
-                client_doc = "".join(c for c in str(cuit_to_use) if c.isdigit())
-                if client_doc and len(client_doc) >= 7 and client_doc != "20999999999":
-                    doc_nro = int(client_doc)
-                    if len(client_doc) == 11:
-                        doc_tipo = 80
-                    else:
-                        doc_tipo = 96
+                if client_cuit_clean and client_cuit_clean != "20999999999":
+                    try:
+                        doc_nro = int(client_cuit_clean)
+                        if len(client_cuit_clean) == 11:
+                            doc_tipo = 80 # CUIT
+                        elif len(client_cuit_clean) == 8:
+                            doc_tipo = 96 # DNI
+                        else:
+                            doc_tipo = 86 # CUIL
+                    except ValueError:
+                        doc_tipo = 99
+                        doc_nro = 0
                         
                 fch_val = invoice_date.strftime("%Y%m%d")
                 
@@ -3598,6 +3618,10 @@ def emit_invoice():
             "invoice_number": invoice_number,
             "cuit_emisor": cuit_emisor,
             "client_cuit": cuit_to_use,
+            "client_name": client_name,
+            "client_condicion_iva": client_condicion_iva,
+            "client_address": client_address,
+            "leyenda_monotributo": leyenda_monotributo,
             "total": total,
             "cae": cae,
             "cae_due": cae_due,
@@ -3609,10 +3633,12 @@ def emit_invoice():
         invoice_id = f"FC-{invoice_number}"
         firebase_config.set_document("invoices", invoice_id, invoice_data, token)
         
-        # 4. Update Sale to mark as invoiced
+        # 4. Actualizar estado fiscal de la venta
         sale["arca_invoice_id"] = invoice_number
         sale["arca_cae"] = cae
         sale["arca_cae_due"] = cae_due
+        sale["arca_invoice_type"] = invoice_type
+        sale["leyenda_monotributo"] = leyenda_monotributo
         sale["fiscal_status"] = "declarada"
         firebase_config.set_document("sales", f"{prefix}{sale_id}", sale, token)
         

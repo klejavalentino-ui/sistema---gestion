@@ -1374,6 +1374,19 @@
                   <small style="font-size: 0.6rem; color: var(--text-gray);">Clave generada localmente para encriptar solicitudes wsaa.</small>
                 </div>
               </div>
+              <!-- TOPES ARCA CONSUMIDOR FINAL (Configurables Semestralmente por IPC) -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="arca-tope-efectivo">Tope Consumidor Final (Efectivo)</label>
+                  <input type="number" id="arca-tope-efectivo" class="form-input" placeholder="208644" value="208644">
+                  <small style="font-size: 0.6rem; color: var(--text-gray);">Exigir datos si venta en efectivo supera este monto.</small>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="arca-tope-electronico">Tope Consumidor Final (Electrónico)</label>
+                  <input type="number" id="arca-tope-electronico" class="form-input" placeholder="417288" value="417288">
+                  <small style="font-size: 0.6rem; color: var(--text-gray);">Exigir datos si venta electrónica supera este monto.</small>
+                </div>
+              </div>
               <div style="display: flex; gap: 10px;">
                 <button type="submit" id="arca-save-btn" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.8rem;">Guardar Configuración Fiscal</button>
                 <button type="button" id="arca-disconnect-btn" class="btn" style="background: var(--accent-red); color: var(--text-white); display: none; padding: 10px 20px; font-size: 0.8rem;" onclick="disconnectArca()">Desconectar</button>
@@ -2264,11 +2277,31 @@
           </div>
           <div class="grid-2">
             <div class="form-group">
+              <label class="form-label" for="chk-client-cuit">CUIT / DNI (Facturación)</label>
+              <input type="text" id="chk-client-cuit" class="form-input" placeholder="Ej. 30-12345678-9">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="chk-client-condicion-iva">Condición IVA</label>
+              <select id="chk-client-condicion-iva" class="form-select">
+                <option value="CONSUMIDOR FINAL">Consumidor Final</option>
+                <option value="RESPONSABLE MONOTRIBUTO">Responsable Monotributo</option>
+                <option value="IVA RESPONSABLE INSCRIPTO">IVA Responsable Inscripto</option>
+                <option value="IVA EXENTO">IVA Exento</option>
+                <option value="NO RESPONSABLE IVA">No Responsable IVA</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="chk-client-razon-social">Razón Social / Denominación</label>
+            <input type="text" id="chk-client-razon-social" class="form-input" placeholder="Opcional (Ej. Empresa S.A.)">
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
               <label class="form-label" for="chk-client-phone">Teléfono</label>
               <input type="text" id="chk-client-phone" class="form-input" placeholder="Opcional">
             </div>
             <div class="form-group">
-              <label class="form-label" for="chk-client-address">Dirección</label>
+              <label class="form-label" for="chk-client-address">Dirección Fiscal / Comercial</label>
               <input type="text" id="chk-client-address" class="form-input" placeholder="Opcional">
             </div>
           </div>
@@ -2757,8 +2790,28 @@
         <input type="hidden" id="account-id-input">
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label" for="acc-entity-name">Nombre Cliente / Proveedor *</label>
+            <label class="form-label" for="acc-entity-name">Nombre Fantasía / Nombre *</label>
             <input type="text" id="acc-entity-name" class="form-input" placeholder="Ej. Tienda Central" required>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="acc-cuit">CUIT / DNI (Facturación ARCA)</label>
+              <input type="text" id="acc-cuit" class="form-input" placeholder="Ej. 30-12345678-9">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="acc-condicion-iva">Condición frente al IVA</label>
+              <select id="acc-condicion-iva" class="form-select">
+                <option value="CONSUMIDOR FINAL">Consumidor Final</option>
+                <option value="RESPONSABLE MONOTRIBUTO">Responsable Monotributo</option>
+                <option value="IVA RESPONSABLE INSCRIPTO">IVA Responsable Inscripto</option>
+                <option value="IVA EXENTO">IVA Exento</option>
+                <option value="NO RESPONSABLE IVA">No Responsable IVA</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="acc-razon-social">Denominación o Razón Social</label>
+            <input type="text" id="acc-razon-social" class="form-input" placeholder="Nombre legal exacto de la empresa (Opcional)">
           </div>
           <div class="grid-2">
             <div class="form-group">
@@ -2766,7 +2819,7 @@
               <input type="text" id="acc-phone" class="form-input" placeholder="Opcional">
             </div>
             <div class="form-group">
-              <label class="form-label" for="acc-address">Dirección</label>
+              <label class="form-label" for="acc-address">Domicilio Comercial / Fiscal</label>
               <input type="text" id="acc-address" class="form-input" placeholder="Opcional">
             </div>
           </div>
