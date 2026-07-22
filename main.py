@@ -1002,16 +1002,12 @@ def get_all_state():
             })
             
         import concurrent.futures
-        from flask import copy_current_request_context
+        current_pid = firebase_config.get_current_project_id()
         
-        @copy_current_request_context
-        def fetch_docs(col):
-            return firebase_config.list_documents(col, token)
-        
-        # Parallel fetch from both Firestore collections
+        # Parallel fetch from both Firestore collections without cross-thread Flask context issues
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            future_products = executor.submit(fetch_docs, "products")
-            future_sales = executor.submit(fetch_docs, "sales")
+            future_products = executor.submit(firebase_config.list_documents, "products", token, project_id=current_pid)
+            future_sales = executor.submit(firebase_config.list_documents, "sales", token, project_id=current_pid)
             
             all_products = future_products.result()
             all_sales = future_sales.result()

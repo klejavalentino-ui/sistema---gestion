@@ -349,7 +349,7 @@ def get_current_project_id():
         pass
     return None
 
-def resolve_collection_path(collection, uid, id_token=None):
+def resolve_collection_path(collection, uid, id_token=None, project_id=None):
     if not uid:
         raise Exception("UID inválido al resolver la colección de base de datos.")
     
@@ -360,7 +360,9 @@ def resolve_collection_path(collection, uid, id_token=None):
     if collection in ["users", "usuarios", "comercios", "user_projects", "username_mappings", "subuser_mapping"]:
         return collection
 
-    project_id = get_current_project_id()
+    if not project_id:
+        project_id = get_current_project_id()
+
     if project_id and project_id != "default":
         return f"users/{uid}/projects/{project_id}/{collection}"
 
@@ -387,11 +389,11 @@ def get_db_headers(id_token):
             pass
     return {"Authorization": f"Bearer {id_token}"}
 
-def get_document(collection, doc_id, id_token):
+def get_document(collection, doc_id, id_token, project_id=None):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid, id_token)
+    resolved_path = resolve_collection_path(collection, uid, id_token, project_id=project_id)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = get_db_headers(id_token)
     r = _session.get(url, headers=headers, timeout=30)
@@ -400,11 +402,11 @@ def get_document(collection, doc_id, id_token):
     r.raise_for_status()
     return from_firestore_document(r.json())
 
-def list_documents(collection, id_token, limit=None, order_by=None, descending=True):
+def list_documents(collection, id_token, limit=None, order_by=None, descending=True, project_id=None):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid, id_token)
+    resolved_path = resolve_collection_path(collection, uid, id_token, project_id=project_id)
     
     parts = resolved_path.split("/")
     if len(parts) >= 2:
@@ -442,11 +444,11 @@ def list_documents(collection, id_token, limit=None, order_by=None, descending=T
             documents.append(from_firestore_document(doc))
     return documents
 
-def set_document(collection, doc_id, data, id_token):
+def set_document(collection, doc_id, data, id_token, project_id=None):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid, id_token)
+    resolved_path = resolve_collection_path(collection, uid, id_token, project_id=project_id)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = get_db_headers(id_token)
     payload = to_firestore_fields(data)
@@ -454,11 +456,11 @@ def set_document(collection, doc_id, data, id_token):
     r.raise_for_status()
     return from_firestore_document(r.json())
 
-def delete_document(collection, doc_id, id_token):
+def delete_document(collection, doc_id, id_token, project_id=None):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
-    resolved_path = resolve_collection_path(collection, uid, id_token)
+    resolved_path = resolve_collection_path(collection, uid, id_token, project_id=project_id)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
     headers = get_db_headers(id_token)
     r = _session.delete(url, headers=headers, timeout=30)
