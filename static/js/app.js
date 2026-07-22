@@ -11135,14 +11135,50 @@ function renderProjectsManagementPanel() {
         <h4 style="margin: 0; color: var(--text-white); font-size: 1rem; font-weight: 800;">${p.name}</h4>
         <p style="margin: 3px 0 0 0; color: var(--text-gray); font-size: 0.75rem;">Tipo: ${rubro}</p>
       </div>
-      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
-        ${!isActive ? `<button type="button" class="btn btn-emerald" style="padding: 6px 12px; font-size: 0.75rem; font-weight: bold;" onclick="selectProject('${p.id}')">Cambiar A Este</button>` : ''}
+      <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 10px;">
+        <div>
+          ${projects.length > 1 ? `
+            <button type="button" class="btn" style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); color: #ef4444; padding: 6px 12px; font-size: 0.75rem; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="deleteProjectFromSettings('${p.id}', '${p.name}')" title="Eliminar este negocio">
+              <i class="fa-solid fa-trash-can"></i> Eliminar
+            </button>
+          ` : ''}
+        </div>
+        <div>
+          ${!isActive ? `<button type="button" class="btn btn-emerald" style="padding: 6px 12px; font-size: 0.75rem; font-weight: bold;" onclick="selectProject('${p.id}')">Cambiar A Este</button>` : ''}
+        </div>
       </div>
     `;
     container.appendChild(card);
   });
 }
 window.renderProjectsManagementPanel = renderProjectsManagementPanel;
+
+async function deleteProjectFromSettings(projId, projName) {
+  const projects = state.projects || [];
+  if (projects.length <= 1) {
+    showToast("No podés eliminar tu único negocio activo.", true);
+    return;
+  }
+
+  const confirmDelete = confirm(`¿Estás seguro que querés eliminar permanentemente el negocio '${projName}'?\n\nEsta acción no se puede deshacer.`);
+  if (!confirmDelete) return;
+
+  try {
+    const res = await apiRequest(`/api/projects/${projId}`, "DELETE");
+    showToast(`Negocio '${projName}' eliminado correctamente.`);
+    state.projects = res.projects || [];
+
+    if (projId === state.currentProjectId && state.projects.length > 0) {
+      await selectProject(state.projects[0].id, true);
+    } else {
+      renderProjectsManagementPanel();
+      renderProjectSelectionList();
+    }
+  } catch (err) {
+    showToast("Error al eliminar negocio: " + err.message, true);
+  }
+}
+window.deleteProjectFromSettings = deleteProjectFromSettings;
 
 function renderDynamicSettingsRows() {
   const locContainer = document.getElementById("locations-list-container");

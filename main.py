@@ -628,7 +628,7 @@ def delete_project(proj_id):
     
     projects = get_user_projects_list(token, uid=real_uid)
     if len(projects) <= 1:
-        return jsonify({"error": "No puedes eliminar tu único proyecto activo."}), 400
+        return jsonify({"error": "No puedes eliminar tu único negocio activo."}), 400
         
     projects = [p for p in projects if p.get("id") != proj_id]
     
@@ -638,6 +638,26 @@ def delete_project(proj_id):
         "projects": projects
     }
     firebase_config.set_document("user_projects", real_uid, save_payload, token)
+    
+    # Limpieza en segundo plano de las subcolecciones del proyecto borrado
+    try:
+        def cleanup_proj():
+            for col in ["products", "sales", "integrations"]:
+                try:
+                    url = f"{firebase_config.BASE_URL}/users/{real_uid}/projects/{proj_id}/{col}"
+                    r = firebase_config._session.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+                    if r.status_code == 200 and "documents" in r.json():
+                        for doc in r.json()["documents"]:
+                            doc_name = doc.get("name")
+                            if doc_name:
+                                firebase_config._session.delete(f"https://firestore.googleapis.com/v1/{doc_name}", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+                except Exception as ex:
+                    print(f"Error borrando documentos de subcolección {col} del proyecto {proj_id}: {ex}")
+        import threading
+        threading.Thread(target=cleanup_proj, daemon=True).start()
+    except Exception as e:
+        print(f"Error preparando hilo de eliminación de proyecto: {e}")
+
     return jsonify({"success": True, "projects": projects})
 
 @app.route("/api/auth/delete-account", methods=["POST"])
