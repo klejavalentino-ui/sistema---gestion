@@ -565,16 +565,20 @@ def create_project():
     firebase_config.set_document("user_projects", real_uid, save_payload, token)
     
     try:
+        biz_model = data.get("businessModel", "Indumentaria" if biz_type == "textil" else "Comercio")
         profile_payload = {
             "sku": f"{biz_type}_user_profile",
             "name": name,
             "businessName": name,
             "businessType": biz_type,
+            "businessModel": biz_model,
             "role": "admin",
             "createdAt": datetime.utcnow().isoformat()
         }
         url = f"{firebase_config.BASE_URL}/users/{real_uid}/projects/{new_proj_id}/products/{biz_type}_user_profile"
-        requests.patch(url, json=firebase_config.to_firestore_document(profile_payload), headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = firebase_config.to_firestore_fields(profile_payload)
+        firebase_config._session.patch(url, json=payload, headers=headers, timeout=10)
     except Exception as ex:
         print(f"Error inicializando perfil de nuevo proyecto: {ex}")
         
@@ -590,14 +594,16 @@ def update_project(proj_id):
     
     data = request.json or {}
     new_name = data.get("name", "").strip()
-    if not new_name:
-        return jsonify({"error": "El nuevo nombre es obligatorio"}), 400
-        
+    new_model = data.get("businessModel")
+    new_type = data.get("businessType")
+    
     projects = get_user_projects_list(token, uid=real_uid)
     found = False
     for p in projects:
         if p.get("id") == proj_id:
-            p["name"] = new_name
+            if new_name: p["name"] = new_name
+            if new_model: p["businessModel"] = new_model
+            if new_type: p["businessType"] = new_type
             found = True
             break
             
@@ -1132,6 +1138,24 @@ def get_all_state():
         intakes = [d for d in user_docs if d.get("id", "").startswith("stockintake_")]
         intakes.sort(key=lambda x: x.get("id", ""), reverse=True)
         
+        # Ensure active project name & model are set in profile_doc
+        try:
+            user_projects = get_user_projects_list(token, uid=real_uid)
+            current_pid = firebase_config.get_current_project_id() or "default"
+            active_proj = next((p for p in user_projects if p.get("id") == current_pid), None)
+            if not active_proj and user_projects:
+                active_proj = user_projects[0]
+                
+            if active_proj:
+                if active_proj.get("name"):
+                    profile_doc["businessName"] = active_proj.get("name")
+                if active_proj.get("businessModel"):
+                    profile_doc["businessModel"] = active_proj.get("businessModel")
+                if active_proj.get("businessType"):
+                    profile_doc["businessType"] = active_proj.get("businessType")
+        except Exception as p_err:
+            print(f"Error syncing active project info in get_all_state: {p_err}")
+
         return jsonify({
             "emailVerified": True,
             "trialExpired": False,

@@ -375,7 +375,7 @@ def list_documents(collection, id_token, limit=None, order_by=None, descending=T
     headers = {"Authorization": f"Bearer {id_token}"}
     payload = {
         "structuredQuery": {
-            "from": [{"collectionId": collection_id}]
+            "from": [{"collectionId": collection_id, "allDescendants": False}]
         }
     }
     

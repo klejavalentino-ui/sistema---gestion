@@ -432,7 +432,7 @@ function updateSidebarProfile() {
     avatarDiv.innerText = displayName.charAt(0).toUpperCase();
     if (usernameSpan) usernameSpan.innerText = displayUsername;
     if (businessSpan) {
-      businessSpan.innerText = state.userProfile?.businessName || state.businessName || "Mi Negocio";
+      businessSpan.innerText = state.currentProjectName || state.businessName || state.userProfile?.businessName || "Mi Negocio";
     }
     
     // Update Topbar
@@ -449,7 +449,7 @@ function updateSidebarProfile() {
     }
     
     if (tbBizName) {
-      tbBizName.innerText = state.userProfile?.businessName || state.businessName || "Mi Negocio";
+      tbBizName.innerText = state.currentProjectName || state.businessName || state.userProfile?.businessName || "Mi Negocio";
     }
     
     if (tbUser) {
@@ -10529,8 +10529,9 @@ const APP_SECTIONS = [
 
 async function loadBusinessData() {
   if (state.userProfile) {
-    document.getElementById("business-settings-name").value = state.userProfile.businessName || "";
-    document.getElementById("business-settings-model").value = state.userProfile.businessModel || "Indumentaria";
+    const curProj = (state.projects || []).find(p => p.id === state.currentProjectId);
+    document.getElementById("business-settings-name").value = state.currentProjectName || curProj?.name || state.userProfile.businessName || "";
+    document.getElementById("business-settings-model").value = curProj?.businessModel || state.userProfile.businessModel || "Indumentaria";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
     
     // Configuración de Talles
@@ -10558,9 +10559,6 @@ async function loadBusinessData() {
     document.getElementById("print-settings-auto").checked = print.autoPrint ?? false;
     document.getElementById("print-settings-size").value = print.paperSize || "80mm";
     document.getElementById("print-settings-footer").value = print.footerText || "";
-
-    // Dibujar filas dinámicas en las subpestañas
-    renderDynamicSettingsRows();
   }
   await loadBusinessUsers();
 }
@@ -10570,8 +10568,9 @@ async function saveBusinessSettings() {
   try {
     const model = document.getElementById("business-settings-model").value;
     const type = (model === "Indumentaria") ? "textil" : "comercio";
+    const name = document.getElementById("business-settings-name").value.trim();
     const data = {
-      businessName: document.getElementById("business-settings-name").value,
+      businessName: name,
       businessModel: model,
       businessType: type,
       ivaCondition: document.getElementById("business-settings-iva").value,
@@ -10580,15 +10579,32 @@ async function saveBusinessSettings() {
                       : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
       bizCheckboxes: {}
     };
+
+    if (state.currentProjectId) {
+      try {
+        const projRes = await apiRequest(`/api/projects/${state.currentProjectId}`, "PUT", { name: name, businessModel: model, businessType: type });
+        if (projRes && projRes.projects) {
+          state.projects = projRes.projects;
+        }
+        state.currentProjectName = name;
+        localStorage.setItem("datamargen_project_name", name);
+      } catch (projErr) {
+        console.warn("Could not update project name in user_projects:", projErr);
+      }
+    }
+
     const res = await apiRequest("/api/business/settings", "PUT", data);
     state.userProfile = res.userProfile;
-    state.businessName = res.userProfile.businessName || data.businessName;
-    localStorage.setItem("datamargen_business_name", state.businessName);
-    state.businessType = res.userProfile.businessType || "textil";
-    localStorage.setItem("datamargen_business_type", state.businessType);
+    state.businessName = name;
+    localStorage.setItem("datamargen_business_name", name);
+    state.businessType = type;
+    localStorage.setItem("datamargen_business_type", type);
+    
+    updateTopbarProjectName();
     updateSidebarProfile();
-    showToast("Ajustes guardados. Recargando...");
-    setTimeout(() => window.location.reload(), 1500);
+    renderProjectsManagementPanel();
+    
+    showToast("Ajustes guardados con éxito.");
   } catch(e) {
     showToast("Error: " + e.message, true);
   }
