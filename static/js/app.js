@@ -3589,7 +3589,6 @@ function printSaleTicket(saleId) {
       </html>
     `;
   } else {
-  } else {
     // Factura Oficial (A, B o C)
     let arca = {};
     if (state.integrations && state.integrations.arca) {
