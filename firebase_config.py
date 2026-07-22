@@ -85,12 +85,12 @@ def to_firestore_value(val):
     elif isinstance(val, list):
         # Manejar listas vacías
         if not val:
-            return {"arrayValue": {}}
+            return {"arrayValue": {"values": []}}
         return {"arrayValue": {"values": [to_firestore_value(v) for v in val]}}
     elif isinstance(val, dict):
         # Manejar diccionarios vacíos
         if not val:
-            return {"mapValue": {}}
+            return {"mapValue": {"fields": {}}}
         return {"mapValue": {"fields": {k: to_firestore_value(v) for k, v in val.items()}}}
     elif val is None:
         return {"nullValue": None}

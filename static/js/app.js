@@ -1297,6 +1297,25 @@ async function updateBusinessType(type) {
   }
 }
 
+async function refreshTokenFlow() {
+  const refreshToken = localStorage.getItem("datamargen_refresh_token");
+  if (!refreshToken) throw new Error("No refresh token");
+  
+  const res = await fetch("/api/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken })
+  });
+  if (!res.ok) throw new Error("Refresh failed");
+  const data = await res.json();
+  state.token = data.token;
+  localStorage.setItem("datamargen_token", data.token);
+  if (data.refreshToken) {
+    localStorage.setItem("datamargen_refresh_token", data.refreshToken);
+  }
+  return data.token;
+}
+
 // --- API Request Helper ---
 async function apiRequest(url, method = "GET", body = null) {
   const headers = {
@@ -1322,39 +1341,24 @@ async function apiRequest(url, method = "GET", body = null) {
   }
   
   if (res.status === 401) {
-    const refreshToken = localStorage.getItem("datamargen_refresh_token");
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch("/api/auth/refresh", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken })
+    try {
+      if (!window.tokenRefreshPromise) {
+        window.tokenRefreshPromise = refreshTokenFlow().finally(() => {
+          window.tokenRefreshPromise = null;
         });
-        if (refreshRes.ok) {
-          const refreshData = await refreshRes.json();
-          state.token = refreshData.token;
-          localStorage.setItem("datamargen_token", refreshData.token);
-          if (refreshData.refreshToken) {
-            localStorage.setItem("datamargen_refresh_token", refreshData.refreshToken);
-          }
-          // Reintentar request original
-          options.headers["Authorization"] = `Bearer ${state.token}`;
-          res = await fetch(url, options);
-          data = await res.json();
-          
-          if (!res.ok) {
-            throw new Error(data.error || "Error en la petición tras refrescar token.");
-          }
-          return data;
-        } else {
-          handleLogout();
-          throw new Error("Sesión expirada.");
-        }
-      } catch (err) {
-        handleLogout();
-        throw new Error("Sesión expirada.");
       }
-    } else {
+      const newToken = await window.tokenRefreshPromise;
+      
+      // Reintentar request original
+      options.headers["Authorization"] = `Bearer ${newToken}`;
+      res = await fetch(url, options);
+      data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || "Error en la petición tras refrescar token.");
+      }
+      return data;
+    } catch(err) {
       handleLogout();
       throw new Error("Sesión expirada.");
     }
