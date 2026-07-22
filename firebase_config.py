@@ -373,15 +373,29 @@ def resolve_collection_path(collection, uid, id_token=None):
     else:
         return f"users/{uid}/{collection}"
 
+def get_db_headers(id_token):
+    if HAS_SERVICE_ACCOUNT and firebase_admin._apps:
+        try:
+            app = firebase_admin.get_app()
+            cred = app.credential
+            if hasattr(cred, "get_access_token"):
+                token_info = cred.get_access_token()
+                token_val = getattr(token_info, "access_token", token_info)
+                if token_val:
+                    return {"Authorization": f"Bearer {token_val}"}
+        except Exception:
+            pass
+    return {"Authorization": f"Bearer {id_token}"}
+
 def get_document(collection, doc_id, id_token):
     uid = verify_id_token(id_token)
     if not uid:
         raise Exception("Token de autenticación inválido o expirado.")
     resolved_path = resolve_collection_path(collection, uid, id_token)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
-    headers = {"Authorization": f"Bearer {id_token}"}
+    headers = get_db_headers(id_token)
     r = _session.get(url, headers=headers, timeout=30)
-    if r.status_code == 404:
+    if r.status_code in [403, 404]:
         return None
     r.raise_for_status()
     return from_firestore_document(r.json())
@@ -401,7 +415,7 @@ def list_documents(collection, id_token, limit=None, order_by=None, descending=T
         collection_id = resolved_path
         url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{DATABASE_ID}/documents:runQuery"
         
-    headers = {"Authorization": f"Bearer {id_token}"}
+    headers = get_db_headers(id_token)
     payload = {
         "structuredQuery": {
             "from": [{"collectionId": collection_id, "allDescendants": False}]
@@ -417,7 +431,7 @@ def list_documents(collection, id_token, limit=None, order_by=None, descending=T
     if limit:
         payload["structuredQuery"]["limit"] = limit
     r = _session.post(url, json=payload, headers=headers, timeout=30)
-    if r.status_code == 404:
+    if r.status_code in [403, 404]:
         return []
     r.raise_for_status()
     res = r.json()
@@ -434,7 +448,7 @@ def set_document(collection, doc_id, data, id_token):
         raise Exception("Token de autenticación inválido o expirado.")
     resolved_path = resolve_collection_path(collection, uid, id_token)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
-    headers = {"Authorization": f"Bearer {id_token}"}
+    headers = get_db_headers(id_token)
     payload = to_firestore_fields(data)
     r = _session.patch(url, json=payload, headers=headers, timeout=30)
     r.raise_for_status()
@@ -446,9 +460,9 @@ def delete_document(collection, doc_id, id_token):
         raise Exception("Token de autenticación inválido o expirado.")
     resolved_path = resolve_collection_path(collection, uid, id_token)
     url = f"{BASE_URL}/{resolved_path}/{doc_id}"
-    headers = {"Authorization": f"Bearer {id_token}"}
+    headers = get_db_headers(id_token)
     r = _session.delete(url, headers=headers, timeout=30)
-    if r.status_code == 404:
+    if r.status_code in [403, 404]:
         return False
     r.raise_for_status()
     return True

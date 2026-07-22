@@ -23,13 +23,15 @@ from arca_client import create_arca_payment
 
 def handle_error(e):
     err_str = str(e)
-    if "autenticación" in err_str or "expirado" in err_str or "Sesión" in err_str or "token" in err_str.lower():
-        return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
     if isinstance(e, requests.exceptions.HTTPError):
         status = e.response.status_code if e.response is not None else 500
-        if status in [401, 403]:
+        if status == 401:
             return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
+        elif status == 403:
+            return jsonify({"error": "No tiene permisos para realizar esta operación."}), 403
         return jsonify({"error": str(e)}), status
+    if "token" in err_str.lower() and ("expirad" in err_str.lower() or "inválid" in err_str.lower() or "no autorizad" in err_str.lower()):
+        return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
     return jsonify({"error": str(e)}), 500
 
 def send_admin_email(subject, body):
