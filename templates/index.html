@@ -232,6 +232,9 @@
         <li class="menu-item" data-tab="sales">
           <a href="#" class="menu-link"><i>🛒</i> Ventas</a>
         </li>
+        <li class="menu-item" data-tab="quotes">
+          <a href="#" class="menu-link"><i>📋</i> Presupuestos</a>
+        </li>
         <li class="menu-item" data-tab="returns">
           <a href="#" class="menu-link"><i>🔄</i> Devoluciones</a>
         </li>
@@ -1604,6 +1607,124 @@
             </div>
           </div>
 
+      <!-- TAB: PRESUPUESTOS -->
+      <section id="quotes-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Generador de Presupuestos</h2>
+            <p>Construí un presupuesto rápido con tus productos, precios y cantidades para compartir por WhatsApp o descargar.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-emerald" onclick="copyQuoteToWhatsApp()">
+              <i>📲</i> Copiar para WhatsApp
+            </button>
+            <button class="btn btn-secondary" onclick="printQuote()">
+              <i>🖨️</i> Imprimir / PDF
+            </button>
+            <button class="btn btn-secondary" style="border-color: var(--accent-red); color: var(--accent-red);" onclick="clearQuote()">
+              <i>🗑️</i> Limpiar
+            </button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start;">
+          <!-- COLUMNA IZQUIERDA: DATOS Y BUSCADOR DE PRODUCTOS -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- DATOS DEL CLIENTE -->
+            <div class="idx-card">
+              <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 14px; color: var(--text-white);">👤 Datos del Cliente (Opcional)</h3>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="form-group" style="margin: 0;">
+                  <label>Nombre del Cliente</label>
+                  <input type="text" id="quote-client-name" class="form-control" placeholder="Ej: Juan Pérez" oninput="renderQuotesUI()">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label>Teléfono o Nota</label>
+                  <input type="text" id="quote-client-note" class="form-control" placeholder="Ej: Validez: 7 días" oninput="renderQuotesUI()">
+                </div>
+              </div>
+            </div>
+
+            <!-- AGREGAR PRODUCTO AL PRESUPUESTO -->
+            <div class="idx-card">
+              <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 14px; color: var(--text-white);">➕ Agregar Producto</h3>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="form-group" style="margin: 0; position: relative;">
+                  <label>Buscar Producto o Código (SKU)</label>
+                  <input type="text" id="quote-product-search" class="form-control" placeholder="Escribí código o nombre..." oninput="onQuoteSearchInput(this.value)" autocomplete="off">
+                  <div id="quote-search-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-top: 4px;"></div>
+                </div>
+
+                <div id="quote-selected-product-info" style="display: none; background: var(--bg-input); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);">
+                  <div style="font-size: 0.85rem; font-weight: 800; color: var(--text-white);" id="quote-sel-prod-name">-</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);" id="quote-sel-prod-sku">-</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="form-group" style="margin: 0;">
+                    <label>Precio ($)</label>
+                    <input type="text" id="quote-item-price" class="form-control" placeholder="0" onblur="formatCurrencyField(this)">
+                  </div>
+                  <div class="form-group" style="margin: 0;">
+                    <label>Cantidad</label>
+                    <input type="number" id="quote-item-qty" class="form-control" value="1" min="1">
+                  </div>
+                </div>
+
+                <button class="btn btn-primary" style="width: 100%; margin-top: 4px;" onclick="addQuoteItemFromForm()">
+                  <i>➕</i> Agregar al Presupuesto
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLUMNA DERECHA: TABLA DE PRESUPUESTO Y TOTAL -->
+          <div class="idx-card" id="quote-printable-area">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+              <div>
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-white); margin-bottom: 4px;" id="quote-display-business-name">Presupuesto de Venta</h3>
+                <div style="font-size: 0.8rem; color: var(--text-muted);" id="quote-display-date">Fecha: -</div>
+              </div>
+              <div style="text-align: right;" id="quote-display-client-container">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-white);" id="quote-display-client-name">Cliente: Consumidor Final</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);" id="quote-display-client-note"></div>
+              </div>
+            </div>
+
+            <!-- TABLA DE ITEMS -->
+            <div style="overflow-x: auto; margin-bottom: 20px;">
+              <table class="idx-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th style="width: 18%;">Código (SKU)</th>
+                    <th>Producto</th>
+                    <th style="width: 18%; text-align: right;">Precio Unit.</th>
+                    <th style="width: 12%; text-align: center;">Cant.</th>
+                    <th style="width: 20%; text-align: right;">Subtotal</th>
+                    <th class="no-print" style="width: 10%; text-align: center;">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="quote-items-tbody">
+                  <!-- Renderizado dinámico -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- RESUMEN Y TOTAL -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 16px; border-top: 1px solid var(--border-color);">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="form-group" style="margin: 0; width: 160px;">
+                  <label>Descuento ($)</label>
+                  <input type="text" id="quote-discount-input" class="form-control" placeholder="0" oninput="renderQuotesUI()" onblur="formatCurrencyField(this)">
+                </div>
+              </div>
+
+              <div style="text-align: right; background: var(--bg-input); padding: 14px 20px; border-radius: 10px; border: 1px solid var(--border-color);">
+                <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Total Presupuestado</div>
+                <div style="font-size: 1.8rem; font-weight: 900; color: var(--accent-emerald);" id="quote-total-display">$0</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -1568,8 +1568,9 @@ async function refreshState() {
           item.style.display = "none";
         }
       } else if (item.id === "sidebar-arca-item") {
+        const userEmail = (state.email || "").toLowerCase();
         const isArcaAllowed = (state.userProfile?.arcaEnabled === true) || 
-                              ["klejavalentino@gmail.com", "valentinoklcv@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"].includes(state.email);
+                              ["klejavalentino@gmail.com", "valentinoklcv@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com", "jomoindumentaria@gmail.com"].includes(userEmail);
         if (isArcaAllowed) {
           item.style.display = "block";
         } else {
@@ -8306,6 +8307,7 @@ function switchTab(tabId) {
   if (tabId === "arca") renderIntegrationsStatus();
   if (tabId === "business") loadBusinessData();
   if (tabId === "returns") renderReturns();
+  if (tabId === "quotes") renderQuotesUI();
 }
 
 // --- Asignación de Listeners ---
@@ -12086,5 +12088,319 @@ document.addEventListener("click", (e) => {
   if (input && resultsDiv && !input.contains(e.target) && !resultsDiv.contains(e.target)) {
     resultsDiv.style.display = "none";
   }
+  
+  const qInput = document.getElementById("quote-product-search");
+  const qDropdown = document.getElementById("quote-search-dropdown");
+  if (qInput && qDropdown && !qInput.contains(e.target) && !qDropdown.contains(e.target)) {
+    qDropdown.style.display = "none";
+  }
 });
 window.toggleRowCheckbox = toggleRowCheckbox;
+
+// --- PRESUPUESTOS (QUOTATIONS) LOGIC ---
+function onQuoteSearchInput(query) {
+  const dropdown = document.getElementById("quote-search-dropdown");
+  if (!dropdown) return;
+  
+  const q = (query || "").trim().toLowerCase();
+  if (!q) {
+    dropdown.style.display = "none";
+    dropdown.innerHTML = "";
+    return;
+  }
+  
+  const matches = (state.products || []).filter(p => {
+    const sku = (p.sku || p.id || "").toLowerCase();
+    const name = (p.name || "").toLowerCase();
+    return sku.includes(q) || name.includes(q);
+  }).slice(0, 10);
+  
+  if (matches.length === 0) {
+    dropdown.innerHTML = `<div style="padding: 10px; font-size: 0.8rem; color: var(--text-muted); text-align: center;">No se encontraron productos.</div>`;
+    dropdown.style.display = "block";
+    return;
+  }
+  
+  dropdown.innerHTML = matches.map((p, idx) => {
+    const price = Math.round(p.price_local || p.price || 0);
+    const sku = p.sku || p.id || "-";
+    return `
+      <div style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;" 
+           onmouseover="this.style.background='var(--bg-input)'" 
+           onmouseout="this.style.background='transparent'" 
+           onclick="selectQuoteProduct(${idx})">
+        <div>
+          <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-white);">${p.name || 'Sin Nombre'}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Código: ${sku}</div>
+        </div>
+        <div style="font-size: 0.85rem; font-weight: 800; color: var(--accent-emerald);">$${price.toLocaleString('es-AR')}</div>
+      </div>
+    `;
+  }).join("");
+  
+  dropdown.style.display = "block";
+  window.currentQuoteMatches = matches;
+}
+
+function selectQuoteProduct(index) {
+  const dropdown = document.getElementById("quote-search-dropdown");
+  if (dropdown) dropdown.style.display = "none";
+  
+  const matches = window.currentQuoteMatches || [];
+  const prod = matches[index];
+  if (!prod) return;
+  
+  state.selectedQuoteProduct = prod;
+  
+  const searchInput = document.getElementById("quote-product-search");
+  if (searchInput) searchInput.value = prod.name || prod.sku || "";
+  
+  const infoBox = document.getElementById("quote-selected-product-info");
+  const nameEl = document.getElementById("quote-sel-prod-name");
+  const skuEl = document.getElementById("quote-sel-prod-sku");
+  if (infoBox && nameEl && skuEl) {
+    nameEl.innerText = prod.name || "Sin Nombre";
+    skuEl.innerText = `Código/SKU: ${prod.sku || prod.id || '-'}`;
+    infoBox.style.display = "block";
+  }
+  
+  const priceInput = document.getElementById("quote-item-price");
+  if (priceInput) {
+    const priceVal = Math.round(prod.price_local || prod.price || 0);
+    priceInput.value = priceVal ? `$${priceVal.toLocaleString('es-AR')}` : "$0";
+  }
+  
+  const qtyInput = document.getElementById("quote-item-qty");
+  if (qtyInput && (!qtyInput.value || parseInt(qtyInput.value) < 1)) {
+    qtyInput.value = "1";
+  }
+}
+
+function addQuoteItemFromForm() {
+  const searchInput = document.getElementById("quote-product-search");
+  const priceInput = document.getElementById("quote-item-price");
+  const qtyInput = document.getElementById("quote-item-qty");
+  
+  const prod = state.selectedQuoteProduct;
+  const name = prod ? (prod.name || "Producto Custom") : (searchInput ? searchInput.value.trim() : "");
+  const sku = prod ? (prod.sku || prod.id || "-") : "MISC";
+  const price = parseLocalFloat(priceInput ? priceInput.value : 0);
+  const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1) || 1);
+  
+  if (!name && !sku) {
+    showToast("Escribí o seleccioná un producto", true);
+    return;
+  }
+  
+  if (!state.quoteItems) state.quoteItems = [];
+  
+  state.quoteItems.push({
+    sku: sku,
+    name: name,
+    price: price,
+    qty: qty,
+    subtotal: price * qty
+  });
+  
+  state.selectedQuoteProduct = null;
+  if (searchInput) searchInput.value = "";
+  if (priceInput) priceInput.value = "";
+  if (qtyInput) qtyInput.value = "1";
+  
+  const infoBox = document.getElementById("quote-selected-product-info");
+  if (infoBox) infoBox.style.display = "none";
+  
+  showToast("Producto agregado al presupuesto");
+  renderQuotesUI();
+}
+
+function removeQuoteItem(index) {
+  if (!state.quoteItems) return;
+  state.quoteItems.splice(index, 1);
+  renderQuotesUI();
+}
+
+function updateQuoteItemQty(index, newQty) {
+  if (!state.quoteItems || !state.quoteItems[index]) return;
+  const qty = Math.max(1, parseInt(newQty) || 1);
+  state.quoteItems[index].qty = qty;
+  state.quoteItems[index].subtotal = state.quoteItems[index].price * qty;
+  renderQuotesUI();
+}
+
+function renderQuotesUI() {
+  const tbody = document.getElementById("quote-items-tbody");
+  if (!tbody) return;
+  
+  const dateEl = document.getElementById("quote-display-date");
+  if (dateEl) {
+    dateEl.innerText = `Fecha: ${new Date().toLocaleDateString('es-AR')}`;
+  }
+  
+  const bizNameEl = document.getElementById("quote-display-business-name");
+  if (bizNameEl) {
+    const bName = state.businessName || state.userProfile?.businessName || "Datamargen";
+    bizNameEl.innerText = `Presupuesto - ${bName}`;
+  }
+  
+  const clientNameInput = document.getElementById("quote-client-name");
+  const clientNoteInput = document.getElementById("quote-client-note");
+  const clientNameDisp = document.getElementById("quote-display-client-name");
+  const clientNoteDisp = document.getElementById("quote-display-client-note");
+  
+  const clientName = clientNameInput ? clientNameInput.value.trim() : "";
+  const clientNote = clientNoteInput ? clientNoteInput.value.trim() : "";
+  
+  if (clientNameDisp) {
+    clientNameDisp.innerText = clientName ? `Cliente: ${clientName}` : "Cliente: Consumidor Final";
+  }
+  if (clientNoteDisp) {
+    clientNoteDisp.innerText = clientNote ? `Nota: ${clientNote}` : "";
+  }
+  
+  const items = state.quoteItems || [];
+  if (items.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px 10px;">
+          No hay productos agregados al presupuesto. Usá el panel de la izquierda para agregar.
+        </td>
+      </tr>
+    `;
+  } else {
+    tbody.innerHTML = items.map((item, idx) => `
+      <tr>
+        <td style="font-family: monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">${item.sku}</td>
+        <td style="font-weight: 700; color: var(--text-white);">${item.name}</td>
+        <td style="text-align: right; font-weight: 700; color: var(--text-white);">$${Math.round(item.price).toLocaleString('es-AR')}</td>
+        <td style="text-align: center;">
+          <input type="number" class="form-control no-print" value="${item.qty}" min="1" style="width: 60px; padding: 2px 6px; text-align: center; margin: 0 auto;" onchange="updateQuoteItemQty(${idx}, this.value)">
+          <span class="print-only" style="display: none;">${item.qty}</span>
+        </td>
+        <td style="text-align: right; font-weight: 800; color: var(--accent-emerald);">$${Math.round(item.subtotal).toLocaleString('es-AR')}</td>
+        <td class="no-print" style="text-align: center;">
+          <button class="btn-action btn-delete" style="width:28px; height:28px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;" onclick="removeQuoteItem(${idx})" title="Eliminar Item">🗑️</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+  
+  const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  const discountInput = document.getElementById("quote-discount-input");
+  const discount = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  const total = Math.max(0, subtotal - discount);
+  
+  const totalEl = document.getElementById("quote-total-display");
+  if (totalEl) {
+    totalEl.innerText = `$${Math.round(total).toLocaleString('es-AR')}`;
+  }
+}
+
+function copyQuoteToWhatsApp() {
+  const items = state.quoteItems || [];
+  if (items.length === 0) {
+    showToast("No hay productos en el presupuesto para copiar", true);
+    return;
+  }
+  
+  const bName = state.businessName || state.userProfile?.businessName || "Datamargen";
+  const clientNameInput = document.getElementById("quote-client-name");
+  const clientNoteInput = document.getElementById("quote-client-note");
+  const discountInput = document.getElementById("quote-discount-input");
+  
+  const clientName = clientNameInput ? clientNameInput.value.trim() : "";
+  const clientNote = clientNoteInput ? clientNoteInput.value.trim() : "";
+  const discount = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  
+  const dateStr = new Date().toLocaleDateString('es-AR');
+  const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  const total = Math.max(0, subtotal - discount);
+  
+  let msg = `📋 *PRESUPUESTO - ${bName.toUpperCase()}*\n`;
+  msg += `📅 Fecha: ${dateStr}\n`;
+  if (clientName) msg += `👤 Cliente: ${clientName}\n`;
+  if (clientNote) msg += `📝 Nota: ${clientNote}\n`;
+  msg += `----------------------------------------\n`;
+  
+  items.forEach(item => {
+    msg += `• *[${item.sku}]* ${item.name}\n`;
+    msg += `   ${item.qty} u. x $${Math.round(item.price).toLocaleString('es-AR')} = *$${Math.round(item.subtotal).toLocaleString('es-AR')}*\n`;
+  });
+  
+  msg += `----------------------------------------\n`;
+  if (discount > 0) {
+    msg += `Subtotal: $${Math.round(subtotal).toLocaleString('es-AR')}\n`;
+    msg += `Descuento: -$${Math.round(discount).toLocaleString('es-AR')}\n`;
+  }
+  msg += `💰 *TOTAL FINAL: $${Math.round(total).toLocaleString('es-AR')}*\n\n`;
+  msg += `¡Gracias por tu consulta! Quedamos a tu disposición.`;
+  
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(msg).then(() => {
+      showToast("¡Presupuesto copiado al portapapeles para WhatsApp!");
+    }).catch(() => {
+      fallbackCopyText(msg);
+    });
+  } else {
+    fallbackCopyText(msg);
+  }
+}
+
+function fallbackCopyText(text) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  try {
+    document.execCommand('copy');
+    showToast("¡Presupuesto copiado al portapapeles para WhatsApp!");
+  } catch (err) {
+    showToast("No se pudo copiar automáticamente.", true);
+  }
+  document.body.removeChild(textArea);
+}
+
+function printQuote() {
+  const items = state.quoteItems || [];
+  if (items.length === 0) {
+    showToast("No hay productos en el presupuesto para imprimir", true);
+    return;
+  }
+  window.print();
+}
+
+function clearQuote() {
+  state.quoteItems = [];
+  state.selectedQuoteProduct = null;
+  
+  const searchInput = document.getElementById("quote-product-search");
+  const clientNameInput = document.getElementById("quote-client-name");
+  const clientNoteInput = document.getElementById("quote-client-note");
+  const discountInput = document.getElementById("quote-discount-input");
+  const priceInput = document.getElementById("quote-item-price");
+  const qtyInput = document.getElementById("quote-item-qty");
+  
+  if (searchInput) searchInput.value = "";
+  if (clientNameInput) clientNameInput.value = "";
+  if (clientNoteInput) clientNoteInput.value = "";
+  if (discountInput) discountInput.value = "";
+  if (priceInput) priceInput.value = "";
+  if (qtyInput) qtyInput.value = "1";
+  
+  const infoBox = document.getElementById("quote-selected-product-info");
+  if (infoBox) infoBox.style.display = "none";
+  
+  showToast("Presupuesto limpiado");
+  renderQuotesUI();
+}
+
+window.onQuoteSearchInput = onQuoteSearchInput;
+window.selectQuoteProduct = selectQuoteProduct;
+window.addQuoteItemFromForm = addQuoteItemFromForm;
+window.removeQuoteItem = removeQuoteItem;
+window.updateQuoteItemQty = updateQuoteItemQty;
+window.renderQuotesUI = renderQuotesUI;
+window.copyQuoteToWhatsApp = copyQuoteToWhatsApp;
+window.printQuote = printQuote;
+window.clearQuote = clearQuote;
