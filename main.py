@@ -194,6 +194,12 @@ def get_user_prefix(token):
     # Primero verificamos la validez del token para retornar 401 si expiró.
     uid = get_uid_from_token(token)
     if not uid:
+        try:
+            log_file = os.path.join(os.path.dirname(__file__), "auth_error.log")
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - get_user_prefix: verify_id_token returned None for token {token[:15]}...\n")
+        except:
+            pass
         return None
     # Para conservar compatibilidad con los tipos de negocio
     # (textil vs comercio), usamos f"{biz_type}_" como prefijo local
@@ -4791,6 +4797,13 @@ def cleanup_valentino_textil():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/debug/auth_error", methods=["GET"])
+def debug_auth_error():
+    log_file = os.path.join(os.path.dirname(__file__), "auth_error.log")
+    if os.path.exists(log_file):
+        with open(log_file, "r", encoding="utf-8") as f:
+            return f.read(), 200, {'Content-Type': 'text/plain'}
+    return "No log found", 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

@@ -246,27 +246,34 @@ def verify_id_token(id_token):
     if not id_token:
         return None
         
+    log_file = os.path.join(os.path.dirname(__file__), "auth_error.log")
+    def log_err(msg):
+        try:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {msg}\n")
+        except:
+            pass
+
     # 1. Intentar verificar usando firebase-admin si se cuenta con Service Account y está inicializado
     if HAS_SERVICE_ACCOUNT and firebase_admin._apps:
         try:
             decoded_token = auth.verify_id_token(id_token)
             return decoded_token.get("uid")
         except Exception as e:
-            # Fallback a verificación manual por PyJWT en cualquier error de firebase-admin
-            print(f"firebase-admin falló (se intentará PyJWT): {e}")
+            log_err(f"firebase-admin falló: {e}")
 
     # 2. Si firebase-admin no tiene credenciales válidas, realizar la verificación criptográfica manual con PyJWT
     try:
         unverified_header = jwt.get_unverified_header(id_token)
         kid = unverified_header.get("kid")
         if not kid:
-            print("Token no contiene 'kid' en la cabecera.")
+            log_err("Token no contiene 'kid' en la cabecera.")
             return None
             
         public_keys = get_google_public_keys()
         cert_pem = public_keys.get(kid)
         if not cert_pem:
-            print(f"No se encontró la llave pública de Google para el kid: {kid}")
+            log_err(f"No se encontró la llave pública de Google para el kid: {kid}")
             return None
             
         cert_obj = load_pem_x509_certificate(cert_pem.encode('utf-8'))
@@ -281,7 +288,7 @@ def verify_id_token(id_token):
         )
         return decoded.get("user_id") or decoded.get("sub")
     except Exception as e:
-        print(f"Error en verificación manual de ID Token: {e}")
+        log_err(f"Error en verificación manual de ID Token: {e}")
         # En desarrollo local o pruebas, si se permite usar tokens mock decodificados
         if os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_MOCK_TOKENS") == "true":
             try:
@@ -293,8 +300,8 @@ def verify_id_token(id_token):
                     decoded_mock = base64.urlsafe_b64decode(payload).decode("utf-8")
                     data = json.loads(decoded_mock)
                     return data.get("user_id") or data.get("sub")
-            except Exception:
-                pass
+            except Exception as ex:
+                log_err(f"Error parseando mock token: {ex}")
         return None
 
 def get_real_uid(uid, id_token):
