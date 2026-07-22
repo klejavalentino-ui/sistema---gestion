@@ -2957,6 +2957,7 @@ function openCheckoutModal() {
   document.getElementById("checkout-step-method").style.display = "block";
   document.getElementById("checkout-step-finance").style.display = "none";
   document.getElementById("checkout-step-success").style.display = "none";
+  document.getElementById("checkout-step-invoice-options").style.display = "none";
 
   const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
   const tnCostsDiv = document.getElementById("checkout-tn-costs");
