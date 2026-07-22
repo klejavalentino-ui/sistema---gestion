@@ -10560,7 +10560,8 @@ function applyPermissionsToUI() {
   const p = state.permissions;
   
   APP_SECTIONS.forEach(sec => {
-    const access = p[sec.id] || "none";
+    // Si la sección no está definida en la lista de permisos del subuser, permitir por defecto para no bloquear nuevas pestañas
+    const access = (p[sec.id] !== undefined) ? p[sec.id] : "edit";
     const menuItem = document.querySelector(`.menu-item[data-tab="${sec.id}"]`);
     const sectionEl = document.getElementById(`${sec.id}-section`);
     
@@ -10578,7 +10579,6 @@ function applyPermissionsToUI() {
     // 2. Control de Edición (Solo si puede ver)
     if (sectionEl && access === "view") {
       // Deshabilitar todos los inputs y botones de guardado en esta sección
-      // (Exceptuando los que sean para navegación interna o modales visuales)
       const inputs = sectionEl.querySelectorAll("input, select, textarea");
       inputs.forEach(el => el.disabled = true);
       
@@ -10598,10 +10598,18 @@ function applyPermissionsToUI() {
 const APP_SECTIONS = [
   { id: "panel", name: "Panel Principal" },
   { id: "sales", name: "Ventas" },
-  { id: "products", name: "Inventario" },
-  { id: "clients", name: "Agenda" },
-  { id: "expenses", name: "Gastos" },
+  { id: "quotes", name: "Presupuestos" },
+  { id: "returns", name: "Devoluciones" },
+  { id: "inventory", name: "Inventario" },
+  { id: "suppliers", name: "Compras" },
+  { id: "extras", name: "Insumos" },
+  { id: "supplier-accounts", name: "Cuentas a Pagar" },
+  { id: "collections", name: "Cobranzas" },
+  { id: "cash", name: "Caja" },
+  { id: "fixed-costs", name: "Costos Fijos" },
   { id: "marketing", name: "Marketing" },
+  { id: "tiendanube", name: "TiendaNube" },
+  { id: "arca", name: "ARCA" },
   { id: "integrations", name: "Integraciones" },
   { id: "business", name: "Configuración" }
 ];

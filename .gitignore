@@ -21,4 +21,6 @@ Thumbs.db
 # ARCA digital signature keys (must be kept secure)
 mazogestion.key
 mazogestion.csr
+DataMargen.key
+DataMargen.csr
 *.crt
