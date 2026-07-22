@@ -1722,7 +1722,7 @@ function renderPanel() {
   }, 0);
 
   // Ticket Promedio
-  const averageTicket = filteredSales.length === 0 ? 0 : totalSalesValue / filteredSales.length;
+  const averageTicket = totalItemsSold === 0 ? 0 : totalSalesValue / totalItemsSold;
 
   // Resultado Operativo: Ventas - Costo Físico de Prendas Vendidas
   const totalOperativo = filteredSales.reduce((sum, sale) => {
@@ -2293,7 +2293,7 @@ function exportPanelToExcel() {
   const dashboardData = [
     ["MÉTRICAS CLAVE - " + (state.panelMonth || "Todos"), ""],
     ["Facturación Total", "$" + Math.round(totalSalesVal)],
-    ["Ticket Promedio", "$" + Math.round(totalSalesVal / (currentMonthSales.length || 1))],
+    ["Ticket Promedio", "$" + Math.round(totalSalesVal / (totalUnits || 1))],
     ["Unidades Vendidas", totalUnits],
     [],
     ["EVOLUCIÓN DE VENTAS (POR DÍA)", ""]
@@ -9594,7 +9594,7 @@ function exportTiendanubeToExcel() {
     { "Métrica": "Costos Operativos TN", "Valor": Math.round(tnOperatingCosts) },
     { "Métrica": "Ganancia Neta TN", "Valor": Math.round(tnNet) },
     { "Métrica": "Prendas Vendidas", "Valor": tnUnits },
-    { "Métrica": "Ticket Promedio", "Valor": tnSales.length > 0 ? Math.round(tnGross / tnSales.length) : 0 }
+    { "Métrica": "Ticket Promedio", "Valor": tnUnits > 0 ? Math.round(tnGross / tnUnits) : 0 }
   ];
 
   const wsSummary = XLSX.utils.json_to_sheet(summaryData);
