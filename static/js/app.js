@@ -3973,6 +3973,12 @@ async function applyBulkPriceUpdate() {
     pCopy.price_local = pCopy.price_local ? Math.round(pCopy.price_local * factor) : 0;
     pCopy.price_tiendanube = pCopy.price_tiendanube ? Math.round(pCopy.price_tiendanube * factor) : 0;
     pCopy.price = pCopy.price_local; // fallback
+    const rawCost = parseFloat(pCopy.cost) || 0;
+    if (rawCost > 0) {
+      pCopy.margin = Math.round((((pCopy.price_local / rawCost) - 1) * 100) * 10) / 10;
+    } else {
+      pCopy.margin = 0;
+    }
     return pCopy;
   });
   
@@ -4382,9 +4388,6 @@ function openCreateProductModal() {
   const priceLocalInput = document.getElementById("prod-price-local");
   if (priceLocalInput) {
     priceLocalInput.dataset.auto = "true";
-    priceLocalInput.oninput = () => {
-      priceLocalInput.dataset.auto = "false";
-    };
   }
   
   // Limpiar stock dinámico
@@ -4474,9 +4477,6 @@ function openEditProductModal(sku) {
   const priceLocalInput = document.getElementById("prod-price-local");
   if (priceLocalInput) {
     priceLocalInput.dataset.auto = (p.price_local === undefined || p.price_local === "") ? "true" : "false";
-    priceLocalInput.oninput = () => {
-      priceLocalInput.dataset.auto = "false";
-    };
   }
   
   // Cargar stock de todas las variantes del mismo producto (compartiendo baseSku)
@@ -4665,9 +4665,35 @@ function recalculateProductPrice() {
   document.getElementById("prod-price-preview").innerText = `$ ${Math.round(price).toLocaleString()}`;
 
   const priceLocalInput = document.getElementById("prod-price-local");
-  if (priceLocalInput && (!priceLocalInput.value || priceLocalInput.dataset.auto === "true")) {
+  if (priceLocalInput) {
     priceLocalInput.value = Math.round(price);
-    priceLocalInput.dataset.auto = "true";
+    formatCurrencyField(priceLocalInput);
+  }
+}
+
+function recalculateMarginFromPrice() {
+  const baseCost = parseFloat(document.getElementById("prod-cost-input").value.replace(/\D/g, "")) || 0;
+  const priceLocal = parseLocalFloat(document.getElementById("prod-price-local").value) || 0;
+  
+  // Sumar costos de los adicionales seleccionados
+  let totalExtrasCost = 0;
+  Object.keys(state.extras).forEach(catKey => {
+    const el = document.getElementById(`prod-extra-${catKey}`);
+    if (el) {
+      const val = el.value;
+      if (val) {
+        const option = state.extras[catKey].find(o => o.id === val);
+        if (option) {
+          totalExtrasCost += option.cost;
+        }
+      }
+    }
+  });
+
+  const totalCost = baseCost + totalExtrasCost;
+  if (totalCost > 0) {
+    const margin = ((priceLocal / totalCost) - 1) * 100;
+    document.getElementById("prod-margin").value = Math.round(margin * 10) / 10;
   }
 }
 
@@ -8312,6 +8338,7 @@ function setupEventListeners() {
   // Formulario Producto
   document.getElementById("prod-cost-input").addEventListener("input", recalculateProductPrice);
   document.getElementById("prod-margin").addEventListener("input", recalculateProductPrice);
+  document.getElementById("prod-price-local").addEventListener("input", recalculateMarginFromPrice);
   
   // Formulario Gastos
   document.getElementById("idx-cost-form").addEventListener("submit", handleAddExpenseSubmit);
@@ -8457,9 +8484,10 @@ function updateNotifications() {
           p.sku === "categories_config") {
         return false;
       }
-      const rawCost = parseFloat(p.cost) || 0;
+      const rawCost = parseFloat(p.baseCost !== undefined ? p.baseCost : p.cost) || 0;
       const margin = parseFloat(p.margin) || 0;
-      return rawCost === 0 || margin === 0;
+      const price = parseFloat(p.price_local !== undefined ? p.price_local : p.price) || 0;
+      return rawCost === 0 || margin === 0 || price === 0;
     });
 
     if (missingProducts.length > 0) {
@@ -8468,7 +8496,7 @@ function updateNotifications() {
         title: "Datos Faltantes",
         icon: "fa-solid fa-bell",
         iconClass: "warning",
-        text: `Falta poner materia prima y margen en <strong>${missingProducts.length}</strong> productos.`
+        text: `Faltan datos de Margen, Precio de venta o Costo unitario en <strong>${missingProducts.length}</strong> productos.`
       });
     }
   }

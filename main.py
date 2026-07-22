@@ -1276,8 +1276,12 @@ def save_products_batch():
             results = []
             for p in data:
                 sku = p.get("sku")
-                p["cost"] = safe_float(p.get("cost", 0.0))
+                cost = safe_float(p.get("cost", 0.0))
+                margin = safe_float(p.get("margin", 0.0))
+                p["cost"] = cost
                 p["stock"] = safe_int(p.get("stock", 0))
+                p["price_local"] = round(cost * (1.0 + margin / 100.0), 2)
+                p["price"] = p["price_local"]
                 p["sku"] = f"{prefix}{sku}"
                 res = firebase_config.set_document("products", f"{prefix}{sku}", p, token)
                 if res:
@@ -1290,8 +1294,12 @@ def save_products_batch():
             sku = data.get("sku")
             if not sku:
                 return jsonify({"error": "SKU requerido"}), 400
-            data["cost"] = safe_float(data.get("cost", 0.0))
+            cost = safe_float(data.get("cost", 0.0))
+            margin = safe_float(data.get("margin", 0.0))
+            data["cost"] = cost
             data["stock"] = safe_int(data.get("stock", 0))
+            data["price_local"] = round(cost * (1.0 + margin / 100.0), 2)
+            data["price"] = data["price_local"]
             data["sku"] = f"{prefix}{sku}"
             res = firebase_config.set_document("products", f"{prefix}{sku}", data, token)
             if res:
@@ -2913,8 +2921,12 @@ def sync_tiendanube_catalog_route():
                         existing_prod["stock_local"] = stock_local_val
                         existing_prod["stock"] = stock_local_val
                         
-                    existing_prod["cost"] = safe_float(existing_prod.get("cost", 0.0))
-                    existing_prod["margin"] = safe_float(existing_prod.get("margin", 0.0))
+                    cost_val = safe_float(existing_prod.get("cost", 0.0))
+                    existing_prod["cost"] = cost_val
+                    if cost_val > 0:
+                        existing_prod["margin"] = round(((price / cost_val) - 1.0) * 100.0, 2)
+                    else:
+                        existing_prod["margin"] = safe_float(existing_prod.get("margin", 0.0))
                     
                     products_to_save.append(existing_prod)
                 else:
