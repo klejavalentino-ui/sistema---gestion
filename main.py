@@ -4598,6 +4598,11 @@ def create_business_user():
         if real_uid != admin_uid:
             return jsonify({"error": "Acceso denegado."}), 403
             
+        # Check user limit (Plan Pro allows up to 3 subusers)
+        existing_subs = firebase_config.list_documents(f"users/{admin_uid}/subusers", token) or []
+        if len(existing_subs) >= 3:
+            return jsonify({"error": "Límite de usuarios alcanzado (Plan Pro permite hasta 3 usuarios adicionales)."}), 400
+            
         # 1. Create user in Firebase Auth using REST API (sign_up)
         new_user_data = firebase_config.sign_up(email, password)
         sub_uid = new_user_data.get("localId")

@@ -10635,6 +10635,27 @@ async function loadBusinessUsers() {
     
     if (!users) users = [];
     
+    // Update plan users limit badge
+    const subUsersCount = users.length;
+    const maxAllowed = 3;
+    const available = Math.max(0, maxAllowed - subUsersCount);
+    
+    const limitBadge = document.getElementById("plan-users-limit-badge");
+    if (limitBadge) {
+      limitBadge.innerText = `— ${available} disponibles`;
+    }
+    
+    const addBtn = document.getElementById("btn-add-business-user");
+    if (addBtn) {
+      if (available <= 0) {
+        addBtn.disabled = true;
+        addBtn.title = "Límite de usuarios alcanzado (Plan Pro permite hasta 3 usuarios adicionales)";
+      } else {
+        addBtn.disabled = false;
+        addBtn.removeAttribute("title");
+      }
+    }
+    
     // Inyectar el administrador principal
     const adminUser = {
       id: "admin",

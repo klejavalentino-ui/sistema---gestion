@@ -2023,10 +2023,10 @@
         <div id="panel-subtab-account" class="subtab-panel" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px;">
             <div>
-              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0 0 6px 0;">Plan Pro <span style="color: var(--text-gray); font-weight: normal;">— 0 disponibles</span></h3>
+              <h3 style="font-size: 1rem; color: var(--text-white); margin: 0 0 6px 0;">Plan Pro <span id="plan-users-limit-badge" style="color: var(--text-gray); font-weight: normal;">— 3 disponibles</span></h3>
               <p style="color: var(--text-gray-light); font-size: 0.85rem; margin: 0;">Usuarios con acceso al sistema.</p>
             </div>
-            <button type="button" class="btn btn-primary" onclick="openNewUserModal()">+ Agregar</button>
+            <button id="btn-add-business-user" type="button" class="btn btn-primary" onclick="openNewUserModal()">+ Agregar</button>
           </div>
 
           <div class="idx-card" style="padding: 0; overflow: hidden; border-radius: 12px; background: var(--bg-dark); border: 1px solid var(--border-color);">
@@ -3438,6 +3438,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="/static/js/app.js?v=1.4.3"></script>
+  <script src="/static/js/app.js?v=1.4.4"></script>
 </body>
 </html>
