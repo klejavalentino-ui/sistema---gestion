@@ -309,6 +309,17 @@ def get_real_uid(uid, id_token):
     parent_uid_cache[uid] = uid
     return uid
 
+def get_current_project_id():
+    try:
+        from flask import has_request_context, request
+        if has_request_context() and request:
+            pid = request.headers.get("X-Project-Id")
+            if pid and pid.strip() and pid not in ["undefined", "null", "none"]:
+                return pid.strip()
+    except Exception:
+        pass
+    return None
+
 def resolve_collection_path(collection, uid, id_token=None):
     if not uid:
         raise Exception("UID inválido al resolver la colección de base de datos.")
@@ -317,8 +328,13 @@ def resolve_collection_path(collection, uid, id_token=None):
 
     if collection.startswith("users/"):
         return collection
-    if collection in ["users", "usuarios", "comercios"]:
+    if collection in ["users", "usuarios", "comercios", "user_projects", "username_mappings", "subuser_mapping"]:
         return collection
+
+    project_id = get_current_project_id()
+    if project_id and project_id != "default":
+        return f"users/{uid}/projects/{project_id}/{collection}"
+
     if collection == "products":
         return f"users/{uid}/products"
     elif collection == "sales":

@@ -455,14 +455,183 @@ def login():
         except Exception as ex:
             print(f"Error al sincronizar username mapping durante login: {ex}")
             
+        user_projects = []
+        try:
+            user_projects = get_user_projects_list(token)
+        except Exception as proj_err:
+            print(f"Error cargando proyectos en login: {proj_err}")
+            
         return jsonify({
             "token": token,
             "email": res.get("email"),
             "localId": res.get("localId"),
-            "businessType": detected_biz_type
+            "businessType": detected_biz_type,
+            "projects": user_projects,
+            "maxProjects": 3
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 401
+
+def get_user_projects_list(token, uid=None):
+    if not uid:
+        uid = firebase_config.verify_id_token(token)
+    if not uid:
+        return []
+    real_uid = firebase_config.get_real_uid(uid, token)
+    doc = firebase_config.get_document("user_projects", real_uid, token)
+    if doc and isinstance(doc, dict) and "projects" in doc and len(doc["projects"]) > 0:
+        return doc.get("projects", [])
+    
+    # Auto-inicializar Proyecto #1 predeterminado con los datos de su perfil existente
+    profile = None
+    for b_type in ["textil", "comercio"]:
+        p_doc = firebase_config.get_document("products", f"{b_type}_user_profile", token)
+        if p_doc:
+            profile = p_doc
+            break
+            
+    proj_name = profile.get("businessName") if profile and profile.get("businessName") else "Mi Local Principal"
+    b_type = profile.get("businessType") if profile and profile.get("businessType") else "textil"
+    
+    default_proj = {
+        "id": "default",
+        "name": proj_name,
+        "businessType": b_type,
+        "isDefault": True,
+        "createdAt": datetime.utcnow().isoformat()
+    }
+    
+    initial_data = {
+        "id": real_uid,
+        "maxProjects": 3,
+        "projects": [default_proj]
+    }
+    try:
+        firebase_config.set_document("user_projects", real_uid, initial_data, token)
+    except Exception as e:
+        print(f"Error guardando proyectos iniciales: {e}")
+        
+    return [default_proj]
+
+@app.route("/api/projects", methods=["GET"])
+def get_projects():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    try:
+        projects = get_user_projects_list(token)
+        return jsonify({"projects": projects, "maxProjects": 3})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/projects", methods=["POST"])
+def create_project():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    uid = firebase_config.verify_id_token(token)
+    if not uid:
+        return jsonify({"error": "Token inválido"}), 401
+    real_uid = firebase_config.get_real_uid(uid, token)
+    
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    biz_type = data.get("businessType", "textil").strip()
+    
+    if not name:
+        return jsonify({"error": "El nombre del proyecto/negocio es obligatorio."}), 400
+        
+    projects = get_user_projects_list(token, uid=real_uid)
+    if len(projects) >= 3:
+        return jsonify({"error": "Límite alcanzado: solo puedes tener un máximo de 3 proyectos/negocios por cuenta."}), 400
+        
+    new_proj_id = f"proj_{int(time.time() * 1000)}"
+    new_proj = {
+        "id": new_proj_id,
+        "name": name,
+        "businessType": biz_type,
+        "isDefault": False,
+        "createdAt": datetime.utcnow().isoformat()
+    }
+    
+    projects.append(new_proj)
+    
+    save_payload = {
+        "id": real_uid,
+        "maxProjects": 3,
+        "projects": projects
+    }
+    firebase_config.set_document("user_projects", real_uid, save_payload, token)
+    
+    try:
+        profile_payload = {
+            "sku": f"{biz_type}_user_profile",
+            "name": name,
+            "businessName": name,
+            "businessType": biz_type,
+            "role": "admin",
+            "createdAt": datetime.utcnow().isoformat()
+        }
+        url = f"{firebase_config.BASE_URL}/users/{real_uid}/projects/{new_proj_id}/products/{biz_type}_user_profile"
+        requests.patch(url, json=firebase_config.to_firestore_document(profile_payload), headers={"Authorization": f"Bearer {token}"}, timeout=10)
+    except Exception as ex:
+        print(f"Error inicializando perfil de nuevo proyecto: {ex}")
+        
+    return jsonify({"success": True, "project": new_proj, "projects": projects})
+
+@app.route("/api/projects/<proj_id>", methods=["PUT"])
+def update_project(proj_id):
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    uid = firebase_config.verify_id_token(token)
+    real_uid = firebase_config.get_real_uid(uid, token)
+    
+    data = request.json or {}
+    new_name = data.get("name", "").strip()
+    if not new_name:
+        return jsonify({"error": "El nuevo nombre es obligatorio"}), 400
+        
+    projects = get_user_projects_list(token, uid=real_uid)
+    found = False
+    for p in projects:
+        if p.get("id") == proj_id:
+            p["name"] = new_name
+            found = True
+            break
+            
+    if not found:
+        return jsonify({"error": "Proyecto no encontrado"}), 404
+        
+    save_payload = {
+        "id": real_uid,
+        "maxProjects": 3,
+        "projects": projects
+    }
+    firebase_config.set_document("user_projects", real_uid, save_payload, token)
+    return jsonify({"success": True, "projects": projects})
+
+@app.route("/api/projects/<proj_id>", methods=["DELETE"])
+def delete_project(proj_id):
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    uid = firebase_config.verify_id_token(token)
+    real_uid = firebase_config.get_real_uid(uid, token)
+    
+    projects = get_user_projects_list(token, uid=real_uid)
+    if len(projects) <= 1:
+        return jsonify({"error": "No puedes eliminar tu único proyecto activo."}), 400
+        
+    projects = [p for p in projects if p.get("id") != proj_id]
+    
+    save_payload = {
+        "id": real_uid,
+        "maxProjects": 3,
+        "projects": projects
+    }
+    firebase_config.set_document("user_projects", real_uid, save_payload, token)
+    return jsonify({"success": True, "projects": projects})
 
 @app.route("/api/auth/delete-account", methods=["POST"])
 def delete_account():

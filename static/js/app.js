@@ -34,6 +34,9 @@ const state = {
   email: localStorage.getItem("datamargen_email"),
   businessType: localStorage.getItem("datamargen_business_type") || "textil",
   businessName: localStorage.getItem("datamargen_business_name") || "",
+  projects: [],
+  currentProjectId: localStorage.getItem("datamargen_project_id") || "default",
+  currentProjectName: localStorage.getItem("datamargen_project_name") || "",
   userProfile: null,
   categories: [],
   products: [],
@@ -308,14 +311,31 @@ async function handleLogin(e) {
     
     state.token = data.token;
     state.email = data.email;
+    state.projects = data.projects || [];
     const bizType = data.businessType || document.getElementById("login-business-type").value || "textil";
     state.businessType = bizType;
+    
     localStorage.setItem("datamargen_token", data.token);
     localStorage.setItem("datamargen_email", data.email);
     localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("¡Sesión iniciada!");
-    checkAuth();
+    
+    if (state.projects.length > 1) {
+      document.getElementById("auth-section").style.display = "none";
+      openProjectSelectionModal();
+    } else if (state.projects.length === 1) {
+      const p = state.projects[0];
+      state.currentProjectId = p.id;
+      state.currentProjectName = p.name;
+      state.businessType = p.businessType || bizType;
+      localStorage.setItem("datamargen_project_id", p.id);
+      localStorage.setItem("datamargen_project_name", p.name);
+      localStorage.setItem("datamargen_business_type", state.businessType);
+      checkAuth();
+    } else {
+      checkAuth();
+    }
   } catch (error) {
     console.error("Login Error:", error);
     errorDiv.innerText = translateError(error.message);
@@ -1277,7 +1297,8 @@ async function updateBusinessType(type) {
 async function apiRequest(url, method = "GET", body = null) {
   const headers = {
     "Authorization": `Bearer ${state.token}`,
-    "X-Business-Type": state.businessType || "textil"
+    "X-Business-Type": state.businessType || "textil",
+    "X-Project-Id": state.currentProjectId || "default"
   };
   if (body) {
     headers["Content-Type"] = "application/json";
@@ -1313,6 +1334,20 @@ async function initApp() {
     // Cargar selectores de meses en HTML
     populateMonthSelectors();
     
+    // Cargar lista de proyectos del usuario si aún no están cargados
+    if (!state.projects || state.projects.length === 0) {
+      try {
+        const projRes = await apiRequest("/api/projects");
+        if (projRes && projRes.projects) {
+          state.projects = projRes.projects;
+        }
+      } catch (pe) {
+        console.warn("No se pudo obtener la lista de proyectos:", pe);
+      }
+    }
+    updateTopbarProjectName();
+    renderProjectsManagementPanel();
+
     await refreshState();
     switchTab("panel");
   } catch (error) {
@@ -10857,8 +10892,234 @@ function switchSubTab(tabName) {
   
   const activeBtn = document.getElementById(`btn-subtab-${tabName}`);
   if (activeBtn) activeBtn.classList.add("active");
+
+  if (tabName === "projects") {
+    renderProjectsManagementPanel();
+  }
 }
 window.switchSubTab = switchSubTab;
+
+// --- MULTI-PROYECTO / MULTI-NEGOCIO (HASTA 3) ---
+function openProjectSelectionModal() {
+  const modal = document.getElementById("project-selection-modal");
+  if (!modal) return;
+  renderProjectSelectionList();
+  modal.style.display = "flex";
+}
+window.openProjectSelectionModal = openProjectSelectionModal;
+
+function closeProjectSelectionModal() {
+  const modal = document.getElementById("project-selection-modal");
+  if (modal) modal.style.display = "none";
+}
+window.closeProjectSelectionModal = closeProjectSelectionModal;
+
+function renderProjectSelectionList() {
+  const listEl = document.getElementById("project-selection-list");
+  const badgeEl = document.getElementById("project-count-badge");
+  if (!listEl) return;
+
+  listEl.innerHTML = "";
+  const projects = state.projects || [];
+  if (badgeEl) badgeEl.innerText = `Proyectos: ${projects.length} / 3`;
+
+  if (projects.length === 0) {
+    listEl.innerHTML = `<p style="text-align: center; color: var(--text-gray); font-size: 0.85rem; padding: 20px;">No tenés otros proyectos registrados.</p>`;
+    return;
+  }
+
+  projects.forEach(p => {
+    const card = document.createElement("div");
+    const isActive = p.id === state.currentProjectId;
+    card.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: ${isActive ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)'};
+      border: 1px solid ${isActive ? 'var(--accent-purple)' : 'var(--border-color)'};
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    `;
+
+    let icon = "👕";
+    let rubroText = "Indumentaria / Textil";
+    if (p.businessType === "comercio") {
+      icon = "🛒";
+      rubroText = "Comercio General / Bazar";
+    } else if (p.businessType === "servicio") {
+      icon = "🏋️";
+      rubroText = "Gimnasio / Servicios";
+    }
+
+    card.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-size: 1.5rem;">${icon}</span>
+        <div>
+          <h4 style="margin: 0; font-size: 0.95rem; color: var(--text-white); font-weight: 800;">${p.name}</h4>
+          <span style="font-size: 0.75rem; color: var(--text-gray); font-weight: 500;">${rubroText}</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        ${isActive ? '<span class="badge-blue" style="font-size: 0.65rem; padding: 3px 8px; font-weight: bold;">ACTIVO</span>' : ''}
+        <button type="button" class="btn btn-emerald" style="padding: 6px 14px; font-size: 0.75rem; font-weight: bold;" onclick="selectProject('${p.id}')">Entrar →</button>
+      </div>
+    `;
+
+    card.onclick = (e) => {
+      if (e.target.tagName !== "BUTTON") selectProject(p.id);
+    };
+
+    listEl.appendChild(card);
+  });
+}
+window.renderProjectSelectionList = renderProjectSelectionList;
+
+async function selectProject(projectId, reloadApp = true) {
+  const p = (state.projects || []).find(proj => proj.id === projectId);
+  if (p) {
+    state.currentProjectId = p.id;
+    state.currentProjectName = p.name;
+    state.businessType = p.businessType || "textil";
+    state.businessName = p.name;
+
+    localStorage.setItem("datamargen_project_id", p.id);
+    localStorage.setItem("datamargen_project_name", p.name);
+    localStorage.setItem("datamargen_business_type", state.businessType);
+    localStorage.setItem("datamargen_business_name", p.name);
+
+    updateTopbarProjectName();
+    closeProjectSelectionModal();
+
+    if (reloadApp) {
+      showToast(`Ingresando a: ${p.name}`);
+      document.getElementById("auth-section").style.display = "none";
+      document.getElementById("app-section").style.display = "block";
+      await initApp();
+    }
+  }
+}
+window.selectProject = selectProject;
+
+function updateTopbarProjectName() {
+  const el = document.getElementById("topbar-project-name");
+  if (el) {
+    el.innerText = state.currentProjectName || state.businessName || "Mi Proyecto";
+  }
+}
+window.updateTopbarProjectName = updateTopbarProjectName;
+
+function openNewProjectModal() {
+  const projects = state.projects || [];
+  if (projects.length >= 3) {
+    showToast("Has alcanzado el límite máximo de 3 proyectos/negocios por cuenta.", true);
+    return;
+  }
+  document.getElementById("new-proj-name").value = "";
+  document.getElementById("new-project-modal").style.display = "flex";
+}
+window.openNewProjectModal = openNewProjectModal;
+
+function closeNewProjectModal() {
+  const modal = document.getElementById("new-project-modal");
+  if (modal) modal.style.display = "none";
+}
+window.closeNewProjectModal = closeNewProjectModal;
+
+async function submitCreateProject(e) {
+  e.preventDefault();
+  const name = document.getElementById("new-proj-name").value.trim();
+  const bizType = document.getElementById("new-proj-type").value;
+  const submitBtn = document.getElementById("submit-new-proj-btn");
+
+  if (!name) {
+    showToast("El nombre del negocio es obligatorio", true);
+    return;
+  }
+
+  try {
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Creando...";
+
+    const res = await apiRequest("/api/projects", "POST", { name: name, businessType: bizType });
+    showToast(`¡Proyecto '${name}' creado con éxito!`);
+    
+    state.projects = res.projects || [];
+    closeNewProjectModal();
+    renderProjectSelectionList();
+    renderProjectsManagementPanel();
+
+    if (res.project) {
+      await selectProject(res.project.id, true);
+    }
+  } catch (err) {
+    showToast("Error al crear proyecto: " + err.message, true);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerText = "Crear Negocio";
+  }
+}
+window.submitCreateProject = submitCreateProject;
+
+function renderProjectsManagementPanel() {
+  const container = document.getElementById("projects-management-list");
+  const counterEl = document.getElementById("projects-counter-badge");
+  const addBtn = document.getElementById("btn-add-new-project-settings");
+
+  if (!container) return;
+
+  const projects = state.projects || [];
+  if (counterEl) counterEl.innerText = `Proyectos: ${projects.length} / 3`;
+
+  if (addBtn) {
+    if (projects.length >= 3) {
+      addBtn.disabled = true;
+      addBtn.style.opacity = "0.5";
+      addBtn.title = "Límite máximo de 3 proyectos alcanzado";
+    } else {
+      addBtn.disabled = false;
+      addBtn.style.opacity = "1";
+    }
+  }
+
+  container.innerHTML = "";
+  projects.forEach(p => {
+    const card = document.createElement("div");
+    const isActive = p.id === state.currentProjectId;
+    card.style.cssText = `
+      padding: 18px;
+      background: ${isActive ? 'rgba(139, 92, 246, 0.1)' : 'var(--bg-input)'};
+      border: 1px solid ${isActive ? 'var(--accent-purple)' : 'var(--border-color)'};
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+    `;
+
+    let icon = "👕";
+    let rubro = "Indumentaria";
+    if (p.businessType === "comercio") { icon = "🛒"; rubro = "Comercio"; }
+    else if (p.businessType === "servicio") { icon = "🏋️"; rubro = "Servicio"; }
+
+    card.innerHTML = `
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 1.5rem;">${icon}</span>
+          ${isActive ? '<span class="badge-blue" style="font-size: 0.65rem; padding: 3px 8px; font-weight: bold;">ACTIVO</span>' : '<span style="font-size: 0.75rem; color: var(--text-gray);">Inactivo</span>'}
+        </div>
+        <h4 style="margin: 0; color: var(--text-white); font-size: 1rem; font-weight: 800;">${p.name}</h4>
+        <p style="margin: 3px 0 0 0; color: var(--text-gray); font-size: 0.75rem;">Rubro: ${rubro}</p>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+        ${!isActive ? `<button type="button" class="btn btn-emerald" style="padding: 6px 12px; font-size: 0.75rem; font-weight: bold;" onclick="selectProject('${p.id}')">Cambiar A Este</button>` : ''}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+window.renderProjectsManagementPanel = renderProjectsManagementPanel;
 
 function renderDynamicSettingsRows() {
   const locContainer = document.getElementById("locations-list-container");
