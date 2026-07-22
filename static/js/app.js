@@ -10921,10 +10921,10 @@ function renderProjectSelectionList() {
 
   listEl.innerHTML = "";
   const projects = state.projects || [];
-  if (badgeEl) badgeEl.innerText = `Proyectos: ${projects.length} / 3`;
+  if (badgeEl) badgeEl.innerText = `Negocios: ${projects.length} / 3`;
 
   if (projects.length === 0) {
-    listEl.innerHTML = `<p style="text-align: center; color: var(--text-gray); font-size: 0.85rem; padding: 20px;">No tenés otros proyectos registrados.</p>`;
+    listEl.innerHTML = `<p style="text-align: center; color: var(--text-gray); font-size: 0.85rem; padding: 20px;">No tenés otros negocios registrados.</p>`;
     return;
   }
 
@@ -10943,15 +10943,13 @@ function renderProjectSelectionList() {
       transition: all 0.2s ease;
     `;
 
-    let icon = "👕";
-    let rubroText = "Indumentaria / Textil";
-    if (p.businessType === "comercio") {
-      icon = "🛒";
-      rubroText = "Comercio General / Bazar";
-    } else if (p.businessType === "servicio") {
-      icon = "🏋️";
-      rubroText = "Gimnasio / Servicios";
-    }
+    let icon = "🏢";
+    const rubroText = p.businessModel || (p.businessType === "textil" ? "Indumentaria" : "Comercio");
+    if (rubroText === "Indumentaria") icon = "👕";
+    else if (rubroText === "Bazar") icon = "🛒";
+    else if (rubroText === "Tecnología") icon = "💻";
+    else if (rubroText === "Almacén") icon = "🏬";
+    else if (rubroText === "Estética") icon = "✨";
 
     card.innerHTML = `
       <div style="display: flex; align-items: center; gap: 14px;">
@@ -10981,7 +10979,7 @@ async function selectProject(projectId, reloadApp = true) {
   if (p) {
     state.currentProjectId = p.id;
     state.currentProjectName = p.name;
-    state.businessType = p.businessType || "textil";
+    state.businessType = p.businessType || (p.businessModel === "Indumentaria" ? "textil" : "comercio");
     state.businessName = p.name;
 
     localStorage.setItem("datamargen_project_id", p.id);
@@ -11005,7 +11003,7 @@ window.selectProject = selectProject;
 function updateTopbarProjectName() {
   const el = document.getElementById("topbar-project-name");
   if (el) {
-    el.innerText = state.currentProjectName || state.businessName || "Mi Proyecto";
+    el.innerText = state.currentProjectName || state.businessName || "Mi Negocio";
   }
 }
 window.updateTopbarProjectName = updateTopbarProjectName;
@@ -11013,7 +11011,7 @@ window.updateTopbarProjectName = updateTopbarProjectName;
 function openNewProjectModal() {
   const projects = state.projects || [];
   if (projects.length >= 3) {
-    showToast("Has alcanzado el límite máximo de 3 proyectos/negocios por cuenta.", true);
+    showToast("Has alcanzado el límite máximo de 3 negocios por cuenta.", true);
     return;
   }
   document.getElementById("new-proj-name").value = "";
@@ -11030,7 +11028,7 @@ window.closeNewProjectModal = closeNewProjectModal;
 async function submitCreateProject(e) {
   e.preventDefault();
   const name = document.getElementById("new-proj-name").value.trim();
-  const bizType = document.getElementById("new-proj-type").value;
+  const selectedType = document.getElementById("new-proj-type").value;
   const submitBtn = document.getElementById("submit-new-proj-btn");
 
   if (!name) {
@@ -11038,12 +11036,18 @@ async function submitCreateProject(e) {
     return;
   }
 
+  const sysBizType = (selectedType === "Indumentaria") ? "textil" : "comercio";
+
   try {
     submitBtn.disabled = true;
     submitBtn.innerText = "Creando...";
 
-    const res = await apiRequest("/api/projects", "POST", { name: name, businessType: bizType });
-    showToast(`¡Proyecto '${name}' creado con éxito!`);
+    const res = await apiRequest("/api/projects", "POST", { 
+      name: name, 
+      businessType: sysBizType,
+      businessModel: selectedType 
+    });
+    showToast(`¡Negocio '${name}' creado con éxito!`);
     
     state.projects = res.projects || [];
     closeNewProjectModal();
@@ -11054,7 +11058,7 @@ async function submitCreateProject(e) {
       await selectProject(res.project.id, true);
     }
   } catch (err) {
-    showToast("Error al crear proyecto: " + err.message, true);
+    showToast("Error al crear negocio: " + err.message, true);
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerText = "Crear Negocio";
@@ -11070,13 +11074,13 @@ function renderProjectsManagementPanel() {
   if (!container) return;
 
   const projects = state.projects || [];
-  if (counterEl) counterEl.innerText = `Proyectos: ${projects.length} / 3`;
+  if (counterEl) counterEl.innerText = `Negocios: ${projects.length} / 3`;
 
   if (addBtn) {
     if (projects.length >= 3) {
       addBtn.disabled = true;
       addBtn.style.opacity = "0.5";
-      addBtn.title = "Límite máximo de 3 proyectos alcanzado";
+      addBtn.title = "Límite máximo de 3 negocios alcanzado";
     } else {
       addBtn.disabled = false;
       addBtn.style.opacity = "1";
@@ -11098,10 +11102,13 @@ function renderProjectsManagementPanel() {
       gap: 12px;
     `;
 
-    let icon = "👕";
-    let rubro = "Indumentaria";
-    if (p.businessType === "comercio") { icon = "🛒"; rubro = "Comercio"; }
-    else if (p.businessType === "servicio") { icon = "🏋️"; rubro = "Servicio"; }
+    let icon = "🏢";
+    const rubro = p.businessModel || (p.businessType === "textil" ? "Indumentaria" : "Comercio");
+    if (rubro === "Indumentaria") icon = "👕";
+    else if (rubro === "Bazar") icon = "🛒";
+    else if (rubro === "Tecnología") icon = "💻";
+    else if (rubro === "Almacén") icon = "🏬";
+    else if (rubro === "Estética") icon = "✨";
 
     card.innerHTML = `
       <div>
@@ -11110,7 +11117,7 @@ function renderProjectsManagementPanel() {
           ${isActive ? '<span class="badge-blue" style="font-size: 0.65rem; padding: 3px 8px; font-weight: bold;">ACTIVO</span>' : '<span style="font-size: 0.75rem; color: var(--text-gray);">Inactivo</span>'}
         </div>
         <h4 style="margin: 0; color: var(--text-white); font-size: 1rem; font-weight: 800;">${p.name}</h4>
-        <p style="margin: 3px 0 0 0; color: var(--text-gray); font-size: 0.75rem;">Rubro: ${rubro}</p>
+        <p style="margin: 3px 0 0 0; color: var(--text-gray); font-size: 0.75rem;">Tipo: ${rubro}</p>
       </div>
       <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
         ${!isActive ? `<button type="button" class="btn btn-emerald" style="padding: 6px 12px; font-size: 0.75rem; font-weight: bold;" onclick="selectProject('${p.id}')">Cambiar A Este</button>` : ''}

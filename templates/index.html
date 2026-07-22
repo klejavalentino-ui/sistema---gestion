@@ -1852,7 +1852,7 @@
         <!-- SUB-TABS NAVIGATION -->
         <div style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; overflow-x: auto;">
           <button type="button" class="subtab-btn active" id="btn-subtab-biz" onclick="switchSubTab('biz')">🏢 Negocio</button>
-          <button type="button" class="subtab-btn" id="btn-subtab-projects" onclick="switchSubTab('projects')">📂 Mis Proyectos</button>
+          <button type="button" class="subtab-btn" id="btn-subtab-projects" onclick="switchSubTab('projects')">📂 Mis Negocios</button>
           <button type="button" class="subtab-btn" id="btn-subtab-locations" onclick="switchSubTab('locations')">📍 Ubicaciones</button>
           <button type="button" class="subtab-btn" id="btn-subtab-channels" onclick="switchSubTab('channels')">📣 Canales de Venta</button>
           <button type="button" class="subtab-btn" id="btn-subtab-print" onclick="switchSubTab('print')">🖨️ Impresión</button>
@@ -1867,9 +1867,9 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
               <div>
                 <h3 style="font-size: 1.1rem; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
-                  🏢 Mis Negocios / Proyectos
+                  🏢 Mis Negocios
                 </h3>
-                <p style="font-size: 0.8rem; color: var(--text-gray); margin: 4px 0 0 0;">Puedes gestionar hasta 3 proyectos independientes con sus propios datos aislados.</p>
+                <p style="font-size: 0.8rem; color: var(--text-gray); margin: 4px 0 0 0;">Puedes gestionar hasta 3 negocios independientes con sus propios datos aislados.</p>
               </div>
               <div style="text-align: right;">
                 <span id="projects-counter-badge" class="badge-blue" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px;">Cargando...</span>
@@ -2117,12 +2117,12 @@
   <!-- MODALS PORTAL -->
   <!-- ======================================================= -->
 
-  <!-- MODAL: SELECCIÓN DE PROYECTO / NEGOCIO -->
+  <!-- MODAL: SELECCIÓN DE NEGOCIO -->
   <div id="project-selection-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 11000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);">
     <div class="modal-card" style="width: 90%; max-width: 520px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 20px; padding: 28px; box-shadow: 0 25px 60px rgba(0,0,0,0.6);">
       <div style="text-align: center; margin-bottom: 24px;">
         <div style="width: 60px; height: 60px; border-radius: 16px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--accent-purple); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin: 0 auto 14px auto;">🏢</div>
-        <h3 style="margin: 0; color: var(--text-white); font-size: 1.35rem; font-weight: 800;">Selecciona un Proyecto</h3>
+        <h3 style="margin: 0; color: var(--text-white); font-size: 1.35rem; font-weight: 800;">Seleccionar Negocio</h3>
         <p style="margin: 6px 0 0 0; color: var(--text-gray); font-size: 0.85rem;">Elige el negocio al que deseas ingresar para ver sus datos e historial aislados.</p>
       </div>
 
@@ -2131,32 +2131,35 @@
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 18px;">
-        <span id="project-count-badge" style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700;">Proyectos: 1 / 3</span>
+        <span id="project-count-badge" style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700;">Negocios: 1 / 3</span>
         <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 8px 14px; font-weight: bold;" onclick="openNewProjectModal()">+ Crear Nuevo Negocio</button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: CREAR NUEVO PROYECTO -->
+  <!-- MODAL: CREAR NUEVO NEGOCIO -->
   <div id="new-project-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 12000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
     <div class="modal-card" style="width: 90%; max-width: 440px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h3 style="margin: 0; color: var(--text-white); font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-          <i class="fa-solid fa-plus" style="color: var(--accent-purple);"></i> Nuevo Proyecto / Negocio
+          <i class="fa-solid fa-plus" style="color: var(--accent-purple);"></i> Nuevo Negocio
         </h3>
         <button style="background: none; border: none; color: var(--text-gray); font-size: 1.4rem; cursor: pointer;" onclick="closeNewProjectModal()">✕</button>
       </div>
       <form onsubmit="submitCreateProject(event)">
         <div class="form-group" style="margin-bottom: 16px;">
-          <label class="form-label" for="new-proj-name">Nombre del Negocio / Proyecto *</label>
-          <input type="text" id="new-proj-name" class="form-input" placeholder="Ej. Mazo Bazar Belgrano" required>
+          <label class="form-label" for="new-proj-name">Nombre del Negocio *</label>
+          <input type="text" id="new-proj-name" class="form-input" placeholder="Ej. Mi Comercio Belgrano" required>
         </div>
         <div class="form-group" style="margin-bottom: 24px;">
-          <label class="form-label" for="new-proj-type">Rubro / Tipo de Negocio *</label>
+          <label class="form-label" for="new-proj-type">Tipo de Negocio *</label>
           <select id="new-proj-type" class="form-select">
-            <option value="textil">Indumentaria / Textil</option>
-            <option value="comercio">Comercio General / Bazar</option>
-            <option value="servicio">Gimnasio / Servicios</option>
+            <option value="Indumentaria">Indumentaria</option>
+            <option value="Comercio">Comercio</option>
+            <option value="Bazar">Bazar</option>
+            <option value="Tecnología">Tecnología</option>
+            <option value="Almacén">Almacén</option>
+            <option value="Estética">Estética</option>
           </select>
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
@@ -3435,6 +3438,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="/static/js/app.js?v=1.4.0"></script>
+  <script src="/static/js/app.js?v=1.4.1"></script>
 </body>
 </html>

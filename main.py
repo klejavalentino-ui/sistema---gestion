@@ -550,6 +550,7 @@ def create_project():
         "id": new_proj_id,
         "name": name,
         "businessType": biz_type,
+        "businessModel": data.get("businessModel", "Indumentaria" if biz_type == "textil" else "Comercio"),
         "isDefault": False,
         "createdAt": datetime.utcnow().isoformat()
     }
