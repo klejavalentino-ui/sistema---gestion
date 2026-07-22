@@ -976,11 +976,16 @@ def get_all_state():
             })
             
         import concurrent.futures
+        from flask import copy_current_request_context
+        
+        @copy_current_request_context
+        def fetch_docs(col):
+            return firebase_config.list_documents(col, token)
         
         # Parallel fetch from both Firestore collections
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            future_products = executor.submit(firebase_config.list_documents, "products", token)
-            future_sales = executor.submit(firebase_config.list_documents, "sales", token)
+            future_products = executor.submit(fetch_docs, "products")
+            future_sales = executor.submit(fetch_docs, "sales")
             
             all_products = future_products.result()
             all_sales = future_sales.result()
@@ -2967,6 +2972,9 @@ def sync_tiendanube_catalog_route():
             print(f"[CATEGORY SYNC] Failed to update categories_config: {cat_err}")
 
         # 5. Save products concurrently
+        from flask import copy_current_request_context
+        
+        @copy_current_request_context
         def save_one_product(prod):
             sku_with_prefix = prod.get("sku")
             firebase_config.set_document("products", sku_with_prefix, prod, token)
