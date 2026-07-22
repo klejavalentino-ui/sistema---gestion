@@ -1549,12 +1549,9 @@ async function refreshState() {
         { id: "bor-logo", name: "Bordado Logo Pecho", cost: 600, stock: 120 }
       ]
     };
-    const isMatias = state.email === "matiascuchettidiaz@gmail.com";
     let finalExtras = data.extras || {};
-    const hasAnyItems = Object.keys(finalExtras).some(k => !["sku", "name", "cost", "stock", "id"].includes(k) && Array.isArray(finalExtras[k]) && finalExtras[k].length > 0);
-    if (!hasAnyItems && !isMatias) {
-      finalExtras = {};
-    } else if (!data.extras && isMatias) {
+    const categoryKeys = Object.keys(finalExtras).filter(k => !["sku", "name", "cost", "stock", "id"].includes(k));
+    if (categoryKeys.length === 0) {
       finalExtras = defaultExtras;
     }
     state.extras = finalExtras;
