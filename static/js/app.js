@@ -316,6 +316,9 @@ async function handleLogin(e) {
     state.businessType = bizType;
     
     localStorage.setItem("datamargen_token", data.token);
+    if (data.refreshToken) {
+      localStorage.setItem("datamargen_refresh_token", data.refreshToken);
+    }
     localStorage.setItem("datamargen_email", data.email);
     localStorage.setItem("datamargen_business_type", bizType);
     
@@ -472,6 +475,7 @@ function handleLogout() {
   state.token = null;
   state.email = null;
   localStorage.removeItem("datamargen_token");
+  localStorage.removeItem("datamargen_refresh_token");
   localStorage.removeItem("datamargen_email");
   showToast("Sesión cerrada");
   checkAuth();
@@ -1309,12 +1313,51 @@ async function apiRequest(url, method = "GET", body = null) {
     options.body = JSON.stringify(body);
   }
   
-  const res = await fetch(url, options);
-  const data = await res.json();
+  let res = await fetch(url, options);
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    data = {};
+  }
   
   if (res.status === 401) {
-    handleLogout();
-    throw new Error("Sesión expirada.");
+    const refreshToken = localStorage.getItem("datamargen_refresh_token");
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch("/api/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken })
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          state.token = refreshData.token;
+          localStorage.setItem("datamargen_token", refreshData.token);
+          if (refreshData.refreshToken) {
+            localStorage.setItem("datamargen_refresh_token", refreshData.refreshToken);
+          }
+          // Reintentar request original
+          options.headers["Authorization"] = `Bearer ${state.token}`;
+          res = await fetch(url, options);
+          data = await res.json();
+          
+          if (!res.ok) {
+            throw new Error(data.error || "Error en la petición tras refrescar token.");
+          }
+          return data;
+        } else {
+          handleLogout();
+          throw new Error("Sesión expirada.");
+        }
+      } catch (err) {
+        handleLogout();
+        throw new Error("Sesión expirada.");
+      }
+    } else {
+      handleLogout();
+      throw new Error("Sesión expirada.");
+    }
   }
   
   if (!res.ok) {
@@ -8777,6 +8820,9 @@ async function loginWithGoogle() {
     const bizType = document.getElementById("login-business-type")?.value || "textil";
     state.businessType = bizType;
     localStorage.setItem("datamargen_token", idToken);
+    if (result.user.refreshToken) {
+      localStorage.setItem("datamargen_refresh_token", result.user.refreshToken);
+    }
     localStorage.setItem("datamargen_email", email);
     localStorage.setItem("datamargen_business_type", bizType);
     

@@ -168,6 +168,17 @@ def sign_up(email, password):
         raise Exception(error_msg)
     return r.json()
 
+def refresh_token(refresh_token_str):
+    url = f"https://securetoken.googleapis.com/v1/token?key={API_KEY}"
+    payload = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token_str
+    }
+    r = _session.post(url, data=payload, timeout=30)
+    if not r.ok:
+        raise Exception("Error al refrescar el token")
+    return r.json()
+
 def send_verification_email(id_token):
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={API_KEY}"
     payload = {

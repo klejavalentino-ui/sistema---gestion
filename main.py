@@ -467,7 +467,25 @@ def login():
             "localId": res.get("localId"),
             "businessType": detected_biz_type,
             "projects": user_projects,
-            "maxProjects": 3
+            "maxProjects": 3,
+            "refreshToken": res.get("refreshToken")
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 401
+
+@app.route("/api/auth/refresh", methods=["POST"])
+@limiter.limit("10 per minute")
+def refresh_token():
+    data = request.json or {}
+    refresh_token_str = data.get("refreshToken")
+    if not refresh_token_str:
+        return jsonify({"error": "No refresh token provided"}), 400
+        
+    try:
+        res = firebase_config.refresh_token(refresh_token_str)
+        return jsonify({
+            "token": res.get("id_token"),
+            "refreshToken": res.get("refresh_token")
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 401
