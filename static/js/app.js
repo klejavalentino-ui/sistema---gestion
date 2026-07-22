@@ -2980,6 +2980,7 @@ function closeCheckoutModal() {
 
 function closeCheckoutModalAndReset() {
   closeCheckoutModal();
+  renderPOSCart();
   refreshState();
 }
 
