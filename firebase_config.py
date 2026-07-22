@@ -226,10 +226,10 @@ GOOGLE_PUBLIC_KEYS_CACHE = {
     "expires_at": 0
 }
 
-def get_google_public_keys():
+def get_google_public_keys(force_refresh=False):
     global GOOGLE_PUBLIC_KEYS_CACHE
     now = time.time()
-    if GOOGLE_PUBLIC_KEYS_CACHE["keys"] and GOOGLE_PUBLIC_KEYS_CACHE["expires_at"] > now:
+    if not force_refresh and GOOGLE_PUBLIC_KEYS_CACHE["keys"] and GOOGLE_PUBLIC_KEYS_CACHE["expires_at"] > now:
         return GOOGLE_PUBLIC_KEYS_CACHE["keys"]
         
     url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
@@ -259,10 +259,16 @@ def verify_id_token(id_token):
         try:
             decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60)
             return decoded_token.get("uid")
+        except TypeError:
+            try:
+                decoded_token = auth.verify_id_token(id_token)
+                return decoded_token.get("uid")
+            except Exception as e:
+                log_err(f"firebase-admin falló sin clock_skew: {e}")
         except Exception as e:
             log_err(f"firebase-admin falló: {e}")
 
-    # 2. Si firebase-admin no tiene credenciales válidas, realizar la verificación criptográfica manual con PyJWT
+    # 2. Si firebase-admin no tiene credenciales válidas o falla, realizar la verificación criptográfica manual con PyJWT
     try:
         unverified_header = jwt.get_unverified_header(id_token)
         kid = unverified_header.get("kid")
@@ -273,8 +279,12 @@ def verify_id_token(id_token):
         public_keys = get_google_public_keys()
         cert_pem = public_keys.get(kid)
         if not cert_pem:
-            log_err(f"No se encontró la llave pública de Google para el kid: {kid}")
-            return None
+            # Intentar refrescar las llaves si no se encuentra (puede que Google las haya rotado)
+            public_keys = get_google_public_keys(force_refresh=True)
+            cert_pem = public_keys.get(kid)
+            if not cert_pem:
+                log_err(f"No se encontró la llave pública de Google para el kid: {kid}")
+                return None
             
         cert_obj = load_pem_x509_certificate(cert_pem.encode('utf-8'))
         public_key = cert_obj.public_key()
