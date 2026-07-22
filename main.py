@@ -2252,73 +2252,51 @@ def create_sale():
         return jsonify({"error": "UID inválido"}), 401
 
     try:
-        from firebase_admin import firestore
-        try:
-            db_admin = firestore.client()
-        except ValueError:
-            return jsonify({"error": "Firestore client no inicializado"}), 500
-
-        # 2. MITIGACIÓN OWASP A01 (Race Condition): Transacción Atómica de Inventario
+        # 2. MITIGACIÓN OWASP A01 (Race Condition): Deducción de Inventario
         # Solo ejecutamos la validación estricta de stock si es origen local.
         if origen == "local":
-            transaction = db_admin.transaction()
+            docs_to_update = []
             
-            @firestore.transactional
-            def atomic_stock_deduction(transaction, cart_items):
-                docs_to_update = []
-                # Paso A: Lectura y Validación de todo el carrito
-                for cart_item in cart_items:
-                    prod_info = cart_item.get("product", {})
-                    sku = prod_info.get("sku")
-                    qty = safe_int(cart_item.get("quantity", 0))
+            # Paso A: Lectura y Validación de todo el carrito
+            for cart_item in items:
+                prod_info = cart_item.get("product", {})
+                sku = prod_info.get("sku")
+                qty = safe_int(cart_item.get("quantity", 0))
+                
+                if not sku or qty <= 0:
+                    continue
                     
-                    if not sku or qty <= 0:
-                        continue
-                        
-                    # Mazo usa aislamiento de inquilino (Tenant) para la db Admin SDK
-                    doc_ref = db_admin.collection("users").document(uid).collection("products").document(f"{prefix}{sku}")
-                    snapshot = doc_ref.get(transaction=transaction)
+                prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
+                
+                if not prod:
+                    return jsonify({"error": f"Producto con SKU {sku} no encontrado en inventario"}), 400
                     
-                    if not snapshot.exists:
-                        raise ValueError(f"Producto con SKU {sku} no encontrado en inventario")
-                        
-                    prod = snapshot.to_dict()
+                loc_stock = prod.get("locationsStock", {})
+                if isinstance(loc_stock, dict) and ubicacion in loc_stock:
+                    current_stock = safe_int(loc_stock[ubicacion])
+                else:
+                    current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
                     
-                    loc_stock = prod.get("locationsStock", {})
-                    if isinstance(loc_stock, dict) and ubicacion in loc_stock:
-                        current_stock = safe_int(loc_stock[ubicacion])
-                    else:
-                        current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
-                        
-                    if current_stock < qty:
-                        raise ValueError(f"Stock insuficiente para '{prod.get('name')}'. Disponible: {current_stock}, Solicitado: {qty}")
-                        
-                    # Preparar mutación de datos
-                    if isinstance(loc_stock, dict) and ubicacion in loc_stock:
-                        loc_stock[ubicacion] = current_stock - qty
-                        total_stock = sum(safe_int(v) for v in loc_stock.values())
-                        prod["locationsStock"] = loc_stock
-                        prod["stock"] = total_stock
-                        prod["stock_local"] = total_stock
-                    else:
-                        prod["stock_local"] = current_stock - qty
-                        prod["stock"] = prod["stock_local"]
-                        
-                    prod["sku"] = f"{prefix}{sku}"
-                    docs_to_update.append((doc_ref, prod))
+                if current_stock < qty:
+                    return jsonify({"error": f"Stock insuficiente para '{prod.get('name')}'. Disponible: {current_stock}, Solicitado: {qty}"}), 400
                     
-                # Paso B: Escritura Atómica (solo si todas las lecturas fueron válidas)
-                for ref, updated_prod in docs_to_update:
-                    transaction.set(ref, updated_prod, merge=True)
+                # Preparar mutación de datos
+                if isinstance(loc_stock, dict) and ubicacion in loc_stock:
+                    loc_stock[ubicacion] = current_stock - qty
+                    total_stock = sum(safe_int(v) for v in loc_stock.values())
+                    prod["locationsStock"] = loc_stock
+                    prod["stock"] = total_stock
+                    prod["stock_local"] = total_stock
+                else:
+                    prod["stock_local"] = current_stock - qty
+                    prod["stock"] = prod["stock_local"]
                     
-                return True
-
-            try:
-                atomic_stock_deduction(transaction, items)
-            except ValueError as ve:
-                return jsonify({"error": str(ve)}), 400
-            except Exception as e:
-                return jsonify({"error": f"Error transaccional de inventario: {str(e)}"}), 500
+                prod["sku"] = f"{prefix}{sku}"
+                docs_to_update.append(prod)
+                
+            # Paso B: Escritura
+            for updated_prod in docs_to_update:
+                firebase_config.set_document("products", updated_prod["sku"], updated_prod, token)
 
         sale_id = f"V-{time.strftime('%H%M%S', time.localtime())}"
         
@@ -2420,10 +2398,6 @@ def create_sale():
                 kwargs={"token": token, "prefix": prefix},
                 daemon=True
             ).start()
-
-        if res:
-            res["id"] = res["id"][len(prefix):]
-        return jsonify(res)
 
         if res:
             res["id"] = res["id"][len(prefix):]
