@@ -257,7 +257,7 @@ def verify_id_token(id_token):
     # 1. Intentar verificar usando firebase-admin si se cuenta con Service Account y está inicializado
     if HAS_SERVICE_ACCOUNT and firebase_admin._apps:
         try:
-            decoded_token = auth.verify_id_token(id_token)
+            decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60)
             return decoded_token.get("uid")
         except Exception as e:
             log_err(f"firebase-admin falló: {e}")
@@ -284,7 +284,8 @@ def verify_id_token(id_token):
             algorithms=["RS256"],
             audience=PROJECT_ID,
             issuer=f"https://securetoken.google.com/{PROJECT_ID}",
-            leeway=60
+            leeway=60,
+            options={"verify_iat": False}
         )
         return decoded.get("user_id") or decoded.get("sub")
     except Exception as e:
