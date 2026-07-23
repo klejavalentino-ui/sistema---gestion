@@ -3803,7 +3803,15 @@ def emit_invoice():
                 wsfe = WSFEClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
                 
                 cbte_tipo = INVOICE_TYPES_MAP.get(invoice_type, 11)
-                last_authorized = wsfe.get_last_authorized_voucher(pos, cbte_tipo)
+                try:
+                    last_authorized = wsfe.get_last_authorized_voucher(pos, cbte_tipo)
+                except Exception as ex_val:
+                    if "600" in str(ex_val) or "token" in str(ex_val).lower():
+                        token_afip, sign_afip = wsaa.get_token_and_sign("wsfe", force_refresh=True)
+                        wsfe = WSFEClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
+                        last_authorized = wsfe.get_last_authorized_voucher(pos, cbte_tipo)
+                    else:
+                        raise ex_val
                 cbte_nro = last_authorized + 1
                 invoice_number = f"{str(pos).zfill(4)}-{str(cbte_nro).zfill(8)}"
                 

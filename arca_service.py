@@ -32,6 +32,16 @@ def _post_request(url, data, headers, timeout=30):
     session.mount("https://", LegacyContextAdapter())
     return session.post(url, data=data, headers=headers, timeout=timeout)
 
+# Cache global de Tickets de Acceso (TA) de AFIP para evitar golpear WSAA repetidamente en facturación masiva
+WSAA_TOKEN_CACHE = {}
+
+def purge_wsaa_cache(cache_key=None):
+    global WSAA_TOKEN_CACHE
+    if cache_key and cache_key in WSAA_TOKEN_CACHE:
+        del WSAA_TOKEN_CACHE[cache_key]
+    else:
+        WSAA_TOKEN_CACHE.clear()
+
 class WSAAClient:
     def __init__(self, cert_content, key_content, sandbox=True):
         self.cert_content = cert_content
@@ -39,10 +49,27 @@ class WSAAClient:
         self.sandbox = sandbox
         self.url = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms" if sandbox else "https://wsaa.afip.gov.ar/ws/services/LoginCms"
 
-    def get_token_and_sign(self, service="wsfe"):
-        timestamp = int(datetime.now().timestamp())
-        generation_time = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat().split(".")[0] + "Z"
-        expiration_time = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat().split(".")[0] + "Z"
+    def get_token_and_sign(self, service="wsfe", force_refresh=False):
+        import hashlib
+        import time
+        global WSAA_TOKEN_CACHE
+        
+        # Generar clave única de cache basada en los primeros 100 caracteres del certificado y el ambiente
+        cert_preview = str(self.cert_content)[:100] if self.cert_content else ""
+        cert_hash = hashlib.md5(f"{cert_preview}_{service}_{self.sandbox}".encode('utf-8')).hexdigest()
+        cache_key = f"{cert_hash}_{service}"
+        
+        now = datetime.now(timezone.utc)
+        
+        if not force_refresh and cache_key in WSAA_TOKEN_CACHE:
+            cached = WSAA_TOKEN_CACHE[cache_key]
+            # Reutilizar si aún es válido (con margen de 15 minutos)
+            if cached.get("expires_at") and cached["expires_at"] > (now + timedelta(minutes=15)):
+                return cached["token"], cached["sign"]
+        
+        timestamp = int(now.timestamp())
+        generation_time = (now - timedelta(minutes=5)).isoformat().split(".")[0] + "Z"
+        expiration_time = (now + timedelta(hours=11)).isoformat().split(".")[0] + "Z"
         
         tra_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <loginTicketRequest version="1.0">
@@ -91,19 +118,36 @@ class WSAAClient:
             "SOAPAction": ""
         }
         
-        r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
-        r.raise_for_status()
-        
-        root = ET.fromstring(r.text)
-        login_cms_return = root.find(".//loginCmsReturn") or root.find(".//{http://wsaa.view.sua.dvadac.desein.afip.gov}loginCmsReturn")
-        if login_cms_return is None:
-            raise Exception("No se pudo obtener loginCmsReturn del WSAA")
-            
-        ta_xml_str = login_cms_return.text
-        ta_root = ET.fromstring(ta_xml_str)
-        token = ta_root.find(".//token").text
-        sign = ta_root.find(".//sign").text
-        return token, sign
+        last_exception = None
+        for attempt in range(3):
+            try:
+                r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
+                r.raise_for_status()
+                
+                root = ET.fromstring(r.text)
+                login_cms_return = root.find(".//loginCmsReturn") or root.find(".//{http://wsaa.view.sua.dvadac.desein.afip.gov}loginCmsReturn")
+                if login_cms_return is None:
+                    raise Exception("No se pudo obtener loginCmsReturn del WSAA")
+                    
+                ta_xml_str = login_cms_return.text
+                ta_root = ET.fromstring(ta_xml_str)
+                token = ta_root.find(".//token").text
+                sign = ta_root.find(".//sign").text
+                
+                # Guardar en cache por 10.5 horas
+                WSAA_TOKEN_CACHE[cache_key] = {
+                    "token": token,
+                    "sign": sign,
+                    "expires_at": now + timedelta(hours=10, minutes=30)
+                }
+                
+                return token, sign
+            except Exception as ex:
+                last_exception = ex
+                if attempt < 2:
+                    time.sleep(1.0)
+                    
+        raise Exception(f"Error AFIP: {last_exception}")
 
 class WSFEClient:
     def __init__(self, token, sign, cuit, sandbox=True):

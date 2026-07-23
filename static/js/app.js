@@ -10363,6 +10363,10 @@ async function emitBulkArcaInvoices() {
       showToast(`Iniciando facturación masiva de ${selectedIds.length} comprobantes...`);
       
       for (let i = 0; i < selectedIds.length; i++) {
+        if (i > 0) {
+          await new Promise(r => setTimeout(r, 300));
+        }
+        
         const saleId = selectedIds[i];
         // Find local sale for name reference
         const sale = state.sales.find(s => s.id === saleId);
@@ -10370,16 +10374,31 @@ async function emitBulkArcaInvoices() {
         
         showToast(`[${i+1}/${selectedIds.length}] Facturando venta de ${saleDesc}...`);
         
-        try {
-          const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
-          successCount++;
-          // Solo si son 2 o menos ventas se ofrece/ejecuta la impresión individual
-          if (selectedIds.length <= 2) {
-            printSaleTicket(saleId);
+        let attempts = 0;
+        let lastError = null;
+        let success = false;
+        
+        while (attempts < 2 && !success) {
+          try {
+            attempts++;
+            const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
+            successCount++;
+            success = true;
+            // Solo si son 2 o menos ventas se ofrece/ejecuta la impresión individual
+            if (selectedIds.length <= 2) {
+              printSaleTicket(saleId);
+            }
+          } catch (error) {
+            lastError = error;
+            if (attempts < 2) {
+              await new Promise(r => setTimeout(r, 800));
+            }
           }
-        } catch (error) {
+        }
+        
+        if (!success) {
           failCount++;
-          errors.push(`Venta ${saleDesc}: ${error.message}`);
+          errors.push(`Venta ${saleDesc}: ${lastError ? lastError.message : "Error de emisión"}`);
         }
       }
       
