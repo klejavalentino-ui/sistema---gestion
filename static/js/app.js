@@ -3854,18 +3854,37 @@ async function downloadInvoicePDF(saleId) {
   showToast("Generando y descargando PDF de la factura...");
 
   const container = document.createElement("div");
-  container.style.position = "fixed";
-  container.style.left = "-9999px";
-  container.style.top = "-9999px";
-  container.style.width = "650px";
-  container.style.background = "#ffffff";
-  container.style.color = "#000000";
-  container.style.fontFamily = "'Courier New', Courier, monospace";
-  container.style.fontSize = "13px";
-  container.style.padding = "25px";
+  container.id = "pdf-temp-container";
+  container.style.position = "absolute";
+  container.style.top = "0";
+  container.style.left = "0";
+  container.style.width = "480px";
+  container.style.zIndex = "-9999";
+  container.style.opacity = "0.01";
+  container.style.pointerEvents = "none";
   container.style.boxSizing = "border-box";
 
-  container.innerHTML = getInvoiceTicketInnerHTML(sale);
+  container.innerHTML = `
+    <style>
+      #pdf-temp-container {
+        background: #ffffff !important;
+      }
+      .pdf-wrapper {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        font-family: 'Courier New', Courier, monospace !important;
+        width: 100% !important;
+      }
+      .pdf-wrapper * {
+        color: #000000 !important;
+        background-color: transparent !important;
+        border-color: #000000 !important;
+      }
+    </style>
+    <div class="pdf-wrapper" style="padding: 15px;">
+      ${getInvoiceTicketInnerHTML(sale)}
+    </div>
+  `;
   document.body.appendChild(container);
 
   const fileName = sale.arca_invoice_id ? `Factura_${sale.arca_invoice_id}.pdf` : `Comprobante_${sale.id}.pdf`;
