@@ -2651,29 +2651,13 @@ def update_arca_category():
 def normalize_size(sz):
     if not sz:
         return "Único"
-    sz_upper = str(sz).strip().upper()
-    
-    if "S/M" in sz_upper or "TALLE 1" in sz_upper or sz_upper == "1":
-        return "S"
-    if "M/L" in sz_upper or "TALLE 2" in sz_upper or sz_upper == "2":
-        return "M"
-    if "L/XL" in sz_upper or "TALLE 3" in sz_upper or sz_upper == "3":
-        return "L"
-    if "XL/XXL" in sz_upper or "TALLE 4" in sz_upper or sz_upper == "4":
-        return "XL"
-        
-    if sz_upper in ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL"]:
-        return sz_upper
-        
+    sz_str = str(sz).strip()
+    if not sz_str:
+        return "Único"
+    sz_upper = sz_str.upper()
     if sz_upper in ["U", "UNICO", "ÚNICO", "TALLE UNICO", "TALLE ÚNICO", "SINGLE"]:
         return "Único"
-        
-    for std in ["XXL", "XL", "XS", "S", "M", "L"]:
-        import re
-        if re.search(r'\b' + std + r'\b', sz_upper):
-            return std
-            
-    return "Único"
+    return sz_str
 
 def clean_product_name_and_size(p_name, variant_size):
     norm_size = normalize_size(variant_size)

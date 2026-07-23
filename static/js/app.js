@@ -10670,37 +10670,13 @@ async function deleteExternalMonthlyBilling(key) {
 
 function normalizeSize(sz) {
   if (!sz) return "Único";
-  const szUpper = sz.toString().trim().toUpperCase();
-  
-  if (szUpper.includes("S/M") || szUpper.includes("TALLE 1") || szUpper === "1") {
-    return "S";
-  }
-  if (szUpper.includes("M/L") || szUpper.includes("TALLE 2") || szUpper === "2") {
-    return "M";
-  }
-  if (szUpper.includes("L/XL") || szUpper.includes("TALLE 3") || szUpper === "3") {
-    return "L";
-  }
-  if (szUpper.includes("XL/XXL") || szUpper.includes("TALLE 4") || szUpper === "4") {
-    return "XL";
-  }
-  
-  if (["XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL"].includes(szUpper)) {
-    return szUpper;
-  }
-  
+  const szStr = sz.toString().trim();
+  if (!szStr) return "Único";
+  const szUpper = szStr.toUpperCase();
   if (["U", "UNICO", "ÚNICO", "TALLE UNICO", "TALLE ÚNICO", "SINGLE"].includes(szUpper)) {
     return "Único";
   }
-  
-  for (const std of ["XXL", "XL", "XS", "S", "M", "L"]) {
-    const regex = new RegExp(`\\b${std}\\b`);
-    if (regex.test(szUpper)) {
-      return std;
-    }
-  }
-  
-  return "Único";
+  return szStr;
 }
 
 function toggleLoginPasswordVisibility() {
