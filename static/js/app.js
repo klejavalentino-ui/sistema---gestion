@@ -81,10 +81,14 @@ const state = {
 let tempLocationStock = {};
 
 function getConfiguredSizes() {
-  if (state.userProfile && state.userProfile.sizeVariants && state.userProfile.sizeVariants.length > 0) {
-    return state.userProfile.sizeVariants;
+  const raw = (state.userProfile && state.userProfile.sizeVariants) || state.sizeVariants;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map(s => String(s).trim()).filter(Boolean);
   }
-  return ["XS", "S", "M", "L", "XL", "XXL", "Único"];
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.split(",").map(s => s.trim()).filter(Boolean);
+  }
+  return ["XS", "S", "M", "L", "XL", "XXL", "Talle 1", "Talle 2", "Talle 3", "Talle 4", "Único"];
 }
 let currentLocationTab = "";
 
@@ -4162,8 +4166,7 @@ function renderInventory() {
     const colorClass = isCritical ? '#f87171' : '#10b981';
     
     // Ordenar los talles según las variantes configuradas en el negocio + estándar
-    const configuredSizesStr = state.userProfile?.sizeVariants || state.sizeVariants || "XS, S, M, L, XL, XXL, Talle 1, Talle 2, Talle 3, Talle 4";
-    const configuredSizes = configuredSizesStr.split(",").map(s => s.trim()).filter(Boolean);
+    const configuredSizes = getConfiguredSizes();
     const defaultSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Talle 1', 'Talle 2', 'Talle 3', 'Talle 4', 'Único'];
     const sizeOrder = [...new Set([...configuredSizes, ...defaultSizes])];
 
@@ -12437,8 +12440,7 @@ function selectQuoteProduct(index) {
       if (sp.sizesStock && typeof sp.sizesStock === "object") Object.keys(sp.sizesStock).forEach(sz => availableSizes.push(sz));
     });
 
-    const configuredStr = state.userProfile?.sizeVariants || state.sizeVariants || "XS, S, M, L, XL, XXL, Talle 1, Talle 2, Talle 3, Talle 4";
-    const configuredList = configuredStr.split(",").map(s => s.trim()).filter(Boolean);
+    const configuredList = getConfiguredSizes();
 
     if (availableSizes.length === 0) {
       availableSizes = ["Único", ...configuredList];
