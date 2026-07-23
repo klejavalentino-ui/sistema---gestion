@@ -7336,13 +7336,14 @@ function renderFixedCosts() {
   renderFixedCostsCategoryGrid();
 }
 
-const GASTOS_CATEGORIES = ['Estructura', 'Personal', 'Dirección', 'Marketing Fijo', 'Servicios Digitales'];
+const GASTOS_CATEGORIES = ['Estructura', 'Personal', 'Impositiva', 'Dirección', 'Marketing Fijo', 'Servicios'];
 const GASTOS_SUBCATEGORIES = {
   Estructura: ['Alquiler', 'Luz', 'Internet', 'Expensas', 'Mantenimiento', 'Servicios', 'Otros'],
   Personal: ['Sueldo Empleado'],
+  Impositiva: ['ARCA', 'Municipal', 'Otros'],
   Dirección: ['Sueldo del Dueño'],
   'Marketing Fijo': ['Pauta Digital Fija', 'Embajadores/Influencers Recurrentes'],
-  'Servicios Digitales': ['Tiendanube', 'Pasarelas de Pago Fijas', 'Software/Suscripciones']
+  Servicios: ['Transporte', 'Tiendanube', 'Pasarelas de Pago Fijas', 'Software/Suscripciones', 'Otros']
 };
 
 let currentSelectedCategory = 'Estructura';
@@ -7353,7 +7354,7 @@ let currentSemana = '1';
 
 function renderFixedCostsCategoryGrid() {
   const container = document.getElementById("cost-category-grid");
-  if (container.children.length > 0) return; // ya inicializado
+  if (!container) return;
   
   container.innerHTML = "";
   GASTOS_CATEGORIES.forEach(cat => {
