@@ -4213,7 +4213,6 @@ function renderInventory() {
       </td>
       <td>
         <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-white);">${tallesText}</div>
-        ${(g.color && g.color !== "Único" && g.color.toLowerCase() !== "único") ? `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px; font-style: italic;">Color: ${g.color}</div>` : ""}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
         <div style="font-size: 0.8rem; color: var(--text-white);">${g.totalStock} u.</div>
