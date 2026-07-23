@@ -3853,21 +3853,29 @@ async function downloadInvoicePDF(saleId) {
 
   showToast("Generando y descargando PDF de la factura...");
 
+  // Wrapper invisible para el usuario (altura 1px y overflow hidden)
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "absolute";
+  wrapper.style.top = "0";
+  wrapper.style.left = "0";
+  wrapper.style.width = "480px";
+  wrapper.style.height = "1px";
+  wrapper.style.overflow = "hidden";
+  wrapper.style.zIndex = "-9999";
+  wrapper.style.pointerEvents = "none";
+
   const container = document.createElement("div");
   container.id = "pdf-temp-container";
-  container.style.position = "absolute";
-  container.style.top = "0";
-  container.style.left = "0";
   container.style.width = "480px";
-  container.style.zIndex = "-9999";
-  container.style.opacity = "0.01";
-  container.style.pointerEvents = "none";
+  container.style.background = "#ffffff";
+  container.style.color = "#000000";
   container.style.boxSizing = "border-box";
 
   container.innerHTML = `
     <style>
       #pdf-temp-container {
         background: #ffffff !important;
+        color: #000000 !important;
       }
       .pdf-wrapper {
         color: #000000 !important;
@@ -3885,7 +3893,11 @@ async function downloadInvoicePDF(saleId) {
       ${getInvoiceTicketInnerHTML(sale)}
     </div>
   `;
-  document.body.appendChild(container);
+  wrapper.appendChild(container);
+  document.body.appendChild(wrapper);
+
+  // Esperar a que el navegador dibuje
+  await new Promise(resolve => setTimeout(resolve, 400));
 
   const fileName = sale.arca_invoice_id ? `Factura_${sale.arca_invoice_id}.pdf` : `Comprobante_${sale.id}.pdf`;
 
@@ -3908,8 +3920,8 @@ async function downloadInvoicePDF(saleId) {
     console.error("Error al generar PDF:", err);
     showToast("Error al descargar PDF.", true);
   } finally {
-    if (document.body.contains(container)) {
-      document.body.removeChild(container);
+    if (document.body.contains(wrapper)) {
+      document.body.removeChild(wrapper);
     }
   }
 }
