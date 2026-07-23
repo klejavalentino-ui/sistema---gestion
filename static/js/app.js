@@ -3853,30 +3853,18 @@ async function downloadInvoicePDF(saleId) {
 
   showToast("Generando y descargando PDF de la factura...");
 
-  // Wrapper invisible para el usuario (altura 1px y overflow hidden)
-  const wrapper = document.createElement("div");
-  wrapper.style.position = "absolute";
-  wrapper.style.top = "0";
-  wrapper.style.left = "0";
-  wrapper.style.width = "480px";
-  wrapper.style.height = "1px";
-  wrapper.style.overflow = "hidden";
-  wrapper.style.zIndex = "-9999";
-  wrapper.style.pointerEvents = "none";
+  // Contenedor standalone (NO acoplado al DOM para evitar interferencias y recortes)
+  const pdfContainer = document.createElement("div");
+  pdfContainer.style.width = "140mm";
+  pdfContainer.style.margin = "0 auto";
+  pdfContainer.style.padding = "20px";
+  pdfContainer.style.background = "#ffffff";
+  pdfContainer.style.color = "#000000";
+  pdfContainer.style.fontFamily = "'Courier New', Courier, monospace";
+  pdfContainer.style.boxSizing = "border-box";
 
-  const container = document.createElement("div");
-  container.id = "pdf-temp-container";
-  container.style.width = "480px";
-  container.style.background = "#ffffff";
-  container.style.color = "#000000";
-  container.style.boxSizing = "border-box";
-
-  container.innerHTML = `
+  pdfContainer.innerHTML = `
     <style>
-      #pdf-temp-container {
-        background: #ffffff !important;
-        color: #000000 !important;
-      }
       .pdf-wrapper {
         color: #000000 !important;
         background-color: #ffffff !important;
@@ -3888,30 +3876,37 @@ async function downloadInvoicePDF(saleId) {
         background-color: transparent !important;
         border-color: #000000 !important;
       }
+      .pdf-wrapper table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+      .pdf-wrapper th {
+        border-bottom: 1px dashed #000000 !important;
+        padding: 4px 2px !important;
+        font-weight: bold !important;
+      }
+      .pdf-wrapper td {
+        padding: 4px 2px !important;
+      }
     </style>
-    <div class="pdf-wrapper" style="padding: 15px;">
+    <div class="pdf-wrapper">
       ${getInvoiceTicketInnerHTML(sale)}
     </div>
   `;
-  wrapper.appendChild(container);
-  document.body.appendChild(wrapper);
-
-  // Esperar a que el navegador dibuje
-  await new Promise(resolve => setTimeout(resolve, 400));
 
   const fileName = sale.arca_invoice_id ? `Factura_${sale.arca_invoice_id}.pdf` : `Comprobante_${sale.id}.pdf`;
 
   const opt = {
-    margin: [10, 10, 10, 10],
+    margin: [15, 15, 15, 15],
     filename: fileName,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
   try {
     if (typeof html2pdf !== 'undefined') {
-      await html2pdf().set(opt).from(container).save();
+      await html2pdf().set(opt).from(pdfContainer).save();
       showToast("¡PDF descargado con éxito!");
     } else {
       printSaleTicket(saleId);
@@ -3919,10 +3914,6 @@ async function downloadInvoicePDF(saleId) {
   } catch (err) {
     console.error("Error al generar PDF:", err);
     showToast("Error al descargar PDF.", true);
-  } finally {
-    if (document.body.contains(wrapper)) {
-      document.body.removeChild(wrapper);
-    }
   }
 }
 window.downloadInvoicePDF = downloadInvoicePDF;
@@ -10273,7 +10264,7 @@ async function loadArcaInvoices() {
     if (!invoices || invoices.length === 0) {
       tbody.innerHTML = `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
-          <td colspan="8" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
+          <td colspan="9" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
         </tr>
       `;
       return [];
@@ -10288,41 +10279,53 @@ async function loadArcaInvoices() {
         month: "2-digit",
         year: "numeric"
       });
+      
+      // Buscar venta correspondiente en state.sales para obtener su fecha
+      const matchingSale = state.sales.find(s => s.id === inv.sale_id);
+      const formattedSaleDate = matchingSale ? new Date(matchingSale.date).toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      }) : formattedDate;
+
       const assocText = inv.associated_invoice ? `<div style="font-size: 0.65rem; color: var(--text-gray);">Asoc: ${inv.associated_invoice}</div>` : "";
       return `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
           <!-- 1° Columna: Fecha Emitida -->
           <td style="padding: 8px; white-space: nowrap; color: var(--text-white); font-weight: 600;">📅 ${formattedDate}</td>
           
-          <!-- 2° Columna: Tipo -->
+          <!-- 2° Columna: Fecha de Venta -->
+          <td style="padding: 8px; white-space: nowrap; color: var(--text-white); font-weight: 600;">📅 ${formattedSaleDate}</td>
+          
+          <!-- 3° Columna: Tipo -->
           <td style="padding: 8px; font-weight: 700; color: var(--text-white);">
             <div>${inv.type || "Factura C"}</div>
             ${assocText}
           </td>
           
-          <!-- 3° Columna: Número de Factura -->
+          <!-- 4° Columna: Número de Factura -->
           <td style="padding: 8px; font-weight: 600;">${inv.invoice_number || "-"}</td>
           
-          <!-- 4° Columna: Cliente CUIT -->
+          <!-- 5° Columna: Cliente CUIT -->
           <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
           
-          <!-- 5° Columna: Total Facturado -->
+          <!-- 6° Columna: Total Facturado -->
           <td style="padding: 8px; text-align: right; font-weight: 700; color: var(--text-white);">$ ${Math.round(inv.total || 0).toLocaleString("es-AR")}</td>
           
-          <!-- 6° Columna: CAE / Vencimiento -->
+          <!-- 7° Columna: CAE / Vencimiento -->
           <td style="padding: 8px;">
             <div>CAE: ${inv.cae || "-"}</div>
             <div style="font-size: 0.65rem; color: var(--text-gray);">Vto: ${inv.cae_due || "-"}</div>
           </td>
           
-          <!-- 7° Columna: Estado -->
+          <!-- 8° Columna: Estado -->
           <td style="padding: 8px; text-align: center;">
             <span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">
               ✓ ${inv.status || "Aprobado"}
             </span>
           </td>
           
-          <!-- 8° Columna: Acciones (Imprimir + Descargar PDF) -->
+          <!-- 9° Columna: Acciones (Imprimir + Descargar PDF) -->
           <td style="padding: 8px; text-align: center; white-space: nowrap;">
             <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
               <button class="btn btn-secondary" onclick="printSaleTicket('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Imprimir Comprobante">
