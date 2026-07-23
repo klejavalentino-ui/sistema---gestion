@@ -3859,6 +3859,11 @@ function printSaleTicket(saleId) {
   }
 }
 
+function downloadInvoicePDF(saleId) {
+  printSaleTicket(saleId);
+}
+window.downloadInvoicePDF = downloadInvoicePDF;
+
 function exportSalesHistory() {
   const formatted = state.sales.flatMap(s => 
     s.items ? s.items.map(item => {
@@ -10204,27 +10209,47 @@ async function loadArcaInvoices() {
       const assocText = inv.associated_invoice ? `<div style="font-size: 0.65rem; color: var(--text-gray);">Asoc: ${inv.associated_invoice}</div>` : "";
       return `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
+          <!-- 1° Columna: Fecha Emitida -->
+          <td style="padding: 8px; white-space: nowrap; color: var(--text-white); font-weight: 600;">📅 ${formattedDate}</td>
+          
+          <!-- 2° Columna: Tipo -->
           <td style="padding: 8px; font-weight: 700; color: var(--text-white);">
             <div>${inv.type || "Factura C"}</div>
             ${assocText}
           </td>
-          <td style="padding: 8px;">${inv.invoice_number || "-"}</td>
-          <td style="padding: 8px; white-space: nowrap; color: var(--text-white); font-weight: 600;">📅 ${formattedDate}</td>
+          
+          <!-- 3° Columna: Número de Factura -->
+          <td style="padding: 8px; font-weight: 600;">${inv.invoice_number || "-"}</td>
+          
+          <!-- 4° Columna: Cliente CUIT -->
           <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
-          <td style="padding: 8px; text-align: right; font-weight: 700; color: var(--text-white);">$ ${Math.round(inv.total || 0).toLocaleString()}</td>
+          
+          <!-- 5° Columna: Total Facturado -->
+          <td style="padding: 8px; text-align: right; font-weight: 700; color: var(--text-white);">$ ${Math.round(inv.total || 0).toLocaleString("es-AR")}</td>
+          
+          <!-- 6° Columna: CAE / Vencimiento -->
           <td style="padding: 8px;">
             <div>CAE: ${inv.cae || "-"}</div>
             <div style="font-size: 0.65rem; color: var(--text-gray);">Vto: ${inv.cae_due || "-"}</div>
           </td>
+          
+          <!-- 7° Columna: Estado -->
           <td style="padding: 8px; text-align: center;">
             <span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">
               ✓ ${inv.status || "Aprobado"}
             </span>
           </td>
-          <td style="padding: 8px; text-align: center;">
-            <button class="btn btn-secondary" onclick="printSaleTicket('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);">
-              <i class="fas fa-print" style="color: var(--accent-blue);"></i> Imprimir
-            </button>
+          
+          <!-- 8° Columna: Acciones (Imprimir + Descargar PDF) -->
+          <td style="padding: 8px; text-align: center; white-space: nowrap;">
+            <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
+              <button class="btn btn-secondary" onclick="printSaleTicket('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Imprimir Comprobante">
+                <i class="fas fa-print" style="color: var(--accent-blue);"></i> Imprimir
+              </button>
+              <button class="btn btn-secondary" onclick="downloadInvoicePDF('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Descargar PDF">
+                <i class="fas fa-file-pdf" style="color: var(--accent-red);"></i> Descargar PDF
+              </button>
+            </div>
           </td>
         </tr>
       `;
