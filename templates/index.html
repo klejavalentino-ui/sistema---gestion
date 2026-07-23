@@ -710,12 +710,18 @@
                   </div>
                 </div>
 
-                <div class="grid-2">
-                  <div class="form-group" id="intake-margin-container">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                  <div class="form-group" id="intake-margin-container" style="margin-bottom: 0;">
                     <label class="form-label">Margen (%)</label>
                     <input type="number" id="intake-margin" class="form-input" placeholder="Ej. 30">
                   </div>
-                  <div class="form-group">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Ubicación / Depósito *</label>
+                    <select id="intake-location-select" class="form-select" required style="padding: 10px 12px; font-weight: 600;">
+                      <!-- Se cargará dinámicamente -->
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Fecha de Ingreso *</label>
                     <input type="date" id="intake-date" class="form-input" required>
                   </div>

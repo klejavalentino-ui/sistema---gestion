@@ -5289,6 +5289,18 @@ function deleteSupplier(sId) {
   });
 }
 
+function populateIntakeLocations() {
+  const locSelect = document.getElementById("intake-location-select");
+  if (!locSelect) return;
+  
+  const locations = (state.userProfile?.locations && state.userProfile.locations.length > 0) 
+    ? state.userProfile.locations 
+    : ["Local Principal"];
+    
+  locSelect.innerHTML = locations.map(loc => `<option value="${loc}">${loc}</option>`).join("");
+}
+window.populateIntakeLocations = populateIntakeLocations;
+
 // --- Stock Intake Form Setup & Submission ---
 function setupStockIntakeForm() {
   const searchInput = document.getElementById("intake-product-search");
@@ -5298,6 +5310,7 @@ function setupStockIntakeForm() {
   const dateInput = document.getElementById("intake-date");
   
   renderIntakeTallesGrid();
+  populateIntakeLocations();
   
   if (!searchInput) return;
   
@@ -5838,6 +5851,8 @@ async function handleStockIntakeSubmit(e) {
     return;
   }
   
+  const selectedLocation = document.getElementById("intake-location-select")?.value || (state.userProfile?.locations?.[0] || "Local Principal");
+  
   if (!isProd) {
     // Ingreso de Adicional / Insumo
     const extraSelect = document.getElementById("intake-extra-item-select");
@@ -5879,6 +5894,7 @@ async function handleStockIntakeSubmit(e) {
         productSku: optionId,
         productName: `Adicional: ${option.name}`,
         supplierName: supplierName,
+        location: selectedLocation,
         quantities: { 'Único': qty },
         totalQuantity: qty,
         unitCost: unitCost,
@@ -6034,9 +6050,18 @@ async function handleStockIntakeSubmit(e) {
       );
       
       if (existing) {
+        const currentLocStock = (existing.locationsStock && existing.locationsStock[selectedLocation] !== undefined)
+          ? existing.locationsStock[selectedLocation]
+          : 0;
+        const updatedLocStock = {
+          ...(existing.locationsStock || {}),
+          [selectedLocation]: currentLocStock + qty
+        };
         const updatedVariant = {
           ...existing,
           stock: (existing.stock || 0) + qty,
+          locationsStock: updatedLocStock,
+          location: selectedLocation,
           baseCost: baseCost,
           margin: margin,
           cost: unitCost,
@@ -6057,6 +6082,8 @@ async function handleStockIntakeSubmit(e) {
           size: size,
           color: selectedProduct.color || 'Único',
           stock: qty,
+          locationsStock: { [selectedLocation]: qty },
+          location: selectedLocation,
           baseCost: baseCost,
           margin: margin,
           cost: unitCost,
@@ -6077,6 +6104,7 @@ async function handleStockIntakeSubmit(e) {
       productSku: baseSku,
       productName: selectedProduct.name,
       supplierName: supplierName,
+      location: selectedLocation,
       quantities: quantitiesMap,
       totalQuantity: totalQuantity,
       unitCost: unitCost,
@@ -6173,7 +6201,10 @@ function renderStockIntakes() {
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
           <div>
             <h4 style="font-size: 0.85rem; font-weight: 800; color: var(--text-white);">${item.productName}</h4>
-            <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 2px;">Proveedor: <strong>${item.supplierName}</strong></p>
+            <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 2px;">
+              Proveedor: <strong>${item.supplierName}</strong>
+              ${item.location ? ` | <span style="background: rgba(37,99,235,0.15); color: #60a5fa; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.65rem;">📍 ${item.location}</span>` : ''}
+            </p>
           </div>
           <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted);">${dateStr}</span>
         </div>
@@ -10155,7 +10186,7 @@ async function loadArcaInvoices() {
     if (!invoices || invoices.length === 0) {
       tbody.innerHTML = `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
-          <td colspan="6" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
+          <td colspan="8" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
         </tr>
       `;
       return [];
@@ -10178,6 +10209,7 @@ async function loadArcaInvoices() {
             ${assocText}
           </td>
           <td style="padding: 8px;">${inv.invoice_number || "-"}</td>
+          <td style="padding: 8px; white-space: nowrap; color: var(--text-white); font-weight: 600;">📅 ${formattedDate}</td>
           <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
           <td style="padding: 8px; text-align: right; font-weight: 700; color: var(--text-white);">$ ${Math.round(inv.total || 0).toLocaleString()}</td>
           <td style="padding: 8px;">
