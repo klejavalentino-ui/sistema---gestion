@@ -534,7 +534,7 @@ function triggerExcelImport() {
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 15px; font-size: 0.8rem; line-height: 1.5; color: var(--text-gray-light);">
           ⚠️ <strong style="color: var(--accent-red);">¡Atención!</strong> Para que el archivo de Excel se lea correctamente, <strong>debe contener exactamente los siguientes encabezados como títulos de tabla</strong> (no importa mayúsculas, minúsculas o tildes, pero sí el contenido literal):
           <div style="background: var(--bg-input); font-family: monospace; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem; color: var(--text-white); border: 1px solid var(--border-color); line-height: 1.5; word-break: break-word;">
-            <strong>SKU | Producto | Categoría | Talle | Variante | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
+            <strong>SKU | Producto | Categoría | Talle | Costo Unitario | Margen (%) | Precio de Venta | Stock Actual | Tiempo de Entrega (días) | Stock de seguridad</strong>
           </div>
         </div>
       `;
@@ -952,7 +952,7 @@ function downloadExcelTemplate() {
   const isComercio = state.businessType === "comercio";
   const headers = isComercio 
     ? [["SKU", "Producto", "Categoría", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]]
-    : [["SKU", "Producto", "Categoría", "Talle", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]];
+    : [["SKU", "Producto", "Categoría", "Talle", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]];
   const sampleData = isComercio
     ? [
         ["PROD-001", "Coca Cola 1.5L", "Bebidas", "Único", "1200", "50", "1800", "24", "15", "5"],
@@ -961,10 +961,10 @@ function downloadExcelTemplate() {
         ["PROD-004", "Galletitas Dulces", "Almacén", "Único", "800", "50", "1200", "60", "10", "12"]
       ]
     : [
-        ["REM-NEGRA-M", "Remera Algodón Negra", "Remeras", "M", "Negro", "3000", "100", "6000", "15", "5"],
-        ["REM-NEGRA-S", "Remera Algodón Negra", "Remeras", "S", "Negro", "3000", "100", "6000", "15", "3"],
-        ["JEAN-AZUL-42", "Pantalón Jean Azul", "Pantalones", "42", "Azul", "8000", "80", "14400", "20", "15", "4"],
-        ["BUZO-GRIS-L", "Buzo Canguro Gris", "Abrigos", "L", "Gris Melange", "12000", "90", "22800", "8", "20", "2"]
+        ["REM-NEGRA-M", "Remera Oversize Negra", "Remeras", "M", "3000", "100", "6000", "15", "5", "3"],
+        ["REM-NEGRA-S", "Remera Oversize Negra", "Remeras", "S", "3000", "100", "6000", "15", "5", "3"],
+        ["JEAN-AZUL-42", "Pantalón Jean Azul", "Pantalones", "42", "8000", "80", "14400", "20", "15", "4"],
+        ["BUZO-GRIS-L", "Buzo Canguro Gris", "Abrigos", "L", "12000", "90", "22800", "8", "20", "2"]
       ];
   
   const sheetData = headers.concat(sampleData);
@@ -1007,7 +1007,6 @@ function handleExcelImport(event) {
         "producto",
         "categoria",
         "talle",
-        "variante",
         "costo unitario",
         "margen (%)",
         "precio de venta",
@@ -4495,9 +4494,7 @@ function openCreateProductModal() {
   });
 
   const isComercio = state.businessType === "comercio";
-  document.getElementById("prod-color-label").innerText = isComercio ? "Variante" : "Color";
-  document.getElementById("prod-color").placeholder = isComercio ? "Ej. Chocolate, Pack x3, etc." : "Ej. Negro";
-  document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Básica";
+  document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Negra";
   document.getElementById("prod-sku").placeholder = isComercio ? "Ej. ALFA-CHO-01" : "Ej. REM-OVR-N";
   
   // Initialize locations stock
@@ -4612,9 +4609,7 @@ function openEditProductModal(sku) {
   });
 
   const isComercio = state.businessType === "comercio";
-  document.getElementById("prod-color-label").innerText = isComercio ? "Variante" : "Color";
-  document.getElementById("prod-color").placeholder = isComercio ? "Ej. Chocolate, Pack x3, etc." : "Ej. Negro";
-  document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Básica";
+  document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Negra";
   document.getElementById("prod-sku").placeholder = isComercio ? "Ej. ALFA-CHO-01" : "Ej. REM-OVR-N";
   
   const talleCard = document.getElementById("product-talles-card");
