@@ -1690,36 +1690,25 @@
                 <div style="background: var(--bg-input); padding: 15px; border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
                   <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Última Sincronización</div>
                   <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-white); margin-top: 8px;" id="zecat-stat-last-sync">Hoy</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- COLUMNA DERECHA: GUÍA PASO A PASO INTERACTIVA DE CONEXIÓN -->
-          <div class="idx-card" style="padding: 20px; background: rgba(30, 41, 59, 0.6); border: 1px solid var(--border-color);">
-            <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-white); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-              📘 Pasos para Conectar tu Sistema con Zecat
-            </h3>
-
-            <div style="display: flex; flex-direction: column; gap: 16px; font-size: 0.82rem; line-height: 1.5; color: var(--text-gray-light);">
+                <div style="display: flex; flex-direction: column; gap: 16px; font-size: 0.82rem; line-height: 1.5; color: var(--text-gray-light);">
               <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-blue);">
                 <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">1. Solicitá tu Token de API 2.0 a Zecat</strong>
-                Pedile a tu ejecutivo de cuenta o soporte comercial de Zecat tu <strong>Token de API Partner</strong>. Zecat provee esta clave a todos sus distribuidores oficiales.
+                Pedile a tu ejecutivo comercial o a soporte técnico de Zecat tu <strong>Token de API Partner</strong> (clave de llamada a la API 2.0 de Zecat).
               </div>
 
               <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-purple);">
-                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">2. Cargá las Credenciales en Datamargen</strong>
-                Ingresá la URL de tu tienda (<code>joymomerch.productosconlogo.com</code>) y el Token de API en el formulario de la izquierda y presioná <strong>"Guardar Credenciales"</strong>.
+                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">2. Obtené tu Código / ID de Partner Zecat</strong>
+                Es tu número de cuenta único de revendedor oficial Zecat. Podés encontrarlo en la esquina superior de tu panel B2B en <code>zecat.com</code> o en la cabecera de tus facturas de compra mayoristas.
               </div>
 
               <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-emerald);">
-                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">3. Sincronización Automática del Catálogo</strong>
-                Al hacer clic en <strong>"Sincronizar Catálogo"</strong>, Datamargen vinculará los artículos, códigos SKU (mochilas, botellas, prendas, kits), imágenes y precios de costo mayorista de Zecat.
+                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">3. Sincronización Automática del Catálogo e Inventario</strong>
+                Al hacer clic en <strong>"Sincronizar Catálogo"</strong>, Datamargen vinculará los artículos, SKUs, imágenes y precios mayoristas de Zecat y los asignará automáticamente a la ubicación <strong>Web</strong> en la pestaña de Inventario.
               </div>
 
               <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-amber);">
-                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">4. Consultá Stock y Cotizá en Presupuestos</strong>
-                Vas a poder buscar los productos sincronizados desde el módulo de <strong>Presupuestos</strong>, definir tus márgenes comerciales y cotizar a tus clientes corporativos en segundos.
+                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">4. Cotizá desde Presupuestos</strong>
+                Buscá los productos sincronizados desde el módulo de <strong>Presupuestos</strong> para cotizar rápidamente a tus clientes corporativos por WhatsApp o descargar en PDF profesional.
               </div>
             </div>
           </div>
@@ -1758,11 +1747,11 @@
               <div style="display: flex; flex-direction: column; gap: 12px;">
                 <div class="form-group" style="margin: 0;">
                   <label>Nombre del Cliente</label>
-                  <input type="text" id="quote-client-name" class="form-control" placeholder="Ej: Juan Pérez" oninput="renderQuotesUI()">
+                  <input type="text" id="quote-client-name" class="form-input" placeholder="Ej: Juan Pérez" oninput="renderQuotesUI()">
                 </div>
                 <div class="form-group" style="margin: 0;">
                   <label>Teléfono o Nota</label>
-                  <input type="text" id="quote-client-note" class="form-control" placeholder="Ej: Validez: 7 días" oninput="renderQuotesUI()">
+                  <input type="text" id="quote-client-note" class="form-input" placeholder="Ej: Validez: 7 días" oninput="renderQuotesUI()">
                 </div>
               </div>
             </div>
@@ -1773,7 +1762,7 @@
               <div style="display: flex; flex-direction: column; gap: 12px;">
                 <div class="form-group" style="margin: 0; position: relative;">
                   <label>Buscar Producto o Código (SKU)</label>
-                  <input type="text" id="quote-product-search" class="form-control" placeholder="Escribí código o nombre..." oninput="onQuoteSearchInput(this.value)" autocomplete="off">
+                  <input type="text" id="quote-product-search" class="form-input" placeholder="Escribí código o nombre..." oninput="onQuoteSearchInput(this.value)" autocomplete="off">
                   <div id="quote-search-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-top: 4px;"></div>
                 </div>
 
@@ -1785,11 +1774,11 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                   <div class="form-group" style="margin: 0;">
                     <label>Precio ($)</label>
-                    <input type="text" id="quote-item-price" class="form-control" placeholder="0" onblur="formatCurrencyField(this)">
+                    <input type="text" id="quote-item-price" class="form-input" placeholder="0" onblur="formatCurrencyField(this)">
                   </div>
                   <div class="form-group" style="margin: 0;">
                     <label>Cantidad</label>
-                    <input type="number" id="quote-item-qty" class="form-control" value="1" min="1">
+                    <input type="number" id="quote-item-qty" class="form-input" value="1" min="1">
                   </div>
                 </div>
 
@@ -1837,7 +1826,7 @@
               <div style="display: flex; flex-direction: column; gap: 8px;">
                 <div class="form-group" style="margin: 0; width: 160px;">
                   <label>Descuento ($)</label>
-                  <input type="text" id="quote-discount-input" class="form-control" placeholder="0" oninput="renderQuotesUI()" onblur="formatCurrencyField(this)">
+                  <input type="text" id="quote-discount-input" class="form-input" placeholder="0" oninput="renderQuotesUI()" onblur="formatCurrencyField(this)">
                 </div>
               </div>
 

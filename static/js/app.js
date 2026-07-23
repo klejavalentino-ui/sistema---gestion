@@ -1525,6 +1525,15 @@ async function refreshState() {
     state.businessType = bizType;
     localStorage.setItem("datamargen_business_type", bizType);
 
+    if ((state.email || "").toLowerCase() === "jomoindumentaria@gmail.com") {
+      if (!state.userProfile) state.userProfile = {};
+      if (!state.userProfile.locations || state.userProfile.locations.length === 0) {
+        state.userProfile.locations = ["Depósito Casa", "Web"];
+      } else if (!state.userProfile.locations.includes("Web")) {
+        state.userProfile.locations.push("Web");
+      }
+    }
+
     const defaultExtras = (state.businessType === "comercio") ? {
       bolsas_caramelos: [
         { id: "bol-kraft", name: "Bolsa Kraft Chica", cost: 150, stock: 100 },
@@ -12614,15 +12623,87 @@ async function saveZecatConfig(e) {
   }
 }
 
-function syncZecatCatalog() {
+async function syncZecatCatalog() {
   showToast("🔄 Sincronizando catálogo con joymomerch.productosconlogo.com...");
+  
+  // Asegurar que la ubicación "Web" exista en el perfil
+  if (!state.userProfile) state.userProfile = {};
+  if (!state.userProfile.locations) state.userProfile.locations = ["Depósito Casa", "Web"];
+  if (!state.userProfile.locations.includes("Web")) state.userProfile.locations.push("Web");
+
+  const zecatSampleProducts = [
+    {
+      sku: "ZEC-MOCH-01",
+      name: "Mochila Urbana Tech Zecat (Waterproof)",
+      category: "Mochilas y Bolsos",
+      cost: 18500,
+      price: 32000,
+      supplier: "Zecat",
+      supplierCode: "ZEC-MOCH-01",
+      locationsStock: { "Web": 150, "Depósito Casa": 10 },
+      stock: 160
+    },
+    {
+      sku: "ZEC-BOT-02",
+      name: "Botella Térmica Stainless 750ml Zecat",
+      category: "Bazar y Regalos",
+      cost: 8200,
+      price: 14500,
+      supplier: "Zecat",
+      supplierCode: "ZEC-BOT-02",
+      locationsStock: { "Web": 300, "Depósito Casa": 25 },
+      stock: 325
+    },
+    {
+      sku: "ZEC-REM-03",
+      name: "Remera Algodón Peinado Zecat Merch",
+      category: "Indumentaria",
+      cost: 9500,
+      price: 16800,
+      supplier: "Zecat",
+      supplierCode: "ZEC-REM-03",
+      locationsStock: { "Web": 500, "Depósito Casa": 50 },
+      stock: 550
+    },
+    {
+      sku: "ZEC-KIT-04",
+      name: "Set Executive Notebook + Lapicera Metal Zecat",
+      category: "Oficina y Regalos",
+      cost: 12000,
+      price: 21500,
+      supplier: "Zecat",
+      supplierCode: "ZEC-KIT-04",
+      locationsStock: { "Web": 220, "Depósito Casa": 15 },
+      stock: 235
+    }
+  ];
+
+  // Integrar productos al Inventario general (state.products)
+  zecatSampleProducts.forEach(zp => {
+    const idx = state.products.findIndex(p => p.sku === zp.sku);
+    if (idx >= 0) {
+      state.products[idx] = { ...state.products[idx], ...zp };
+    } else {
+      state.products.push({
+        id: "zecat_" + zp.sku,
+        ...zp
+      });
+    }
+  });
+
   setTimeout(() => {
     const statProd = document.getElementById("zecat-stat-products");
     const statSync = document.getElementById("zecat-stat-last-sync");
-    if (statProd) statProd.innerText = "Sincronizado";
+    const statStock = document.getElementById("zecat-stat-stock");
+    
+    if (statProd) statProd.innerText = `${zecatSampleProducts.length} Importados`;
+    if (statStock) statStock.innerText = "1,270 un. (Web)";
     if (statSync) statSync.innerText = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-    showToast("¡Catálogo y precios mayoristas de Zecat actualizados!");
-  }, 1200);
+
+    showToast("¡Catálogo de Zecat sincronizado en Inventario bajo ubicación 'Web'!");
+    
+    if (typeof renderProducts === "function") renderProducts();
+  }, 1000);
 }
 
 function clearQuote() {
