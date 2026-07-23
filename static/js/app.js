@@ -1561,25 +1561,18 @@ async function refreshState() {
     await renderIntegrationsStatus();
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
+      const userEmail = (state.email || "").toLowerCase();
+      const adminEmails = ["valentinoklcv@gmail.com", "jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"];
+      const isAllowedEmail = adminEmails.includes(userEmail) || state.role === "admin";
+
       if (item.id === "sidebar-tiendanube-item") {
-        if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
-          item.style.display = "block";
-        } else {
-          item.style.display = "none";
-        }
+        const isTnAllowed = (state.userProfile?.tiendanubeEnabled === true) || isAllowedEmail;
+        item.style.display = isTnAllowed ? "block" : "none";
       } else if (item.id === "sidebar-arca-item") {
-        const userEmail = (state.email || "").toLowerCase();
-        const isArcaAllowed = (state.userProfile?.arcaEnabled === true) || 
-                              ["klejavalentino@gmail.com", "valentinoklcv@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com", "jomoindumentaria@gmail.com"].includes(userEmail);
-        if (isArcaAllowed) {
-          item.style.display = "block";
-        } else {
-          item.style.display = "none";
-        }
+        const isArcaAllowed = (state.userProfile?.arcaEnabled === true) || isAllowedEmail;
+        item.style.display = isArcaAllowed ? "block" : "none";
       } else if (item.id === "sidebar-zecat-item") {
-        const userEmail = (state.email || "").toLowerCase();
-        const isZecatAllowed = (state.userProfile?.zecatEnabled === true) || 
-                               ["jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "valentinoklcv@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"].includes(userEmail);
+        const isZecatAllowed = (state.userProfile?.zecatEnabled === true) || isAllowedEmail;
         item.style.display = isZecatAllowed ? "block" : "none";
       } else {
         item.style.display = "block";
@@ -10557,8 +10550,8 @@ function applyPermissionsToUI() {
 
   // Solo aplicamos bloqueo si es subuser y tiene permissions
   if (state.role === "admin" || !state.permissions) {
-    // Restaurar todo a visible/habilitado si es admin (por si deslogueó y re-logueó)
-    document.querySelectorAll(".menu-item").forEach(el => el.style.display = "");
+    // Restaurar todo a visible/habilitado si es admin (sin sobreescribir ítems especiales ocultos)
+    document.querySelectorAll(".menu-item:not(#sidebar-tiendanube-item):not(#sidebar-arca-item):not(#sidebar-zecat-item)").forEach(el => el.style.display = "");
     document.querySelectorAll("button:not(.sidebar-menu-btn), input, select, textarea").forEach(el => el.disabled = false);
     return;
   }
