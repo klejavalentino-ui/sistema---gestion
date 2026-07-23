@@ -1581,7 +1581,8 @@ async function refreshState() {
         const isArcaAllowed = (state.userProfile?.arcaEnabled === true) || isAllowedEmail;
         item.style.display = isArcaAllowed ? "block" : "none";
       } else if (item.id === "sidebar-zecat-item") {
-        const isZecatAllowed = (state.userProfile?.zecatEnabled === true) || isAllowedEmail;
+        const zecatAllowedEmails = ["valentinoklcv@gmail.com", "jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "kljevalentino@gmail.com"];
+        const isZecatAllowed = (state.userProfile?.zecatEnabled === true) || zecatAllowedEmails.includes(userEmail);
         item.style.display = isZecatAllowed ? "block" : "none";
       } else {
         item.style.display = "block";
