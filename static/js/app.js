@@ -4073,37 +4073,46 @@ function renderInventory() {
   // Calcular ventas de los últimos 30 días para stock crítico dinámico
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const recentSales = state.sales.filter(s => new Date(s.date) >= thirtyDaysAgo);
+  const recentSales = (state.sales || []).filter(s => s && s.date && new Date(s.date) >= thirtyDaysAgo);
   const salesByProduct = {};
   recentSales.forEach(sale => {
-    if (sale.items) {
+    if (sale && sale.items && Array.isArray(sale.items)) {
       sale.items.forEach(item => {
-        const pSku = item.product.sku;
-        salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        if (!item) return;
+        const p = item.product || {};
+        const pSku = p.sku || p.id || item.sku || "";
+        if (pSku) {
+          salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        }
       });
     }
   });
 
   // Filtrar productos reales
-  const actualProducts = state.products.filter(p => p.sku &&
-                                                    !p.sku.startsWith("supplier_") && 
-                                                    !p.sku.startsWith("fixedcost_") && 
-                                                    !p.sku.startsWith("account_") && 
-                                                    !p.sku.startsWith("cashtransaction_") && 
-                                                    !p.sku.startsWith("influencer_") && 
-                                                    !p.sku.startsWith("marketingexpense_") && 
-                                                    !p.sku.startsWith("stockintake_") && 
-                                                    p.sku !== "extras_config" && 
-                                                    p.sku !== "categories_config");
+  const actualProducts = (state.products || []).filter(p => {
+    if (!p) return false;
+    const sku = p.sku || p.id || "";
+    return sku &&
+      !sku.startsWith("supplier_") && 
+      !sku.startsWith("fixedcost_") && 
+      !sku.startsWith("account_") && 
+      !sku.startsWith("cashtransaction_") && 
+      !sku.startsWith("influencer_") && 
+      !sku.startsWith("marketingexpense_") && 
+      !sku.startsWith("stockintake_") && 
+      sku !== "extras_config" && 
+      sku !== "categories_config";
+  });
 
   // Agrupar por baseSku
   const groupedProducts = {};
   actualProducts.forEach(p => {
-    const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
+    const pSku = p.sku || p.id || "";
+    const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : pSku) || "PROD";
     if (!groupedProducts[baseSku]) {
       groupedProducts[baseSku] = {
         baseSku: baseSku,
-        name: p.name || "",
+        name: p.name || "Producto sin nombre",
         category: p.category || "",
         color: p.color || "",
         variants: [],
@@ -4111,7 +4120,7 @@ function renderInventory() {
         totalMinStock: 0,
         cost: parseFloat(p.cost) || 0,
         margin: parseFloat(p.margin) || 0,
-        editSku: p.sku
+        editSku: pSku
       };
     }
     groupedProducts[baseSku].variants.push(p);
@@ -4132,7 +4141,7 @@ function renderInventory() {
                           baseSku.toLowerCase().includes(searchInput) || 
                           category.toLowerCase().includes(searchInput) ||
                           color.toLowerCase().includes(searchInput) ||
-                          g.variants.some(v => (v.sku || "").toLowerCase().includes(searchInput));
+                          g.variants.some(v => (v.sku || v.id || "").toLowerCase().includes(searchInput));
     const matchesCat = filterCat === "Todas las Categorías" || category === filterCat;
     return matchesSearch && matchesCat;
   });
@@ -4160,9 +4169,12 @@ function renderInventory() {
 
     const allProductSizes = new Set();
     g.variants.forEach(v => {
+      if (!v) return;
       if (v.size) allProductSizes.add(v.size);
       if (v.sizesStock && typeof v.sizesStock === 'object') {
-        Object.keys(v.sizesStock).forEach(sz => { if (sz) allProductSizes.add(sz); });
+        try {
+          Object.keys(v.sizesStock).forEach(sz => { if (sz) allProductSizes.add(sz); });
+        } catch(e) {}
       }
     });
 
