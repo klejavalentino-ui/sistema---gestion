@@ -3547,17 +3547,12 @@ async function deleteSale(saleId) {
 }
 
 function printSaleTicket(saleId) {
-  const sale = state.sales.find(s => s.id === saleId);
-  if (!sale) {
-    showToast("Venta no encontrada para imprimir", true);
-    return;
-  }
-
+function getInvoiceTicketInnerHTML(sale) {
   const dateObj = new Date(sale.date);
   const dateStr = dateObj.toLocaleDateString('es-AR');
   const timeStr = dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 
-  // Calcular items con sus precios reales
+  // 1. Items HTML con formato holgado y columnas claras (Detalle, Cantidad, Precio Unitario, Total)
   let itemsHtml = "";
   if (sale.items) {
     sale.items.forEach(item => {
@@ -3600,123 +3595,89 @@ function printSaleTicket(saleId) {
       const variantText = (state.businessType === "comercio" || p.size === "Único" || !item.size) ? "" : ` (${item.size})`;
 
       itemsHtml += `
-        <tr>
-          <td style="font-size: 10px;">
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="font-size: 10px; text-align: left; padding: 4px 2px;">
             ${p.name || item.name || 'Producto'}${variantText}
           </td>
-          <td class="text-right" style="font-size: 10px;">${qty}</td>
-          <td class="text-right" style="font-size: 10px;">$${Math.round(unitPrice).toLocaleString('es-AR')}</td>
-          <td class="text-right" style="font-size: 10px;">$${Math.round(subtotal).toLocaleString('es-AR')}</td>
+          <td style="font-size: 10px; text-align: center; padding: 4px 2px;">${qty}</td>
+          <td style="font-size: 10px; text-align: right; padding: 4px 2px; white-space: nowrap;">$ ${Math.round(unitPrice).toLocaleString('es-AR')}</td>
+          <td style="font-size: 10px; text-align: right; padding: 4px 2px; white-space: nowrap;">$ ${Math.round(subtotal).toLocaleString('es-AR')}</td>
         </tr>
       `;
     });
   }
 
-  // Si el sector es textil, agregar ticket de cambio
+  // 2. Ticket de cambio (sin detalle de prendas duplicado)
   let exchangeTicketHtml = "";
   if (state.businessType === "textil") {
     const limitDate = new Date(dateObj.getTime() + 15 * 24 * 60 * 60 * 1000);
     const limitDateStr = limitDate.toLocaleDateString('es-AR');
-    
-    let exchangeItemsList = "";
-    if (sale.items) {
-      exchangeItemsList = sale.items.map(item => `• ${item.quantity} u. x ${item.product.name} (${item.size})`).join('<br>');
-    }
 
     exchangeTicketHtml = `
-      <div class="exchange-ticket text-center">
-        <h3 class="bold" style="font-size: 14px; margin: 0 0 5px 0; letter-spacing: 1px;">TICKET DE CAMBIO</h3>
-        <p style="font-size: 10px; margin: 0 0 10px 0;">Válido por 15 días (Hasta el ${limitDateStr})</p>
-        <div class="separator"></div>
-        <div style="text-align: left; font-size: 11px; margin: 10px 0;">
-          <span class="bold">Detalle de prendas:</span><br>
-          ${exchangeItemsList}
-        </div>
-        <div class="separator"></div>
-        <p style="font-size: 9px; margin-top: 10px; font-style: italic;">Conserve este ticket para realizar el cambio en el local.</p>
+      <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; text-align: center;">
+        <h3 style="font-weight: bold; font-size: 13px; margin: 0 0 4px 0; letter-spacing: 1px;">TICKET DE CAMBIO</h3>
+        <p style="font-size: 10px; margin: 0 0 6px 0;">Válido por 15 días (Hasta el ${limitDateStr})</p>
+        <p style="font-size: 9px; margin-top: 6px; font-style: italic;">Conserve este ticket para realizar el cambio en el local.</p>
       </div>
     `;
   }
 
   const isFiscal = !!sale.arca_invoice_id;
-  let ticketHtml = "";
 
   if (!isFiscal) {
-    // Ticket No Válido Como Factura
-    ticketHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Ticket ${sale.id}</title>
-        <style>
-          @page { margin: 0; }
-          body { font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.3; color: #000; background: #fff; margin: 0; padding: 10px; width: 72mm; box-sizing: border-box; }
-          .text-center { text-align: center; }
-          .text-right { text-align: right; }
-          .bold { font-weight: bold; }
-          .header { margin-bottom: 10px; }
-          .non-fiscal { font-size: 10px; border: 1px solid #000; padding: 4px; margin: 5px 0; display: inline-block; font-weight: bold; }
-          .separator { border-top: 1px dashed #000; margin: 8px 0; }
-          .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-          .items-table th { border-bottom: 1px dashed #000; text-align: left; font-weight: bold; padding: 4px 0; }
-          .items-table td { padding: 4px 0; vertical-align: top; }
-          .totals { margin-top: 10px; font-size: 12px; }
-          .totals-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-          .footer { margin-top: 15px; font-size: 10px; }
-          .exchange-ticket { margin-top: 20px; padding-top: 15px; border-top: 1px dashed #000; }
-        </style>
-      </head>
-      <body>
-        <div class="header text-center">
-          <div class="non-fiscal">DOCUMENTO NO VALIDO COMO FACTURA</div>
-          <h2 style="margin: 5px 0; font-size: 16px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
-          <p style="margin: 2px 0; font-size: 10px;">Fecha: ${dateStr} - ${timeStr}</p>
-          <p style="margin: 2px 0; font-size: 10px; font-family: monospace;">TICKET N°: ${sale.id}</p>
-        </div>
-        <div class="separator"></div>
-        <table class="items-table">
-          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">P.Unit</th><th class="text-right">Total</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-        <div class="separator"></div>
-        <div class="totals">
-          <div class="totals-row"><span>Metodo Pago:</span><span class="bold">${sale.method}</span></div>
-          <div class="totals-row" style="font-size: 14px; margin-top: 8px;"><span class="bold">TOTAL:</span><span class="bold">$${Math.round(sale.total).toLocaleString('es-AR')}</span></div>
-        </div>
-        <div class="separator"></div>
-        ${exchangeTicketHtml}
-        <div class="footer text-center">
-          <p style="margin: 5px 0;">¡Gracias por su compra!</p>
-        </div>
-      </body>
-      </html>
+    return `
+      <div style="text-align: center; margin-bottom: 10px;">
+        <div style="font-size: 10px; border: 1px solid #000; padding: 4px; margin: 5px 0; display: inline-block; font-weight: bold;">DOCUMENTO NO VALIDO COMO FACTURA</div>
+        <h2 style="margin: 5px 0; font-size: 16px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
+        <p style="margin: 2px 0; font-size: 10px;">Fecha: ${dateStr} - ${timeStr}</p>
+        <p style="margin: 2px 0; font-size: 10px; font-family: monospace;">TICKET N°: ${sale.id}</p>
+      </div>
+      <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
+      <table style="width: 100%; border-collapse: collapse; margin: 8px 0;">
+        <thead>
+          <tr style="border-bottom: 1px dashed #000;">
+            <th style="text-align: left; padding: 4px 2px; font-weight: bold; width: 42%;">Detalle</th>
+            <th style="text-align: center; padding: 4px 2px; font-weight: bold; width: 18%;">Cantidad</th>
+            <th style="text-align: right; padding: 4px 2px; font-weight: bold; width: 20%;">Precio Unitario</th>
+            <th style="text-align: right; padding: 4px 2px; font-weight: bold; width: 20%;">Total</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
+      <div style="margin-top: 10px; font-size: 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Metodo Pago:</span><span style="font-weight: bold;">${sale.method}</span></div>
+        <div style="display: flex; justify-content: space-between; font-size: 14px; margin-top: 8px;"><span style="font-weight: bold;">TOTAL:</span><span style="font-weight: bold;">$ ${Math.round(sale.total).toLocaleString('es-AR')}</span></div>
+      </div>
+      <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
+      ${exchangeTicketHtml}
+      <div style="margin-top: 15px; font-size: 10px; text-align: center;">
+        <p style="margin: 5px 0;">¡Gracias por su compra!</p>
+      </div>
     `;
   } else {
     // Factura Oficial (A, B o C)
-    let arca = {};
-    if (state.integrations && state.integrations.arca) {
-        arca = state.integrations.arca;
-    }
+    let arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
     const cuit = arca.cuit || "00-00000000-0";
     const pos = arca.pos || "0002";
     const condicionEmisor = (arca.condicion_iva || "monotributo").toUpperCase();
     const businessName = arca.razon_social || arca.businessName || state.businessName || (state.userEmail === "matiascuchettidiaz@gmail.com" ? "MAZO" : "Empresa / Monotributista");
-    const address = arca.domicilio || arca.address || (state.userEmail === "matiascuchettidiaz@gmail.com" ? "Hipólito Yrigoyen 631" : "Domicilio Comercial");
+    
+    let rawAddress = arca.domicilio || arca.address || (state.userEmail === "matiascuchettidiaz@gmail.com" ? "Hipólito Yrigoyen 631" : "Hipólito Yrigoyen 631");
+    const addressStr = rawAddress.toLowerCase().includes("domicilio comercial") ? rawAddress : `Domicilio Comercial: ${rawAddress}`;
+    
     const iibb = arca.iibb || cuit;
     const incioAct = arca.inicio_actividades || "01/01/2020";
     const nroFactura = sale.arca_invoice_id || "";
     const cae = sale.arca_cae || "";
     const caeDue = sale.arca_cae_due || "";
-    
-    // Tax fields of client
+
     const clientCuit = sale.client_cuit ? sale.client_cuit.replace(/[^0-9]/g, '') : "";
     const clientName = sale.client_name || sale.client_razon_social || "Consumidor Final";
     const clientCondicionIva = (sale.client_condicion_iva || "CONSUMIDOR FINAL").toUpperCase();
     const clientAddress = sale.client_address || "";
     const isAnonymous = !clientCuit || clientCuit === "0" || clientCuit === "20999999999";
 
-    // Determine Factura Letter (A, B, C)
     let voucherLetter = "C";
     let voucherCode = "011";
     let cbteTipoCode = 11;
@@ -3759,85 +3720,97 @@ function printSaleTicket(saleId) {
         };
         const base64QrData = btoa(JSON.stringify(qrData));
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.afip.gob.ar/fe/qr/?p=${base64QrData}`;
-        qrImgHtml = `<img src="${qrUrl}" alt="QR AFIP" style="width: 100px; height: 100px; margin-top: 5px;">`;
+        qrImgHtml = `<img src="${qrUrl}" alt="QR AFIP" style="width: 110px; height: 110px; margin-top: 5px;">`;
       } catch (e) {
         console.error("Error generating QR data", e);
       }
     }
 
-    ticketHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Factura ${voucherLetter} ${nroFactura}</title>
-        <style>
-          @page { margin: 0; }
-          body { font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.2; color: #000; background: #fff; margin: 0; padding: 10px; width: 72mm; box-sizing: border-box; }
-          .text-center { text-align: center; }
-          .text-right { text-align: right; }
-          .bold { font-weight: bold; }
-          .header { margin-bottom: 5px; }
-          .separator { border-top: 1px dashed #000; margin: 5px 0; }
-          .items-table { width: 100%; border-collapse: collapse; margin: 5px 0; }
-          .items-table th { border-bottom: 1px dashed #000; text-align: left; font-weight: bold; padding: 2px 0; }
-          .items-table td { padding: 2px 0; vertical-align: top; }
-          .totals { margin-top: 5px; font-size: 11px; }
-          .totals-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
-          .afip-box { border: 1px solid #000; padding: 4px; text-align: center; margin: 5px 0; }
-          .c-letter { font-size: 24px; font-weight: bold; margin: 0; }
-          .leyenda-box { font-size: 8px; border: 1px solid #000; padding: 4px; margin: 6px 0; text-align: justify; }
-          .exchange-ticket { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; }
-        </style>
-      </head>
-      <body>
-        <div class="header text-center">
-          <div class="afip-box">
-            <p class="c-letter">${voucherLetter}</p>
-            <p style="font-size: 9px; margin: 0;">COD. ${voucherCode}</p>
-          </div>
-          <h2 style="margin: 3px 0; font-size: 14px; text-transform: uppercase;">${businessName}</h2>
-          <p style="margin: 2px 0; font-size: 10px;">${address}</p>
-          <p style="margin: 2px 0; font-size: 10px;">CUIT: ${cuit}</p>
-          <p style="margin: 2px 0; font-size: 10px;">IIBB: ${iibb}</p>
-          <p style="margin: 2px 0; font-size: 10px;">Inicio Actividades: ${incioAct}</p>
-          <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">${condicionEmisor}</p>
+    return `
+      <div style="text-align: center; margin-bottom: 5px;">
+        <div style="border: 1px solid #000; padding: 4px; text-align: center; margin: 5px auto; width: 60px;">
+          <p style="font-size: 24px; font-weight: bold; margin: 0; line-height: 1;">${voucherLetter}</p>
+          <p style="font-size: 9px; margin: 0;">COD. ${voucherCode}</p>
         </div>
-        <div class="separator"></div>
-        <div class="text-center" style="margin: 5px 0;">
-          <p class="bold" style="margin: 0; font-size: 14px;">FACTURA ${voucherLetter}</p>
-          <p style="margin: 2px 0;">Nro: ${pos}-${nroFactura.split("-")[1] || "00000000"}</p>
-          <p style="margin: 2px 0;">Fecha: ${dateStr}</p>
-        </div>
-        <div class="separator"></div>
-        <div style="margin: 5px 0; font-size: 10px;">
-          <p style="margin: 2px 0;"><span class="bold">CLIENTE:</span> ${clientName}</p>
-          <p style="margin: 2px 0;"><span class="bold">CONDICION IVA:</span> ${clientCondicionIva}</p>
-          ${!isAnonymous ? `<p style="margin: 2px 0;"><span class="bold">CUIT/DNI:</span> ${clientCuit}</p>` : ''}
-          ${clientAddress ? `<p style="margin: 2px 0;"><span class="bold">DOMICILIO:</span> ${clientAddress}</p>` : ''}
-        </div>
-        ${leyendaMonotributo ? `<div class="leyenda-box">${leyendaMonotributo}</div>` : ''}
-        <div class="separator"></div>
-        <table class="items-table">
-          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">P.Unit</th><th class="text-right">Total</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-        <div class="separator"></div>
-        <div class="totals">
-          <div class="totals-row"><span>Cond. de Venta:</span><span class="bold">${sale.method.toLowerCase().includes('efectivo') ? 'Contado' : (sale.method.toLowerCase().includes('transfer') ? 'Transferencia' : 'Tarjeta')}</span></div>
-          <div class="totals-row" style="font-size: 14px; margin-top: 5px;"><span class="bold">TOTAL:</span><span class="bold">$${Math.round(sale.total).toLocaleString('es-AR')}</span></div>
-        </div>
-        <div class="separator"></div>
-        ${exchangeTicketHtml}
-        <div class="footer text-center" style="margin-top: 10px;">
-          ${qrImgHtml}
-          <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
-          <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
-        </div>
-      </body>
-      </html>
+        <h2 style="margin: 4px 0; font-size: 15px; font-weight: bold; text-transform: uppercase;">${businessName}</h2>
+        <p style="margin: 2px 0; font-size: 10px;">${addressStr}</p>
+        <p style="margin: 2px 0; font-size: 10px;">CUIT: ${cuit}</p>
+        <p style="margin: 2px 0; font-size: 10px;">IIBB: ${iibb}</p>
+        <p style="margin: 2px 0; font-size: 10px;">Inicio Actividades: ${incioAct}</p>
+        <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">${condicionEmisor}</p>
+      </div>
+      <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+      <div style="text-align: center; margin: 5px 0;">
+        <p style="margin: 0; font-size: 14px; font-weight: bold;">FACTURA ${voucherLetter}</p>
+        <p style="margin: 2px 0;">Nro: ${pos}-${nroFactura.split("-")[1] || "00000000"}</p>
+        <p style="margin: 2px 0;">Fecha: ${dateStr}</p>
+      </div>
+      <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+      <div style="margin: 5px 0; font-size: 10px;">
+        <p style="margin: 2px 0;"><span style="font-weight: bold;">CLIENTE:</span> ${clientName}</p>
+        <p style="margin: 2px 0;"><span style="font-weight: bold;">CONDICION IVA:</span> ${clientCondicionIva}</p>
+        ${!isAnonymous ? `<p style="margin: 2px 0;"><span style="font-weight: bold;">CUIT/DNI:</span> ${clientCuit}</p>` : ''}
+        ${clientAddress ? `<p style="margin: 2px 0;"><span style="font-weight: bold;">DOMICILIO:</span> ${clientAddress}</p>` : ''}
+      </div>
+      ${leyendaMonotributo ? `<div style="font-size: 8px; border: 1px solid #000; padding: 4px; margin: 6px 0; text-align: justify;">${leyendaMonotributo}</div>` : ''}
+      <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+      <table style="width: 100%; border-collapse: collapse; margin: 6px 0;">
+        <thead>
+          <tr style="border-bottom: 1px dashed #000;">
+            <th style="text-align: left; padding: 4px 2px; font-weight: bold; width: 42%;">Detalle</th>
+            <th style="text-align: center; padding: 4px 2px; font-weight: bold; width: 18%;">Cantidad</th>
+            <th style="text-align: right; padding: 4px 2px; font-weight: bold; width: 20%;">Precio Unitario</th>
+            <th style="text-align: right; padding: 4px 2px; font-weight: bold; width: 20%;">Total</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+      <div style="margin-top: 5px; font-size: 11px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Cond. de Venta:</span><span style="font-weight: bold;">${sale.method.toLowerCase().includes('efectivo') ? 'Contado' : (sale.method.toLowerCase().includes('transfer') ? 'Transferencia' : 'Tarjeta')}</span></div>
+        <div style="display: flex; justify-content: space-between; font-size: 14px; margin-top: 5px;"><span style="font-weight: bold;">TOTAL:</span><span style="font-weight: bold;">$ ${Math.round(sale.total).toLocaleString('es-AR')}</span></div>
+      </div>
+      <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+      ${exchangeTicketHtml}
+      <div style="margin-top: 10px; text-align: center;">
+        ${qrImgHtml}
+        <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
+        <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
+      </div>
     `;
   }
+}
+
+function printSaleTicket(saleId) {
+  const sale = state.sales.find(s => s.id === saleId);
+  if (!sale) {
+    showToast("Venta no encontrada para imprimir", true);
+    return;
+  }
+
+  const innerHTML = getInvoiceTicketInnerHTML(sale);
+  const isFiscal = !!sale.arca_invoice_id;
+  const nroFactura = sale.arca_invoice_id || sale.id;
+
+  const ticketHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${isFiscal ? 'Factura' : 'Ticket'} ${nroFactura}</title>
+      <style>
+        @page { margin: 0; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.3; color: #000; background: #fff; margin: 0; padding: 10px; width: 85mm; box-sizing: border-box; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .bold { font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      ${innerHTML}
+    </body>
+    </html>
+  `;
 
   const printWindow = window.open("", "_blank", "width=600,height=800");
   if (printWindow) {
@@ -3855,7 +3828,6 @@ function printSaleTicket(saleId) {
         printWindow.print();
         printWindow.close();
       };
-      // Fallback
       setTimeout(() => {
         if (!printWindow.closed) {
           printWindow.print();
@@ -3873,8 +3845,55 @@ function printSaleTicket(saleId) {
   }
 }
 
-function downloadInvoicePDF(saleId) {
-  printSaleTicket(saleId);
+async function downloadInvoicePDF(saleId) {
+  const sale = state.sales.find(s => s.id === saleId);
+  if (!sale) {
+    showToast("Venta no encontrada para descargar PDF", true);
+    return;
+  }
+
+  showToast("Generando y descargando PDF de la factura...");
+
+  const container = document.createElement("div");
+  container.style.position = "fixed";
+  container.style.left = "-9999px";
+  container.style.top = "-9999px";
+  container.style.width = "650px";
+  container.style.background = "#ffffff";
+  container.style.color = "#000000";
+  container.style.fontFamily = "'Courier New', Courier, monospace";
+  container.style.fontSize = "13px";
+  container.style.padding = "25px";
+  container.style.boxSizing = "border-box";
+
+  container.innerHTML = getInvoiceTicketInnerHTML(sale);
+  document.body.appendChild(container);
+
+  const fileName = sale.arca_invoice_id ? `Factura_${sale.arca_invoice_id}.pdf` : `Comprobante_${sale.id}.pdf`;
+
+  const opt = {
+    margin: [10, 10, 10, 10],
+    filename: fileName,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  try {
+    if (typeof html2pdf !== 'undefined') {
+      await html2pdf().set(opt).from(container).save();
+      showToast("¡PDF descargado con éxito!");
+    } else {
+      printSaleTicket(saleId);
+    }
+  } catch (err) {
+    console.error("Error al generar PDF:", err);
+    showToast("Error al descargar PDF.", true);
+  } finally {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+  }
 }
 window.downloadInvoicePDF = downloadInvoicePDF;
 
