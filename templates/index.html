@@ -10,6 +10,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS para exportación a Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- html2pdf.js para exportación profesional a PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -268,6 +270,9 @@
         </li>
         <li class="menu-item" data-tab="arca" id="sidebar-arca-item" style="display: none;">
           <a href="#" class="menu-link"><i>🧾</i> ARCA</a>
+        </li>
+        <li class="menu-item" data-tab="zecat" id="sidebar-zecat-item" style="display: none;">
+          <a href="#" class="menu-link"><i>🏬</i> Zecat Web</a>
         </li>
         <li class="menu-item" data-tab="integrations">
           <a href="#" class="menu-link"><i>🔌</i> Integraciones</a>
@@ -1608,19 +1613,127 @@
           </div>
         </section>
 
+      <!-- TAB: ZECAT WEB INTEGRATION -->
+      <section id="zecat-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Integración Zecat & Web ProductosConLogo</h2>
+            <p>Sincronizá el catálogo, los precios mayoristas y el stock central de tu tienda web con Datamargen ERP.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-emerald" onclick="syncZecatCatalog()">
+              <i class="fa-solid fa-rotate"></i> Sincronizar Catálogo
+            </button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start;">
+          <!-- COLUMNA IZQUIERDA: CONFIGURACIÓN DE CONEXIÓN -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="idx-card" style="padding: 25px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+                <h3 style="margin: 0; color: var(--text-white); font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 10px;">
+                  🏬 Conexión con joymomerch.productosconlogo.com
+                </h3>
+                <span id="zecat-status-badge" class="badge-emerald" style="padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">🟢 Listo para Conectar</span>
+              </div>
+
+              <form id="zecat-config-form" onsubmit="saveZecatConfig(event)" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group" style="margin: 0;">
+                  <label class="form-label" style="font-weight: 700;">URL de tu Tienda Web Zecat Partner</label>
+                  <input type="text" id="zecat-shop-url" class="form-input" value="https://joymomerch.productosconlogo.com" placeholder="Ej: https://joymomerch.productosconlogo.com">
+                  <small style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: block;">Dirección web oficial de tu catálogo con logo habilitado por Zecat.</small>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  <div class="form-group" style="margin: 0;">
+                    <label class="form-label" style="font-weight: 700;">Token API Partner Zecat</label>
+                    <input type="password" id="zecat-api-token" class="form-input" placeholder="Ingresá tu Token API 2.0 Zecat">
+                  </div>
+                  <div class="form-group" style="margin: 0;">
+                    <label class="form-label" style="font-weight: 700;">Código / ID de Partner Zecat</label>
+                    <input type="text" id="zecat-partner-id" class="form-input" placeholder="Ej: PARTNER-JOMO-2026">
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 10px;">
+                  <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar Credenciales y Conectar
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="syncZecatCatalog()">
+                    <i class="fa-solid fa-cloud-arrow-down"></i> Sincronizar Ahora
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- TABLA Y RESUMEN DE PRODUCTOS SINCRONIZADOS DE ZECAT -->
+            <div class="idx-card" style="padding: 20px;">
+              <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-white); margin-bottom: 14px;">📦 Estado del Catálogo Zecat Sincronizado</h3>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div style="background: var(--bg-input); padding: 15px; border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                  <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Productos Sincronizados</div>
+                  <div style="font-size: 1.5rem; font-weight: 900; color: var(--accent-blue); margin-top: 4px;" id="zecat-stat-products">Activo</div>
+                </div>
+                <div style="background: var(--bg-input); padding: 15px; border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                  <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Stock Central Zecat</div>
+                  <div style="font-size: 1.5rem; font-weight: 900; color: var(--accent-emerald); margin-top: 4px;" id="zecat-stat-stock">En Línea</div>
+                </div>
+                <div style="background: var(--bg-input); padding: 15px; border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                  <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Última Sincronización</div>
+                  <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-white); margin-top: 8px;" id="zecat-stat-last-sync">Hoy</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLUMNA DERECHA: GUÍA PASO A PASO INTERACTIVA DE CONEXIÓN -->
+          <div class="idx-card" style="padding: 20px; background: rgba(30, 41, 59, 0.6); border: 1px solid var(--border-color);">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-white); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+              📘 Pasos para Conectar tu Sistema con Zecat
+            </h3>
+
+            <div style="display: flex; flex-direction: column; gap: 16px; font-size: 0.82rem; line-height: 1.5; color: var(--text-gray-light);">
+              <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-blue);">
+                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">1. Solicitá tu Token de API 2.0 a Zecat</strong>
+                Pedile a tu ejecutivo de cuenta o soporte comercial de Zecat tu <strong>Token de API Partner</strong>. Zecat provee esta clave a todos sus distribuidores oficiales.
+              </div>
+
+              <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-purple);">
+                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">2. Cargá las Credenciales en Datamargen</strong>
+                Ingresá la URL de tu tienda (<code>joymomerch.productosconlogo.com</code>) y el Token de API en el formulario de la izquierda y presioná <strong>"Guardar Credenciales"</strong>.
+              </div>
+
+              <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-emerald);">
+                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">3. Sincronización Automática del Catálogo</strong>
+                Al hacer clic en <strong>"Sincronizar Catálogo"</strong>, Datamargen vinculará los artículos, códigos SKU (mochilas, botellas, prendas, kits), imágenes y precios de costo mayorista de Zecat.
+              </div>
+
+              <div style="background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border-left: 3px solid var(--accent-amber);">
+                <strong style="color: var(--text-white); font-size: 0.88rem; display: block; margin-bottom: 4px;">4. Consultá Stock y Cotizá en Presupuestos</strong>
+                Vas a poder buscar los productos sincronizados desde el módulo de <strong>Presupuestos</strong>, definir tus márgenes comerciales y cotizar a tus clientes corporativos en segundos.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- TAB: PRESUPUESTOS -->
       <section id="quotes-section" class="tab-content">
         <div class="idx-header">
           <div class="idx-header-info">
             <h2>Generador de Presupuestos</h2>
-            <p>Construí un presupuesto rápido con tus productos, precios y cantidades para compartir por WhatsApp o descargar.</p>
+            <p>Construí un presupuesto rápido con tus productos, precios y cantidades para compartir por WhatsApp o descargar en PDF profesional.</p>
           </div>
-          <div style="display: flex; gap: 12px; align-items: center;">
+          <div style="display: flex; gap: 10px; align-items: center;">
             <button class="btn btn-emerald" onclick="copyQuoteToWhatsApp()">
               <i>📲</i> Copiar para WhatsApp
             </button>
+            <button class="btn btn-primary" onclick="downloadQuotePDF()" style="background: #2563eb; color: #ffffff;">
+              <i class="fa-solid fa-file-pdf"></i> Descargar PDF
+            </button>
             <button class="btn btn-secondary" onclick="printQuote()">
-              <i>🖨️</i> Imprimir / PDF
+              <i>🖨️</i> Imprimir
             </button>
             <button class="btn btn-secondary" style="border-color: var(--accent-red); color: var(--accent-red);" onclick="clearQuote()">
               <i>🗑️</i> Limpiar

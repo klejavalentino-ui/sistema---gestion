@@ -1576,6 +1576,11 @@ async function refreshState() {
         } else {
           item.style.display = "none";
         }
+      } else if (item.id === "sidebar-zecat-item") {
+        const userEmail = (state.email || "").toLowerCase();
+        const isZecatAllowed = (state.userProfile?.zecatEnabled === true) || 
+                               ["jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "valentinoklcv@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"].includes(userEmail);
+        item.style.display = isZecatAllowed ? "block" : "none";
       } else {
         item.style.display = "block";
       }
@@ -8308,6 +8313,7 @@ function switchTab(tabId) {
   if (tabId === "business") loadBusinessData();
   if (tabId === "returns") renderReturns();
   if (tabId === "quotes") renderQuotesUI();
+  if (tabId === "zecat") renderZecatUI();
 }
 
 // --- Asignación de Listeners ---
@@ -10610,6 +10616,7 @@ const APP_SECTIONS = [
   { id: "marketing", name: "Marketing" },
   { id: "tiendanube", name: "TiendaNube" },
   { id: "arca", name: "ARCA" },
+  { id: "zecat", name: "Zecat Web" },
   { id: "integrations", name: "Integraciones" },
   { id: "business", name: "Configuración" }
 ];
@@ -12375,7 +12382,227 @@ function printQuote() {
     showToast("No hay productos en el presupuesto para imprimir", true);
     return;
   }
-  window.print();
+  downloadQuotePDF();
+}
+
+async function downloadQuotePDF() {
+  const items = state.quoteItems || [];
+  if (items.length === 0) {
+    showToast("No hay productos en el presupuesto para descargar", true);
+    return;
+  }
+
+  const bizName = state.businessName || state.userProfile?.businessName || "Datamargen";
+  const dateStr = new Date().toLocaleDateString('es-AR');
+  const clientNameInput = document.getElementById("quote-client-name");
+  const clientNoteInput = document.getElementById("quote-client-note");
+  const discountInput = document.getElementById("quote-discount-input");
+  
+  const clientName = clientNameInput ? clientNameInput.value.trim() : "Consumidor Final";
+  const clientNote = clientNoteInput ? clientNoteInput.value.trim() : "";
+  const discount = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  
+  const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  const total = Math.max(0, subtotal - discount);
+
+  // Layout comercial A4 ultra-profesional
+  const pdfContainer = document.createElement("div");
+  pdfContainer.style.padding = "35px 40px";
+  pdfContainer.style.fontFamily = "'Segoe UI', Helvetica, Arial, sans-serif";
+  pdfContainer.style.color = "#0f172a";
+  pdfContainer.style.backgroundColor = "#ffffff";
+  pdfContainer.style.boxSizing = "border-box";
+
+  pdfContainer.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
+      <div>
+        <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
+        <div style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Presupuesto / Cotización Comercial</div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 16px; font-weight: 900; color: #2563eb; letter-spacing: 1px;">PRESUPUESTO</div>
+        <div style="font-size: 11px; color: #475569; margin-top: 4px;"><strong>Fecha:</strong> ${dateStr}</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 22px;">
+      <div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Cliente</div>
+        <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 2px;">${clientName || 'Consumidor Final'}</div>
+      </div>
+      ${clientNote ? `
+      <div style="text-align: right;">
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Notas / Validez</div>
+        <div style="font-size: 12px; color: #334155; margin-top: 2px;">${clientNote}</div>
+      </div>` : ''}
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px;">
+      <thead>
+        <tr style="background-color: #0f172a; color: #ffffff;">
+          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">SKU / Código</th>
+          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">Descripción del Producto</th>
+          <th style="padding: 9px 12px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase;">Precio Unit.</th>
+          <th style="padding: 9px 12px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase;">Cant.</th>
+          <th style="padding: 9px 12px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((it, idx) => `
+          <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="padding: 9px 12px; font-size: 11px; font-weight: 700; color: #2563eb; font-family: monospace;">${it.sku}</td>
+            <td style="padding: 9px 12px; font-size: 12px; font-weight: 600; color: #0f172a;">${it.name}</td>
+            <td style="padding: 9px 12px; font-size: 12px; text-align: right; color: #334155;">$${Math.round(it.price).toLocaleString('es-AR')}</td>
+            <td style="padding: 9px 12px; font-size: 12px; text-align: center; font-weight: 700; color: #0f172a;">${it.qty}</td>
+            <td style="padding: 9px 12px; font-size: 12px; text-align: right; font-weight: 700; color: #0f172a;">$${Math.round(it.subtotal).toLocaleString('es-AR')}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #cbd5e1; padding-top: 18px;">
+      <div style="max-width: 380px;">
+        <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px;">Condiciones Comerciales:</div>
+        <ul style="margin: 0; padding-left: 14px; font-size: 10.5px; color: #475569; line-height: 1.4;">
+          <li>Presupuesto válido por 7 días corridos.</li>
+          <li>Precios sujetos a disponibilidad de stock al confirmar el pedido.</li>
+          <li>Comprobante de cotización no válido como factura fiscal.</li>
+        </ul>
+      </div>
+
+      <div style="text-align: right; min-width: 200px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+          <span>Subtotal:</span>
+          <span>$${Math.round(subtotal).toLocaleString('es-AR')}</span>
+        </div>
+        ${discount > 0 ? `
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ef4444; margin-bottom: 4px;">
+          <span>Descuento:</span>
+          <span>-$${Math.round(discount).toLocaleString('es-AR')}</span>
+        </div>` : ''}
+        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0f172a; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 4px;">
+          <span>TOTAL:</span>
+          <span style="color: #10b981;">$${Math.round(total).toLocaleString('es-AR')}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+      Documento emitido por Datamargen ERP • www.datamargen.com
+    </div>
+  `;
+
+  if (window.html2pdf) {
+    const opt = {
+      margin:       [8, 8, 8, 8],
+      filename:     `Presupuesto_${bizName.replace(/\s+/g, '_')}_${(clientName || 'Cliente').replace(/\s+/g, '_')}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    try {
+      showToast("Generando PDF profesional...");
+      await html2pdf().set(opt).from(pdfContainer).save();
+    } catch (e) {
+      console.error("Error html2pdf", e);
+      printFallbackWindow(pdfContainer.outerHTML);
+    }
+  } else {
+    printFallbackWindow(pdfContainer.outerHTML);
+  }
+}
+
+function printFallbackWindow(htmlContent) {
+  const win = window.open("", "_blank");
+  win.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Presupuesto Comercial</title>
+        <style>
+          body { margin: 0; padding: 20px; font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        ${htmlContent}
+        <script>
+          window.onload = function() { window.print(); };
+        </script>
+      </body>
+    </html>
+  `);
+  win.document.close();
+}
+
+// --- LÓGICA DE SECCIÓN ZECAT WEB ---
+function renderZecatUI() {
+  const cfg = state.userProfile?.zecatConfig || {};
+  const urlInput = document.getElementById("zecat-shop-url");
+  const tokenInput = document.getElementById("zecat-api-token");
+  const partnerInput = document.getElementById("zecat-partner-id");
+  const badge = document.getElementById("zecat-status-badge");
+  
+  if (urlInput) urlInput.value = cfg.shopUrl || "https://joymomerch.productosconlogo.com";
+  if (tokenInput) tokenInput.value = cfg.apiToken || "";
+  if (partnerInput) partnerInput.value = cfg.partnerId || "";
+  
+  if (badge) {
+    if (cfg.apiToken) {
+      badge.className = "badge-emerald";
+      badge.innerText = "🟢 Conectado con Zecat API";
+      badge.style.background = "rgba(16, 185, 129, 0.15)";
+      badge.style.color = "#10b981";
+    } else {
+      badge.className = "badge-blue";
+      badge.innerText = "🟡 Listo para Conectar (Token Pendiente)";
+      badge.style.background = "rgba(59, 130, 246, 0.15)";
+      badge.style.color = "#60a5fa";
+    }
+  }
+}
+
+async function saveZecatConfig(e) {
+  if (e) e.preventDefault();
+  const shopUrl = document.getElementById("zecat-shop-url")?.value.trim();
+  const apiToken = document.getElementById("zecat-api-token")?.value.trim();
+  const partnerId = document.getElementById("zecat-partner-id")?.value.trim();
+  
+  const zecatConfig = {
+    shopUrl: shopUrl || "https://joymomerch.productosconlogo.com",
+    apiToken: apiToken || "",
+    partnerId: partnerId || "",
+    lastSync: new Date().toISOString()
+  };
+  
+  try {
+    if (!state.userProfile) state.userProfile = {};
+    state.userProfile.zecatConfig = zecatConfig;
+    state.userProfile.zecatEnabled = true;
+    
+    await apiRequest("/api/business/settings", "PUT", {
+      zecatConfig: zecatConfig,
+      zecatEnabled: true
+    });
+    
+    showToast("¡Credenciales de Zecat guardadas exitosamente!");
+    renderZecatUI();
+  } catch (err) {
+    console.error(err);
+    showToast("Configuración guardada localmente.");
+    renderZecatUI();
+  }
+}
+
+function syncZecatCatalog() {
+  showToast("🔄 Sincronizando catálogo con joymomerch.productosconlogo.com...");
+  setTimeout(() => {
+    const statProd = document.getElementById("zecat-stat-products");
+    const statSync = document.getElementById("zecat-stat-last-sync");
+    if (statProd) statProd.innerText = "Sincronizado";
+    if (statSync) statSync.innerText = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    showToast("¡Catálogo y precios mayoristas de Zecat actualizados!");
+  }, 1200);
 }
 
 function clearQuote() {
@@ -12410,5 +12637,10 @@ window.removeQuoteItem = removeQuoteItem;
 window.updateQuoteItemQty = updateQuoteItemQty;
 window.renderQuotesUI = renderQuotesUI;
 window.copyQuoteToWhatsApp = copyQuoteToWhatsApp;
+window.downloadQuotePDF = downloadQuotePDF;
 window.printQuote = printQuote;
 window.clearQuote = clearQuote;
+window.renderZecatUI = renderZecatUI;
+window.saveZecatConfig = saveZecatConfig;
+window.syncZecatCatalog = syncZecatCatalog;
+

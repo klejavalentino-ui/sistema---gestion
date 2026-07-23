@@ -1720,3 +1720,93 @@ input[type=number] {
   }
 }
 
+/* --- ESTILOS DE IMPRESIÓN Y EXPORTACIÓN PROFESIONAL A PDF --- */
+@media print {
+  body, html {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-family: 'Segoe UI', Arial, sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .app-topbar,
+  .idx-sidebar,
+  .sidebar-overlay,
+  .idx-header,
+  .no-print,
+  #auth-section,
+  #bell-container,
+  .btn,
+  button,
+  input:not(.print-input),
+  select {
+    display: none !important;
+  }
+
+  .idx-main {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    min-height: auto !important;
+  }
+
+  .tab-content {
+    display: none !important;
+  }
+
+  #quotes-section.tab-content {
+    display: block !important;
+  }
+
+  #quotes-section > div {
+    grid-template-columns: 1fr !important;
+  }
+
+  #quotes-section > div > div:first-child {
+    display: none !important; /* Ocultar columna de agregar producto al imprimir */
+  }
+
+  #quote-printable-area {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 10mm 15mm !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  #quote-printable-area * {
+    color: #0f172a !important;
+  }
+
+  #quote-printable-area table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin-top: 15px !important;
+  }
+
+  #quote-printable-area th {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+  }
+
+  #quote-printable-area td {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+  }
+
+  .print-only {
+    display: inline !important;
+  }
+}
+
+
