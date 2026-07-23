@@ -7343,7 +7343,7 @@ const GASTOS_SUBCATEGORIES = {
   Impositiva: ['ARCA', 'Municipal', 'Otros'],
   Dirección: ['Sueldo del Dueño'],
   'Marketing Fijo': ['Pauta Digital Fija', 'Embajadores/Influencers Recurrentes'],
-  Servicios: ['Transporte', 'Tiendanube', 'Pasarelas de Pago Fijas', 'Software/Suscripciones', 'Otros']
+  Servicios: ['Transporte', 'Tiendanube', 'Suscripciones', 'Otros']
 };
 
 let currentSelectedCategory = 'Estructura';
