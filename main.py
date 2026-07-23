@@ -977,6 +977,7 @@ def get_all_state():
         
         my_role = "admin"
         my_permissions = None
+        sub_info = None
         
         if admin_uid != real_uid:
             my_role = "subuser"
@@ -984,6 +985,7 @@ def get_all_state():
                 sub_doc = firebase_config.get_document(f"users/{real_uid}/subusers", admin_uid, token)
                 if sub_doc:
                     my_permissions = sub_doc.get("access", {})
+                    sub_info = sub_doc
             except Exception as e:
                 print(f"Error getting subuser permissions: {e}")
         # 1. Check email verification status in real-time
@@ -1223,7 +1225,8 @@ def get_all_state():
             "extras": extras,
             "stockIntakes": intakes,
             "role": my_role,
-            "permissions": my_permissions
+            "permissions": my_permissions,
+            "subuser": sub_info
         })
     except Exception as e:
         return handle_error(e)
@@ -4582,18 +4585,15 @@ def get_business_users():
         
     try:
         admin_uid = firebase_config.verify_id_token(token)
-        # Check if caller is already a subuser. Subusers cannot list/manage other subusers.
         real_uid = firebase_config.get_real_uid(admin_uid, token)
-        if real_uid != admin_uid:
-            return jsonify({"error": "Acceso denegado: solo el administrador puede gestionar usuarios."}), 403
             
-        docs = firebase_config.list_documents(f"users/{admin_uid}/subusers", token) or []
+        docs = firebase_config.list_documents(f"users/{real_uid}/subusers", token) or []
         updated_any = False
         for doc in docs:
             if not doc.get("username") and doc.get("email"):
                 username = doc.get("email").split("@")[0]
                 doc["username"] = username
-                firebase_config.set_document(f"users/{admin_uid}/subusers", doc.get("id"), doc, token)
+                firebase_config.set_document(f"users/{real_uid}/subusers", doc.get("id"), doc, token)
                 save_username_mapping(username, doc.get("email"), token=token)
                 updated_any = True
         return jsonify(docs)

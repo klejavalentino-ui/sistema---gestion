@@ -416,7 +416,11 @@ function updateSidebarProfile() {
     let displayRole = "Administrador";
     let displayUsername = "";
     
-    if (state.userProfile && state.userProfile.contactName && state.userProfile.contactName.trim() !== "") {
+    if (state.subuser) {
+      displayName = state.subuser.name || state.subuser.username || (state.subuser.email ? state.subuser.email.split("@")[0] : "Usuario");
+      displayUsername = "@" + (state.subuser.username || (state.subuser.email ? state.subuser.email.split("@")[0] : "usuario"));
+      displayRole = "Usuario";
+    } else if (state.userProfile && state.userProfile.contactName && state.userProfile.contactName.trim() !== "") {
       displayName = state.userProfile.contactName;
     } else if (state.userProfile && state.userProfile.name && !state.userProfile.name.startsWith("Perfil ")) {
       displayName = state.userProfile.name;
@@ -426,11 +430,11 @@ function updateSidebarProfile() {
       displayName = state.email.split("@")[0];
     }
     
-    if (state.userProfile && state.userProfile.username) {
+    if (!state.subuser && state.userProfile && state.userProfile.username) {
       displayUsername = "@" + state.userProfile.username;
     }
     
-    if (state.userProfile && state.userProfile.role) {
+    if (!state.subuser && state.userProfile && state.userProfile.role) {
       displayRole = state.userProfile.role.charAt(0).toUpperCase() + state.userProfile.role.slice(1);
     }
     
@@ -1520,6 +1524,9 @@ async function refreshState() {
     
     state.businessName = data.businessName || "";
     state.userProfile = data.userProfile || null;
+    state.subuser = data.subuser || null;
+    state.role = data.role || "admin";
+    state.subuserPermissions = data.permissions || null;
     localStorage.setItem("datamargen_business_name", state.businessName);
     
     let bizType = data.businessType || localStorage.getItem("datamargen_business_type") || "textil";
@@ -1584,7 +1591,7 @@ async function refreshState() {
         const isArcaAllowed = (state.userProfile?.arcaEnabled === true) || isAllowedEmail;
         item.style.display = isArcaAllowed ? "block" : "none";
       } else if (item.id === "sidebar-zecat-item") {
-        const zecatAllowedEmails = ["valentinoklcv@gmail.com", "jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "kljevalentino@gmail.com"];
+        const zecatAllowedEmails = ["jomoindumentaria@gmail.com"];
         const isZecatAllowed = (state.userProfile?.zecatEnabled === true) || zecatAllowedEmails.includes(userEmail);
         item.style.display = isZecatAllowed ? "block" : "none";
       } else {
@@ -5678,19 +5685,10 @@ function selectIntakeProduct(sku) {
       elSimple.style.display = "inline-block";
     }
   } else {
-    const szMapping = {
-      'XS': 'XS',
-      'S': 'S',
-      'M': 'M',
-      'L': 'L',
-      'XL': 'XL',
-      'XXL': 'XXL',
-      'U': 'Único'
-    };
-    Object.entries(szMapping).forEach(([key, sizeName]) => {
-      const variant = variants.find(v => v.size === sizeName);
+    getConfiguredSizes().forEach(sz => {
+      const variant = variants.find(v => v.size === sz);
       const stock = variant ? parseInt(variant.stock) || 0 : 0;
-      const el = document.getElementById(`intake-stock-${key}`);
+      const el = document.getElementById(`intake-stock-${sz}`);
       if (el) {
         el.innerText = `Stock: ${stock}`;
         el.style.display = "inline-block";
@@ -10943,12 +10941,20 @@ window.triggerAdminSyncGoogleSheets = triggerAdminSyncGoogleSheets;
 
 async function loadBusinessUsers() {
   try {
-    let users = await apiRequest("/api/business/users");
+    let users = [];
+    try {
+      users = await apiRequest("/api/business/users");
+    } catch (err) {
+      console.warn("Could not fetch users list:", err);
+    }
+    
     const tbody = document.getElementById("business-users-tbody");
     if(!tbody) return;
     tbody.innerHTML = "";
     
-    if (!users) users = [];
+    if (!users || !Array.isArray(users)) users = [];
+    
+    const isSubuser = !!state.subuser || state.role === "subuser";
     
     // Update plan users limit badge
     const subUsersCount = users.length;
@@ -10962,21 +10968,26 @@ async function loadBusinessUsers() {
     
     const addBtn = document.getElementById("btn-add-business-user");
     if (addBtn) {
-      if (available <= 0) {
-        addBtn.disabled = true;
-        addBtn.title = "Límite de usuarios alcanzado (Plan Pro permite hasta 3 usuarios adicionales)";
+      if (isSubuser) {
+        addBtn.style.display = "none";
       } else {
-        addBtn.disabled = false;
-        addBtn.removeAttribute("title");
+        addBtn.style.display = "";
+        if (available <= 0) {
+          addBtn.disabled = true;
+          addBtn.title = "Límite de usuarios alcanzado (Plan Pro permite hasta 3 usuarios adicionales)";
+        } else {
+          addBtn.disabled = false;
+          addBtn.removeAttribute("title");
+        }
       }
     }
     
     // Inyectar el administrador principal
     const adminUser = {
       id: "admin",
-      name: state.userProfile?.contactName || state.userProfile?.name || state.businessName || state.email.split('@')[0],
-      username: state.userProfile?.username || state.email.split('@')[0],
-      email: state.email,
+      name: state.userProfile?.contactName || state.userProfile?.name || state.businessName || "Administrador",
+      username: state.userProfile?.username || "admin",
+      email: state.userProfile?.contactEmail || (isSubuser ? "Administrador Principal" : state.email),
       status: "Activo",
       isAdmin: true
     };
@@ -10988,6 +10999,17 @@ async function loadBusinessUsers() {
         ? `<span class="badge-green">Activo</span>` 
         : `<span class="badge-red">${u.status || 'Inactivo'}</span>`;
         
+      const actionsCell = (isSubuser || u.isAdmin) 
+        ? (u.isAdmin ? `<span style="font-size:0.75rem; color:var(--text-gray);">Owner</span>` : `<span style="font-size:0.75rem; color:var(--text-gray);">-</span>`)
+        : `
+          <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('${u.id}')" title="Editar y ajustar permisos">
+            <i class="fa-solid fa-pencil"></i>
+          </button>
+          <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-red); font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="deleteBusinessUser('${u.id}')" title="Eliminar usuario del sistema">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        `;
+
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid var(--border-color)";
       tr.innerHTML = `
@@ -11003,14 +11025,7 @@ async function loadBusinessUsers() {
         <td style="padding: 16px; color: var(--text-gray);">${u.email || '-'}</td>
         <td style="padding: 16px; text-align: center;"><span class="badge-blue">${u.isAdmin ? 'Administrador' : accessBadge}</span></td>
         <td style="padding: 16px; text-align: center;">${statusBadge}</td>
-        <td style="padding: 16px; text-align: right;">
-          <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('${u.id}')" title="Editar y ajustar permisos">
-            <i class="fa-solid fa-pencil"></i>
-          </button>
-          <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: ${u.isAdmin ? 'var(--text-gray)' : 'var(--accent-red)'}; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s; opacity: ${u.isAdmin ? '0.4' : '1'};" onclick="deleteBusinessUser('${u.id}')" title="${u.isAdmin ? 'No se puede eliminar el administrador' : 'Eliminar usuario del sistema'}">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </td>
+        <td style="padding: 16px; text-align: right;">${actionsCell}</td>
       `;
       tbody.appendChild(tr);
     });
