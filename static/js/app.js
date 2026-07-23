@@ -9389,6 +9389,8 @@ async function renderIntegrationsStatus() {
     const arca = integrations?.arca;
     const arcaBadge = document.getElementById("arca-status-badge");
     const cuitInput = document.getElementById("arca-cuit");
+    const razonInput = document.getElementById("arca-razon-social");
+    const domicilioInput = document.getElementById("arca-domicilio");
     const condicionSelect = document.getElementById("arca-condicion-iva");
     const posInput = document.getElementById("arca-pos");
     const categoriaSelect = document.getElementById("arca-categoria-monotributo");
@@ -9397,6 +9399,11 @@ async function renderIntegrationsStatus() {
     const arcaDisconnectBtn = document.getElementById("arca-disconnect-btn");
     const arcaCertFile = document.getElementById("arca-cert-file");
     const arcaKeyFile = document.getElementById("arca-key-file");
+    
+    const userEmail = (state.email || "").toLowerCase();
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const defaultRazon = isMatias ? "Mazo" : "";
+    const defaultDomicilio = isMatias ? "Hipólito Yrigoyen 631" : "";
     
     // Establecer fecha por defecto a hoy en el input del formulario de facturación
     const dateInput = document.getElementById("arca-invoice-date");
@@ -9419,6 +9426,14 @@ async function renderIntegrationsStatus() {
       if (cuitInput) {
         cuitInput.value = arca.cuit || "";
         cuitInput.disabled = true;
+      }
+      if (razonInput) {
+        razonInput.value = arca.razon_social || defaultRazon;
+        razonInput.disabled = true;
+      }
+      if (domicilioInput) {
+        domicilioInput.value = arca.domicilio_comercial || defaultDomicilio;
+        domicilioInput.disabled = true;
       }
       if (condicionSelect) {
         condicionSelect.value = arca.condicion_iva || "monotributo";
@@ -9464,6 +9479,14 @@ async function renderIntegrationsStatus() {
         arcaBadge.style.background = "var(--bg-dark)";
       }
       if (cuitInput) cuitInput.disabled = false;
+      if (razonInput) {
+        razonInput.value = arca?.razon_social || defaultRazon;
+        razonInput.disabled = false;
+      }
+      if (domicilioInput) {
+        domicilioInput.value = arca?.domicilio_comercial || defaultDomicilio;
+        domicilioInput.disabled = false;
+      }
       if (condicionSelect) condicionSelect.disabled = false;
       if (categoriaSelect) categoriaSelect.disabled = false;
       if (posInput) posInput.disabled = false;
@@ -9965,6 +9988,8 @@ window.updateArcaCategoryOnAFIPChange = updateArcaCategoryOnAFIPChange;
 async function saveArcaConfig(event) {
   event.preventDefault();
   const cuit = document.getElementById("arca-cuit").value.replace(/\D/g, "");
+  const razonSocial = document.getElementById("arca-razon-social")?.value.trim() || "";
+  const domicilioComercial = document.getElementById("arca-domicilio")?.value.trim() || "";
   const condicion = document.getElementById("arca-condicion-iva").value;
   const pos = document.getElementById("arca-pos").value;
   const categoria = document.getElementById("arca-categoria-monotributo").value;
@@ -9998,6 +10023,8 @@ async function saveArcaConfig(event) {
     showToast("Guardando configuración fiscal de ARCA...");
     const payload = {
       cuit: cuit,
+      razon_social: razonSocial,
+      domicilio_comercial: domicilioComercial,
       condicion_iva: condicion,
       categoria_monotributo: categoria,
       pos: pos,
