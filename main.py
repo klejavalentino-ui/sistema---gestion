@@ -3145,6 +3145,14 @@ def sync_tiendanube_orders_route():
                 price = safe_float(item.get("price"))
                 
                 matched_local_prod = products_by_sku.get(sku)
+                if not matched_local_prod:
+                    item_name = str(item.get("name") or "").strip().lower()
+                    if item_name:
+                        matched_local_prod = next((p for p in all_products if str(p.get("name") or "").strip().lower() in item_name or item_name in str(p.get("name") or "").strip().lower()), None)
+                
+                cat_val = matched_local_prod.get("category") if matched_local_prod and matched_local_prod.get("category") and str(matched_local_prod.get("category")).lower() != "general" else item.get("category")
+                if not cat_val or str(cat_val).lower() == "general":
+                    cat_val = "Indumentaria"
                 
                 prod_data = {
                     "sku": sku,
@@ -3152,14 +3160,13 @@ def sync_tiendanube_orders_route():
                     "price_local": price,
                     "price_tiendanube": price,
                     "price": price,
-                    "category": item.get("category", "General"),
+                    "category": cat_val,
                     "color": ""
                 }
                 
                 if matched_local_prod:
                     prod_data["cost"] = safe_float(matched_local_prod.get("cost", 0.0))
                     prod_data["margin"] = safe_float(matched_local_prod.get("margin", 0.0))
-                    prod_data["category"] = matched_local_prod.get("category", "General")
                     prod_data["color"] = matched_local_prod.get("color", "")
                 else:
                     prod_data["cost"] = 0.0

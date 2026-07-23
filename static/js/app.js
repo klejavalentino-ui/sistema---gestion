@@ -3581,18 +3581,32 @@ function printSaleTicket(saleId) {
         });
       }
 
-      const finalUnitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
-      const unitPrice = finalUnitCost * (1 + (parseFloat(p.margin) || 0) / 100);
-      const subtotal = unitPrice * item.quantity;
+      const qty = parseInt(item.quantity) || 1;
+      let unitPrice = parseFloat(item.price || item.unitPrice || item.price_local || item.price_tiendanube) || 0;
+      
+      if (!unitPrice || unitPrice === 0) {
+        const finalUnitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
+        const margin = parseFloat(p.margin) || 0;
+        unitPrice = finalUnitCost * (1 + margin / 100);
+      }
+      
+      if ((!unitPrice || unitPrice === 0) && sale.items.length === 1 && sale.total > 0) {
+        unitPrice = sale.total / qty;
+      } else if ((!unitPrice || unitPrice === 0) && item.subtotal > 0) {
+        unitPrice = item.subtotal / qty;
+      }
+      
+      const subtotal = (unitPrice > 0 ? unitPrice * qty : (item.subtotal || (sale.items.length === 1 ? sale.total : 0)));
       const variantText = (state.businessType === "comercio" || p.size === "Único" || !item.size) ? "" : ` (${item.size})`;
 
       itemsHtml += `
         <tr>
-          <td style="font-size: 11px;">
-            ${p.name}${variantText}
+          <td style="font-size: 10px;">
+            ${p.name || item.name || 'Producto'}${variantText}
           </td>
-          <td class="text-right" style="font-size: 11px;">${item.quantity}</td>
-          <td class="text-right" style="font-size: 11px;">$${Math.round(subtotal).toLocaleString('es-AR')}</td>
+          <td class="text-right" style="font-size: 10px;">${qty}</td>
+          <td class="text-right" style="font-size: 10px;">$${Math.round(unitPrice).toLocaleString('es-AR')}</td>
+          <td class="text-right" style="font-size: 10px;">$${Math.round(subtotal).toLocaleString('es-AR')}</td>
         </tr>
       `;
     });
@@ -3662,7 +3676,7 @@ function printSaleTicket(saleId) {
         </div>
         <div class="separator"></div>
         <table class="items-table">
-          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">Total</th></tr></thead>
+          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">P.Unit</th><th class="text-right">Total</th></tr></thead>
           <tbody>${itemsHtml}</tbody>
         </table>
         <div class="separator"></div>
@@ -3687,8 +3701,8 @@ function printSaleTicket(saleId) {
     const cuit = arca.cuit || "00-00000000-0";
     const pos = arca.pos || "0002";
     const condicionEmisor = (arca.condicion_iva || "monotributo").toUpperCase();
-    const businessName = arca.businessName || state.businessName || "Empresa / Monotributista";
-    const address = arca.address || "Domicilio Comercial";
+    const businessName = arca.razon_social || arca.businessName || state.businessName || (state.userEmail === "matiascuchettidiaz@gmail.com" ? "MAZO" : "Empresa / Monotributista");
+    const address = arca.domicilio || arca.address || (state.userEmail === "matiascuchettidiaz@gmail.com" ? "Hipólito Yrigoyen 631" : "Domicilio Comercial");
     const iibb = arca.iibb || cuit;
     const incioAct = arca.inicio_actividades || "01/01/2020";
     const nroFactura = sale.arca_invoice_id || "";
@@ -3805,7 +3819,7 @@ function printSaleTicket(saleId) {
         ${leyendaMonotributo ? `<div class="leyenda-box">${leyendaMonotributo}</div>` : ''}
         <div class="separator"></div>
         <table class="items-table">
-          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">Total</th></tr></thead>
+          <thead><tr><th>Detalle</th><th class="text-right">Cant</th><th class="text-right">P.Unit</th><th class="text-right">Total</th></tr></thead>
           <tbody>${itemsHtml}</tbody>
         </table>
         <div class="separator"></div>
@@ -9327,8 +9341,27 @@ async function renderIntegrationsStatus() {
       if (s.items) {
         s.items.forEach(item => {
           const p = item.product || {};
-          const label = p.name || "Producto sin nombre";
-          const cat = p.category || "General";
+          const label = p.name || item.name || item.title || "Producto sin nombre";
+          let cat = p.category || item.category;
+          
+          if (!cat || cat.toLowerCase() === "general") {
+            const itemSku = item.sku || p.sku;
+            const match = state.products.find(prod => 
+              (itemSku && prod.sku === itemSku) ||
+              (itemSku && prod.baseSku === itemSku) ||
+              (label && prod.name && prod.name.toLowerCase().trim() === label.toLowerCase().trim()) ||
+              (label && prod.name && (label.toLowerCase().includes(prod.name.toLowerCase()) || prod.name.toLowerCase().includes(label.toLowerCase())))
+            );
+            if (match && match.category && match.category.toLowerCase() !== "general") {
+              cat = match.category;
+            } else {
+              const nameLower = label.toLowerCase();
+              if (nameLower.includes("hoodie") || nameLower.includes("buzo")) cat = "Buzos & Hoodies";
+              else if (nameLower.includes("sweater") || nameLower.includes("tejido") || nameLower.includes("chomba")) cat = "Tejidos & Sweaters";
+              else cat = "Indumentaria";
+            }
+          }
+          
           const qty = parseInt(item.quantity) || 0;
           
           tnProductCounts[label] = tnProductCounts[label] || { label: label, units: 0 };
