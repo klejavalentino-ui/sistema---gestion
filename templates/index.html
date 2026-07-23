@@ -590,7 +590,7 @@
                 <tr>
                   <th>SKU / Producto</th>
                   <th>Categoría</th>
-                  <th>Variante</th>
+                  <th>Talles / Variante</th>
                   <th style="text-align: right;">Stock</th>
                   <th style="text-align: right;">Unidades de Stock Critico</th>
                   <th style="text-align: right;">Costo Unit.</th>
@@ -1758,7 +1758,7 @@
                   <input type="text" id="quote-client-name" class="form-input" placeholder="Ej: Juan Pérez" oninput="renderQuotesUI()">
                 </div>
                 <div class="form-group" style="margin: 0;">
-                  <label>Teléfono o Nota</label>
+                  <label>Nota</label>
                   <input type="text" id="quote-client-note" class="form-input" placeholder="Ej: Validez: 7 días" oninput="renderQuotesUI()">
                 </div>
               </div>
@@ -1779,7 +1779,13 @@
                   <div style="font-size: 0.75rem; color: var(--text-muted);" id="quote-sel-prod-sku">-</div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                  <div class="form-group" style="margin: 0;">
+                    <label>Talle</label>
+                    <select id="quote-item-size" class="form-input" style="padding: 6px;">
+                      <option value="Único">Único</option>
+                    </select>
+                  </div>
                   <div class="form-group" style="margin: 0;">
                     <label>Precio ($)</label>
                     <input type="text" id="quote-item-price" class="form-input" placeholder="0" onblur="formatCurrencyField(this)">

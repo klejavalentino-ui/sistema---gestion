@@ -4152,19 +4152,30 @@ function renderInventory() {
     const isCritical = g.totalStock <= g.totalMinStock;
     const colorClass = isCritical ? '#f87171' : '#10b981';
     
-    // Ordenar los talles según el orden estándar
-    const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
-    const sortedTalles = [...new Set(g.variants.map(v => v.size).filter(s => s))]
-      .sort((a, b) => {
-        const idxA = sizeOrder.indexOf(a);
-        const idxB = sizeOrder.indexOf(b);
-        if (idxA === -1 && idxB === -1) return a.localeCompare(b);
-        if (idxA === -1) return 1;
-        if (idxB === -1) return -1;
-        return idxA - idxB;
-      });
+    // Ordenar los talles según las variantes configuradas en el negocio + estándar
+    const configuredSizesStr = state.userProfile?.sizeVariants || state.sizeVariants || "XS, S, M, L, XL, XXL, Talle 1, Talle 2, Talle 3, Talle 4";
+    const configuredSizes = configuredSizesStr.split(",").map(s => s.trim()).filter(Boolean);
+    const defaultSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Talle 1', 'Talle 2', 'Talle 3', 'Talle 4', 'Único'];
+    const sizeOrder = [...new Set([...configuredSizes, ...defaultSizes])];
 
-    const tallesText = sortedTalles.join(", ");
+    const allProductSizes = new Set();
+    g.variants.forEach(v => {
+      if (v.size) allProductSizes.add(v.size);
+      if (v.sizesStock && typeof v.sizesStock === 'object') {
+        Object.keys(v.sizesStock).forEach(sz => { if (sz) allProductSizes.add(sz); });
+      }
+    });
+
+    const sortedTalles = [...allProductSizes].sort((a, b) => {
+      const idxA = sizeOrder.indexOf(a);
+      const idxB = sizeOrder.indexOf(b);
+      if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+
+    const tallesText = sortedTalles.length > 0 ? sortedTalles.join(", ") : "Único";
 
     const firstVar = g.variants[0] || {};
     const priceLocal = firstVar.price_local !== undefined ? parseFloat(firstVar.price_local) : price;
@@ -4186,8 +4197,8 @@ function renderInventory() {
         <span class="badge badge-gray">${g.category || ""}</span>
       </td>
       <td>
-        <div style="font-size: 0.8rem;">${g.color || "Único"}</div>
-        ${(state.businessType === "comercio" || tallesText === "Único" || !tallesText) ? "" : `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px;">Talles: ${tallesText}</div>`}
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-white);">${tallesText}</div>
+        ${(g.color && g.color !== "Único" && g.color.toLowerCase() !== "único") ? `<div style="font-size: 0.65rem; color: var(--text-gray); margin-top: 2px; font-style: italic;">Color: ${g.color}</div>` : ""}
       </td>
       <td style="text-align: right; font-weight: 700; color: ${colorClass};">
         <div style="font-size: 0.8rem; color: var(--text-white);">${g.totalStock} u.</div>
@@ -12390,22 +12401,67 @@ function selectQuoteProduct(index) {
   if (qtyInput && (!qtyInput.value || parseInt(qtyInput.value) < 1)) {
     qtyInput.value = "1";
   }
+
+  // Poblar opciones de Talle para el producto seleccionado
+  const sizeSelect = document.getElementById("quote-item-size");
+  if (sizeSelect) {
+    let availableSizes = [];
+    if (prod.sizesStock && typeof prod.sizesStock === "object") {
+      availableSizes = Object.keys(prod.sizesStock).filter(Boolean);
+    } else if (prod.sizes && Array.isArray(prod.sizes)) {
+      availableSizes = prod.sizes.filter(Boolean);
+    } else if (prod.size && prod.size !== "Único") {
+      availableSizes = [prod.size];
+    }
+    
+    // Si no tiene talles específicos en el objeto, buscar por el mismo producto o SKU en state.products
+    const baseSku = prod.baseSku || (prod.sku ? prod.sku.split("-")[0] : "");
+    const sameProds = (state.products || []).filter(p => 
+      (baseSku && (p.baseSku === baseSku || (p.sku && p.sku.startsWith(baseSku)))) ||
+      (prod.name && p.name && p.name.toLowerCase().trim() === prod.name.toLowerCase().trim())
+    );
+    sameProds.forEach(sp => {
+      if (sp.size && sp.size !== "Único") availableSizes.push(sp.size);
+      if (sp.sizesStock && typeof sp.sizesStock === "object") Object.keys(sp.sizesStock).forEach(sz => availableSizes.push(sz));
+    });
+
+    const configuredStr = state.userProfile?.sizeVariants || state.sizeVariants || "XS, S, M, L, XL, XXL, Talle 1, Talle 2, Talle 3, Talle 4";
+    const configuredList = configuredStr.split(",").map(s => s.trim()).filter(Boolean);
+
+    if (availableSizes.length === 0) {
+      availableSizes = ["Único", ...configuredList];
+    } else {
+      if (!availableSizes.includes("Único")) availableSizes.unshift("Único");
+      configuredList.forEach(c => {
+        if (!availableSizes.includes(c)) availableSizes.push(c);
+      });
+    }
+
+    availableSizes = [...new Set(availableSizes)];
+    sizeSelect.innerHTML = availableSizes.map(sz => `<option value="${sz}">${sz}</option>`).join("");
+  }
 }
 
 function addQuoteItemFromForm() {
   const searchInput = document.getElementById("quote-product-search");
   const priceInput = document.getElementById("quote-item-price");
   const qtyInput = document.getElementById("quote-item-qty");
+  const sizeSelect = document.getElementById("quote-item-size");
   
   const prod = state.selectedQuoteProduct;
-  const name = prod ? (prod.name || "Producto Custom") : (searchInput ? searchInput.value.trim() : "");
+  let name = prod ? (prod.name || "Producto Custom") : (searchInput ? searchInput.value.trim() : "");
   const sku = prod ? (prod.sku || prod.id || "-") : "MISC";
   const price = parseLocalFloat(priceInput ? priceInput.value : 0);
   const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1) || 1);
+  const selectedSize = sizeSelect ? sizeSelect.value : "Único";
   
   if (!name && !sku) {
     showToast("Escribí o seleccioná un producto", true);
     return;
+  }
+
+  if (selectedSize && selectedSize !== "Único" && !name.includes(`(${selectedSize})`)) {
+    name = `${name} (${selectedSize})`;
   }
   
   if (!state.quoteItems) state.quoteItems = [];
@@ -12413,6 +12469,7 @@ function addQuoteItemFromForm() {
   state.quoteItems.push({
     sku: sku,
     name: name,
+    size: selectedSize,
     price: price,
     qty: qty,
     subtotal: price * qty
@@ -12422,6 +12479,7 @@ function addQuoteItemFromForm() {
   if (searchInput) searchInput.value = "";
   if (priceInput) priceInput.value = "";
   if (qtyInput) qtyInput.value = "1";
+  if (sizeSelect) sizeSelect.innerHTML = `<option value="Único">Único</option>`;
   
   const infoBox = document.getElementById("quote-selected-product-info");
   if (infoBox) infoBox.style.display = "none";
@@ -12888,6 +12946,7 @@ function clearQuote() {
   const discountInput = document.getElementById("quote-discount-input");
   const priceInput = document.getElementById("quote-item-price");
   const qtyInput = document.getElementById("quote-item-qty");
+  const sizeSelect = document.getElementById("quote-item-size");
   
   if (searchInput) searchInput.value = "";
   if (clientNameInput) clientNameInput.value = "";
@@ -12895,6 +12954,7 @@ function clearQuote() {
   if (discountInput) discountInput.value = "";
   if (priceInput) priceInput.value = "";
   if (qtyInput) qtyInput.value = "1";
+  if (sizeSelect) sizeSelect.innerHTML = `<option value="Único">Único</option>`;
   
   const infoBox = document.getElementById("quote-selected-product-info");
   if (infoBox) infoBox.style.display = "none";
