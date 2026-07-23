@@ -5035,7 +5035,7 @@ function closeConfirmModal() {
   if (modal) modal.classList.remove("active");
 }
 
-function showConfirmModal(message, onConfirm, title = "Confirmar Acción", danger = true) {
+function showConfirmModal(message, onConfirm, title = "Confirmar Acción", danger = true, confirmText = null) {
   const modal = document.getElementById("idx-confirm-modal");
   const titleEl = document.getElementById("confirm-modal-title");
   const messageEl = document.getElementById("confirm-modal-message");
@@ -5046,7 +5046,7 @@ function showConfirmModal(message, onConfirm, title = "Confirmar Acción", dange
   
   titleEl.innerText = title;
   messageEl.innerText = message;
-  confirmBtn.innerText = danger ? "Eliminar" : "Confirmar";
+  confirmBtn.innerText = confirmText ? confirmText : (danger ? "Eliminar" : "Confirmar");
   
   if (danger) {
     confirmBtn.className = "btn btn-primary";
@@ -10316,52 +10316,62 @@ async function emitBulkArcaInvoices() {
   
   const selectedIds = Array.from(checked).map(cb => cb.value);
   
-  showConfirmModal(`¿Deseas facturar de forma masiva estas ${selectedIds.length} ventas?`, async () => {
-    let successCount = 0;
-    let failCount = 0;
-    let errors = [];
-    
-    // Disable select all checkbox and all sale checkboxes during emission
-    const selectAllCb = document.getElementById("arca-select-all-uninvoiced");
-    if (selectAllCb) selectAllCb.disabled = true;
-    checked.forEach(cb => cb.disabled = true);
-    
-    showToast(`Iniciando facturación masiva de ${selectedIds.length} comprobantes...`);
-    
-    for (let i = 0; i < selectedIds.length; i++) {
-      const saleId = selectedIds[i];
-      // Find local sale for name reference
-      const sale = state.sales.find(s => s.id === saleId);
-      const saleDesc = sale ? `$ ${Math.round(sale.total).toLocaleString("es-AR")}` : `#${saleId}`;
+  showConfirmModal(
+    `¿Deseas facturar de forma masiva estas ${selectedIds.length} ventas?`,
+    async () => {
+      let successCount = 0;
+      let failCount = 0;
+      let errors = [];
       
-      showToast(`[${i+1}/${selectedIds.length}] Facturando venta de ${saleDesc}...`);
+      // Disable select all checkbox and all sale checkboxes during emission
+      const selectAllCb = document.getElementById("arca-select-all-uninvoiced");
+      if (selectAllCb) selectAllCb.disabled = true;
+      checked.forEach(cb => cb.disabled = true);
       
-      try {
-        const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
-        successCount++;
-      } catch (error) {
-        failCount++;
-        errors.push(`Venta ${saleDesc}: ${error.message}`);
+      showToast(`Iniciando facturación masiva de ${selectedIds.length} comprobantes...`);
+      
+      for (let i = 0; i < selectedIds.length; i++) {
+        const saleId = selectedIds[i];
+        // Find local sale for name reference
+        const sale = state.sales.find(s => s.id === saleId);
+        const saleDesc = sale ? `$ ${Math.round(sale.total).toLocaleString("es-AR")}` : `#${saleId}`;
+        
+        showToast(`[${i+1}/${selectedIds.length}] Facturando venta de ${saleDesc}...`);
+        
+        try {
+          const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
+          successCount++;
+          // Solo si son 2 o menos ventas se ofrece/ejecuta la impresión individual
+          if (selectedIds.length <= 2) {
+            printSaleTicket(saleId);
+          }
+        } catch (error) {
+          failCount++;
+          errors.push(`Venta ${saleDesc}: ${error.message}`);
+        }
       }
-    }
-    
-    // Refresh all states
-    await refreshState();
-    if (typeof renderUninvoicedSales === 'function') renderUninvoicedSales();
-    
-    // Re-enable select all
-    if (selectAllCb) {
-      selectAllCb.disabled = false;
-      selectAllCb.checked = false;
-    }
-    
-    if (failCount === 0) {
-      showToast(`¡Facturación masiva completada con éxito! Se emitieron ${successCount} comprobantes.`);
-    } else {
-      showToast(`Facturación masiva finalizada. Éxitos: ${successCount}. Errores: ${failCount}.`, true);
-      alert(`Errores durante la facturación masiva:\n\n` + errors.join("\n"));
-    }
-  });
+      
+      // Refresh all states
+      await refreshState();
+      if (typeof renderUninvoicedSales === 'function') renderUninvoicedSales();
+      
+      // Re-enable select all
+      if (selectAllCb) {
+        selectAllCb.disabled = false;
+        selectAllCb.checked = false;
+      }
+      
+      if (failCount === 0) {
+        showToast(`¡Facturación masiva completada con éxito! Se emitieron ${successCount} comprobantes.`);
+      } else {
+        showToast(`Facturación masiva finalizada. Éxitos: ${successCount}. Errores: ${failCount}.`, true);
+        alert(`Errores durante la facturación masiva:\n\n` + errors.join("\n"));
+      }
+    },
+    "Facturar de Forma Masiva",
+    false,
+    "Facturar Masivo"
+  );
 }
 
 async function changeSaleFiscalStatus(saleId, status) {
