@@ -3546,7 +3546,6 @@ async function deleteSale(saleId) {
   }
 }
 
-function printSaleTicket(saleId) {
 function getInvoiceTicketInnerHTML(sale) {
   const dateObj = new Date(sale.date);
   const dateStr = dateObj.toLocaleDateString('es-AR');
