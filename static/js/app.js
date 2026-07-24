@@ -1081,11 +1081,14 @@ function handleExcelImport(event) {
           .filter(p => p.sku)
           .map(p => p.sku.toLowerCase().trim())
       );
-      const existingNames = new Set(
-        state.products
-          .filter(p => p.name)
-          .map(p => cleanCompareText(p.name))
-      );
+      
+      const nameToFirstBaseSku = {};
+      (state.products || []).forEach(p => {
+        if (p && p.name && p.baseSku) {
+          nameToFirstBaseSku[cleanCompareText(p.name)] = p.baseSku;
+        }
+      });
+
       const importedSkusInBatch = new Set();
       let omittedCount = 0;
       
@@ -1165,16 +1168,16 @@ function handleExcelImport(event) {
         if (skuVal && name) {
           const skuLower = skuVal.toLowerCase().trim();
           const nameClean = cleanCompareText(name);
-          
+          const sizeLower = (size || "").toLowerCase().trim();
+
           let isUpdate = false;
           let existingProduct = null;
           
           if (existingSkus.has(skuLower)) {
             isUpdate = true;
             existingProduct = state.products.find(p => p.sku.toLowerCase().trim() === skuLower);
-          } else if (existingNames.has(nameClean)) {
-            omittedCount++;
-            return;
+          } else {
+            existingProduct = state.products.find(p => cleanCompareText(p.name) === nameClean && (p.size || "").toLowerCase().trim() === sizeLower);
           }
           
           if (importedSkusInBatch.has(skuLower)) {
@@ -1184,10 +1187,20 @@ function handleExcelImport(event) {
           
           importedSkusInBatch.add(skuLower);
           
-          const baseSku = state.businessType === "comercio"
-            ? (skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal)
-            : (skuVal.split("-")[0] || skuVal);
-            
+          let baseSku = "";
+          if (state.businessType === "comercio") {
+            baseSku = (skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal);
+          } else {
+            if (skuVal.includes("-")) {
+              baseSku = skuVal.split("-")[0];
+            } else if (nameToFirstBaseSku[nameClean]) {
+              baseSku = nameToFirstBaseSku[nameClean];
+            } else {
+              baseSku = skuVal;
+            }
+          }
+          nameToFirstBaseSku[nameClean] = baseSku;
+
           const prodPayload = existingProduct ? { ...existingProduct } : { id: Date.now() + Math.random(), extras: {} };
           
           prodPayload.baseSku = baseSku;
@@ -1217,6 +1230,18 @@ function handleExcelImport(event) {
           prodPayload.baseCost = cost;
           prodPayload.margin = Math.round(margin * 10) / 10;
           prodPayload.cost = cost;
+
+          // Guardar precio de venta
+          let calculatedPrice = 0;
+          if (price > 0) {
+            calculatedPrice = Math.round(price);
+          } else if (cost > 0 && margin > 0) {
+            calculatedPrice = Math.round(cost * (1 + margin / 100));
+          }
+          prodPayload.price_local = calculatedPrice;
+          prodPayload.price_tiendanube = calculatedPrice;
+          prodPayload.price = calculatedPrice;
+
           if (leadTime !== "") prodPayload.leadTime = leadTime;
           if (securityStock !== "") prodPayload.securityStock = securityStock;
           
@@ -4153,7 +4178,8 @@ function renderInventory() {
   const groupedProducts = {};
   actualProducts.forEach(p => {
     const pSku = p.sku || p.id || "";
-    const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : pSku) || "PROD";
+    const cleanNameKey = cleanCompareText(p.name || "");
+    const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : cleanNameKey) || "PROD";
     const colorKey = p.color ? p.color.toLowerCase().trim() : "";
     const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
     const displayName = getProductNameWithColor(p);
