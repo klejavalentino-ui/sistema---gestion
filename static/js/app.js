@@ -1021,49 +1021,30 @@ function handleExcelImport(event) {
       }
       
       const normalizedSheetHeaders = firstSheetRow.map(h => normalizeHeader(h));
-      const requiredHeadersTextil = [
-        "sku",
-        "producto",
-        "categoria",
-        "talle",
-        "costo unitario",
-        "margen (%)",
-        "precio de venta",
-        "stock actual",
-        "tiempo de entrega (dias)",
-        "stock de seguridad"
-      ];
-      const requiredHeadersComercio = [
-        "sku",
-        "producto",
-        "categoria",
-        "variante",
-        "costo unitario",
-        "margen (%)",
-        "precio de venta",
-        "stock actual",
-        "tiempo de entrega (dias)",
-        "stock de seguridad"
-      ];
+      const aliasMap = {
+        "sku": ["sku", "codigo", "code", "id"],
+        "producto": ["producto", "nombre", "nombre del producto", "prenda", "articulo"],
+        "categoria": ["categoria", "categoría", "rubro", "tipo"],
+        "costo unitario": ["costo unitario", "costo", "costo total", "costo unit.", "costo unit"]
+      };
+
+      const missingFields = [];
+      Object.keys(aliasMap).forEach(field => {
+        const aliases = aliasMap[field];
+        const found = normalizedSheetHeaders.some(h => aliases.includes(h));
+        if (!found) {
+          missingFields.push(field);
+        }
+      });
       
-      const required = state.businessType === "comercio" ? requiredHeadersComercio : requiredHeadersTextil;
-      const missingHeaders = required.filter(h => !normalizedSheetHeaders.includes(h));
-      
-      if (missingHeaders.length > 0) {
+      if (missingFields.length > 0) {
         const headerFriendlyMap = {
           "sku": "SKU",
-          "producto": "Producto",
+          "producto": "Producto / Nombre",
           "categoria": "Categoría",
-          "talle": "Talle",
-          "variante": "Variante",
-          "costo unitario": "Costo Unitario",
-          "margen (%)": "Margen (%)",
-          "precio de venta": "Precio de Venta",
-          "stock actual": "Stock Actual",
-          "tiempo de entrega (dias)": "Tiempo de Entrega (días)",
-          "stock de seguridad": "Stock de seguridad"
+          "costo unitario": "Costo Unitario / Costo"
         };
-        const missingFriendly = missingHeaders.map(h => headerFriendlyMap[h] || h);
+        const missingFriendly = missingFields.map(h => headerFriendlyMap[h] || h);
         showToast(`El archivo no se puede leer. Faltan columnas: ${missingFriendly.join(", ")}`, true);
         return;
       }
@@ -1098,14 +1079,14 @@ function handleExcelImport(event) {
           cleanRow[normalizeHeader(key)] = row[key];
         });
         
-        const sku = String(cleanRow["sku"] || "").trim();
-        const name = String(cleanRow["producto"] || "").trim();
-        const category = String(cleanRow["categoria"] || "General").trim();
+        let sku = String(cleanRow["sku"] || cleanRow["codigo"] || cleanRow["code"] || cleanRow["id"] || "").trim();
+        const name = String(cleanRow["producto"] || cleanRow["nombre"] || cleanRow["nombre del producto"] || cleanRow["prenda"] || cleanRow["articulo"] || "").trim();
+        const category = String(cleanRow["categoria"] || cleanRow["categoría"] || cleanRow["rubro"] || "General").trim();
         
-        const costStr = String(cleanRow["costo unitario"] || "");
+        const costStr = String(cleanRow["costo unitario"] || cleanRow["costo"] || cleanRow["costo total"] || cleanRow["costo unit."] || cleanRow["costo unit"] || "");
         const cost = costStr !== "" ? (parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
         
-        const priceStr = String(cleanRow["precio de venta"] || "");
+        const priceStr = String(cleanRow["precio de venta"] || cleanRow["precio venta"] || cleanRow["precio"] || cleanRow["precio local"] || cleanRow["pv"] || "");
         const price = priceStr !== "" ? (parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
         
         const locationsStock = {};
@@ -1126,24 +1107,25 @@ function handleExcelImport(event) {
         });
         
         if (Object.keys(locationsStock).length === 0) {
-          const stockStr = String(cleanRow["stock actual"] || "");
+          const stockStr = String(cleanRow["stock actual"] || cleanRow["stock"] || cleanRow["cantidad"] || cleanRow["stock total"] || "");
           const stockVal = stockStr !== "" ? (parseInt(stockStr.replace(/[^0-9]/g, "")) || 0) : 0;
           const defaultLoc = configuredLocs[0] || "Local Principal";
           locationsStock[defaultLoc] = stockVal;
           totalStock = stockVal;
         }
         
-        let size = String(cleanRow["talle"] || "").trim();
-        let color = String(cleanRow["variante"] || "").trim();
+        let size = String(cleanRow["talle"] || cleanRow["talles"] || cleanRow["size"] || cleanRow["tamano"] || cleanRow["tamaño"] || "").trim();
+        if (!size) size = "Único";
+
+        let color = String(cleanRow["variante"] || cleanRow["color"] || cleanRow["variacion"] || "").trim();
         
-        const marginStr = String(cleanRow["margen (%)"] || "").trim();
+        const marginStr = String(cleanRow["margen (%)"] || cleanRow["margen"] || cleanRow["margin"] || "").trim();
         const hasPercentSign = marginStr.includes("%");
         let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
         
         if (hasPercentSign) {
           // Si tiene %, es el valor directo (ej: 50% -> 50)
         } else if (margin > 0 && margin <= 1.0) {
-          // Si vino como 0.5 (fracción de excel), multiplicamos por 100
           margin = margin * 100;
         }
         
@@ -1151,12 +1133,16 @@ function handleExcelImport(event) {
           margin = ((price / cost) - 1) * 100;
         }
 
-        const deliveryTimeStr = String(cleanRow["tiempo de entrega (dias)"] || "").trim();
+        const deliveryTimeStr = String(cleanRow["tiempo de entrega (dias)"] || cleanRow["tiempo de entrega"] || "").trim();
         const leadTime = (deliveryTimeStr !== "") ? parseInt(deliveryTimeStr.replace(/[^0-9]/g, "")) : "";
 
-        const securityStockStr = String(cleanRow["stock de seguridad"] || "").trim();
+        const securityStockStr = String(cleanRow["stock de seguridad"] || cleanRow["stock critico"] || "").trim();
         const securityStock = (securityStockStr !== "") ? parseInt(securityStockStr.replace(/[^0-9]/g, "")) : "";
         
+        if (!sku && name) {
+          sku = (name.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 15)) + "-" + (size ? size.toUpperCase().replace(/[^A-Z0-9]/g, "") : "U");
+        }
+
         let skuVal = sku;
         if (state.businessType === "comercio") {
           size = "Único";
@@ -1168,7 +1154,7 @@ function handleExcelImport(event) {
         if (skuVal && name) {
           const skuLower = skuVal.toLowerCase().trim();
           const nameClean = cleanCompareText(name);
-          const sizeLower = (size || "").toLowerCase().trim();
+          const sizeLower = size.toLowerCase().trim();
 
           let isUpdate = false;
           let existingProduct = null;
