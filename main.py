@@ -1699,6 +1699,7 @@ def add_account_transaction(acc_id):
         new_tx = {
             "id": f"tx-{int(time.time() * 1000)}",
             "date": data.get("date", time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())),
+            "due_date": data.get("due_date"),
             "description": str(data.get("description", "")),
             "amount": safe_float(data.get("amount", 0.0)),
             "payment": safe_float(data.get("payment", 0.0)),

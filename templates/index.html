@@ -3215,11 +3215,42 @@
             <div class="grid-2">
               <div class="form-group">
                 <label class="form-label" for="tx-amount" id="tx-amount-label">Deuda ($)</label>
-                <input type="text" id="tx-amount" class="form-input" placeholder="0">
+                <input type="text" id="tx-amount" class="form-input" placeholder="0" oninput="updateFinancingSummary()">
               </div>
               <div class="form-group">
                 <label class="form-label" for="tx-payment" id="tx-payment-label">Pago ($)</label>
                 <input type="text" id="tx-payment" class="form-input" placeholder="0">
+              </div>
+            </div>
+
+            <!-- Plazo y Financiación Container -->
+            <div id="tx-financing-container" style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; margin-top: 10px; margin-bottom: 14px; border: 1px solid var(--border-color);">
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <i class="fas fa-calendar-alt"></i> Plazo de Pago / Financiación de Deuda
+              </div>
+              <div class="grid-2">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="tx-financing-type" style="font-size: 0.72rem;">Modalidad / Plazo</label>
+                  <select id="tx-financing-type" class="form-select" style="font-size: 0.78rem;" onchange="toggleFinancingFields()">
+                    <option value="none">Sin vencimiento determinado</option>
+                    <option value="days">Plazo en Días (Vencimiento Único)</option>
+                    <option value="weekly_installments">Cuotas Semanales</option>
+                    <option value="monthly_installments">Cuotas Mensuales</option>
+                  </select>
+                </div>
+                
+                <div id="financing-days-group" class="form-group" style="display: none; margin-bottom: 0;">
+                  <label class="form-label" for="tx-days-input" style="font-size: 0.72rem;">Días de Financiamiento</label>
+                  <input type="number" id="tx-days-input" class="form-input" style="font-size: 0.78rem;" placeholder="Ej. 10, 15, 30" min="1" value="15" oninput="updateFinancingSummary()">
+                </div>
+
+                <div id="financing-installments-group" class="form-group" style="display: none; margin-bottom: 0;">
+                  <label class="form-label" id="financing-installments-label" for="tx-installments-input" style="font-size: 0.72rem;">Cantidad de Cuotas</label>
+                  <input type="number" id="tx-installments-input" class="form-input" style="font-size: 0.78rem;" placeholder="Ej. 4" min="2" max="52" value="4" oninput="updateFinancingSummary()">
+                </div>
+              </div>
+
+              <div id="financing-summary" style="display: none; margin-top: 10px; padding: 8px 10px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); border-radius: 6px; font-size: 0.73rem; color: var(--accent-emerald); font-weight: 600;">
               </div>
             </div>
 

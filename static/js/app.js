@@ -6950,11 +6950,27 @@ function openAccountDetailModal(accId) {
        accionesHtml = `<button class="btn btn-sm" style="background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); font-size: 0.7rem; padding: 4px 8px; margin-right: 6px;" onclick="generateReciboXPDF('${tx.id}', '${acc.id}', ${tx.payment}, '${tx.date}')"><i class="fa-solid fa-file-invoice"></i> Recibo X</button>`;
     }
     accionesHtml += `<button class="btn btn-sm" style="background: rgba(239,68,68,0.1); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.2); font-size: 0.7rem; padding: 4px 8px;" onclick="deleteAccountTransaction('${acc.id}', '${tx.id}')" title="Eliminar movimiento"><i class="fa-solid fa-trash"></i></button>`;
+    
+    let dueDateHtml = "";
+    if (tx.due_date && tx.amount > 0) {
+      const dDate = new Date(tx.due_date);
+      const isPast = dDate < new Date() && (tx.amount > tx.payment);
+      const formattedDDate = dDate.toLocaleDateString('es-AR');
+      if (isPast) {
+        dueDateHtml = `<div style="font-size: 0.68rem; color: #f87171; font-weight: 700; margin-top: 2px; display: inline-flex; align-items: center; gap: 4px; background: rgba(239,68,68,0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(239,68,68,0.2);"><i class="fas fa-exclamation-circle"></i> Vencido: ${formattedDDate}</div>`;
+      } else {
+        dueDateHtml = `<div style="font-size: 0.68rem; color: #10b981; font-weight: 600; margin-top: 2px; display: inline-flex; align-items: center; gap: 4px; background: rgba(16,185,129,0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16,185,129,0.2);"><i class="fas fa-clock"></i> Vence: ${formattedDDate}</div>`;
+      }
+    }
+
     tr.innerHTML = `
       <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
-      <td style="font-weight: 600;">${tx.description}</td>
-      <td style="text-align: right; color: #f87171;">$ ${Math.round(tx.amount).toLocaleString()}</td>
-      <td style="text-align: right; color: #10b981;">$ ${Math.round(tx.payment).toLocaleString()}</td>
+      <td style="font-weight: 600;">
+        ${tx.description}
+        ${dueDateHtml}
+      </td>
+      <td style="text-align: right; color: #f87171;">$ ${Math.round(tx.amount).toLocaleString('es-AR')}</td>
+      <td style="text-align: right; color: #10b981;">$ ${Math.round(tx.payment).toLocaleString('es-AR')}</td>
       <td style="text-align: right;">${accionesHtml}</td>
     `;
     tbody.appendChild(tr);
@@ -6969,6 +6985,13 @@ function openAccountDetailModal(accId) {
   if (document.getElementById("tx-type")) {
     document.getElementById("tx-type").value = "normal";
     if (typeof toggleTxInterestFields === 'function') toggleTxInterestFields();
+  }
+
+  if (document.getElementById("tx-financing-type")) {
+    document.getElementById("tx-financing-type").value = "none";
+    if (document.getElementById("tx-days-input")) document.getElementById("tx-days-input").value = "15";
+    if (document.getElementById("tx-installments-input")) document.getElementById("tx-installments-input").value = "4";
+    if (typeof toggleFinancingFields === 'function') toggleFinancingFields();
   }
 
   if (acc.type === "cliente") {
@@ -6996,6 +7019,63 @@ function closeAccountDetailModal() {
   document.getElementById("account-detail-modal").className = "modal-backdrop";
 }
 
+function toggleFinancingFields() {
+  const type = document.getElementById("tx-financing-type")?.value || "none";
+  const daysGroup = document.getElementById("financing-days-group");
+  const instGroup = document.getElementById("financing-installments-group");
+  const instLabel = document.getElementById("financing-installments-label");
+
+  if (daysGroup) daysGroup.style.display = (type === "days") ? "block" : "none";
+  if (instGroup) instGroup.style.display = (type === "weekly_installments" || type === "monthly_installments") ? "block" : "none";
+
+  if (instLabel) {
+    instLabel.innerText = type === "weekly_installments" ? "Semanas / Cuotas" : "Meses / Cuotas";
+  }
+
+  updateFinancingSummary();
+}
+window.toggleFinancingFields = toggleFinancingFields;
+
+function updateFinancingSummary() {
+  const type = document.getElementById("tx-financing-type")?.value || "none";
+  const summaryEl = document.getElementById("financing-summary");
+  const rawAmtStr = document.getElementById("tx-amount")?.value || "0";
+  const amount = parseFloat(rawAmtStr.replace(/\D/g, "")) || 0;
+
+  if (!summaryEl) return;
+
+  if (type === "none" || amount <= 0) {
+    summaryEl.style.display = "none";
+    summaryEl.innerHTML = "";
+    return;
+  }
+
+  const now = new Date();
+
+  if (type === "days") {
+    const days = parseInt(document.getElementById("tx-days-input")?.value) || 0;
+    if (days <= 0) {
+      summaryEl.style.display = "none";
+      return;
+    }
+    const dueDate = new Date(now.getTime() + days * 86400000);
+    const dateStr = dueDate.toLocaleDateString("es-AR");
+    summaryEl.innerHTML = `<i class="fas fa-clock"></i> <strong>Vencimiento:</strong> La deuda de $${amount.toLocaleString("es-AR")} vencerá el <strong>${dateStr}</strong> (en ${days} días).`;
+    summaryEl.style.display = "block";
+  } else if (type === "weekly_installments") {
+    const cuotas = parseInt(document.getElementById("tx-installments-input")?.value) || 2;
+    const cuotaAmount = Math.round(amount / cuotas);
+    summaryEl.innerHTML = `<i class="fas fa-calendar-week"></i> <strong>Financiación Semanal:</strong> ${cuotas} cuotas semanales de <strong>$${cuotaAmount.toLocaleString("es-AR")}</strong> cada 7 días.`;
+    summaryEl.style.display = "block";
+  } else if (type === "monthly_installments") {
+    const cuotas = parseInt(document.getElementById("tx-installments-input")?.value) || 2;
+    const cuotaAmount = Math.round(amount / cuotas);
+    summaryEl.innerHTML = `<i class="fas fa-calendar-alt"></i> <strong>Financiación Mensual:</strong> ${cuotas} cuotas mensuales de <strong>$${cuotaAmount.toLocaleString("es-AR")}</strong> cada 30 días.`;
+    summaryEl.style.display = "block";
+  }
+}
+window.updateFinancingSummary = updateFinancingSummary;
+
 async function saveAccountTransactionForm(e) {
   e.preventDefault();
   const accId = document.getElementById("account-tx-id-input").value;
@@ -7020,26 +7100,70 @@ async function saveAccountTransactionForm(e) {
     return;
   }
 
+  const financingType = document.getElementById("tx-financing-type")?.value || "none";
+  const daysVal = parseInt(document.getElementById("tx-days-input")?.value) || 15;
+  const installmentsVal = parseInt(document.getElementById("tx-installments-input")?.value) || 4;
+
   const btn = document.getElementById("btn-save-tx");
   if(btn) { btn.innerText = "Registrando..."; btn.disabled = true; }
 
   try {
-    const payload = { 
-      description, 
-      amount, 
-      payment,
-      is_interest: (type === "interest"),
-      emit_debit_note: (type === "interest" && emitDebitNote),
-      original_sale_id: invoiceId
-    };
-    const res = await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", payload);
-    
-    if(res.nota_debito_emitida) {
-      showToast("Movimiento e Interés registrados. Nota de Débito aprobada por AFIP.", false);
+    if (amount > 0 && financingType === "weekly_installments") {
+      const cuotaAmt = Math.round(amount / installmentsVal);
+      const now = new Date();
+      for (let i = 1; i <= installmentsVal; i++) {
+        const dueDate = new Date(now.getTime() + (i * 7) * 86400000).toISOString();
+        const payload = {
+          description: `${description} - Cuota ${i}/${installmentsVal}`,
+          amount: cuotaAmt,
+          payment: (i === 1 ? payment : 0),
+          due_date: dueDate,
+          is_interest: (type === "interest"),
+          emit_debit_note: (type === "interest" && emitDebitNote && i === 1),
+          original_sale_id: invoiceId
+        };
+        await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", payload);
+      }
+      showToast(`${installmentsVal} cuotas semanales de $${cuotaAmt.toLocaleString('es-AR')} registradas`, false);
+    } else if (amount > 0 && financingType === "monthly_installments") {
+      const cuotaAmt = Math.round(amount / installmentsVal);
+      const now = new Date();
+      for (let i = 1; i <= installmentsVal; i++) {
+        const dueDate = new Date(now.getTime() + (i * 30) * 86400000).toISOString();
+        const payload = {
+          description: `${description} - Cuota ${i}/${installmentsVal}`,
+          amount: cuotaAmt,
+          payment: (i === 1 ? payment : 0),
+          due_date: dueDate,
+          is_interest: (type === "interest"),
+          emit_debit_note: (type === "interest" && emitDebitNote && i === 1),
+          original_sale_id: invoiceId
+        };
+        await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", payload);
+      }
+      showToast(`${installmentsVal} cuotas mensuales de $${cuotaAmt.toLocaleString('es-AR')} registradas`, false);
     } else {
-      showToast("Movimiento registrado", false);
+      let dueDate = null;
+      if (amount > 0 && financingType === "days" && daysVal > 0) {
+        dueDate = new Date(Date.now() + daysVal * 86400000).toISOString();
+      }
+      const payload = { 
+        description, 
+        amount, 
+        payment,
+        due_date: dueDate,
+        is_interest: (type === "interest"),
+        emit_debit_note: (type === "interest" && emitDebitNote),
+        original_sale_id: invoiceId
+      };
+      const res = await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", payload);
+      if(res.nota_debito_emitida) {
+        showToast("Movimiento e Interés registrados. Nota de Débito aprobada por AFIP.", false);
+      } else {
+        showToast("Movimiento registrado", false);
+      }
     }
-    
+
     refreshState();
     
     // Dejar abierto el modal y refrescar la vista interna
