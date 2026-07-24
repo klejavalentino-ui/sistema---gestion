@@ -4181,7 +4181,7 @@ function renderInventory() {
     const cleanNameKey = cleanCompareText(p.name || "");
     const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : cleanNameKey) || "PROD";
     const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    const groupKey = (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
     const displayName = getProductNameWithColor(p);
 
     if (!groupedProducts[groupKey]) {
@@ -4966,11 +4966,13 @@ async function saveProductForm(e) {
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const existingVariant = state.products.find(v => v.baseSku === cleanBaseSku && v.size === size);
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
+      const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
+      const safeSku = existingVariant ? existingVariant.sku.replace(/\//g, "_") : `${cleanBaseSku}-${cleanSizeStr}`;
       
       const payload = {
         id: existingVariant ? existingVariant.id : Date.now() + Math.random(),
         baseSku: cleanBaseSku,
-        sku: existingVariant ? existingVariant.sku : `${cleanBaseSku}-${size.replace("Único", "U")}`,
+        sku: safeSku,
         name: name,
         category: category,
         size: size,
@@ -4998,10 +5000,12 @@ async function saveProductForm(e) {
     // Crear variantes
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
+      const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
+      const safeSku = `${baseSku}-${cleanSizeStr}`;
       const payload = {
         id: Date.now() + Math.random(),
         baseSku: baseSku,
-        sku: `${baseSku}-${size.replace("Único", "U")}`,
+        sku: safeSku,
         name: name,
         category: category,
         size: size,

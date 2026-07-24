@@ -1276,42 +1276,52 @@ def save_products_batch():
         if isinstance(data, list):
             results = []
             for p in data:
-                sku = p.get("sku")
+                sku = str(p.get("sku", "")).strip()
                 cost = safe_float(p.get("cost", 0.0))
                 margin = safe_float(p.get("margin", 0.0))
+                price_local_in = safe_float(p.get("price_local", 0.0))
+                if price_local_in <= 0 and cost > 0 and margin > 0:
+                    price_local_in = round(cost * (1.0 + margin / 100.0), 2)
                 p["cost"] = cost
                 p["stock"] = safe_int(p.get("stock", 0))
-                p["price_local"] = round(cost * (1.0 + margin / 100.0), 2)
-                p["price"] = p["price_local"]
-                p["sku"] = f"{prefix}{sku}"
-                res = firebase_config.set_document("products", f"{prefix}{sku}", p, token)
+                p["price_local"] = price_local_in
+                p["price"] = price_local_in
+                clean_sku = sku.replace("/", "_").replace("\\", "_")
+                doc_key = f"{prefix}{clean_sku}"
+                p["sku"] = f"{prefix}{sku}" if not sku.startswith(prefix) else sku
+                res = firebase_config.set_document("products", doc_key, p, token)
                 if res:
-                    res["id"] = res["id"][len(prefix):]
-                    if "sku" in res and res["sku"].startswith(prefix):
+                    res["id"] = res["id"][len(prefix):] if isinstance(res.get("id"), str) and res["id"].startswith(prefix) else res.get("id")
+                    if "sku" in res and isinstance(res["sku"], str) and res["sku"].startswith(prefix):
                         res["sku"] = res["sku"][len(prefix):]
                 results.append(res)
             return jsonify(results)
         else:
-            sku = data.get("sku")
+            sku = str(data.get("sku", "")).strip()
             if not sku:
                 return jsonify({"error": "SKU requerido"}), 400
             cost = safe_float(data.get("cost", 0.0))
             margin = safe_float(data.get("margin", 0.0))
+            price_local_in = safe_float(data.get("price_local", 0.0))
+            if price_local_in <= 0 and cost > 0 and margin > 0:
+                price_local_in = round(cost * (1.0 + margin / 100.0), 2)
             data["cost"] = cost
             data["stock"] = safe_int(data.get("stock", 0))
-            data["price_local"] = round(cost * (1.0 + margin / 100.0), 2)
-            data["price"] = data["price_local"]
-            data["sku"] = f"{prefix}{sku}"
-            res = firebase_config.set_document("products", f"{prefix}{sku}", data, token)
+            data["price_local"] = price_local_in
+            data["price"] = price_local_in
+            clean_sku = sku.replace("/", "_").replace("\\", "_")
+            doc_key = f"{prefix}{clean_sku}"
+            data["sku"] = f"{prefix}{sku}" if not sku.startswith(prefix) else sku
+            res = firebase_config.set_document("products", doc_key, data, token)
             if res:
-                res["id"] = res["id"][len(prefix):]
-                if "sku" in res and res["sku"].startswith(prefix):
+                res["id"] = res["id"][len(prefix):] if isinstance(res.get("id"), str) and res["id"].startswith(prefix) else res.get("id")
+                if "sku" in res and isinstance(res["sku"], str) and res["sku"].startswith(prefix):
                     res["sku"] = res["sku"][len(prefix):]
             return jsonify(res)
     except Exception as e:
         return handle_error(e)
 
-@app.route("/api/products/<sku>", methods=["DELETE"])
+@app.route("/api/products/<path:sku>", methods=["DELETE"])
 def delete_product(sku):
     token = get_auth_token()
     if not token:
@@ -1321,8 +1331,9 @@ def delete_product(sku):
         return jsonify({"error": "Token inválido o expirado"}), 401
         
     try:
-        deleted = firebase_config.delete_document("products", f"{prefix}{sku}", token)
-        return jsonify({"success": deleted})
+        clean_sku = str(sku).replace("/", "_").replace("\\", "_")
+        deleted = firebase_config.delete_document("products", f"{prefix}{clean_sku}", token)
+        return jsonify({"success": True, "deleted": deleted})
     except Exception as e:
         return handle_error(e)
 
