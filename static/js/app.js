@@ -12103,27 +12103,57 @@ function searchProductForExchange() {
   if (!resultsDiv) return;
   
   const isComercio = state.businessType === "comercio";
+  
+  // Agrupar productos por baseSku o Nombre para que cada producto aparezca 1 sola vez
+  const groupedMap = {};
+  (state.products || []).forEach(p => {
+    if (!p) return;
+    const sku = p.sku || p.id || "";
+    if (sku.startsWith("supplier_") || sku.startsWith("fixedcost_") || sku.startsWith("account_") || 
+        sku.startsWith("cashtransaction_") || sku.startsWith("influencer_") || sku.startsWith("marketingexpense_") || 
+        sku.startsWith("stockintake_") || sku === "extras_config" || sku === "categories_config") {
+      return;
+    }
+    if (isComercio && p.size && p.size !== "Único") return;
+    
+    const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku) || "PROD";
+    const name = p.name || "Producto sin nombre";
+    const groupKey = baseSku;
+    
+    if (!groupedMap[groupKey]) {
+      groupedMap[groupKey] = {
+        baseSku: baseSku,
+        name: name,
+        sku: baseSku,
+        price: p.price_tiendanube || p.price_local || p.price || 0,
+        variants: [p]
+      };
+    } else {
+      groupedMap[groupKey].variants.push(p);
+    }
+  });
+
+  const allGrouped = Object.values(groupedMap);
   let matches = [];
   
   if (query.length === 0) {
-    matches = state.products.filter(p => {
-      if (isComercio && p.size && p.size !== "Único") return false;
-      return true;
-    }).slice(0, 10);
+    matches = allGrouped.slice(0, 10);
   } else {
-    matches = state.products.filter(p => {
-      if (isComercio && p.size && p.size !== "Único") return false;
-      return (p.name && p.name.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
+    matches = allGrouped.filter(g => {
+      const baseSku = g.baseSku.toLowerCase();
+      const name = g.name.toLowerCase();
+      return baseSku.includes(query) || name.includes(query) || g.variants.some(v => (v.sku || v.id || "").toLowerCase().includes(query));
     }).slice(0, 10);
   }
   
   if (matches.length === 0) {
     resultsDiv.innerHTML = `<div style="padding: 10px; font-size: 0.75rem; color: var(--text-gray); font-style: italic;">No se encontraron productos</div>`;
   } else {
-    resultsDiv.innerHTML = matches.map(p => {
+    resultsDiv.innerHTML = matches.map(g => {
+      const displayPrice = Math.round(g.price || 0);
       return `
-        <div onclick="addExchangeProduct('${p.sku}', '${p.name.replace(/'/g, "\\'")}', ${p.price_tiendanube || p.price_local || p.price || 0})" style="padding: 8px 12px; font-size: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border-color); color: var(--text-white);" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
-          <strong>${p.sku}</strong> - ${p.name} ($${p.price})
+        <div onclick="addExchangeProduct('${g.baseSku}', '${g.name.replace(/'/g, "\\'")}', ${displayPrice})" style="padding: 8px 12px; font-size: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border-color); color: var(--text-white);" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
+          <strong>${g.baseSku}</strong> - ${g.name} ($${displayPrice.toLocaleString('es-AR')})
         </div>
       `;
     }).join("");
