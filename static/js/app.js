@@ -1003,7 +1003,18 @@ function handleExcelImport(event) {
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
       .trim();
+  }
+  
+  function getHeaderVal(cleanRow, possibleKeys) {
+    for (const key of possibleKeys) {
+      const normKey = normalizeHeader(key);
+      if (cleanRow[normKey] !== undefined && cleanRow[normKey] !== null && String(cleanRow[normKey]).trim() !== "") {
+        return String(cleanRow[normKey]).trim();
+      }
+    }
+    return "";
   }
   
   const reader = new FileReader();
@@ -1022,10 +1033,10 @@ function handleExcelImport(event) {
       
       const normalizedSheetHeaders = firstSheetRow.map(h => normalizeHeader(h));
       const aliasMap = {
-        "sku": ["sku", "codigo", "code", "id"],
-        "producto": ["producto", "nombre", "nombre del producto", "prenda", "articulo"],
+        "sku": ["sku", "codigo", "code", "id", "sku base", "referencia", "ref"],
+        "producto": ["producto", "nombre", "nombre del producto", "prenda", "articulo", "descripcion", "detalle"],
         "categoria": ["categoria", "categoría", "rubro", "tipo"],
-        "costo unitario": ["costo unitario", "costo", "costo total", "costo unit.", "costo unit"]
+        "costo unitario": ["costo unitario", "costo", "costo total", "costo unit.", "costo unit", "costounitario", "costo_unitario"]
       };
 
       const missingFields = [];
@@ -1079,14 +1090,14 @@ function handleExcelImport(event) {
           cleanRow[normalizeHeader(key)] = row[key];
         });
         
-        let sku = String(cleanRow["sku"] || cleanRow["codigo"] || cleanRow["code"] || cleanRow["id"] || "").trim();
-        const name = String(cleanRow["producto"] || cleanRow["nombre"] || cleanRow["nombre del producto"] || cleanRow["prenda"] || cleanRow["articulo"] || "").trim();
-        const category = String(cleanRow["categoria"] || cleanRow["categoría"] || cleanRow["rubro"] || "General").trim();
+        let sku = getHeaderVal(cleanRow, ["sku", "codigo", "code", "id", "sku base", "referencia", "ref"]);
+        const name = getHeaderVal(cleanRow, ["producto", "nombre", "nombre del producto", "prenda", "articulo", "descripcion", "detalle"]);
+        const category = getHeaderVal(cleanRow, ["categoria", "categoría", "rubro", "tipo"]) || "General";
         
-        const costStr = String(cleanRow["costo unitario"] || cleanRow["costo"] || cleanRow["costo total"] || cleanRow["costo unit."] || cleanRow["costo unit"] || "");
+        const costStr = getHeaderVal(cleanRow, ["costo unitario", "costo", "costo total", "costo unit.", "costo unit", "costounitario", "costo_unitario"]);
         const cost = costStr !== "" ? (parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
         
-        const priceStr = String(cleanRow["precio de venta"] || cleanRow["precio venta"] || cleanRow["precio"] || cleanRow["precio local"] || cleanRow["pv"] || "");
+        const priceStr = getHeaderVal(cleanRow, ["precio de venta", "precio venta", "precio", "precio local", "pv", "preciodeventa", "precioventa", "precio_venta", "venta"]);
         const price = priceStr !== "" ? (parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
         
         const locationsStock = {};
@@ -1107,24 +1118,24 @@ function handleExcelImport(event) {
         });
         
         if (Object.keys(locationsStock).length === 0) {
-          const stockStr = String(cleanRow["stock actual"] || cleanRow["stock"] || cleanRow["cantidad"] || cleanRow["stock total"] || "");
+          const stockStr = getHeaderVal(cleanRow, ["stock actual", "stock", "cantidad", "stock total", "existencias"]);
           const stockVal = stockStr !== "" ? (parseInt(stockStr.replace(/[^0-9]/g, "")) || 0) : 0;
           const defaultLoc = configuredLocs[0] || "Local Principal";
           locationsStock[defaultLoc] = stockVal;
           totalStock = stockVal;
         }
         
-        let size = String(cleanRow["talle"] || cleanRow["talles"] || cleanRow["size"] || cleanRow["tamano"] || cleanRow["tamaño"] || "").trim();
+        let size = getHeaderVal(cleanRow, ["talle", "talles", "size", "tamano", "tamaño", "variante", "variacion", "talles/variantes"]);
         if (!size) size = "Único";
 
-        let color = String(cleanRow["variante"] || cleanRow["color"] || cleanRow["variacion"] || "").trim();
+        let color = getHeaderVal(cleanRow, ["color", "variante", "variacion"]);
         
-        const marginStr = String(cleanRow["margen (%)"] || cleanRow["margen"] || cleanRow["margin"] || "").trim();
+        const marginStr = getHeaderVal(cleanRow, ["margen (%)", "margen", "margin", "margen porcentaje"]);
         const hasPercentSign = marginStr.includes("%");
         let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
         
         if (hasPercentSign) {
-          // Si tiene %, es el valor directo (ej: 50% -> 50)
+          // Si tiene %, es el valor directo
         } else if (margin > 0 && margin <= 1.0) {
           margin = margin * 100;
         }
@@ -1133,10 +1144,10 @@ function handleExcelImport(event) {
           margin = ((price / cost) - 1) * 100;
         }
 
-        const deliveryTimeStr = String(cleanRow["tiempo de entrega (dias)"] || cleanRow["tiempo de entrega"] || "").trim();
+        const deliveryTimeStr = getHeaderVal(cleanRow, ["tiempo de entrega (dias)", "tiempo de entrega", "dias de entrega"]);
         const leadTime = (deliveryTimeStr !== "") ? parseInt(deliveryTimeStr.replace(/[^0-9]/g, "")) : "";
 
-        const securityStockStr = String(cleanRow["stock de seguridad"] || cleanRow["stock critico"] || "").trim();
+        const securityStockStr = getHeaderVal(cleanRow, ["stock de seguridad", "stock critico", "stock minimo"]);
         const securityStock = (securityStockStr !== "") ? parseInt(securityStockStr.replace(/[^0-9]/g, "")) : "";
         
         if (!sku && name) {
@@ -1229,6 +1240,11 @@ function handleExcelImport(event) {
           } else if (cost > 0 && margin > 0) {
             calculatedPrice = Math.round(cost * (1 + margin / 100));
           }
+          
+          if (calculatedPrice <= 0 && existingProduct) {
+            calculatedPrice = existingProduct.price_local || existingProduct.price || 0;
+          }
+          
           prodPayload.price_local = calculatedPrice;
           prodPayload.price_tiendanube = calculatedPrice;
           prodPayload.price = calculatedPrice;
@@ -1250,7 +1266,7 @@ function handleExcelImport(event) {
       const previewRows = parsedImportProducts.slice(0, 5);
       previewRows.forEach(p => {
         const tr = document.createElement("tr");
-        const price = p.baseCost * (1 + p.margin / 100);
+        const price = p.price_local !== undefined && p.price_local > 0 ? p.price_local : (p.baseCost * (1 + p.margin / 100));
         tr.innerHTML = `
           <td style="font-family: monospace;">${p.sku}</td>
           <td style="font-weight: 700; color: var(--text-white);">${p.name}</td>
