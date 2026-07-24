@@ -4294,6 +4294,7 @@ function renderInventory() {
         }
       }
     }
+    const firstVar = g.variants[0] || {};
     const priceLocal = extractedPrice > 0 ? extractedPrice : price;
     const priceTiendanube = firstVar.price_tiendanube !== undefined ? parseFloat(firstVar.price_tiendanube) : 0;
 
