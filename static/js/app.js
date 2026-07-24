@@ -5201,6 +5201,11 @@ function renderSuppliers() {
             <p style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: flex; align-items: center; gap: 6px;">
               <i class="fas fa-phone" style="font-size: 0.65rem;"></i> ${s.phone}
             </p>
+            ${s.delivery_days || s.lead_time ? `
+              <p style="font-size: 0.72rem; color: var(--accent-emerald); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+                <i class="fas fa-clock" style="font-size: 0.65rem;"></i> Entrega: ${s.delivery_days || s.lead_time} días
+              </p>
+            ` : ''}
             ${addressHtml}
             ${descriptionHtml}
           </div>
@@ -5306,6 +5311,7 @@ function openSupplierModal() {
   document.getElementById("supplier-id-input").value = "";
   document.getElementById("supplier-name").value = "";
   document.getElementById("supplier-phone").value = "";
+  if (document.getElementById("supplier-lead-time")) document.getElementById("supplier-lead-time").value = "";
   document.getElementById("supplier-address").value = "";
   document.getElementById("supplier-description").value = "";
   
@@ -5323,6 +5329,9 @@ function openEditSupplierModal(sId) {
   document.getElementById("supplier-id-input").value = s.id;
   document.getElementById("supplier-name").value = s.name;
   document.getElementById("supplier-phone").value = s.phone;
+  if (document.getElementById("supplier-lead-time")) {
+    document.getElementById("supplier-lead-time").value = (s.delivery_days !== undefined ? s.delivery_days : (s.lead_time !== undefined ? s.lead_time : ""));
+  }
   document.getElementById("supplier-address").value = s.address || "";
   document.getElementById("supplier-description").value = s.description || "";
   
@@ -5341,6 +5350,8 @@ async function saveSupplierForm(e) {
   const sId = document.getElementById("supplier-id-input").value;
   const name = document.getElementById("supplier-name").value.trim();
   const phone = document.getElementById("supplier-phone").value.trim();
+  const leadTimeInput = document.getElementById("supplier-lead-time");
+  const deliveryDays = leadTimeInput && leadTimeInput.value !== "" ? parseInt(leadTimeInput.value) || 0 : 0;
   const address = document.getElementById("supplier-address").value.trim();
   const description = document.getElementById("supplier-description").value.trim();
 
@@ -5350,7 +5361,7 @@ async function saveSupplierForm(e) {
   const productCheckboxes = document.querySelectorAll('input[name="supplier-product-checkbox"]:checked');
   const products = Array.from(productCheckboxes).map(cb => cb.value);
 
-  const payload = { name, phone, categories, products, address, description };
+  const payload = { name, phone, delivery_days: deliveryDays, lead_time: deliveryDays, categories, products, address, description };
   if (sId) payload.id = parseInt(sId) || sId;
 
   try {
