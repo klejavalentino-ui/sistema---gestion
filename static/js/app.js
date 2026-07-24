@@ -5077,6 +5077,7 @@ function deleteProduct(sku) {
   const p = state.products.find(prod => prod.sku === sku);
   if (!p) return;
   const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
+  const cleanName = cleanCompareText(p.name || "");
   const variants = state.products.filter(prod => 
     !prod.sku.startsWith("supplier_") && 
     !prod.sku.startsWith("fixedcost_") && 
@@ -5087,7 +5088,7 @@ function deleteProduct(sku) {
     !prod.sku.startsWith("stockintake_") && 
     prod.sku !== "extras_config" && 
     prod.sku !== "categories_config" &&
-    (prod.baseSku === cleanBase || prod.sku.split("-")[0] === cleanBase)
+    (prod.baseSku === cleanBase || prod.sku.split("-")[0] === cleanBase || cleanCompareText(prod.name || "") === cleanName)
   );
 
   showConfirmModal(`¿Estás seguro de eliminar el producto "${p.name}" y todas sus variantes?`, async () => {
