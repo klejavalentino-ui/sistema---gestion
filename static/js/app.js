@@ -4190,6 +4190,7 @@ function renderInventory() {
         editSku: pSku
       };
     }
+    groupedProducts[groupKey].variants.push(p);
     const stockLocalVal = (p.locationsStock && Object.keys(p.locationsStock).length > 0)
       ? Object.values(p.locationsStock).reduce((a, b) => a + (parseInt(b) || 0), 0)
       : (p.stock_local !== undefined ? (parseInt(p.stock_local) || 0) : (parseInt(p.stock) || 0));
