@@ -5022,20 +5022,22 @@ function deleteProduct(sku) {
 
 function exportInventoryToExcel() {
   const thirtyDaysAgo = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000);
-  const recentSales = state.sales.filter(s => new Date(s.date) >= thirtyDaysAgo);
+  const recentSales = (state.sales || []).filter(s => new Date(s.date) >= thirtyDaysAgo);
   const salesByProduct = {};
   recentSales.forEach(sale => {
     if (sale.items) {
       sale.items.forEach(item => {
-        const pSku = item.product.sku;
-        salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        const pSku = item.product ? (item.product.sku || item.product.id) : "";
+        if (pSku) {
+          salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        }
       });
     }
   });
 
   const configuredLocations = state.userProfile?.locations || ["Local Principal"];
 
-  const filteredProducts = state.products.filter(p => p.sku && 
+  const filteredProducts = (state.products || []).filter(p => p && p.sku && 
                                               !p.sku.startsWith("supplier_") && 
                                               !p.sku.startsWith("fixedcost_") && 
                                               !p.sku.startsWith("account_") && 
@@ -5043,13 +5045,14 @@ function exportInventoryToExcel() {
                                               !p.sku.startsWith("influencer_") && 
                                               !p.sku.startsWith("marketingexpense_") && 
                                               !p.sku.startsWith("stockintake_") && 
+                                              !p.sku.startsWith("productionorder_") && 
                                               p.sku !== "extras_config" && 
                                               p.sku !== "categories_config");
 
-  // Sort alphabetically by Name, and then by SKU
+  // Ordenar alfabéticamente por Nombre (con color incluido) y SKU
   filteredProducts.sort((a, b) => {
-    const nameA = (a.name || "").trim();
-    const nameB = (b.name || "").trim();
+    const nameA = getProductNameWithColor(a).trim();
+    const nameB = getProductNameWithColor(b).trim();
     const comp = nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
     if (comp !== 0) return comp;
     
@@ -5059,26 +5062,29 @@ function exportInventoryToExcel() {
   });
 
   const formatted = filteredProducts.map(p => {
-      const price = p.cost * (1 + p.margin / 100);
+      const displayName = getProductNameWithColor(p);
+      const cost = parseFloat(p.cost) || 0;
+      const margin = parseFloat(p.margin) || 0;
+      const price = p.price_local !== undefined ? parseFloat(p.price_local) : (p.price !== undefined ? parseFloat(p.price) : (cost * (1 + margin / 100)));
       const minStock = getProductMinStock(p, salesByProduct);
+      const stockLocalVal = p.stock_local !== undefined ? parseInt(p.stock_local) : (parseInt(p.stock) || 0);
       
       const row = {
-        SKU: p.sku,
-        Nombre: p.name,
-        Categoria: p.category,
-        Color: p.color,
-        Talle: p.size
+        SKU: p.sku || p.id || "",
+        Producto: displayName,
+        Categoría: p.category || "",
+        Talle: p.size || "Único"
       };
 
       configuredLocations.forEach(loc => {
-        row[`Stock Actual: ${loc}`] = p.locationsStock && p.locationsStock[loc] !== undefined ? parseInt(p.locationsStock[loc]) : 0;
+        row[`Stock Actual: ${loc}`] = p.locationsStock && p.locationsStock[loc] !== undefined ? parseInt(p.locationsStock[loc]) : stockLocalVal;
       });
 
-      row["Stock Total"] = parseInt(p.stock) || 0;
+      row["Stock Total"] = stockLocalVal;
       row["Unidades de Stock Critico"] = minStock;
-      row.CostoTotal = Math.round(p.cost);
-      row.PrecioVenta = Math.round(price);
-      row.Margen = p.margin;
+      row["Costo Unitario"] = Math.round(cost);
+      row["Margen (%)"] = margin;
+      row["Precio de Venta"] = Math.round(price);
 
       return row;
     });
