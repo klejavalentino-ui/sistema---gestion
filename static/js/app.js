@@ -88,8 +88,23 @@ function getConfiguredSizes() {
   if (typeof raw === "string" && raw.trim().length > 0) {
     return raw.split(",").map(s => s.trim()).filter(Boolean);
   }
-  return ["XS", "S", "M", "L", "XL", "XXL", "Talle 1", "Talle 2", "Talle 3", "Talle 4", "Único"];
 }
+
+function getProductNameWithColor(p) {
+  if (!p) return "";
+  let name = (p.name || "").trim();
+  const color = (p.color || "").trim();
+  if (color && color.toLowerCase() !== "único" && color.toLowerCase() !== "unico") {
+    const nameLower = name.toLowerCase();
+    const colorLower = color.toLowerCase();
+    if (!nameLower.includes(colorLower)) {
+      name = `${name} ${color}`;
+    }
+  }
+  return name;
+}
+window.getProductNameWithColor = getProductNameWithColor;
+
 let currentLocationTab = "";
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -2429,10 +2444,15 @@ function renderSalesPOS() {
       
       if (matchesSearch && matchesCat) {
         const baseSku = p.baseSku || sku.split('-').slice(0, -1).join('-') || sku;
-        if (!baseProductsMap[baseSku]) {
-          baseProductsMap[baseSku] = {
+        const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+        const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+        const displayName = getProductNameWithColor(p);
+        
+        if (!baseProductsMap[groupKey]) {
+          baseProductsMap[groupKey] = {
             baseSku: baseSku,
-            name: name,
+            groupKey: groupKey,
+            name: displayName,
             category: category,
             color: p.color || "Único",
             margin: parseFloat(p.margin) || 0,
@@ -2441,7 +2461,7 @@ function renderSalesPOS() {
             variants: []
           };
         }
-        baseProductsMap[baseSku].variants.push(p);
+        baseProductsMap[groupKey].variants.push(p);
       }
     });
 
@@ -4114,15 +4134,20 @@ function renderInventory() {
       sku !== "categories_config";
   });
 
-  // Agrupar por baseSku
+  // Agrupar por baseSku y Color para separar variantes de color como productos individuales
   const groupedProducts = {};
   actualProducts.forEach(p => {
     const pSku = p.sku || p.id || "";
     const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : pSku) || "PROD";
-    if (!groupedProducts[baseSku]) {
-      groupedProducts[baseSku] = {
+    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    const displayName = getProductNameWithColor(p);
+
+    if (!groupedProducts[groupKey]) {
+      groupedProducts[groupKey] = {
         baseSku: baseSku,
-        name: p.name || "Producto sin nombre",
+        groupKey: groupKey,
+        name: displayName,
         category: p.category || "",
         color: p.color || "",
         variants: [],
@@ -4133,10 +4158,10 @@ function renderInventory() {
         editSku: pSku
       };
     }
-    groupedProducts[baseSku].variants.push(p);
+    groupedProducts[groupKey].variants.push(p);
     const stockLocalVal = p.stock_local !== undefined ? p.stock_local : p.stock;
-    groupedProducts[baseSku].totalStock += (parseInt(stockLocalVal) || 0);
-    groupedProducts[baseSku].totalMinStock += getProductMinStock(p, salesByProduct);
+    groupedProducts[groupKey].totalStock += (parseInt(stockLocalVal) || 0);
+    groupedProducts[groupKey].totalMinStock += getProductMinStock(p, salesByProduct);
   });
 
   const groupedList = Object.values(groupedProducts);
@@ -4171,25 +4196,40 @@ function renderInventory() {
     const isCritical = g.totalStock <= g.totalMinStock;
     const colorClass = isCritical ? '#f87171' : '#10b981';
     
-    // Ordenar los talles según las variantes configuradas en el negocio + estándar
+    // Ordenar los talles según las variantes configuradas en el negocio
     const configuredSizes = getConfiguredSizes();
-    const defaultSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Talle 1', 'Talle 2', 'Talle 3', 'Talle 4', 'Único'];
-    const sizeOrder = [...new Set([...configuredSizes, ...defaultSizes])];
 
     const allProductSizes = new Set();
     g.variants.forEach(v => {
       if (!v) return;
-      if (v.size) allProductSizes.add(v.size);
+      
+      const checkAndAdd = (sz) => {
+        if (!sz) return;
+        const trimmed = sz.trim();
+        const match = configuredSizes.find(cs => cs.toLowerCase().trim() === trimmed.toLowerCase());
+        if (match) {
+          allProductSizes.add(match);
+        }
+      };
+
+      if (v.size) checkAndAdd(v.size);
       if (v.sizesStock && typeof v.sizesStock === 'object') {
         try {
-          Object.keys(v.sizesStock).forEach(sz => { if (sz) allProductSizes.add(sz); });
+          Object.keys(v.sizesStock).forEach(sz => checkAndAdd(sz));
         } catch(e) {}
       }
     });
 
+    // Fallback por si la prenda utiliza talles fuera de los configurados
+    if (allProductSizes.size === 0) {
+      g.variants.forEach(v => {
+        if (v && v.size && v.size !== "Único") allProductSizes.add(v.size);
+      });
+    }
+
     const sortedTalles = [...allProductSizes].sort((a, b) => {
-      const idxA = sizeOrder.indexOf(a);
-      const idxB = sizeOrder.indexOf(b);
+      const idxA = configuredSizes.indexOf(a);
+      const idxB = configuredSizes.indexOf(b);
       if (idxA === -1 && idxB === -1) return a.localeCompare(b);
       if (idxA === -1) return 1;
       if (idxB === -1) return -1;
@@ -12274,13 +12314,15 @@ function searchProductForExchange() {
     if (isComercio && p.size && p.size !== "Único") return;
     
     const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku) || "PROD";
-    const name = p.name || "Producto sin nombre";
-    const groupKey = baseSku;
+    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    const displayName = getProductNameWithColor(p);
     
     if (!groupedMap[groupKey]) {
       groupedMap[groupKey] = {
         baseSku: baseSku,
-        name: name,
+        groupKey: groupKey,
+        name: displayName,
         sku: baseSku,
         price: p.price_tiendanube || p.price_local || p.price || 0,
         variants: [p]
@@ -12536,13 +12578,16 @@ function onQuoteSearchInput(query) {
     }
     
     const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku) || "PROD";
-    const name = p.name || "Producto sin nombre";
-    const groupKey = baseSku;
+    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    const name = getProductNameWithColor(p);
     
     if (!groupedMap[groupKey]) {
       groupedMap[groupKey] = {
         baseSku: baseSku,
+        groupKey: groupKey,
         name: name,
+        color: p.color || "",
         sku: baseSku,
         price: Math.round(p.price_local || p.price || 0),
         price_local: p.price_local || p.price || 0,

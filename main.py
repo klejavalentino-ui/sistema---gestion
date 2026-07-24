@@ -3013,6 +3013,17 @@ def sync_tiendanube_catalog_route():
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             executor.map(save_one_product, products_to_save)
             
+        # Clean up any TiendaNube product documents in Firestore that were deleted in TiendaNube
+        current_synced_skus = {p.get("sku") for p in products_to_save if p.get("sku")}
+        for d in existing_docs:
+            doc_id = d.get("id", "")
+            if doc_id.startswith(prefix) and (doc_id.startswith(f"{prefix}TN") or d.get("tiendanube_product_id")) and doc_id not in current_synced_skus:
+                try:
+                    firebase_config.delete_document("products", doc_id, token)
+                    print(f"[SYNC CLEANUP] Deleted deleted Tiendanube variant doc: {doc_id}")
+                except Exception as del_err:
+                    print(f"[SYNC CLEANUP ERROR] Failed to delete {doc_id}: {del_err}")
+
         return jsonify({
             "success": True, 
             "count": new_variants_count,
