@@ -1822,6 +1822,9 @@ def add_account_transaction(acc_id):
                 res["sku"] = res["sku"][len(prefix):]
             res["nota_debito_emitida"] = nota_debito_emitida
         return jsonify(res)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/current-accounts/<acc_id>/transactions/<tx_id>", methods=["DELETE"])
 def delete_account_transaction(acc_id, tx_id):
     token = get_auth_token()
