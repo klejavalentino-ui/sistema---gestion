@@ -243,6 +243,9 @@
         <li class="menu-item" data-tab="inventory">
           <a href="#" class="menu-link"><i>📦</i> Inventario</a>
         </li>
+        <li class="menu-item" data-tab="production" id="sidebar-production-item">
+          <a href="#" class="menu-link"><i>🧵</i> Producción</a>
+        </li>
         <li class="menu-item" data-tab="suppliers">
           <a href="#" class="menu-link"><i>🚚</i> Compras</a>
         </li>
@@ -603,6 +606,98 @@
                 <!-- Renglones de productos -->
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB PRODUCCIÓN (Transformación de Prendas Base/Mayorista a Local/Minorista) -->
+      <section id="production-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2 style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--accent-emerald);"><i class="fas fa-scissors"></i></span> Producción & Transformación
+            </h2>
+            <p>Transformá stock de prendas base (sin insumos / mayorista) a prendas terminadas para venta local (minorista).</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald);" onclick="openProductionModal()">
+              + Nueva Transformación
+            </button>
+          </div>
+        </div>
+
+        <!-- KPIs PRODUCCIÓN -->
+        <div class="grid-3" style="margin-bottom: 24px;">
+          <div class="idx-card" style="padding: 20px;">
+            <div style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Stock Base Sin Transformar (Mayorista)</div>
+            <div id="prod-kpi-base-stock" style="font-size: 1.8rem; font-weight: 900; color: var(--text-white); margin-top: 8px;">0 u.</div>
+            <div style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">Prendas listas para ser estampadas/bordadas</div>
+          </div>
+          <div class="idx-card" style="padding: 20px;">
+            <div style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Prendas Transformadas a Local</div>
+            <div id="prod-kpi-transformed-units" style="font-size: 1.8rem; font-weight: 900; color: var(--accent-emerald); margin-top: 8px;">0 u.</div>
+            <div style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">Sumadas a venta física / minorista</div>
+          </div>
+          <div class="idx-card" style="padding: 20px;">
+            <div style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">Órdenes de Producción</div>
+            <div id="prod-kpi-orders-count" style="font-size: 1.8rem; font-weight: 900; color: var(--accent-blue); margin-top: 8px;">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">Transformaciones registradas</div>
+          </div>
+        </div>
+
+        <!-- LISTADO DE PRENDAS BASE Y HISTORIAL -->
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+          <!-- Tabla 1: Prendas Base Disponibles (Mayorista / Sin Transformar) -->
+          <div class="idx-card" style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="font-size: 0.9rem; font-weight: 800; color: var(--text-white); margin: 0;">
+                <i class="fas fa-boxes" style="color: var(--accent-blue); margin-right: 6px;"></i> Stock de Prendas Base (Sin Transformar / Mayorista)
+              </h3>
+              <input type="text" id="prod-base-search" class="form-input" placeholder="Buscar prenda base..." style="width: 250px; font-size: 0.8rem; padding: 6px 12px;" oninput="renderProductionUI()">
+            </div>
+            <div class="table-wrapper">
+              <table class="idx-table">
+                <thead>
+                  <tr>
+                    <th>SKU / Prenda Base</th>
+                    <th>Categoría</th>
+                    <th>Stock Disponible</th>
+                    <th>Talles</th>
+                    <th style="text-align: right;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="prod-base-table-body">
+                  <!-- Inyectado dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tabla 2: Historial de Producción / Transformaciones -->
+          <div class="idx-card" style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="font-size: 0.9rem; font-weight: 800; color: var(--text-white); margin: 0;">
+                <i class="fas fa-history" style="color: var(--accent-emerald); margin-right: 6px;"></i> Historial de Transformaciones de Producción
+              </h3>
+            </div>
+            <div class="table-wrapper">
+              <table class="idx-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Prenda Base (Mayorista)</th>
+                    <th>Prenda Destino (Minorista/Local)</th>
+                    <th>Cantidad</th>
+                    <th>Talles</th>
+                    <th>Insumos Aplicados</th>
+                    <th style="text-align: right;">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="prod-history-table-body">
+                  <!-- Inyectado dinámicamente -->
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -3691,6 +3786,79 @@
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: REGISTRAR TRANSFORMACIÓN DE PRODUCCIÓN -->
+  <div id="production-modal" class="modal-backdrop">
+    <div class="modal-content max-w-xl">
+      <div class="modal-header">
+        <h3 class="modal-title">🧵 Registrar Transformación de Producción</h3>
+        <span class="modal-close-btn" onclick="closeProductionModal()">✕</span>
+      </div>
+      <form id="production-form" onsubmit="saveProductionOrderForm(event)">
+        <div class="modal-body" style="padding: 20px;">
+          <!-- Informante explicativo -->
+          <div style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.78rem; color: var(--accent-emerald);">
+            <i class="fas fa-info-circle"></i> <strong>Instrucciones:</strong> Restará stock de la prenda base (sin transformar / mayorista) y lo sumará a la prenda final lista para venta en el local minorista.
+          </div>
+
+          <div class="grid-2">
+            <!-- Prenda Origen -->
+            <div class="form-group">
+              <label class="form-label" for="prod-origin-select">Prenda Base / Origen (Mayorista) <span style="color:var(--accent-red)">*</span></label>
+              <select id="prod-origin-select" class="form-select" required onchange="onProductionOriginChange()">
+                <option value="">Seleccione prenda base...</option>
+              </select>
+              <div id="prod-origin-stock-info" style="font-size: 0.72rem; color: var(--text-gray); margin-top: 4px; font-weight: 600;"></div>
+            </div>
+
+            <!-- Prenda Destino -->
+            <div class="form-group">
+              <label class="form-label" for="prod-target-select">Prenda Destino (Local / Minorista) <span style="color:var(--accent-red)">*</span></label>
+              <select id="prod-target-select" class="form-select" required>
+                <option value="">Seleccione prenda final local...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Cantidad total y Observaciones -->
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="prod-quantity-input">Cantidad a Transformar <span style="color:var(--accent-red)">*</span></label>
+              <input type="number" id="prod-quantity-input" class="form-input" min="1" placeholder="Ej. 10" required oninput="renderProductionSizesBreakdown()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="prod-notes-input">Observaciones / Taller</label>
+              <input type="text" id="prod-notes-input" class="form-input" placeholder="Ej. Bordado Mazo + Estampa">
+            </div>
+          </div>
+
+          <!-- Desglose por talles -->
+          <div id="prod-sizes-breakdown-container" style="display: none; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-white); margin-bottom: 8px;">Desglose por Talles (Opcional)</div>
+            <div id="prod-sizes-inputs-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px;">
+              <!-- Carga dinámicamente -->
+            </div>
+          </div>
+
+          <!-- Insumos aplicados (opcional) -->
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-white);"><i class="fas fa-tags" style="color: var(--accent-emerald);"></i> Insumos Aplicados (Bordados, Estampas, Etiquetas)</span>
+              <button type="button" class="btn btn-sm" style="font-size: 0.7rem; padding: 2px 8px; background: rgba(16,185,129,0.1); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.2);" onclick="addProductionInsumoRow()">+ Insumo</button>
+            </div>
+            <div id="prod-insumos-rows-container">
+              <!-- Filas dinámicas -->
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeProductionModal()">Cancelar</button>
+          <button type="submit" id="btn-save-production" class="btn btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald);">Registrar Transformación</button>
+        </div>
+      </form>
     </div>
   </div>
 

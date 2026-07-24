@@ -8623,6 +8623,7 @@ function switchTab(tabId) {
   if (tabId === "returns") renderReturns();
   if (tabId === "quotes") renderQuotesUI();
   if (tabId === "zecat") renderZecatUI();
+  if (tabId === "production") renderProductionUI();
 }
 
 // --- Asignación de Listeners ---
@@ -13242,4 +13243,493 @@ window.clearQuote = clearQuote;
 window.renderZecatUI = renderZecatUI;
 window.saveZecatConfig = saveZecatConfig;
 window.syncZecatCatalog = syncZecatCatalog;
+
+// --- PRODUCCIÓN (TRANSFORMACIÓN DE PRENDAS) LOGIC ---
+
+function renderProductionUI() {
+  const baseTableBody = document.getElementById("prod-base-table-body");
+  const historyTableBody = document.getElementById("prod-history-table-body");
+  if (!baseTableBody && !historyTableBody) return;
+
+  const searchQuery = (document.getElementById("prod-base-search")?.value || "").toLowerCase().trim();
+
+  // Filtrar productos reales
+  const actualProducts = (state.products || []).filter(p => {
+    if (!p) return false;
+    const sku = p.sku || p.id || "";
+    return sku &&
+      !sku.startsWith("supplier_") && 
+      !sku.startsWith("fixedcost_") && 
+      !sku.startsWith("account_") && 
+      !sku.startsWith("cashtransaction_") && 
+      !sku.startsWith("influencer_") && 
+      !sku.startsWith("marketingexpense_") && 
+      !sku.startsWith("stockintake_") && 
+      !sku.startsWith("productionorder_") && 
+      sku !== "extras_config" && 
+      sku !== "categories_config";
+  });
+
+  // Identificar prendas base (Categoría "Mayorista", "Sin Insumos", "Base" o por SKU/Nombre)
+  const baseProductsMap = {};
+  actualProducts.forEach(p => {
+    const sku = p.sku || p.id || "";
+    const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku);
+    const cat = (p.category || "").toLowerCase();
+    const name = getProductNameWithColor(p);
+    const isBaseCandidate = cat.includes("mayorista") || cat.includes("base") || cat.includes("sin insumo") || name.toLowerCase().includes("mayorista") || name.toLowerCase().includes("sin transformar") || name.toLowerCase().includes("base");
+
+    if (isBaseCandidate) {
+      if (!baseProductsMap[baseSku]) {
+        baseProductsMap[baseSku] = {
+          baseSku: baseSku,
+          name: name,
+          category: p.category || "Mayorista / Base",
+          totalStock: 0,
+          variants: []
+        };
+      }
+      baseProductsMap[baseSku].variants.push(p);
+      const sVal = p.stock_local !== undefined ? p.stock_local : p.stock;
+      baseProductsMap[baseSku].totalStock += (parseInt(sVal) || 0);
+    }
+  });
+
+  // Si no hay productos identificados por categoría mayorista/base, tomar todos los modelos agrupados
+  if (Object.keys(baseProductsMap).length === 0) {
+    actualProducts.forEach(p => {
+      const sku = p.sku || p.id || "";
+      const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku);
+      const name = getProductNameWithColor(p);
+      if (!baseProductsMap[baseSku]) {
+        baseProductsMap[baseSku] = {
+          baseSku: baseSku,
+          name: name,
+          category: p.category || "General",
+          totalStock: 0,
+          variants: []
+        };
+      }
+      baseProductsMap[baseSku].variants.push(p);
+      const sVal = p.stock_local !== undefined ? p.stock_local : p.stock;
+      baseProductsMap[baseSku].totalStock += (parseInt(sVal) || 0);
+    });
+  }
+
+  const baseList = Object.values(baseProductsMap);
+
+  // KPIs
+  const totalBaseStock = baseList.reduce((sum, b) => sum + b.totalStock, 0);
+  
+  // Buscar órdenes de producción en state.products
+  const prodOrders = (state.products || []).filter(p => p && p.sku && p.sku.startsWith("productionorder_"));
+  
+  let totalTransformed = 0;
+  prodOrders.forEach(o => {
+    totalTransformed += (parseInt(o.quantity) || 0);
+  });
+
+  if (document.getElementById("prod-kpi-base-stock")) {
+    document.getElementById("prod-kpi-base-stock").innerText = `${totalBaseStock.toLocaleString('es-AR')} u.`;
+  }
+  if (document.getElementById("prod-kpi-transformed-units")) {
+    document.getElementById("prod-kpi-transformed-units").innerText = `${totalTransformed.toLocaleString('es-AR')} u.`;
+  }
+  if (document.getElementById("prod-kpi-orders-count")) {
+    document.getElementById("prod-kpi-orders-count").innerText = prodOrders.length;
+  }
+
+  // Filtrar Prendas Base en la tabla 1
+  const filteredBase = baseList.filter(b => {
+    return b.name.toLowerCase().includes(searchQuery) || b.baseSku.toLowerCase().includes(searchQuery) || b.category.toLowerCase().includes(searchQuery);
+  });
+
+  if (baseTableBody) {
+    baseTableBody.innerHTML = "";
+    if (filteredBase.length === 0) {
+      baseTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-gray); padding: 20px; font-size: 0.8rem;">No hay prendas base registradas.</td></tr>`;
+    } else {
+      filteredBase.forEach(b => {
+        const configuredSizes = getConfiguredSizes();
+        const sizesSet = new Set();
+        b.variants.forEach(v => {
+          if (v.size && v.size !== "Único") sizesSet.add(v.size);
+          if (v.sizesStock && typeof v.sizesStock === 'object') {
+            Object.keys(v.sizesStock).forEach(sz => { if (sz) sizesSet.add(sz); });
+          }
+        });
+        const tallesStr = sizesSet.size > 0 ? [...sizesSet].join(", ") : "Único";
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>
+            <div style="font-weight: 700; color: var(--text-white); font-size: 0.85rem;">${b.name}</div>
+            <div style="font-size: 0.68rem; color: var(--text-gray); font-family: monospace;">${b.baseSku}</div>
+          </td>
+          <td><span class="badge badge-gray" style="font-size: 0.7rem;">${b.category}</span></td>
+          <td style="font-weight: 800; color: ${b.totalStock > 0 ? 'var(--accent-emerald)' : '#f87171'}; font-size: 0.9rem;">
+            ${b.totalStock.toLocaleString('es-AR')} u.
+          </td>
+          <td style="font-size: 0.75rem; color: var(--text-gray);">${tallesStr}</td>
+          <td style="text-align: right;">
+            <button class="btn btn-sm" style="background: rgba(16,185,129,0.12); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.25); font-size: 0.72rem; padding: 4px 10px; font-weight: 600;" onclick="openProductionModal('${b.baseSku}')">
+              <i class="fas fa-magic"></i> Transformar a Local
+            </button>
+          </td>
+        `;
+        baseTableBody.appendChild(tr);
+      });
+    }
+  }
+
+  // Llenar Historial en la tabla 2
+  if (historyTableBody) {
+    historyTableBody.innerHTML = "";
+    if (prodOrders.length === 0) {
+      historyTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-gray); padding: 20px; font-size: 0.8rem;">No hay transformaciones registradas.</td></tr>`;
+    } else {
+      const sortedHistory = [...prodOrders].reverse();
+      sortedHistory.forEach(o => {
+        const dStr = o.date ? (new Date(o.date).toLocaleDateString('es-AR') + " " + new Date(o.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})) : "-";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td style="font-size: 0.75rem; color: var(--text-gray);">${dStr}</td>
+          <td style="font-weight: 700; color: var(--text-white); font-size: 0.8rem;">${o.origin_name || o.origin_sku || '-'}</td>
+          <td style="font-weight: 700; color: var(--accent-emerald); font-size: 0.8rem;">${o.target_name || o.target_sku || '-'}</td>
+          <td style="font-weight: 800; color: var(--text-white); text-align: center;">${o.quantity || 0} u.</td>
+          <td style="font-size: 0.72rem; color: var(--text-gray);">${o.sizes || 'Único'}</td>
+          <td style="font-size: 0.72rem; color: var(--text-gray);">${o.insumos || 'Sin Insumos'}</td>
+          <td style="text-align: right;">
+            <button class="btn btn-sm" style="background: rgba(239,68,68,0.1); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.2); font-size: 0.7rem; padding: 4px 8px;" onclick="deleteProductionOrder('${o.sku || o.id}')" title="Eliminar registro de producción">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        historyTableBody.appendChild(tr);
+      });
+    }
+  }
+}
+window.renderProductionUI = renderProductionUI;
+
+function openProductionModal(preselectOriginSku = null) {
+  const originSelect = document.getElementById("prod-origin-select");
+  const targetSelect = document.getElementById("prod-target-select");
+  if (!originSelect || !targetSelect) return;
+
+  const actualProducts = (state.products || []).filter(p => {
+    if (!p) return false;
+    const sku = p.sku || p.id || "";
+    return sku &&
+      !sku.startsWith("supplier_") && 
+      !sku.startsWith("fixedcost_") && 
+      !sku.startsWith("account_") && 
+      !sku.startsWith("cashtransaction_") && 
+      !sku.startsWith("influencer_") && 
+      !sku.startsWith("marketingexpense_") && 
+      !sku.startsWith("stockintake_") && 
+      !sku.startsWith("productionorder_") && 
+      sku !== "extras_config" && 
+      sku !== "categories_config";
+  });
+
+  // Agrupar por modelo/baseSku y color
+  const groupedMap = {};
+  actualProducts.forEach(p => {
+    const sku = p.sku || p.id || "";
+    const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku);
+    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    const displayName = getProductNameWithColor(p);
+
+    if (!groupedMap[groupKey]) {
+      groupedMap[groupKey] = {
+        groupKey: groupKey,
+        baseSku: baseSku,
+        name: displayName,
+        category: p.category || "",
+        totalStock: 0,
+        variants: []
+      };
+    }
+    groupedMap[groupKey].variants.push(p);
+    const sVal = p.stock_local !== undefined ? p.stock_local : p.stock;
+    groupedMap[groupKey].totalStock += (parseInt(sVal) || 0);
+  });
+
+  const list = Object.values(groupedMap);
+
+  originSelect.innerHTML = `<option value="">Seleccione prenda base (origen)...</option>`;
+  targetSelect.innerHTML = `<option value="">Seleccione prenda final local (destino)...</option>`;
+
+  list.forEach(g => {
+    const optOrig = document.createElement("option");
+    optOrig.value = g.groupKey;
+    optOrig.innerText = `${g.name} [Stock: ${g.totalStock} u.] (${g.baseSku})`;
+    originSelect.appendChild(optOrig);
+
+    const optTarg = document.createElement("option");
+    optTarg.value = g.groupKey;
+    optTarg.innerText = `${g.name} (${g.baseSku})`;
+    targetSelect.appendChild(optTarg);
+  });
+
+  if (preselectOriginSku) {
+    const match = list.find(g => g.groupKey === preselectOriginSku || g.baseSku === preselectOriginSku);
+    if (match) originSelect.value = match.groupKey;
+  }
+
+  document.getElementById("prod-quantity-input").value = "";
+  document.getElementById("prod-notes-input").value = "";
+  document.getElementById("prod-insumos-rows-container").innerHTML = "";
+  
+  onProductionOriginChange();
+
+  document.getElementById("production-modal").className = "modal-backdrop active";
+}
+window.openProductionModal = openProductionModal;
+
+function closeProductionModal() {
+  document.getElementById("production-modal").className = "modal-backdrop";
+}
+window.closeProductionModal = closeProductionModal;
+
+function onProductionOriginChange() {
+  const originVal = document.getElementById("prod-origin-select")?.value;
+  const stockInfo = document.getElementById("prod-origin-stock-info");
+  if (!originVal || !stockInfo) {
+    if (stockInfo) stockInfo.innerText = "";
+    return;
+  }
+
+  const actualProducts = (state.products || []).filter(p => p && p.sku && !p.sku.startsWith("supplier_") && !p.sku.startsWith("productionorder_"));
+  const originVars = actualProducts.filter(p => {
+    const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
+    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    return groupKey === originVal || baseSku === originVal;
+  });
+
+  const totalStock = originVars.reduce((sum, p) => sum + (parseInt(p.stock_local !== undefined ? p.stock_local : p.stock) || 0), 0);
+  stockInfo.innerText = `Stock Disponible Origen: ${totalStock} u.`;
+
+  renderProductionSizesBreakdown();
+}
+window.onProductionOriginChange = onProductionOriginChange;
+
+function renderProductionSizesBreakdown() {
+  const originVal = document.getElementById("prod-origin-select")?.value;
+  const container = document.getElementById("prod-sizes-breakdown-container");
+  const grid = document.getElementById("prod-sizes-inputs-grid");
+  if (!originVal || !container || !grid) return;
+
+  const actualProducts = (state.products || []).filter(p => p && p.sku && !p.sku.startsWith("supplier_") && !p.sku.startsWith("productionorder_"));
+  const originVars = actualProducts.filter(p => {
+    const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
+    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    return groupKey === originVal || baseSku === originVal;
+  });
+
+  const configuredSizes = getConfiguredSizes();
+  const sizesFound = new Set();
+  originVars.forEach(v => {
+    if (v.size && v.size !== "Único") {
+      const match = configuredSizes.find(cs => cs.toLowerCase().trim() === v.size.toLowerCase().trim());
+      if (match) sizesFound.add(match);
+    }
+    if (v.sizesStock && typeof v.sizesStock === 'object') {
+      Object.keys(v.sizesStock).forEach(sz => {
+        const match = configuredSizes.find(cs => cs.toLowerCase().trim() === sz.toLowerCase().trim());
+        if (match) sizesFound.add(match);
+      });
+    }
+  });
+
+  if (sizesFound.size === 0) {
+    container.style.display = "none";
+    grid.innerHTML = "";
+    return;
+  }
+
+  container.style.display = "block";
+  grid.innerHTML = "";
+
+  const sortedSizes = [...sizesFound].sort((a, b) => configuredSizes.indexOf(a) - configuredSizes.indexOf(b));
+  sortedSizes.forEach(sz => {
+    const div = document.createElement("div");
+    div.style.display = "flex";
+    div.style.flexDirection = "column";
+    div.style.alignItems = "center";
+    div.innerHTML = `
+      <label style="font-size: 0.68rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">${sz}</label>
+      <input type="number" id="prod-size-input-${sz}" class="form-input prod-size-breakdown-input" style="font-size: 0.75rem; padding: 4px 6px; text-align: center;" placeholder="0" min="0" data-size="${sz}">
+    `;
+    grid.appendChild(div);
+  });
+}
+window.renderProductionSizesBreakdown = renderProductionSizesBreakdown;
+
+function addProductionInsumoRow() {
+  const container = document.getElementById("prod-insumos-rows-container");
+  if (!container) return;
+
+  const extras = state.extras || [];
+  let optionsHtml = `<option value="">Seleccione insumo...</option>`;
+  extras.forEach(ex => {
+    const name = ex.name || ex.id || "";
+    optionsHtml += `<option value="${name}">${name}</option>`;
+  });
+
+  const row = document.createElement("div");
+  row.className = "prod-insumo-row";
+  row.style.display = "flex";
+  row.style.gap = "8px";
+  row.style.alignItems = "center";
+  row.style.marginTop = "6px";
+  row.innerHTML = `
+    <select class="form-select prod-insumo-name-select" style="font-size: 0.75rem; flex: 2;">
+      ${optionsHtml}
+    </select>
+    <input type="number" class="form-input prod-insumo-qty-input" style="font-size: 0.75rem; flex: 1;" placeholder="Cant. u." min="1" value="1">
+    <button type="button" class="btn btn-sm" style="background: rgba(239,68,68,0.1); color: var(--accent-red); border: none; padding: 4px 8px;" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+window.addProductionInsumoRow = addProductionInsumoRow;
+
+async function saveProductionOrderForm(e) {
+  e.preventDefault();
+  const originVal = document.getElementById("prod-origin-select").value;
+  const targetVal = document.getElementById("prod-target-select").value;
+  const quantity = parseInt(document.getElementById("prod-quantity-input").value) || 0;
+  const notes = document.getElementById("prod-notes-input").value.trim();
+
+  if (!originVal || !targetVal) {
+    showToast("Seleccioná prenda origen y prenda destino.", true);
+    return;
+  }
+
+  if (quantity <= 0) {
+    showToast("Ingresá una cantidad válida mayor a 0.", true);
+    return;
+  }
+
+  const btn = document.getElementById("btn-save-production");
+  if (btn) { btn.innerText = "Transformando..."; btn.disabled = true; }
+
+  try {
+    const actualProducts = (state.products || []).filter(p => p && p.sku && !p.sku.startsWith("supplier_") && !p.sku.startsWith("productionorder_"));
+    
+    // Obtener variantes origen y destino
+    const originVars = actualProducts.filter(p => {
+      const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
+      const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+      const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+      return groupKey === originVal || baseSku === originVal;
+    });
+
+    const targetVars = actualProducts.filter(p => {
+      const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
+      const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+      const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+      return groupKey === targetVal || baseSku === targetVal;
+    });
+
+    if (originVars.length === 0 || targetVars.length === 0) {
+      showToast("No se encontraron las variantes de origen o destino.", true);
+      return;
+    }
+
+    const originName = getProductNameWithColor(originVars[0]);
+    const targetName = getProductNameWithColor(targetVars[0]);
+
+    // Recolectar desglose por talles
+    const sizeInputs = document.querySelectorAll(".prod-size-breakdown-input");
+    const sizesUsed = [];
+    sizeInputs.forEach(inp => {
+      const val = parseInt(inp.value) || 0;
+      if (val > 0) {
+        sizesUsed.push(`${val} ${inp.getAttribute("data-size")}`);
+      }
+    });
+
+    const sizesStr = sizesUsed.length > 0 ? sizesUsed.join(", ") : "Único";
+
+    // Recolectar insumos aplicados
+    const insumoRows = document.querySelectorAll(".prod-insumo-row");
+    const insumosUsed = [];
+    insumoRows.forEach(row => {
+      const name = row.querySelector(".prod-insumo-name-select")?.value;
+      const qty = parseInt(row.querySelector(".prod-insumo-qty-input")?.value) || 0;
+      if (name && qty > 0) {
+        insumosUsed.push(`${qty} ${name}`);
+      }
+    });
+    const insumosStr = insumosUsed.length > 0 ? insumosUsed.join(", ") : "Sin Insumos";
+
+    // Restar stock de origen y sumar en destino
+    const firstOrig = originVars[0];
+    const firstTarg = targetVars[0];
+
+    const curOrigStock = parseInt(firstOrig.stock_local !== undefined ? firstOrig.stock_local : firstOrig.stock) || 0;
+    const curTargStock = parseInt(firstTarg.stock_local !== undefined ? firstTarg.stock_local : firstTarg.stock) || 0;
+
+    firstOrig.stock_local = Math.max(0, curOrigStock - quantity);
+    firstOrig.stock = Math.max(0, curOrigStock - quantity);
+
+    firstTarg.stock_local = curTargStock + quantity;
+    firstTarg.stock = curTargStock + quantity;
+
+    await apiRequest("/api/products", "POST", firstOrig);
+    await apiRequest("/api/products", "POST", firstTarg);
+
+    // Registrar orden de producción
+    const orderId = `productionorder_${Date.now()}`;
+    const orderPayload = {
+      id: orderId,
+      sku: orderId,
+      date: new Date().toISOString(),
+      origin_sku: firstOrig.baseSku || firstOrig.sku,
+      origin_name: originName,
+      target_sku: firstTarg.baseSku || firstTarg.sku,
+      target_name: targetName,
+      quantity: quantity,
+      sizes: sizesStr,
+      insumos: insumosStr,
+      notes: notes
+    };
+
+    await apiRequest("/api/products", "POST", orderPayload);
+
+    showToast(`✨ Transformación registrada: ${quantity} u. de ${originName} ➔ ${targetName}`, false);
+
+    closeProductionModal();
+    refreshState();
+    setTimeout(() => {
+      renderProductionUI();
+    }, 100);
+
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    if (btn) { btn.innerText = "Registrar Transformación"; btn.disabled = false; }
+  }
+}
+window.saveProductionOrderForm = saveProductionOrderForm;
+
+async function deleteProductionOrder(orderId) {
+  if (!confirm("¿Deseás eliminar este registro de producción?")) return;
+  try {
+    await apiRequest(`/api/products/${orderId}`, "DELETE");
+    showToast("Registro de producción eliminado", false);
+    refreshState();
+    setTimeout(() => {
+      renderProductionUI();
+    }, 100);
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+window.deleteProductionOrder = deleteProductionOrder;
 
