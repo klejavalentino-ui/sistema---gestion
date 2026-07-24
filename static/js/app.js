@@ -1144,10 +1144,15 @@ function handleExcelImport(event) {
         }
 
         let skuVal = sku;
-        if (state.businessType === "comercio") {
+        if (state.businessType === "comercio" && (!size || size === "Único")) {
           size = "Único";
           if (skuVal && !skuVal.endsWith("-U")) {
             skuVal = `${skuVal}-U`;
+          }
+        } else if (size && size !== "Único") {
+          const sizeCleanForSku = size.replace(/[\/\s()]/g, "_");
+          if (skuVal && !skuVal.endsWith(`-${sizeCleanForSku}`) && !skuVal.endsWith(`-${size}`)) {
+            skuVal = `${skuVal}-${sizeCleanForSku}`;
           }
         }
         
@@ -4234,9 +4239,9 @@ function renderInventory() {
       const checkAndAdd = (sz) => {
         if (!sz) return;
         const trimmed = sz.trim();
-        const match = configuredSizes.find(cs => cs.toLowerCase().trim() === trimmed.toLowerCase());
-        if (match) {
-          allProductSizes.add(match);
+        if (trimmed && trimmed.toLowerCase() !== "unico" && trimmed.toLowerCase() !== "único") {
+          const match = configuredSizes.find(cs => cs.toLowerCase().trim() === trimmed.toLowerCase());
+          allProductSizes.add(match || trimmed);
         }
       };
 
@@ -4246,12 +4251,22 @@ function renderInventory() {
           Object.keys(v.sizesStock).forEach(sz => checkAndAdd(sz));
         } catch(e) {}
       }
+      if (v.locationsStock && typeof v.locationsStock === 'object') {
+        try {
+          Object.keys(v.locationsStock).forEach(loc => {
+            const locVal = v.locationsStock[loc];
+            if (locVal && typeof locVal === 'object') {
+              Object.keys(locVal).forEach(sz => checkAndAdd(sz));
+            }
+          });
+        } catch(e) {}
+      }
     });
 
     // Fallback por si la prenda utiliza talles fuera de los configurados
     if (allProductSizes.size === 0) {
       g.variants.forEach(v => {
-        if (v && v.size && v.size !== "Único") allProductSizes.add(v.size);
+        if (v && v.size && v.size !== "Único" && v.size !== "unico") allProductSizes.add(v.size);
       });
     }
 
@@ -4266,8 +4281,20 @@ function renderInventory() {
 
     const tallesText = sortedTalles.length > 0 ? sortedTalles.join(", ") : "Único";
 
-    const firstVar = g.variants[0] || {};
-    const priceLocal = firstVar.price_local !== undefined ? parseFloat(firstVar.price_local) : price;
+    let extractedPrice = 0;
+    for (const v of g.variants) {
+      if (v) {
+        if (v.price_local !== undefined && parseFloat(v.price_local) > 0) {
+          extractedPrice = parseFloat(v.price_local);
+          break;
+        }
+        if (v.price !== undefined && parseFloat(v.price) > 0) {
+          extractedPrice = parseFloat(v.price);
+          break;
+        }
+      }
+    }
+    const priceLocal = extractedPrice > 0 ? extractedPrice : price;
     const priceTiendanube = firstVar.price_tiendanube !== undefined ? parseFloat(firstVar.price_tiendanube) : 0;
 
     const hasInfiniteTaller = g.variants.some(v => v.stock_taller === "infinito" || !v.stock_taller);
