@@ -1108,11 +1108,16 @@ function handleExcelImport(event) {
         const locationsStock = {};
         let totalStock = 0;
         
+        const configuredLocs = (state.userProfile?.locations && state.userProfile.locations.length > 0)
+          ? state.userProfile.locations
+          : ["Bahia Blanca", "Buenos Aires", "Local Principal"];
+
         Object.keys(cleanRow).forEach(key => {
           if (key.startsWith("stock actual:")) {
-            const locName = key.replace("stock actual:", "").trim();
+            const locNameRaw = key.replace("stock actual:", "").trim();
+            const matchedLoc = configuredLocs.find(l => l.toLowerCase().trim() === locNameRaw.toLowerCase().trim()) || locNameRaw;
             const stockVal = parseInt(String(cleanRow[key]).replace(/[^0-9]/g, "")) || 0;
-            locationsStock[locName] = stockVal;
+            locationsStock[matchedLoc] = stockVal;
             totalStock += stockVal;
           }
         });
@@ -1120,7 +1125,7 @@ function handleExcelImport(event) {
         if (Object.keys(locationsStock).length === 0) {
           const stockStr = String(cleanRow["stock actual"] || "");
           const stockVal = stockStr !== "" ? (parseInt(stockStr.replace(/[^0-9]/g, "")) || 0) : 0;
-          const defaultLoc = (state.userProfile?.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
+          const defaultLoc = configuredLocs[0] || "Local Principal";
           locationsStock[defaultLoc] = stockVal;
           totalStock = stockVal;
         }
@@ -1191,13 +1196,23 @@ function handleExcelImport(event) {
           prodPayload.category = category;
           prodPayload.size = size;
           prodPayload.color = color;
-          prodPayload.stock = totalStock;
           
           if (Object.keys(locationsStock).length > 0) {
-            prodPayload.locationsStock = existingProduct && existingProduct.locationsStock 
-              ? { ...existingProduct.locationsStock, ...locationsStock }
-              : locationsStock;
+            const mergedLocStock = existingProduct && existingProduct.locationsStock ? { ...existingProduct.locationsStock } : {};
+            Object.keys(locationsStock).forEach(locKey => {
+              Object.keys(mergedLocStock).forEach(oldKey => {
+                if (oldKey.toLowerCase().trim() === locKey.toLowerCase().trim()) {
+                  delete mergedLocStock[oldKey];
+                }
+              });
+              mergedLocStock[locKey] = locationsStock[locKey];
+            });
+            prodPayload.locationsStock = mergedLocStock;
+            totalStock = Object.values(mergedLocStock).reduce((sum, v) => sum + (parseInt(v) || 0), 0);
           }
+
+          prodPayload.stock = totalStock;
+          prodPayload.stock_local = totalStock;
           
           prodPayload.baseCost = cost;
           prodPayload.margin = Math.round(margin * 10) / 10;
@@ -4158,9 +4173,10 @@ function renderInventory() {
         editSku: pSku
       };
     }
-    groupedProducts[groupKey].variants.push(p);
-    const stockLocalVal = p.stock_local !== undefined ? p.stock_local : p.stock;
-    groupedProducts[groupKey].totalStock += (parseInt(stockLocalVal) || 0);
+    const stockLocalVal = (p.locationsStock && Object.keys(p.locationsStock).length > 0)
+      ? Object.values(p.locationsStock).reduce((a, b) => a + (parseInt(b) || 0), 0)
+      : (p.stock_local !== undefined ? (parseInt(p.stock_local) || 0) : (parseInt(p.stock) || 0));
+    groupedProducts[groupKey].totalStock += stockLocalVal;
     groupedProducts[groupKey].totalMinStock += getProductMinStock(p, salesByProduct);
   });
 
@@ -4617,19 +4633,24 @@ function openEditProductModal(sku) {
   const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
   const variants = state.products.filter(prod => prod.baseSku === cleanBase);
   
-  // Build tempLocationStock from variants
+  // Build tempLocationStock from variants with case-insensitive location matching
   tempLocationStock = {};
+  const configuredUserLocs = (state.userProfile?.locations && state.userProfile.locations.length > 0)
+    ? state.userProfile.locations
+    : ["Bahia Blanca", "Buenos Aires", "Local Principal"];
+
   variants.forEach(v => {
     if (v.locationsStock && Object.keys(v.locationsStock).length > 0) {
-      Object.keys(v.locationsStock).forEach(loc => {
-        if (!tempLocationStock[loc]) tempLocationStock[loc] = {};
-        tempLocationStock[loc][v.size] = v.locationsStock[loc];
+      Object.keys(v.locationsStock).forEach(locKey => {
+        const match = configuredUserLocs.find(l => l.toLowerCase().trim() === locKey.toLowerCase().trim()) || locKey;
+        if (!tempLocationStock[match]) tempLocationStock[match] = {};
+        tempLocationStock[match][v.size] = parseInt(v.locationsStock[locKey]) || 0;
       });
     } else {
       // Backwards compatibility: add stock to default location
-      const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
+      const defaultLoc = configuredUserLocs[0] || "Local Principal";
       if (!tempLocationStock[defaultLoc]) tempLocationStock[defaultLoc] = {};
-      tempLocationStock[defaultLoc][v.size] = v.stock;
+      tempLocationStock[defaultLoc][v.size] = parseInt(v.stock) || 0;
     }
   });
   
