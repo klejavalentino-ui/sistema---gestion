@@ -5362,7 +5362,7 @@ async function saveSupplierForm(e) {
   const products = Array.from(productCheckboxes).map(cb => cb.value);
 
   const payload = { name, phone, delivery_days: deliveryDays, lead_time: deliveryDays, categories, products, address, description };
-  if (sId) payload.id = parseInt(sId) || sId;
+  if (sId) payload.id = sId;
 
   try {
     await apiRequest("/api/suppliers", "POST", payload);

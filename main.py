@@ -1452,10 +1452,14 @@ def save_supplier():
     data = request.json or {}
     s_id = data.get("id")
     if not s_id:
-        s_id = int(time.time() * 1000)
-        data["id"] = s_id
+        s_id = f"supplier_{int(time.time() * 1000)}"
+    else:
+        s_id = str(s_id)
+        if not s_id.startswith("supplier_"):
+            s_id = f"supplier_{s_id}"
         
-    sku = f"supplier_{s_id}"
+    data["id"] = s_id
+    sku = s_id
     data["sku"] = f"{prefix}{sku}"
     data["name"] = data.get("name", "")
     data["cost"] = 0.0
