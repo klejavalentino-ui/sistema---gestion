@@ -7058,7 +7058,6 @@ async function deleteAccountTransaction(accId, txId) {
     return;
   }
   try {
-    showLoading();
     await apiRequest(`/api/current-accounts/${accId}/transactions/${txId}`, "DELETE");
     showToast("Movimiento eliminado correctamente.");
     
@@ -7071,8 +7070,6 @@ async function deleteAccountTransaction(accId, txId) {
   } catch (err) {
     console.error(err);
     showToast(err.message || "Error al eliminar el movimiento.", true);
-  } finally {
-    hideLoading();
   }
 }
 window.deleteAccountTransaction = deleteAccountTransaction;
