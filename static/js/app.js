@@ -6927,7 +6927,7 @@ function openAccountDetailModal(accId) {
   tbody.innerHTML = "";
 
   if (!acc.transactions || acc.transactions.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-gray); padding: 20px; font-size: 0.75rem;">No hay movimientos registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-gray); padding: 20px; font-size: 0.75rem;">No hay movimientos registrados.</td></tr>`;
   } else {
   // Ordenar de más reciente a más antiguo
   const sorted = [...acc.transactions].reverse();
@@ -6936,8 +6936,9 @@ function openAccountDetailModal(accId) {
     const tr = document.createElement("tr");
     let accionesHtml = "";
     if (tx.payment > 0 && acc.type !== "proveedor") {
-       accionesHtml = `<button class="btn btn-sm" style="background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); font-size: 0.7rem; padding: 4px 8px;" onclick="generateReciboXPDF('${tx.id}', '${acc.id}', ${tx.payment}, '${tx.date}')"><i class="fa-solid fa-file-invoice"></i> Recibo X</button>`;
+       accionesHtml = `<button class="btn btn-sm" style="background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); font-size: 0.7rem; padding: 4px 8px; margin-right: 6px;" onclick="generateReciboXPDF('${tx.id}', '${acc.id}', ${tx.payment}, '${tx.date}')"><i class="fa-solid fa-file-invoice"></i> Recibo X</button>`;
     }
+    accionesHtml += `<button class="btn btn-sm" style="background: rgba(239,68,68,0.1); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.2); font-size: 0.7rem; padding: 4px 8px;" onclick="deleteAccountTransaction('${acc.id}', '${tx.id}')" title="Eliminar movimiento"><i class="fa-solid fa-trash"></i></button>`;
     tr.innerHTML = `
       <td style="font-size: 0.75rem; color: var(--text-gray);">${dateStr}</td>
       <td style="font-weight: 600;">${tx.description}</td>
@@ -7040,6 +7041,30 @@ async function saveAccountTransactionForm(e) {
     if(btn) { btn.innerText = "Registrar Movimiento"; btn.disabled = false; }
   }
 }
+
+async function deleteAccountTransaction(accId, txId) {
+  if (!confirm("¿Estás seguro de que deseas eliminar este movimiento? Esta acción no se puede deshacer.")) {
+    return;
+  }
+  try {
+    showLoading();
+    await apiRequest(`/api/current-accounts/${accId}/transactions/${txId}`, "DELETE");
+    showToast("Movimiento eliminado correctamente.");
+    
+    await refreshState();
+    
+    // Dejar abierto el modal y refrescar la vista interna
+    setTimeout(() => {
+      openAccountDetailModal(accId);
+    }, 100);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Error al eliminar el movimiento.", true);
+  } finally {
+    hideLoading();
+  }
+}
+window.deleteAccountTransaction = deleteAccountTransaction;
 
 window.toggleTxInterestFields = function() {
   const type = document.getElementById("tx-type").value;

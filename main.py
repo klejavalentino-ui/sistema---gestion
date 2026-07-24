@@ -1822,6 +1822,34 @@ def add_account_transaction(acc_id):
                 res["sku"] = res["sku"][len(prefix):]
             res["nota_debito_emitida"] = nota_debito_emitida
         return jsonify(res)
+@app.route("/api/current-accounts/<acc_id>/transactions/<tx_id>", methods=["DELETE"])
+def delete_account_transaction(acc_id, tx_id):
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        clean_acc_id = acc_id
+        if clean_acc_id.startswith(prefix):
+            clean_acc_id = clean_acc_id[len(prefix):]
+        doc_id = clean_acc_id if clean_acc_id.startswith("account_") else f"account_{clean_acc_id}"
+        
+        doc = firebase_config.get_document("products", f"{prefix}{doc_id}", token)
+        if not doc:
+            return jsonify({"error": "Cuenta corriente no encontrada"}), 404
+            
+        transactions = doc.get("transactions", [])
+        updated_transactions = [t for t in transactions if t.get("id") != tx_id]
+        
+        if len(transactions) == len(updated_transactions):
+            return jsonify({"error": "Transacción no encontrada"}), 404
+            
+        doc["transactions"] = updated_transactions
+        firebase_config.set_document("products", f"{prefix}{doc_id}", doc, token)
+        return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
