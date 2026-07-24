@@ -12337,10 +12337,44 @@ function onQuoteSearchInput(query) {
     return;
   }
   
-  const matches = (state.products || []).filter(p => {
-    const sku = (p.sku || p.id || "").toLowerCase();
-    const name = (p.name || "").toLowerCase();
-    return sku.includes(q) || name.includes(q);
+  // Agrupar productos por baseSku o Nombre para que cada producto aparezca 1 sola vez
+  const groupedMap = {};
+  (state.products || []).forEach(p => {
+    if (!p) return;
+    const sku = p.sku || p.id || "";
+    if (sku.startsWith("supplier_") || sku.startsWith("fixedcost_") || sku.startsWith("account_") || 
+        sku.startsWith("cashtransaction_") || sku.startsWith("influencer_") || sku.startsWith("marketingexpense_") || 
+        sku.startsWith("stockintake_") || sku === "extras_config" || sku === "categories_config") {
+      return;
+    }
+    
+    const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku) || "PROD";
+    const name = p.name || "Producto sin nombre";
+    const groupKey = baseSku;
+    
+    if (!groupedMap[groupKey]) {
+      groupedMap[groupKey] = {
+        baseSku: baseSku,
+        name: name,
+        sku: baseSku,
+        price: Math.round(p.price_local || p.price || 0),
+        price_local: p.price_local || p.price || 0,
+        variants: [p],
+        sizes: new Set()
+      };
+    } else {
+      groupedMap[groupKey].variants.push(p);
+    }
+    if (p.size) groupedMap[groupKey].sizes.add(p.size);
+    if (p.sizesStock && typeof p.sizesStock === "object") {
+      Object.keys(p.sizesStock).forEach(sz => groupedMap[groupKey].sizes.add(sz));
+    }
+  });
+
+  const matches = Object.values(groupedMap).filter(g => {
+    const baseSku = g.baseSku.toLowerCase();
+    const name = g.name.toLowerCase();
+    return baseSku.includes(q) || name.includes(q) || g.variants.some(v => (v.sku || v.id || "").toLowerCase().includes(q));
   }).slice(0, 10);
   
   if (matches.length === 0) {
@@ -12349,16 +12383,16 @@ function onQuoteSearchInput(query) {
     return;
   }
   
-  dropdown.innerHTML = matches.map((p, idx) => {
-    const price = Math.round(p.price_local || p.price || 0);
-    const sku = p.sku || p.id || "-";
+  dropdown.innerHTML = matches.map((g, idx) => {
+    const price = g.price;
+    const sku = g.baseSku;
     return `
       <div style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;" 
            onmouseover="this.style.background='var(--bg-input)'" 
            onmouseout="this.style.background='transparent'" 
            onclick="selectQuoteProduct(${idx})">
         <div>
-          <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-white);">${p.name || 'Sin Nombre'}</div>
+          <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-white);">${g.name || 'Sin Nombre'}</div>
           <div style="font-size: 0.75rem; color: var(--text-muted);">Código: ${sku}</div>
         </div>
         <div style="font-size: 0.85rem; font-weight: 800; color: var(--accent-emerald);">$${price.toLocaleString('es-AR')}</div>
