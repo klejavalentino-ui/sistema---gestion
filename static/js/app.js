@@ -5872,10 +5872,10 @@ function renderIntakeTallesGrid() {
   if (!container) return;
   const sizes = getConfiguredSizes();
   container.innerHTML = sizes.map(sz => `
-    <div>
+    <div style="flex: 1; min-width: 50px; max-width: 80px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;">
       <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">${sz}</span>
-      <input type="number" id="intake-qty-${sz}" class="form-input text-center" style="text-align: center; padding: 8px 4px;" placeholder="-" min="0">
-      <span id="intake-stock-${sz}" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center;">Stock: 0</span>
+      <input type="number" id="intake-qty-${sz}" class="form-input text-center" style="text-align: center; padding: 8px 4px; width: 100%;" placeholder="-" min="0">
+      <span id="intake-stock-${sz}" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center; box-sizing: border-box;">Stock: 0</span>
     </div>
   `).join("");
 }
@@ -5936,7 +5936,11 @@ function handleProductSearchInput() {
     p.name.toLowerCase().includes(query) || 
     p.sku.toLowerCase().includes(query) ||
     (p.baseSku && p.baseSku.toLowerCase().includes(query))
-  );
+  ).sort((a, b) => {
+    const nameA = (a.name || "").toString().toLowerCase().trim();
+    const nameB = (b.name || "").toString().toLowerCase().trim();
+    return nameA.localeCompare(nameB);
+  });
   
   if (filtered.length === 0) {
     resultsDiv.innerHTML = `<div class="autocomplete-item" style="color: var(--text-muted);">No se encontraron productos</div>`;
