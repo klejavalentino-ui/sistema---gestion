@@ -1282,6 +1282,8 @@ def save_products_batch():
                 price_local_in = safe_float(p.get("price_local", 0.0))
                 if price_local_in <= 0 and cost > 0 and margin > 0:
                     price_local_in = round(cost * (1.0 + margin / 100.0), 2)
+                if price_local_in > 0:
+                    price_local_in = int(round(price_local_in / 100.0) * 100)
                 p["cost"] = cost
                 p["stock"] = safe_int(p.get("stock", 0))
                 p["price_local"] = price_local_in
@@ -1305,6 +1307,8 @@ def save_products_batch():
             price_local_in = safe_float(data.get("price_local", 0.0))
             if price_local_in <= 0 and cost > 0 and margin > 0:
                 price_local_in = round(cost * (1.0 + margin / 100.0), 2)
+            if price_local_in > 0:
+                price_local_in = int(round(price_local_in / 100.0) * 100)
             data["cost"] = cost
             data["stock"] = safe_int(data.get("stock", 0))
             data["price_local"] = price_local_in

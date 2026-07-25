@@ -4112,8 +4112,8 @@ async function applyBulkPriceUpdate() {
   const batchPayload = productsToUpdate.map(p => {
     const pCopy = { ...p };
     const factor = 1 + (percent / 100);
-    pCopy.price_local = pCopy.price_local ? Math.round(pCopy.price_local * factor) : 0;
-    pCopy.price_tiendanube = pCopy.price_tiendanube ? Math.round(pCopy.price_tiendanube * factor) : 0;
+    pCopy.price_local = pCopy.price_local ? Math.round((pCopy.price_local * factor) / 100) * 100 : 0;
+    pCopy.price_tiendanube = pCopy.price_tiendanube ? Math.round((pCopy.price_tiendanube * factor) / 100) * 100 : 0;
     pCopy.price = pCopy.price_local; // fallback
     const rawCost = parseFloat(pCopy.cost) || 0;
     if (rawCost > 0) {
@@ -4870,13 +4870,14 @@ function recalculateProductPrice() {
 
   const totalCost = baseCost + totalExtrasCost;
   const price = totalCost * (1 + margin / 100);
+  const roundedPrice = Math.round(price / 100) * 100;
 
   document.getElementById("prod-total-cost-display").innerText = `$ ${Math.round(totalCost).toLocaleString()}`;
-  document.getElementById("prod-price-preview").innerText = `$ ${Math.round(price).toLocaleString()}`;
+  document.getElementById("prod-price-preview").innerText = `$ ${roundedPrice.toLocaleString()}`;
 
   const priceLocalInput = document.getElementById("prod-price-local");
   if (priceLocalInput) {
-    priceLocalInput.value = Math.round(price);
+    priceLocalInput.value = roundedPrice;
     formatCurrencyField(priceLocalInput);
   }
 }
@@ -4981,8 +4982,8 @@ async function saveProductForm(e) {
     return;
   }
 
-  const priceLocal = parseLocalFloat(document.getElementById("prod-price-local").value) || 0;
-  const priceTiendanube = parseLocalFloat(document.getElementById("prod-price-tiendanube").value) || 0;
+  const priceLocal = Math.round((parseLocalFloat(document.getElementById("prod-price-local").value) || 0) / 100) * 100;
+  const priceTiendanube = Math.round((parseLocalFloat(document.getElementById("prod-price-tiendanube").value) || 0) / 100) * 100;
   const stockTaller = document.getElementById("prod-stock-taller").value || "infinito";
 
   // Preparar variantes en lote
@@ -8743,6 +8744,14 @@ function setupEventListeners() {
   document.getElementById("prod-cost-input").addEventListener("input", recalculateProductPrice);
   document.getElementById("prod-margin").addEventListener("input", recalculateProductPrice);
   document.getElementById("prod-price-local").addEventListener("input", recalculateMarginFromPrice);
+  document.getElementById("prod-price-local").addEventListener("blur", (e) => {
+    const val = parseLocalFloat(e.target.value) || 0;
+    if (val > 0) {
+      e.target.value = Math.round(val / 100) * 100;
+      formatCurrencyField(e.target);
+      recalculateMarginFromPrice();
+    }
+  });
   
   // Formulario Gastos
   document.getElementById("idx-cost-form").addEventListener("submit", handleAddExpenseSubmit);
