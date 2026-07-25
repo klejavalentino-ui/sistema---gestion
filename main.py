@@ -3070,6 +3070,81 @@ def sync_tiendanube_catalog_route():
     except Exception as e:
         return handle_error(e)
 
+@app.route("/api/integrations/tiendanube/push-all", methods=["POST"])
+def push_all_to_tiendanube_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+        
+    try:
+        config = firebase_config.get_document("integrations", "tiendanube", token)
+        if not config or not config.get("activo"):
+            return jsonify({"error": "La integración con Tiendanube no está activa o no está configurada."}), 400
+            
+        user_id = str(config.get("user_id", "")).strip()
+        access_token = str(config.get("access_token", "")).strip()
+        
+        if access_token:
+            access_token = "".join(c for c in access_token if ord(c) < 128).strip()
+        if user_id:
+            user_id = "".join(c for c in user_id if ord(c) < 128).strip()
+
+        if not user_id or not access_token:
+            return jsonify({"error": "Credenciales de Tiendanube incompletas."}), 400
+
+        headers = {
+            "Authentication": f"bearer {access_token}",
+            "User-Agent": "Datamargen (klejavalentino@gmail.com)",
+            "Content-Type": "application/json"
+        }
+
+        # Fetch all existing product documents from Firestore
+        existing_docs = firebase_config.list_documents("products", token)
+        products_to_push = []
+        for d in existing_docs:
+            doc_id = d.get("id", "")
+            p_id = d.get("tiendanube_product_id")
+            v_id = d.get("tiendanube_variant_id")
+            if doc_id.startswith(prefix) and p_id and v_id:
+                products_to_push.append(d)
+
+        if not products_to_push:
+            return jsonify({"error": "No se encontraron productos vinculados con Tiendanube en el inventario."}), 400
+
+        def push_single_product(prod):
+            try:
+                p_id = prod.get("tiendanube_product_id")
+                v_id = prod.get("tiendanube_variant_id")
+                price = safe_float(prod.get("price_tiendanube", prod.get("price_local", prod.get("price", 0))))
+                stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                
+                payload = {"stock": stock}
+                if price > 0:
+                    payload["price"] = str(price)
+                    
+                url = f"https://api.tiendanube.com/v1/{user_id}/products/{p_id}/variants/{v_id}"
+                r = requests.put(url, json=payload, headers=headers, timeout=15)
+                return r.ok
+            except Exception as e:
+                print(f"[PUSH ALL ERROR] Error pushing prod {prod.get('sku')}: {e}")
+                return False
+
+        updated_count = 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            results = list(executor.map(push_single_product, products_to_push))
+            updated_count = sum(1 for r in results if r)
+
+        return jsonify({
+            "success": True,
+            "count": updated_count,
+            "total": len(products_to_push)
+        })
+    except Exception as e:
+        return handle_error(e)
+
 def resolve_shipping_status(local_val, remote_val):
     order_map = {"unshipped": 1, "shipped": 2, "delivered": 3}
     local_weight = order_map.get(local_val, 1)

@@ -10166,6 +10166,34 @@ async function disconnectTiendanube() {
   }
 }
 
+function openTiendanubeSyncModal() {
+  const modal = document.getElementById("modal-tiendanube-sync-options");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeTiendanubeSyncModal() {
+  const modal = document.getElementById("modal-tiendanube-sync-options");
+  if (modal) modal.style.display = "none";
+}
+
+async function executeTiendanubePullSync() {
+  closeTiendanubeSyncModal();
+  await syncTiendanubeCatalog();
+}
+
+async function executeTiendanubePushSync() {
+  closeTiendanubeSyncModal();
+  try {
+    showToast("Enviando precios y stocks a Tiendanube... Esto puede tardar unos segundos.");
+    const result = await apiRequest("/api/integrations/tiendanube/push-all", "POST");
+    const count = result.count !== undefined ? result.count : 0;
+    showToast(`Sincronización exitosa. Se actualizaron ${count} variantes en Tiendanube.`);
+    await refreshState();
+  } catch (error) {
+    showToast("Error en sincronización hacia Tiendanube: " + error.message, true);
+  }
+}
+
 async function syncTiendanubeCatalog() {
   try {
     showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
