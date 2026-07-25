@@ -4231,6 +4231,13 @@ function renderInventory() {
     return matchesSearch && matchesCat;
   });
 
+  // Ordenar alfabéticamente por nombre de producto
+  filtered.sort((a, b) => {
+    const nameA = (a.name || "").toString().toLowerCase().trim();
+    const nameB = (b.name || "").toString().toLowerCase().trim();
+    return nameA.localeCompare(nameB);
+  });
+
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-gray); padding: 40px; font-size: 0.8rem;">No hay productos registrados.</td></tr>`;
     return;
