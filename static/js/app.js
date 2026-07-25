@@ -438,16 +438,21 @@ function updateSidebarProfile() {
       displayRole = "Usuario";
     } else if (state.userProfile && state.userProfile.contactName && state.userProfile.contactName.trim() !== "") {
       displayName = state.userProfile.contactName;
-    } else if (state.userProfile && state.userProfile.name && !state.userProfile.name.startsWith("Perfil ")) {
-      displayName = state.userProfile.name;
-    } else if (state.userProfile && state.userProfile.name) {
+    } else if (state.userProfile && state.userProfile.displayName && state.userProfile.displayName.trim() !== "") {
+      displayName = state.userProfile.displayName;
+    } else if (state.userProfile && state.userProfile.name && !state.userProfile.name.startsWith("Perfil ") && state.userProfile.name.toLowerCase() !== "user profile") {
       displayName = state.userProfile.name;
     } else if (state.email) {
-      displayName = state.email.split("@")[0];
+      const emailName = state.email.split("@")[0];
+      displayName = emailName.charAt(0).toUpperCase() + emailName.slice(1);
     }
     
-    if (!state.subuser && state.userProfile && state.userProfile.username) {
-      displayUsername = "@" + state.userProfile.username;
+    if (!state.subuser) {
+      if (state.userProfile && state.userProfile.username) {
+        displayUsername = "@" + state.userProfile.username;
+      } else if (state.email) {
+        displayUsername = "@" + state.email.split("@")[0];
+      }
     }
     
     if (!state.subuser && state.userProfile && state.userProfile.role) {
