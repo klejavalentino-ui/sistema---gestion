@@ -88,6 +88,7 @@ function getConfiguredSizes() {
   if (typeof raw === "string" && raw.trim().length > 0) {
     return raw.split(",").map(s => s.trim()).filter(Boolean);
   }
+  return ["XS", "S", "M", "L", "XL", "XXL"];
 }
 
 function getProductNameWithColor(p) {
