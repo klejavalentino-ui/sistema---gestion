@@ -3864,19 +3864,41 @@
 
   <!-- MODAL BULK PRICE UPDATE -->
   <div id="modal-bulk-price-update" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 10000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5);">
-    <div class="modal-content" style="max-width: 400px; padding: 24px; text-align: center;">
+    <div class="modal-content" style="max-width: 500px; padding: 24px; text-align: center;">
       <div class="modal-header">
-        <h3 class="modal-title">Modificar Precios Masivamente</h3>
-        <span class="modal-close" onclick="closeBulkPriceModal()">✕</span>
+         <h3 class="modal-title">Modificar Precios Masivamente</h3>
+         <span class="modal-close" onclick="closeBulkPriceModal()">✕</span>
       </div>
       <div class="modal-body" style="text-align: left;">
-        <p style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px;">Seleccioná una categoría y el porcentaje para aumentar o disminuir los precios de todos sus productos.</p>
+        <p style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px;">Seleccioná las categorías, elegí qué productos modificar, e ingresá el porcentaje de variación.</p>
+        
         <div class="form-group">
-          <label class="form-label">Categoría</label>
-          <select id="bulk-price-category-select" class="form-select">
-            <!-- Injected via JS -->
-          </select>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0;">Categorías</label>
+            <div style="display: flex; gap: 10px; font-size: 0.75rem;">
+              <span style="color: var(--accent-blue); cursor: pointer;" onclick="toggleAllBulkPriceCategories(true)">Todas</span>
+              <span style="color: var(--text-gray); cursor: pointer;" onclick="toggleAllBulkPriceCategories(false)">Ninguna</span>
+            </div>
+          </div>
+          <div id="bulk-price-categories-container" style="max-height: 120px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px;">
+            <!-- Checkboxes injected via JS -->
+          </div>
         </div>
+
+        <div class="form-group" id="bulk-price-products-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0;">Seleccionar Productos</label>
+            <div style="display: flex; gap: 10px; font-size: 0.75rem;">
+              <span style="color: var(--accent-blue); cursor: pointer;" onclick="toggleAllBulkPriceProducts(true)">Todos</span>
+              <span style="color: var(--text-gray); cursor: pointer;" onclick="toggleAllBulkPriceProducts(false)">Ninguno</span>
+            </div>
+          </div>
+          <input type="text" id="bulk-price-product-search" class="form-input" placeholder="Buscar producto..." style="margin-bottom: 8px; font-size: 0.8rem; padding: 6px 10px;" oninput="filterBulkPriceProductsList()">
+          <div id="bulk-price-products-container" style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px;">
+            <!-- Checkboxes injected via JS -->
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Porcentaje (%)</label>
           <input type="number" id="bulk-price-percent-input" class="form-input" placeholder="Ej: 15 (aumento) o -10 (descuento)">

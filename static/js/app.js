@@ -4058,19 +4058,50 @@ function exportSalesHistory() {
 }
 
 // --- BULK PRICE UPDATE ---
+let bulkPriceSelectedCategories = [];
+let bulkPriceProductsMap = []; // { id: string, name: string, category: string, checked: boolean, variants: [] }
+
 function openBulkPriceModal() {
-  const catSelect = document.getElementById("bulk-price-category-select");
-  if (!catSelect) return;
+  const container = document.getElementById("bulk-price-categories-container");
+  if (!container) return;
   
-  catSelect.innerHTML = '<option value="Todas">Todas las Categorías</option>';
-  (state.categories || []).forEach(cat => {
-    const opt = document.createElement("option");
-    opt.value = cat;
-    opt.innerText = cat;
-    catSelect.appendChild(opt);
+  container.innerHTML = "";
+  
+  // Populate categories list with checkboxes
+  const categories = state.categories || [];
+  categories.forEach(cat => {
+    const div = document.createElement("div");
+    div.style.display = "flex";
+    div.style.alignItems = "center";
+    div.style.gap = "8px";
+    
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = cat;
+    input.id = `bulk-cat-${cat.replace(/\s+/g, "-")}`;
+    input.className = "bulk-cat-checkbox";
+    input.addEventListener("change", onBulkPriceCategoryChange);
+    
+    const label = document.createElement("label");
+    label.htmlFor = input.id;
+    label.innerText = cat;
+    label.style.fontSize = "0.8rem";
+    label.style.cursor = "pointer";
+    label.style.margin = "0";
+    label.style.color = "var(--text-white)";
+    
+    div.appendChild(input);
+    div.appendChild(label);
+    container.appendChild(div);
   });
   
+  // Clear other inputs
+  document.getElementById("bulk-price-product-search").value = "";
   document.getElementById("bulk-price-percent-input").value = "";
+  
+  // Render empty products list
+  renderBulkPriceProductsList();
+  
   document.getElementById("modal-bulk-price-update").style.display = "flex";
 }
 
@@ -4078,13 +4109,124 @@ function closeBulkPriceModal() {
   document.getElementById("modal-bulk-price-update").style.display = "none";
 }
 
-async function applyBulkPriceUpdate() {
-  const selectedCat = document.getElementById("bulk-price-category-select").value;
-  const percentInput = document.getElementById("bulk-price-percent-input").value.trim();
-  if (!selectedCat) {
-    showToast("Selecciona una categoría", true);
+function toggleAllBulkPriceCategories(val) {
+  const checkboxes = document.querySelectorAll(".bulk-cat-checkbox");
+  checkboxes.forEach(cb => {
+    cb.checked = val;
+  });
+  onBulkPriceCategoryChange();
+}
+
+function onBulkPriceCategoryChange() {
+  const checkboxes = document.querySelectorAll(".bulk-cat-checkbox");
+  const selectedCats = [];
+  checkboxes.forEach(cb => {
+    if (cb.checked) selectedCats.push(cb.value);
+  });
+  
+  // Re-build bulkPriceProductsMap
+  const groupedProds = {};
+  const actualProducts = (state.products || []).filter(p => 
+    !p.sku.startsWith("supplier_") && 
+    !p.sku.startsWith("fixedcost_") && 
+    !p.sku.startsWith("account_") && 
+    !p.sku.startsWith("cashtransaction_") && 
+    !p.sku.startsWith("influencer_") && 
+    !p.sku.startsWith("marketingexpense_") && 
+    !p.sku.startsWith("stockintake_") && 
+    !p.sku.startsWith("productionorder_") && 
+    p.sku !== "extras_config" && 
+    p.sku !== "categories_config"
+  );
+  
+  actualProducts.forEach(p => {
+    if (selectedCats.length > 0 && !selectedCats.includes(p.category)) return;
+    
+    // Group by baseSku + color
+    const baseSku = p.baseSku || p.sku.split("-")[0] || p.sku;
+    const groupKey = `${baseSku}_${p.color || ""}`;
+    if (!groupedProds[groupKey]) {
+      groupedProds[groupKey] = {
+        name: getProductNameWithColor ? getProductNameWithColor(p) : p.name,
+        category: p.category,
+        variants: []
+      };
+    }
+    groupedProds[groupKey].variants.push(p);
+  });
+  
+  // Save to map
+  bulkPriceProductsMap = Object.keys(groupedProds).map(key => {
+    const group = groupedProds[key];
+    return {
+      id: key,
+      name: group.name,
+      category: group.category,
+      checked: true, // Default to true when category checked
+      variants: group.variants
+    };
+  });
+  
+  renderBulkPriceProductsList();
+}
+
+function renderBulkPriceProductsList() {
+  const container = document.getElementById("bulk-price-products-container");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  const searchInput = document.getElementById("bulk-price-product-search").value.toLowerCase().trim();
+  
+  const filtered = bulkPriceProductsMap.filter(p => 
+    p.name.toLowerCase().includes(searchInput) || p.category.toLowerCase().includes(searchInput)
+  );
+  
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="font-size:0.75rem; color:var(--text-gray); text-align:center; padding:10px;">Selecciona categorías para ver productos</div>';
     return;
   }
+  
+  filtered.forEach(p => {
+    const div = document.createElement("div");
+    div.style.display = "flex";
+    div.style.alignItems = "center";
+    div.style.gap = "8px";
+    
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = p.checked;
+    input.id = `bulk-prod-${p.id}`;
+    input.addEventListener("change", (e) => {
+      p.checked = e.target.checked;
+    });
+    
+    const label = document.createElement("label");
+    label.htmlFor = input.id;
+    label.innerHTML = `${p.name} <span style="font-size:0.65rem; color:var(--text-gray);">(${p.category})</span>`;
+    label.style.fontSize = "0.75rem";
+    label.style.cursor = "pointer";
+    label.style.margin = "0";
+    label.style.color = "var(--text-white)";
+    
+    div.appendChild(input);
+    div.appendChild(label);
+    container.appendChild(div);
+  });
+}
+
+function filterBulkPriceProductsList() {
+  renderBulkPriceProductsList();
+}
+
+function toggleAllBulkPriceProducts(val) {
+  bulkPriceProductsMap.forEach(p => {
+    p.checked = val;
+  });
+  renderBulkPriceProductsList();
+}
+
+async function applyBulkPriceUpdate() {
+  const percentInput = document.getElementById("bulk-price-percent-input").value.trim();
   if (!percentInput) {
     showToast("Ingresa un porcentaje", true);
     return;
@@ -4096,20 +4238,22 @@ async function applyBulkPriceUpdate() {
     return;
   }
   
-  // Find all products within the selected category, or all products if "Todas" is selected
-  let productsToUpdate;
-  if (selectedCat === "Todas") {
-    productsToUpdate = state.products;
-  } else {
-    productsToUpdate = state.products.filter(p => p.category === selectedCat);
-  }
+  // Collect all checked variants
+  const variantsToUpdate = [];
+  bulkPriceProductsMap.forEach(p => {
+    if (p.checked) {
+      p.variants.forEach(v => {
+        variantsToUpdate.push(v);
+      });
+    }
+  });
   
-  if (productsToUpdate.length === 0) {
-    showToast("No se encontraron productos en la categoría seleccionada", true);
+  if (variantsToUpdate.length === 0) {
+    showToast("No seleccionaste ningún producto para modificar", true);
     return;
   }
   
-  const batchPayload = productsToUpdate.map(p => {
+  const batchPayload = variantsToUpdate.map(p => {
     const pCopy = { ...p };
     const factor = 1 + (percent / 100);
     pCopy.price_local = pCopy.price_local ? Math.round((pCopy.price_local * factor) / 100) * 100 : 0;
