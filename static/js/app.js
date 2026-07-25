@@ -4417,7 +4417,15 @@ function renderInventory() {
     const allProductSizes = new Set();
     g.variants.forEach(v => {
       if (!v) return;
-      
+
+      const stockVal = (v.locationsStock && Object.keys(v.locationsStock).length > 0)
+        ? Object.values(v.locationsStock).reduce((a, b) => a + (parseInt(b) || 0), 0)
+        : (v.stock_local !== undefined ? (parseInt(v.stock_local) || 0) : (parseInt(v.stock) || 0));
+
+      // Solo tomamos en cuenta variantes que tengan ID de Tiendanube, o stock > 0, o si es la única variante del producto
+      const isRealVariant = Boolean(v.tiendanube_variant_id) || stockVal > 0 || g.variants.length === 1;
+      if (!isRealVariant) return;
+
       const checkAndAdd = (sz) => {
         if (!sz) return;
         const trimmed = sz.trim();
@@ -4428,29 +4436,7 @@ function renderInventory() {
       };
 
       if (v.size) checkAndAdd(v.size);
-      if (v.sizesStock && typeof v.sizesStock === 'object') {
-        try {
-          Object.keys(v.sizesStock).forEach(sz => checkAndAdd(sz));
-        } catch(e) {}
-      }
-      if (v.locationsStock && typeof v.locationsStock === 'object') {
-        try {
-          Object.keys(v.locationsStock).forEach(loc => {
-            const locVal = v.locationsStock[loc];
-            if (locVal && typeof locVal === 'object') {
-              Object.keys(locVal).forEach(sz => checkAndAdd(sz));
-            }
-          });
-        } catch(e) {}
-      }
     });
-
-    // Fallback por si la prenda utiliza talles fuera de los configurados
-    if (allProductSizes.size === 0) {
-      g.variants.forEach(v => {
-        if (v && v.size && v.size !== "Único" && v.size !== "unico") allProductSizes.add(v.size);
-      });
-    }
 
     const sortedTalles = [...allProductSizes].sort((a, b) => {
       const idxA = configuredSizes.indexOf(a);
