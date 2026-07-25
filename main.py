@@ -1297,6 +1297,14 @@ def save_products_batch():
                     if "sku" in res and isinstance(res["sku"], str) and res["sku"].startswith(prefix):
                         res["sku"] = res["sku"][len(prefix):]
                 results.append(res)
+            
+            # Push updates to Tiendanube in background thread pool
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    executor.map(lambda item: push_variant_to_tiendanube(item, token), data)
+            except Exception as push_err:
+                print(f"[TIENDANUBE PUSH BATCH ERROR] {push_err}")
+
             return jsonify(results)
         else:
             sku = str(data.get("sku", "")).strip()
@@ -1321,6 +1329,13 @@ def save_products_batch():
                 res["id"] = res["id"][len(prefix):] if isinstance(res.get("id"), str) and res["id"].startswith(prefix) else res.get("id")
                 if "sku" in res and isinstance(res["sku"], str) and res["sku"].startswith(prefix):
                     res["sku"] = res["sku"][len(prefix):]
+            
+            # Push update to Tiendanube in background
+            try:
+                push_variant_to_tiendanube(data, token)
+            except Exception as push_err:
+                print(f"[TIENDANUBE PUSH SINGLE ERROR] {push_err}")
+                
             return jsonify(res)
     except Exception as e:
         return handle_error(e)
@@ -2927,7 +2942,7 @@ def sync_tiendanube_catalog_route():
                 raw_stock = variant.get("stock")
                 if raw_stock is None:
                     stock_local_val = 0
-                    stock_taller_val = "infinito"
+                    stock_taller_val = 0
                 else:
                     stock_local_val = safe_int(raw_stock)
                     stock_taller_val = safe_int(raw_stock)
@@ -2946,12 +2961,11 @@ def sync_tiendanube_catalog_route():
                     existing_prod["tiendanube_product_id"] = p_id
                     existing_prod["tiendanube_variant_id"] = v_id
                     
-                    # Actualizar stock de Tiendanube (si es infinito, local mantiene el suyo o es 0)
+                    # Actualizar stock de Tiendanube (si es infinito en TN, en inventario es 0)
                     if raw_stock is None:
-                        existing_prod["stock_taller"] = "infinito"
-                        s_local = existing_prod.get("stock_local", existing_prod.get("stock", 0))
-                        existing_prod["stock_local"] = safe_int(s_local)
-                        existing_prod["stock"] = safe_int(s_local)
+                        existing_prod["stock_taller"] = 0
+                        existing_prod["stock_local"] = 0
+                        existing_prod["stock"] = 0
                     else:
                         existing_prod["stock_taller"] = stock_taller_val
                         existing_prod["stock_local"] = stock_local_val
@@ -3028,14 +3042,23 @@ def sync_tiendanube_catalog_route():
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             executor.map(save_one_product, products_to_save)
             
-        # Clean up any TiendaNube product documents in Firestore that were deleted in TiendaNube
+        # Clean up any product documents in Firestore that are no longer in TiendaNube (except Producción categories)
         current_synced_skus = {p.get("sku") for p in products_to_save if p.get("sku")}
         for d in existing_docs:
             doc_id = d.get("id", "")
-            if doc_id.startswith(prefix) and (doc_id.startswith(f"{prefix}TN") or d.get("tiendanube_product_id")) and doc_id not in current_synced_skus:
+            cat = str(d.get("category", "")).strip().lower()
+            is_production_cat = cat.startswith("producc")
+            
+            is_system_doc = not doc_id.startswith(prefix) or doc_id.startswith((
+                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
+                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
+                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
+            )) or doc_id in [f"{prefix}extras_config", f"{prefix}categories_config"]
+            
+            if not is_system_doc and not is_production_cat and doc_id not in current_synced_skus:
                 try:
                     firebase_config.delete_document("products", doc_id, token)
-                    print(f"[SYNC CLEANUP] Deleted deleted Tiendanube variant doc: {doc_id}")
+                    print(f"[SYNC CLEANUP] Deleted product not in Tiendanube: {doc_id}")
                 except Exception as del_err:
                     print(f"[SYNC CLEANUP ERROR] Failed to delete {doc_id}: {del_err}")
 
