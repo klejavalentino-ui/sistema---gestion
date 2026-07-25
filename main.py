@@ -2849,7 +2849,7 @@ def sync_tiendanube_catalog_route():
         if biz_type not in ["textil", "comercio"]:
             biz_type = "textil"
         products_to_save = []
-        new_variants_count = 0
+        newly_added_docs = []
         
         for tn_prod in all_tn_products:
             p_id = tn_prod.get("id")
@@ -3002,7 +3002,7 @@ def sync_tiendanube_catalog_route():
                         "tiendanube_variant_id": v_id
                     }
                     products_to_save.append(new_prod)
-                    new_variants_count += 1
+                    newly_added_docs.append(new_prod)
                     
         # Update categories config with any new category names imported from Tiendanube
         try:
@@ -3043,7 +3043,7 @@ def sync_tiendanube_catalog_route():
             executor.map(save_one_product, products_to_save)
             
         # Clean up any product documents in Firestore that are no longer in TiendaNube (except Producción categories)
-        deleted_count = 0
+        deleted_docs = []
         current_synced_skus = {p.get("sku") for p in products_to_save if p.get("sku")}
         for d in existing_docs:
             doc_id = d.get("id", "")
@@ -3059,16 +3059,36 @@ def sync_tiendanube_catalog_route():
             if not is_system_doc and not is_production_cat and doc_id not in current_synced_skus:
                 try:
                     firebase_config.delete_document("products", doc_id, token)
-                    deleted_count += 1
+                    deleted_docs.append(d)
                     print(f"[SYNC CLEANUP] Deleted product not in Tiendanube: {doc_id}")
                 except Exception as del_err:
                     print(f"[SYNC CLEANUP ERROR] Failed to delete {doc_id}: {del_err}")
 
+        # Group deleted and added items by unique product model (name + color or baseSku)
+        unique_deleted_models = set()
+        for d in deleted_docs:
+            name_clean = (d.get("name") or "").strip().lower()
+            color_clean = (d.get("color") or "").strip().lower()
+            base_sku = (d.get("baseSku") or d.get("id") or "").strip().lower()
+            model_key = f"{name_clean}_{color_clean}" if name_clean else base_sku
+            if model_key:
+                unique_deleted_models.add(model_key)
+
+        unique_added_models = set()
+        for p in newly_added_docs:
+            name_clean = (p.get("name") or "").strip().lower()
+            color_clean = (p.get("color") or "").strip().lower()
+            base_sku = (p.get("baseSku") or p.get("sku") or "").strip().lower()
+            model_key = f"{name_clean}_{color_clean}" if name_clean else base_sku
+            if model_key:
+                unique_added_models.add(model_key)
+
         return jsonify({
             "success": True, 
-            "added_count": new_variants_count,
-            "deleted_count": deleted_count,
-            "count": new_variants_count,
+            "added_count": len(unique_added_models),
+            "deleted_count": len(unique_deleted_models),
+            "added_variants_count": len(newly_added_docs),
+            "deleted_variants_count": len(deleted_docs),
             "synced_count": len(products_to_save)
         })
     except Exception as e:
