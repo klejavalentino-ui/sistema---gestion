@@ -2512,7 +2512,11 @@ function renderSalesPOS() {
       }
     });
 
-    const uniqueBaseProducts = Object.values(baseProductsMap);
+    const uniqueBaseProducts = Object.values(baseProductsMap).sort((a, b) => {
+      const nameA = (a.name || "").toString().toLowerCase().trim();
+      const nameB = (b.name || "").toString().toLowerCase().trim();
+      return nameA.localeCompare(nameB);
+    });
 
     if (uniqueBaseProducts.length === 0) {
       container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-gray); font-size: 0.8rem; padding: 40px;">${state.businessType === "comercio" ? "No se encontraron productos." : "No se encontraron prendas."}</div>`;
