@@ -3043,6 +3043,7 @@ def sync_tiendanube_catalog_route():
             executor.map(save_one_product, products_to_save)
             
         # Clean up any product documents in Firestore that are no longer in TiendaNube (except Producción categories)
+        deleted_count = 0
         current_synced_skus = {p.get("sku") for p in products_to_save if p.get("sku")}
         for d in existing_docs:
             doc_id = d.get("id", "")
@@ -3058,12 +3059,15 @@ def sync_tiendanube_catalog_route():
             if not is_system_doc and not is_production_cat and doc_id not in current_synced_skus:
                 try:
                     firebase_config.delete_document("products", doc_id, token)
+                    deleted_count += 1
                     print(f"[SYNC CLEANUP] Deleted product not in Tiendanube: {doc_id}")
                 except Exception as del_err:
                     print(f"[SYNC CLEANUP ERROR] Failed to delete {doc_id}: {del_err}")
 
         return jsonify({
             "success": True, 
+            "added_count": new_variants_count,
+            "deleted_count": deleted_count,
             "count": new_variants_count,
             "synced_count": len(products_to_save)
         })

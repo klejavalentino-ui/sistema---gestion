@@ -10198,12 +10198,21 @@ async function syncTiendanubeCatalog() {
   try {
     showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
     const result = await apiRequest("/api/integrations/tiendanube/sync", "POST");
-    const count = result.count !== undefined ? result.count : 0;
-    if (count > 0) {
-      showToast(`Sincronización completada. ${count} ${count === 1 ? 'variante nueva importada' : 'variantes nuevas importadas'}.`);
+    const added = result.added_count !== undefined ? result.added_count : (result.count || 0);
+    const deleted = result.deleted_count || 0;
+    
+    let msg = "";
+    if (added > 0 && deleted > 0) {
+      msg = `Sincronización completada: ${added} ${added === 1 ? 'producto agregado' : 'productos agregados'} y ${deleted} ${deleted === 1 ? 'producto eliminado' : 'productos eliminados'}.`;
+    } else if (added > 0) {
+      msg = `Sincronización completada: ${added} ${added === 1 ? 'producto agregado' : 'productos agregados'}.`;
+    } else if (deleted > 0) {
+      msg = `Sincronización completada: ${deleted} ${deleted === 1 ? 'producto eliminado' : 'productos eliminados'}.`;
     } else {
-      showToast("Sincronización completa.");
+      msg = "Sincronización completada: No hubo cambios en el catálogo.";
     }
+    
+    showToast(msg);
     await refreshState();
   } catch (error) {
     showToast("Error en sincronización: " + error.message, true);
