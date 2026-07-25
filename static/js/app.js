@@ -4067,8 +4067,8 @@ function openBulkPriceModal() {
   
   container.innerHTML = "";
   
-  // Populate categories list with checkboxes
-  const categories = state.categories || [];
+  // Populate categories list with checkboxes (sorted alphabetically)
+  const categories = (state.categories || []).slice().sort((a, b) => a.localeCompare(b));
   categories.forEach(cat => {
     const div = document.createElement("div");
     div.style.display = "flex";
@@ -4142,13 +4142,16 @@ function onBulkPriceCategoryChange() {
   actualProducts.forEach(p => {
     if (selectedCats.length > 0 && !selectedCats.includes(p.category)) return;
     
-    // Group by baseSku + color
-    const baseSku = p.baseSku || p.sku.split("-")[0] || p.sku;
-    const groupKey = `${baseSku}_${p.color || ""}`;
+    const pSku = p.sku || p.id || "";
+    const cleanNameKey = cleanCompareText(p.name || "");
+    const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : cleanNameKey) || "PROD";
+    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+    const groupKey = (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
+
     if (!groupedProds[groupKey]) {
       groupedProds[groupKey] = {
         name: getProductNameWithColor ? getProductNameWithColor(p) : p.name,
-        category: p.category,
+        category: p.category || "",
         variants: []
       };
     }
@@ -4165,6 +4168,13 @@ function onBulkPriceCategoryChange() {
       checked: true, // Default to true when category checked
       variants: group.variants
     };
+  });
+  
+  // Sort products list alphabetically by name
+  bulkPriceProductsMap.sort((a, b) => {
+    const nameA = (a.name || "").toString().toLowerCase().trim();
+    const nameB = (b.name || "").toString().toLowerCase().trim();
+    return nameA.localeCompare(nameB);
   });
   
   renderBulkPriceProductsList();
