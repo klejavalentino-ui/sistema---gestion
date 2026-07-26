@@ -4843,7 +4843,7 @@ function openEditProductModal(sku) {
   document.getElementById("modal-product-title").innerText = "Editar Variante";
   document.getElementById("prod-sku").value = p.sku;
   document.getElementById("prod-sku").readOnly = true; // no se edita SKU ya guardado
-  document.getElementById("prod-name").value = p.name;
+  document.getElementById("prod-name").value = getProductNameWithColor(p);
   document.getElementById("prod-color").value = p.color;
   document.getElementById("prod-cost-input").value = Math.round(p.baseCost || p.cost).toLocaleString("es-AR");
   formatCurrencyField(document.getElementById("prod-cost-input"));
@@ -4859,9 +4859,13 @@ function openEditProductModal(sku) {
     priceLocalInput.dataset.auto = (p.price_local === undefined || p.price_local === "") ? "true" : "false";
   }
   
-  // Cargar stock de todas las variantes del mismo producto (compartiendo baseSku)
+  // Cargar stock de todas las variantes del mismo producto y mismo color (compartiendo baseSku y color)
   const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
-  const variants = state.products.filter(prod => prod.baseSku === cleanBase);
+  const pColor = (p.color || "").toLowerCase().trim();
+  const variants = state.products.filter(prod => 
+    prod.baseSku === cleanBase && 
+    (prod.color || "").toLowerCase().trim() === pColor
+  );
   
   // Build tempLocationStock from variants with case-insensitive location matching
   tempLocationStock = {};
@@ -5172,8 +5176,13 @@ async function saveProductForm(e) {
   if (isEditing) {
     // Guardar cambios para todos los talles ingresados
     const cleanBaseSku = baseSku.split("-")[0] || baseSku;
+    const pColor = (color || "").toLowerCase().trim();
     for (const [size, stock] of Object.entries(sizeStocks)) {
-      const existingVariant = state.products.find(v => v.baseSku === cleanBaseSku && v.size === size);
+      const existingVariant = state.products.find(v => 
+        v.baseSku === cleanBaseSku && 
+        v.size === size && 
+        (v.color || "").toLowerCase().trim() === pColor
+      );
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
       const safeSku = existingVariant ? existingVariant.sku.replace(/\//g, "_") : `${cleanBaseSku}-${cleanSizeStr}`;
