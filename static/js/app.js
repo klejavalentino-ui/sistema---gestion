@@ -4541,6 +4541,24 @@ function populateInventoryCategorySelect(filterCat) {
   }
 }
 
+function getEditModalProductSizes() {
+  const configuredSizes = getConfiguredSizes().slice();
+  let hasUnico = false;
+  Object.keys(tempLocationStock).forEach(loc => {
+    if (tempLocationStock[loc] && typeof tempLocationStock[loc] === 'object') {
+      Object.keys(tempLocationStock[loc]).forEach(sz => {
+        if (sz.toLowerCase() === "único" || sz.toLowerCase() === "unico") {
+          hasUnico = true;
+        }
+      });
+    }
+  });
+  if (hasUnico && !configuredSizes.some(cs => cs.toLowerCase() === "único" || cs.toLowerCase() === "unico")) {
+    configuredSizes.push("Único");
+  }
+  return configuredSizes;
+}
+
 // --- Product Location Helpers ---
 function renderProductLocationRows() {
   const isComercio = state.businessType === "comercio";
@@ -4588,7 +4606,7 @@ function renderProductLocationRows() {
     
     const table = document.createElement("table");
     table.style = "width: 100%; border-collapse: collapse; min-width: 600px;";
-    const configuredSizes = getConfiguredSizes();
+    const configuredSizes = getEditModalProductSizes();
     table.innerHTML = `
       <thead>
         <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
@@ -4607,7 +4625,7 @@ function renderProductLocationRows() {
       tr.style = "border-bottom: 1px solid rgba(255,255,255,0.03);";
       
       let inputsHtml = "";
-      getConfiguredSizes().forEach(sz => {
+      getEditModalProductSizes().forEach(sz => {
         const val = tempLocationStock[loc][sz] || 0;
         inputsHtml += `
           <td style="padding: 4px 6px; text-align: center;">
@@ -4677,7 +4695,7 @@ function addProductLocationRow() {
   const loc = select.value;
   if (!loc) return;
   
-  const configuredSizes = getConfiguredSizes();
+  const configuredSizes = getEditModalProductSizes();
   const initSizes = {};
   configuredSizes.forEach(sz => initSizes[sz] = 0);
   
@@ -4725,7 +4743,7 @@ function renderSecurityStockGrid() {
   const container = document.getElementById("talles-ss-grid-container");
   if (!container) return;
   
-  const sizes = getConfiguredSizes();
+  const sizes = getEditModalProductSizes();
   container.innerHTML = sizes.map(sz => `
     <div>
       <label class="form-label" style="text-align: center; font-size: 0.65rem; margin-bottom: 4px;">${sz}</label>
@@ -4822,8 +4840,6 @@ function openEditProductModal(sku) {
   const p = state.products.find(prod => prod.sku === sku);
   if (!p) return;
 
-  renderSecurityStockGrid();
-
   document.getElementById("modal-product-title").innerText = "Editar Variante";
   document.getElementById("prod-sku").value = p.sku;
   document.getElementById("prod-sku").readOnly = true; // no se edita SKU ya guardado
@@ -4873,10 +4889,11 @@ function openEditProductModal(sku) {
     tempLocationStock[defaultLoc] = {};
   }
   
+  renderSecurityStockGrid();
   renderProductLocationRows();
 
   // Load security stock
-  getConfiguredSizes().forEach(sz => {
+  getEditModalProductSizes().forEach(sz => {
     // ssInput IDs may be problematic if sz contains spaces or special characters.
     // It's assumed the DOM is updated to match.
     const ssInput = document.getElementById(`ss-${sz}`);
@@ -5109,9 +5126,12 @@ async function saveProductForm(e) {
     const leadTimeVal = document.getElementById("prod-te-textil").value.trim();
     leadTime = leadTimeVal !== "" ? parseInt(leadTimeVal) || 0 : null;
     
-    getConfiguredSizes().forEach(sz => {
-      const ssInputVal = document.getElementById(`ss-${sz}`).value.trim();
-      sizeSecurityStocks[sz] = ssInputVal !== "" ? parseInt(ssInputVal) || 0 : null;
+    getEditModalProductSizes().forEach(sz => {
+      const ssEl = document.getElementById(`ss-${sz}`);
+      if (ssEl) {
+        const ssInputVal = ssEl.value.trim();
+        sizeSecurityStocks[sz] = ssInputVal !== "" ? parseInt(ssInputVal) || 0 : null;
+      }
     });
   }
 
