@@ -7,7 +7,10 @@ import json
 import hmac
 import hashlib
 import concurrent.futures
-from flask import Flask, request, jsonify, render_template, session
+import io
+import openpyxl
+from openpyxl.worksheet.datavalidation import DataValidation
+from flask import Flask, request, jsonify, render_template, session, send_file
 import firebase_config
 from datetime import datetime
 from flask_cors import CORS
@@ -1449,6 +1452,170 @@ def save_extras():
         return jsonify(filtered)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/export-inventory-excel", methods=["POST"])
+def export_inventory_excel_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+
+    try:
+        data = request.json or {}
+        products = data.get("products", [])
+        extras_config = data.get("extras", {})
+        locations = data.get("locations", ["Bahia Blanca", "Buenos Aires", "Local Principal"])
+        if not locations:
+            locations = ["Local Principal"]
+
+        def get_col_letter(col_idx):
+            letter = ""
+            idx = col_idx
+            while idx >= 0:
+                temp = idx % 26
+                letter = chr(temp + 65) + letter
+                idx = (idx - temp) // 26 - 1
+            return letter
+
+        def get_category_title_py(key):
+            titles = {
+                "estampados": "Estampados",
+                "packagings": "Packaging",
+                "bordados": "Bordados",
+                "bolsas_caramelos": "Bolsa de caramelos",
+                "envoltorios_regalo": "Envoltorio de regalo",
+                "adicionales_kiosco": "Otros adicionales"
+            }
+            if key in titles:
+                return titles[key]
+            return " ".join([word.capitalize() for word in key.split("_")])
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Inventario"
+
+        extra_category_keys = [k for k in extras_config.keys() if k not in ["sku", "name", "cost", "stock", "id"]]
+
+        # Encabezados
+        headers = ["SKU", "Producto", "Categoría", "Talle"]
+        for loc in locations:
+            headers.append(f"Stock Actual: {loc}")
+        headers.append("Stock Total")
+        headers.append("Materia Prima")
+
+        for cat_key in extra_category_keys:
+            headers.append(get_category_title_py(cat_key))
+
+        headers.extend(["Costo Unitario", "Margen (%)", "Precio de Venta", "Tiempo de Entrega (días)", "Stock de Seguridad"])
+
+        ws.append(headers)
+
+        first_loc_col = get_col_letter(4)
+        last_loc_col = get_col_letter(3 + len(locations))
+
+        for idx, p in enumerate(products):
+            row_num = idx + 2
+            display_name = (p.get("name") or "").strip()
+            color = (p.get("color") or "").strip()
+            if color and color.lower() not in ["único", "unico"]:
+                if color.lower() not in display_name.lower():
+                    display_name = f"{display_name} {color}"
+
+            cost = float(p.get("cost") or 0)
+            base_cost = float(p.get("baseCost") or 0) if p.get("baseCost") is not None else cost
+            margin = float(p.get("margin") or 0)
+            price = float(p.get("price_local") or p.get("price") or (cost * (1 + margin / 100)))
+
+            row_data = [
+                p.get("sku") or p.get("id") or "",
+                display_name,
+                p.get("category") or "",
+                p.get("size") or "Único"
+            ]
+
+            loc_stocks = p.get("locationsStock") or {}
+            for loc in locations:
+                st_val = int(loc_stocks.get(loc, 0)) if loc in loc_stocks else int(p.get("stock_local") or p.get("stock") or 0)
+                row_data.append(st_val)
+
+            # Formula de Stock Total
+            stock_formula = f"=SUM({first_loc_col}{row_num}:{last_loc_col}{row_num})"
+            row_data.append(stock_formula)
+            row_data.append(round(base_cost))
+
+            selected_extras = p.get("extras") or {
+                "estampados": p.get("estampadoId") or "",
+                "packagings": p.get("packagingId") or "",
+                "bordados": p.get("bordadoId") or ""
+            }
+
+            for cat_key in extra_category_keys:
+                opt_id = selected_extras.get(cat_key, "")
+                opts = extras_config.get(cat_key, [])
+                matched_opt = next((o for o in opts if o.get("id") == opt_id), None)
+                row_data.append(matched_opt["name"] if matched_opt else "-")
+
+            row_data.append(round(cost))
+            row_data.append(round(margin, 2))
+            row_data.append(round(price))
+            row_data.append(int(p["leadTime"]) if p.get("leadTime") not in [None, ""] else "")
+            row_data.append(int(p["securityStock"]) if p.get("securityStock") not in [None, ""] else "")
+
+            ws.append(row_data)
+
+        # Hoja Secundaria "Opciones" para origen del desplegable
+        ws_opts = wb.create_sheet(title="Opciones")
+        opts_headers = [get_category_title_py(k) for k in extra_category_keys]
+        ws_opts.append(opts_headers)
+
+        max_opts = 1
+        cat_opts_lists = {}
+        for cat_key in extra_category_keys:
+            opts = ["-"] + [o.get("name") for o in extras_config.get(cat_key, []) if o.get("name")]
+            cat_opts_lists[cat_key] = opts
+            if len(opts) > max_opts:
+                max_opts = len(opts)
+
+        for r_idx in range(max_opts):
+            r_row = []
+            for cat_key in extra_category_keys:
+                opts = cat_opts_lists[cat_key]
+                r_row.append(opts[r_idx] if r_idx < len(opts) else "")
+            ws_opts.append(r_row)
+
+        # Agregar Listas Desplegables de Validación de Datos
+        insumos_start_col_idx = 4 + len(locations) + 2
+
+        for c_idx, cat_key in enumerate(extra_category_keys):
+            col_letter = get_col_letter(insumos_start_col_idx + c_idx)
+            opts_count = len(cat_opts_lists[cat_key])
+            formula_val = f"Opciones!${col_letter}$2:${col_letter}${opts_count + 1}"
+
+            dv = DataValidation(
+                type="list",
+                formula1=formula_val,
+                allow_blank=True
+            )
+            dv.error = 'Por favor seleccione una opción válida de la lista.'
+            dv.errorTitle = 'Opción inválida'
+            ws.add_data_validation(dv)
+            dv.add(f"{col_letter}2:{col_letter}{len(products) + 500}")
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="Inventario_Completo.xlsx"
+        )
+    except Exception as e:
+        return handle_error(e)
 
 
 # --- 4. Rutas de Proveedores (Compras) ---

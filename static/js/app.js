@@ -5337,160 +5337,73 @@ function getExcelColumnName(colIndex) {
   return letter;
 }
 
-function exportInventoryToExcel() {
-  const thirtyDaysAgo = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000);
-  const recentSales = (state.sales || []).filter(s => new Date(s.date) >= thirtyDaysAgo);
-  const salesByProduct = {};
-  recentSales.forEach(sale => {
-    if (sale.items) {
-      sale.items.forEach(item => {
-        const pSku = item.product ? (item.product.sku || item.product.id) : "";
-        if (pSku) {
-          salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
-        }
-      });
+async function exportInventoryToExcel() {
+  try {
+    showToast("Generando archivo Excel...");
+
+    const filteredProducts = (state.products || []).filter(p => p && p.sku && 
+      !p.sku.startsWith("supplier_") && 
+      !p.sku.startsWith("fixedcost_") && 
+      !p.sku.startsWith("account_") && 
+      !p.sku.startsWith("cashtransaction_") && 
+      !p.sku.startsWith("influencer_") && 
+      !p.sku.startsWith("marketingexpense_") && 
+      !p.sku.startsWith("stockintake_") && 
+      !p.sku.startsWith("productionorder_") && 
+      p.sku !== "extras_config" && 
+      p.sku !== "categories_config"
+    );
+
+    filteredProducts.sort((a, b) => {
+      const nameA = getProductNameWithColor(a).trim();
+      const nameB = getProductNameWithColor(b).trim();
+      const comp = nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+      if (comp !== 0) return comp;
+      const skuA = (a.sku || "").trim();
+      const skuB = (b.sku || "").trim();
+      return skuA.localeCompare(skuB, 'es', { sensitivity: 'base' });
+    });
+
+    const locations = (state.userProfile?.locations && state.userProfile.locations.length > 0)
+      ? state.userProfile.locations
+      : ["Bahia Blanca", "Buenos Aires", "Local Principal"];
+
+    const response = await fetch("/api/export-inventory-excel", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${state.token}`
+      },
+      body: JSON.stringify({
+        products: filteredProducts,
+        extras: state.extras || {},
+        locations: locations
+      })
+    });
+
+    if (!response.ok) {
+      let errText = "Error al exportar Excel";
+      try {
+        const errJson = await response.json();
+        errText = errJson.error || errText;
+      } catch(e) {}
+      throw new Error(errText);
     }
-  });
 
-  const configuredLocations = (state.userProfile?.locations && state.userProfile.locations.length > 0)
-    ? state.userProfile.locations
-    : ["Bahia Blanca", "Buenos Aires", "Local Principal"];
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Inventario_Completo.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
 
-  const filteredProducts = (state.products || []).filter(p => p && p.sku && 
-                                              !p.sku.startsWith("supplier_") && 
-                                              !p.sku.startsWith("fixedcost_") && 
-                                              !p.sku.startsWith("account_") && 
-                                              !p.sku.startsWith("cashtransaction_") && 
-                                              !p.sku.startsWith("influencer_") && 
-                                              !p.sku.startsWith("marketingexpense_") && 
-                                              !p.sku.startsWith("stockintake_") && 
-                                              !p.sku.startsWith("productionorder_") && 
-                                              p.sku !== "extras_config" && 
-                                              p.sku !== "categories_config");
-
-  // Ordenar alfabéticamente por Nombre (con color incluido) y SKU
-  filteredProducts.sort((a, b) => {
-    const nameA = getProductNameWithColor(a).trim();
-    const nameB = getProductNameWithColor(b).trim();
-    const comp = nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
-    if (comp !== 0) return comp;
-    
-    const skuA = (a.sku || "").trim();
-    const skuB = (b.sku || "").trim();
-    return skuA.localeCompare(skuB, 'es', { sensitivity: 'base' });
-  });
-
-  const extraCategoryKeys = Object.keys(state.extras || {}).filter(k => !["sku", "name", "cost", "stock", "id"].includes(k));
-
-  const firstLocColLetter = getExcelColumnName(4);
-  const lastLocColLetter = getExcelColumnName(3 + configuredLocations.length);
-
-  const formatted = filteredProducts.map((p, idx) => {
-      const displayName = getProductNameWithColor(p);
-      const totalCost = parseFloat(p.cost) || 0;
-      const baseCost = p.baseCost !== undefined && p.baseCost !== null ? parseFloat(p.baseCost) || 0 : totalCost;
-      const margin = parseFloat(p.margin) || 0;
-      const price = p.price_local !== undefined ? parseFloat(p.price_local) : (p.price !== undefined ? parseFloat(p.price) : (totalCost * (1 + margin / 100)));
-      
-      let sumLocStock = 0;
-      configuredLocations.forEach(loc => {
-        const val = p.locationsStock && p.locationsStock[loc] !== undefined 
-          ? (parseInt(p.locationsStock[loc]) || 0) 
-          : (p.stock_local !== undefined ? (parseInt(p.stock_local) || 0) : (parseInt(p.stock) || 0));
-        sumLocStock += val;
-      });
-
-      const excelRowNumber = idx + 2; // Encabezado en Fila 1
-      const stockFormula = `SUM(${firstLocColLetter}${excelRowNumber}:${lastLocColLetter}${excelRowNumber})`;
-
-      const row = {
-        SKU: p.sku || p.id || "",
-        Producto: displayName,
-        Categoría: p.category || "",
-        Talle: p.size || "Único"
-      };
-
-      configuredLocations.forEach(loc => {
-        row[`Stock Actual: ${loc}`] = p.locationsStock && p.locationsStock[loc] !== undefined 
-          ? (parseInt(p.locationsStock[loc]) || 0) 
-          : (p.stock_local !== undefined ? (parseInt(p.stock_local) || 0) : (parseInt(p.stock) || 0));
-      });
-
-      // Stock Total como objeto con fórmula de Excel y valor numérico calculado
-      row["Stock Total"] = { f: stockFormula, v: sumLocStock };
-      row["Materia Prima"] = Math.round(baseCost);
-
-      // Insumos por categoría
-      const selectedExtras = p.extras || {
-        estampados: p.estampadoId || "",
-        packagings: p.packagingId || "",
-        bordados: p.bordadoId || ""
-      };
-
-      extraCategoryKeys.forEach(catKey => {
-        const colName = getCategoryTitle(catKey);
-        const optId = selectedExtras[catKey] || "";
-        const opts = state.extras[catKey] || [];
-        const opt = opts.find(o => o.id === optId);
-        row[colName] = opt ? opt.name : "-";
-      });
-
-      row["Costo Unitario"] = Math.round(totalCost);
-      row["Margen (%)"] = Math.round(margin * 100) / 100;
-      row["Precio de Venta"] = Math.round(price);
-
-      // Tiempo de entrega y Stock de seguridad al fondo a la derecha
-      row["Tiempo de Entrega (días)"] = (p.leadTime !== undefined && p.leadTime !== null && p.leadTime !== "") ? parseInt(p.leadTime) : "";
-      row["Stock de Seguridad"] = (p.securityStock !== undefined && p.securityStock !== null && p.securityStock !== "") ? parseInt(p.securityStock) : "";
-
-      return row;
-    });
-
-  const ws = XLSX.utils.json_to_sheet(formatted);
-
-  // Generar Hoja Secundaria "Opciones" con los listados desplegables de Insumos
-  const optsSheetData = [];
-  const maxOptsLen = Math.max(1, ...extraCategoryKeys.map(k => ((state.extras[k] || []).length + 1)));
-
-  for (let r = 0; r < maxOptsLen; r++) {
-    const rowObj = {};
-    extraCategoryKeys.forEach(catKey => {
-      const colName = getCategoryTitle(catKey);
-      const optsList = ["-"].concat((state.extras[catKey] || []).map(o => o.name));
-      rowObj[colName] = optsList[r] || "";
-    });
-    optsSheetData.push(rowObj);
+    showToast("Excel descargado correctamente.");
+  } catch (error) {
+    showToast(error.message, true);
   }
-  const wsOpts = XLSX.utils.json_to_sheet(optsSheetData);
-
-  // Configurar Validación de Datos (Listas Desplegables) en la hoja principal de Inventario
-  const dataValidations = [];
-  const insumosStartColIndex = 4 + configuredLocations.length + 2; 
-
-  extraCategoryKeys.forEach((catKey, catIdx) => {
-    const colIdx = insumosStartColIndex + catIdx;
-    const colLetter = getExcelColumnName(colIdx);
-    const optsList = ["-"].concat((state.extras[catKey] || []).map(o => o.name));
-    const formulaList = '"' + optsList.join(",") + '"';
-
-    dataValidations.push({
-      sqref: `${colLetter}2:${colLetter}${formatted.length + 500}`,
-      type: "list",
-      operator: "equal",
-      formula1: formulaList,
-      allowBlank: true,
-      showErrorMessage: true,
-      errorTitle: "Opción inválida",
-      error: "Por favor seleccione una opción válida de la lista de insumos."
-    });
-  });
-
-  ws['!dataValidation'] = dataValidations;
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-  XLSX.utils.book_append_sheet(wb, wsOpts, "Opciones");
-  XLSX.writeFile(wb, "Inventario_Completo.xlsx");
 }
 
 // Categories Management Modal
