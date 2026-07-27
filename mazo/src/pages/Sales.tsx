@@ -1,15 +1,33 @@
-import { useState } from 'react';
-import { Search, ShoppingCart, Trash2, Plus, Minus, Barcode, History, CheckCircle2, X, Banknote, CreditCard, Smartphone, Check, FileSpreadsheet, Calendar, AlertCircle, TrendingDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, ShoppingCart, Trash2, Plus, Minus, History, CheckCircle2, X, Banknote, CreditCard, Smartphone, Check, FileSpreadsheet, Calendar, AlertCircle, TrendingDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAppStore } from '../store';
 
 export default function Sales() {
-  const { products, sales: salesHistory, addSale, categories, addCurrentAccount, addAccountTransaction, currentAccounts, addCashTransaction } = useAppStore();
+  const { products, sales: salesHistory, addSale, categories, addCurrentAccount, addAccountTransaction, currentAccounts, addCashTransaction, locations, salesChannels } = useAppStore() as any;
   const [cart, setCart] = useState<Array<{product: any, size: string, quantity: number}>>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [selectedProductForSize, setSelectedProductForSize] = useState<any>(null);
+
+  // Variables para la Ubicación y el Canal de Venta
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedChannel, setSelectedChannel] = useState('');
+
+  // Cargar automáticamente la primera ubicación disponible
+  useEffect(() => {
+    if (locations && locations.length > 0 && !selectedLocation) {
+      setSelectedLocation(locations[0]);
+    }
+  }, [locations]);
+
+  // Cargar automáticamente el primer canal de venta disponible
+  useEffect(() => {
+    if (salesChannels && salesChannels.length > 0 && !selectedChannel) {
+      setSelectedChannel(salesChannels[0]);
+    }
+  }, [salesChannels]);
   
+  // Size Modal State
+  const [selectedProductForSize, setSelectedProductForSize] = useState<any>(null);
+
   // History Modal State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
@@ -148,6 +166,8 @@ export default function Sales() {
       date: new Date(),
       total: total,
       method: method,
+      location: selectedLocation || 'Bahía Blanca',
+      channel: selectedChannel || 'Mostrador',
       items: cart.map(item => ({ ...item, quantity: Number(item.quantity) || 1 }))
     };
     
@@ -184,7 +204,7 @@ export default function Sales() {
     }
 
     // Attempt to find existing current account for this client
-    let accountId = currentAccounts.find(a => a.entityName.toLowerCase() === financeClientName.trim().toLowerCase() && a.type === 'cliente')?.id;
+    let accountId = currentAccounts.find((a: any) => a.entityName.toLowerCase() === financeClientName.trim().toLowerCase() && a.type === 'cliente')?.id;
 
     if (!accountId) {
       accountId = `CACC-${Date.now()}`;
@@ -210,6 +230,8 @@ export default function Sales() {
       date: new Date(),
       total: total,
       method: `Cta. corriente (${paidAmount > 0 ? '$'+paidAmount+' Pagado' : 'Total'})`,
+      location: selectedLocation || 'Bahía Blanca',
+      channel: selectedChannel || 'Mostrador',
       items: cart.map(item => ({ ...item, quantity: Number(item.quantity) || 1 }))
     };
     
@@ -231,11 +253,10 @@ export default function Sales() {
     }, 1000);
   };
 
-
   const handleExportHistory = () => {
     // Format for Excel - ALL history without restrictions
-    const excelData = salesHistory.flatMap(sale => 
-      sale.items.map(item => {
+    const excelData = salesHistory.flatMap((sale: any) => 
+      sale.items.map((item: any) => {
         const price = item.product.cost * (1 + item.product.margin / 100);
         const estimatedCost = item.product.cost;
         const resultadoOperativo = (price - estimatedCost) * item.quantity;
@@ -244,6 +265,8 @@ export default function Sales() {
           'ID Venta': sale.id,
           'Fecha': new Date(sale.date).toLocaleDateString(),
           'Hora': new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          'Ubicación': sale.location || 'N/A',
+          'Canal de Venta': sale.channel || 'N/A',
           'Método de Pago': sale.method,
           'Producto': item.product.name,
           'Categoría': item.product.category,
@@ -264,9 +287,9 @@ export default function Sales() {
   };
 
   // Deduplicate products for display (show one card per baseSku)
-  const uniqueProducts = Array.from(new Map(products.map(p => [p.baseSku, p])).values());
+  const uniqueProducts = Array.from(new Map(products.map((p: any) => [p.baseSku, p])).values());
 
-  const filteredProducts = uniqueProducts.filter(product => {
+  const filteredProducts = uniqueProducts.filter((product: any) => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           product.baseSku.toLowerCase().includes(searchTerm.toLowerCase());
@@ -304,7 +327,7 @@ export default function Sales() {
 
           {/* Categories */}
           <div className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide">
-            {['Todos', ...categories].map(cat => (
+            {['Todos', ...categories].map((cat: any) => (
               <button 
                 key={cat} 
                 onClick={() => setSelectedCategory(cat)}
@@ -323,7 +346,7 @@ export default function Sales() {
         {/* Products Grid */}
         <div className="flex-1 overflow-y-auto p-3 pt-0 scrollbar-hide">
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
-            {filteredProducts.map(product => (
+            {filteredProducts.map((product: any) => (
               <div 
                 key={product.id} 
                 onClick={() => handleProductClick(product)}
@@ -362,6 +385,47 @@ export default function Sales() {
           <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded">
             {cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} items
           </span>
+        </div>
+
+        {/* Desplegables de Ubicación y Canal de Venta */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 space-y-2">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Ubicación
+            </label>
+            <select
+              value={selectedLocation}
+              onChange={(e) => setSelectedLocation(e.target.value)}
+              className="w-full p-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#e5383b]"
+            >
+              {locations && locations.length > 0 ? (
+                locations.map((loc: string) => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))
+              ) : (
+                <option value="Bahia Blanca">Bahía Blanca</option>
+              )}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Canal de Venta
+            </label>
+            <select
+              value={selectedChannel}
+              onChange={(e) => setSelectedChannel(e.target.value)}
+              className="w-full p-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#e5383b]"
+            >
+              {salesChannels && salesChannels.length > 0 ? (
+                salesChannels.map((channel: string) => (
+                  <option key={channel} value={channel}>{channel}</option>
+                ))
+              ) : (
+                <option value="Mostrador">Mostrador</option>
+              )}
+            </select>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 bg-white dark:bg-slate-900">
@@ -516,7 +580,7 @@ export default function Sales() {
                       onChange={(e) => {
                         const val = e.target.value;
                         setFinanceClientName(val);
-                        const existingAccount = currentAccounts.find(a => a.type === 'cliente' && a.entityName.toLowerCase() === val.toLowerCase());
+                        const existingAccount = currentAccounts.find((a: any) => a.type === 'cliente' && a.entityName.toLowerCase() === val.toLowerCase());
                         if (existingAccount) {
                           if (existingAccount.phone) setFinanceClientPhone(existingAccount.phone);
                           if (existingAccount.address) setFinanceClientAddress(existingAccount.address);
@@ -526,7 +590,7 @@ export default function Sales() {
                       className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#e5383b]"
                     />
                     <datalist id="client-options">
-                      {currentAccounts.filter(a => a.type === 'cliente').map(acc => (
+                      {currentAccounts.filter((a: any) => a.type === 'cliente').map((acc: any) => (
                         <option key={acc.id} value={acc.entityName} />
                       ))}
                     </datalist>
@@ -636,7 +700,7 @@ export default function Sales() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {salesHistory.map((sale) => (
+                  {salesHistory.map((sale: any) => (
                     <div key={sale.id} className="border-b border-slate-100 dark:border-slate-800 pb-6 last:border-0 last:pb-0">
                       <div className="flex items-center gap-3 mb-2">
                         <span className="text-xl font-black text-slate-900 dark:text-white">
@@ -656,7 +720,7 @@ export default function Sales() {
                       </div>
                       
                       <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 space-y-2">
-                        {sale.items.map((item, idx) => (
+                        {sale.items.map((item: any, idx: number) => (
                           <div key={idx} className="flex justify-between items-center text-sm">
                             <span className="text-slate-600 dark:text-slate-300">
                               {item.quantity} un x {item.product.name} ({item.size})
@@ -675,6 +739,7 @@ export default function Sales() {
           </div>
         </div>
       )}
+
       {/* Size Selection Modal */}
       {selectedProductForSize && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
