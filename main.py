@@ -4870,6 +4870,27 @@ def update_business_settings():
                     pass
             if email:
                 save_username_mapping(new_username, email, token=token)
+        
+        # Update email and/or password in Firebase Auth if requested
+        new_email = data.get("userProfileEmail")
+        new_password = data.get("userProfilePassword")
+        
+        # Only update email in Auth if it actually changed from the current account email
+        current_email = doc.get("contactEmail") or ""
+        email_changed = new_email and new_email.strip().lower() != current_email.strip().lower()
+        
+        if email_changed or new_password:
+            try:
+                result = firebase_config.update_account(
+                    token,
+                    email=new_email if email_changed else None,
+                    password=new_password if new_password else None
+                )
+                if email_changed:
+                    doc["contactEmail"] = new_email
+            except Exception as auth_err:
+                return jsonify({"error": f"Error al actualizar credenciales: {str(auth_err)}"}), 400
+        
         biz_type_changed = False
         old_prefix = prefix
         new_prefix = prefix

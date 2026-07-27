@@ -205,6 +205,22 @@ def send_password_reset_email(email):
         raise Exception(error_msg)
     return r.json()
 
+def update_account(id_token, email=None, password=None):
+    """Update the email and/or password of the currently authenticated user."""
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:update?key={API_KEY}"
+    payload = {
+        "idToken": id_token,
+        "returnSecureToken": True
+    }
+    if email:
+        payload["email"] = email
+    if password:
+        payload["password"] = password
+    r = _session.post(url, json=payload, timeout=30)
+    if not r.ok:
+        error_msg = r.json().get("error", {}).get("message", "Error al actualizar la cuenta.")
+        raise Exception(error_msg)
+    return r.json()
 
 def get_account_info(id_token):
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={API_KEY}"

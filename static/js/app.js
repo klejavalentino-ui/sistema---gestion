@@ -11346,7 +11346,14 @@ function applyPermissionsToUI() {
         // Si estaba activo, sacarlo al panel u otro lado
         if (state.activeTab === sec.id) switchTab("panel");
       } else {
-        menuItem.style.display = "";
+        // For special sections (arca, tiendanube, zecat): only show if the admin has them enabled OR if subuser has permission
+        // These sections might be hidden by default (handled in the main sidebar load), but if subuser has explicit access, show them
+        if (sec.id === "tiendanube" || sec.id === "arca" || sec.id === "zecat") {
+          // Show the section for the subuser if they have view or edit access
+          menuItem.style.display = "block";
+        } else {
+          menuItem.style.display = "";
+        }
       }
     }
     
@@ -11548,9 +11555,20 @@ async function loadBusinessUsers() {
         ? `<span class="badge-green">Activo</span>` 
         : `<span class="badge-red">${u.status || 'Inactivo'}</span>`;
         
-      const actionsCell = (isSubuser || u.isAdmin) 
-        ? (u.isAdmin ? `<span style="font-size:0.75rem; color:var(--text-gray);">Owner</span>` : `<span style="font-size:0.75rem; color:var(--text-gray);">-</span>`)
-        : `
+      // Owner/Admin: show pencil to edit own profile (no delete). Subusers: no actions. Others: full actions.
+      let actionsCell;
+      if (u.isAdmin && !isSubuser) {
+        // Owner: show edit pencil button
+        actionsCell = `
+          <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 4px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('admin')" title="Editar mi perfil">
+            <i class="fa-solid fa-pencil"></i>
+          </button>
+          <span style="font-size:0.7rem; color:var(--text-gray); font-style:italic; vertical-align:middle;">Owner</span>
+        `;
+      } else if (isSubuser || u.isAdmin) {
+        actionsCell = `<span style="font-size:0.75rem; color:var(--text-gray);">-</span>`;
+      } else {
+        actionsCell = `
           <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 12px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('${u.id}')" title="Editar y ajustar permisos">
             <i class="fa-solid fa-pencil"></i>
           </button>
@@ -11558,6 +11576,7 @@ async function loadBusinessUsers() {
             <i class="fa-solid fa-trash"></i>
           </button>
         `;
+      }
 
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid var(--border-color)";
@@ -11587,12 +11606,35 @@ window.loadBusinessUsers = loadBusinessUsers;
 let currentEditingUser = null;
 let currentUserPermissions = {};
 
+function getActiveSectionsForPermissions() {
+  // Returns only the sections that are currently active/visible in the sidebar for this business.
+  // Special sections (TiendaNube, ARCA, Zecat) are only included if they're enabled for this business.
+  const userEmail = (state.email || "").toLowerCase();
+  const adminEmails = ["valentinoklcv@gmail.com", "jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"];
+  const isAllowedEmail = adminEmails.includes(userEmail) || state.role === "admin";
+
+  const isTnActive = (state.userProfile?.tiendanubeEnabled === true) || isAllowedEmail;
+  const isArcaActive = (state.userProfile?.arcaEnabled === true) || isAllowedEmail;
+  const zecatAllowedEmails = ["jomoindumentaria@gmail.com"];
+  const isZecatActive = (state.userProfile?.zecatEnabled === true) || zecatAllowedEmails.includes(userEmail);
+
+  return APP_SECTIONS.filter(sec => {
+    if (sec.id === "tiendanube") return isTnActive;
+    if (sec.id === "arca") return isArcaActive;
+    if (sec.id === "zecat") return isZecatActive;
+    return true;
+  });
+}
+window.getActiveSectionsForPermissions = getActiveSectionsForPermissions;
+
 function renderPermissionsMatrix() {
   const tbody = document.getElementById("modal-permissions-tbody");
   if(!tbody) return;
   tbody.innerHTML = "";
   
-  APP_SECTIONS.forEach(sec => {
+  const activeSections = getActiveSectionsForPermissions();
+  
+  activeSections.forEach(sec => {
     const val = currentUserPermissions[sec.id] || "none";
     const isView = val === "view" || val === "edit";
     const isEdit = val === "edit";
@@ -11628,7 +11670,8 @@ function togglePermission(secId, type, isChecked) {
 window.togglePermission = togglePermission;
 
 function setUserPermissionsAll(mode) {
-  APP_SECTIONS.forEach(sec => {
+  const activeSections = getActiveSectionsForPermissions();
+  activeSections.forEach(sec => {
     if (mode === "all") currentUserPermissions[sec.id] = "edit";
     else if (mode === "view") currentUserPermissions[sec.id] = "view";
     else currentUserPermissions[sec.id] = "none";
@@ -11666,18 +11709,18 @@ async function editBusinessUser(uid) {
   if (uid === "admin") {
     currentEditingUser = "admin";
     document.getElementById("modal-user-id").value = "admin";
-    document.getElementById("modal-user-name").value = state.userProfile?.name || "";
-    document.getElementById("modal-user-email").value = state.email || "";
+    document.getElementById("modal-user-name").value = state.userProfile?.name || state.userProfile?.contactName || "";
+    document.getElementById("modal-user-email").value = state.email || state.userProfile?.contactEmail || "";
     document.getElementById("modal-user-username").value = state.userProfile?.username || "";
     document.getElementById("modal-user-username").disabled = false;
     document.getElementById("modal-user-password").value = "";
     document.getElementById("modal-user-password").placeholder = "(Dejar vacío para no cambiar)";
-    document.getElementById("modal-user-password").disabled = true;
+    document.getElementById("modal-user-password").disabled = false;
     
     document.getElementById("modal-user-title").innerText = "Editar Mi Perfil";
-    document.getElementById("modal-user-email").disabled = true;
+    document.getElementById("modal-user-email").disabled = false;
     
-    // hide permissions section
+    // hide permissions section for owner (admin has all access)
     const permSection = document.getElementById("permissions-section");
     if(permSection) permSection.style.display = "none";
     
@@ -11756,8 +11799,11 @@ async function saveBusinessUser() {
   
   try {
     if (currentEditingUser === "admin") {
-      const res = await apiRequest("/api/business/settings", "PUT", { userProfileName: name, userProfileUsername: username });
+      const adminPayload = { userProfileName: name, userProfileUsername: username, userProfileEmail: email };
+      if (password) adminPayload.userProfilePassword = password;
+      const res = await apiRequest("/api/business/settings", "PUT", adminPayload);
       state.userProfile = res.userProfile;
+      if (email) state.email = email;
       showToast("Perfil de administrador actualizado.");
       closeBusinessUserModal();
       updateSidebarProfile();
