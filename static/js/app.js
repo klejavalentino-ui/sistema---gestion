@@ -1596,9 +1596,10 @@ async function refreshState() {
     state.userProfile = data.userProfile || null;
     state.role = data.role || "admin";
     state.permissions = data.permissions || null;
+    state.subuser = data.subuser || null;
     
     updateSidebarProfile();
-    applyPermissionsToUI();
+    // NOTE: applyPermissionsToUI() is called AFTER the sidebar menu visibility loop below
 
     // 4. Update Trial Countdown Badge
     if (trialBadge && trialText) {
@@ -1702,6 +1703,9 @@ async function refreshState() {
         item.style.display = "block";
       }
     });
+
+    // Apply permission-based visibility AFTER the sidebar menu loop so subuser permissions override special-section defaults
+    applyPermissionsToUI();
 
     // Auto-revert failed NCs once
     if (!localStorage.getItem("gs_ncs_fixed_v2")) {
@@ -9408,6 +9412,10 @@ async function saveEditExtraForm(e) {
 }
 
 function checkBusinessNameSetup() {
+  // Never show the business name modal to subusers — they use the admin's business
+  const isSubuser = !!state.subuser || state.role === "subuser";
+  if (isSubuser) return;
+  
   if (state.token && !state.businessName) {
     document.getElementById("business-name-modal").className = "modal-backdrop active";
   } else {
