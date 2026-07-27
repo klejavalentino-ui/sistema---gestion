@@ -1100,8 +1100,40 @@ function handleExcelImport(event) {
         const name = getHeaderVal(cleanRow, ["producto", "nombre", "nombre del producto", "prenda", "articulo", "descripcion", "detalle"]);
         const category = getHeaderVal(cleanRow, ["categoria", "categoría", "rubro", "tipo"]) || "General";
         
+        const materiaPrimaStr = getHeaderVal(cleanRow, ["materia prima", "materia_prima", "basecost", "costo materia prima", "costo base"]);
+        let baseCost = materiaPrimaStr !== "" ? (parseFloat(materiaPrimaStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : null;
+
         const costStr = getHeaderVal(cleanRow, ["costo unitario", "costo", "costo total", "costo unit.", "costo unit", "costounitario", "costo_unitario"]);
-        const cost = costStr !== "" ? (parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
+        let totalCost = costStr !== "" ? (parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
+        
+        const importedExtras = {};
+        let totalExtrasCost = 0;
+        const extraCategoryKeys = Object.keys(state.extras || {}).filter(k => !["sku", "name", "cost", "stock", "id"].includes(k));
+
+        extraCategoryKeys.forEach(catKey => {
+          const catTitle = getCategoryTitle(catKey);
+          const val = getHeaderVal(cleanRow, [catTitle, catKey, `insumo: ${catTitle}`]);
+          if (val && val !== "-" && val.toLowerCase() !== "ninguno" && val.toLowerCase() !== "sin insumo") {
+            const opts = state.extras[catKey] || [];
+            const matchedOpt = opts.find(o => (o.name || "").toLowerCase().trim() === val.toLowerCase().trim());
+            if (matchedOpt) {
+              importedExtras[catKey] = matchedOpt.id;
+              totalExtrasCost += (parseFloat(matchedOpt.cost) || 0);
+            }
+          }
+        });
+
+        if (baseCost === null) {
+          if (totalCost > 0) {
+            baseCost = Math.max(0, totalCost - totalExtrasCost);
+          } else {
+            baseCost = 0.0;
+          }
+        } else {
+          totalCost = baseCost + totalExtrasCost;
+        }
+
+        const cost = totalCost;
         
         const priceStr = getHeaderVal(cleanRow, ["precio de venta", "precio venta", "precio", "precio local", "pv", "preciodeventa", "precioventa", "precio_venta", "venta"]);
         const price = priceStr !== "" ? (parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
@@ -1150,7 +1182,7 @@ function handleExcelImport(event) {
           margin = ((price / cost) - 1) * 100;
         }
 
-        const deliveryTimeStr = getHeaderVal(cleanRow, ["tiempo de entrega (dias)", "tiempo de entrega", "dias de entrega"]);
+        const deliveryTimeStr = getHeaderVal(cleanRow, ["tiempo de entrega (dias)", "tiempo de entrega (días)", "tiempo de entrega", "dias de entrega", "días de entrega"]);
         const leadTime = (deliveryTimeStr !== "") ? parseInt(deliveryTimeStr.replace(/[^0-9]/g, "")) : "";
 
         const securityStockStr = getHeaderVal(cleanRow, ["stock de seguridad", "stock critico", "stock minimo"]);
@@ -1235,9 +1267,13 @@ function handleExcelImport(event) {
           prodPayload.stock = totalStock;
           prodPayload.stock_local = totalStock;
           
-          prodPayload.baseCost = cost;
+          prodPayload.baseCost = baseCost;
+          prodPayload.extras = { ...(prodPayload.extras || {}), ...importedExtras };
+          if (importedExtras.estampados) prodPayload.estampadoId = importedExtras.estampados;
+          if (importedExtras.bordados) prodPayload.bordadoId = importedExtras.bordados;
+          if (importedExtras.packagings) prodPayload.packagingId = importedExtras.packagings;
           prodPayload.margin = Math.round(margin * 10) / 10;
-          prodPayload.cost = cost;
+          prodPayload.cost = totalCost;
 
           // Guardar precio de venta
           let calculatedPrice = 0;
@@ -5331,12 +5367,14 @@ function exportInventoryToExcel() {
     return skuA.localeCompare(skuB, 'es', { sensitivity: 'base' });
   });
 
+  const extraCategoryKeys = Object.keys(state.extras || {}).filter(k => !["sku", "name", "cost", "stock", "id"].includes(k));
+
   const formatted = filteredProducts.map(p => {
       const displayName = getProductNameWithColor(p);
-      const cost = parseFloat(p.cost) || 0;
+      const totalCost = parseFloat(p.cost) || 0;
+      const baseCost = p.baseCost !== undefined && p.baseCost !== null ? parseFloat(p.baseCost) || 0 : totalCost;
       const margin = parseFloat(p.margin) || 0;
-      const price = p.price_local !== undefined ? parseFloat(p.price_local) : (p.price !== undefined ? parseFloat(p.price) : (cost * (1 + margin / 100)));
-      const minStock = getProductMinStock(p, salesByProduct);
+      const price = p.price_local !== undefined ? parseFloat(p.price_local) : (p.price !== undefined ? parseFloat(p.price) : (totalCost * (1 + margin / 100)));
       const stockLocalVal = p.stock_local !== undefined ? parseInt(p.stock_local) : (parseInt(p.stock) || 0);
       
       const row = {
@@ -5351,9 +5389,27 @@ function exportInventoryToExcel() {
       });
 
       row["Stock Total"] = stockLocalVal;
-      row["Unidades de Stock Critico"] = minStock;
-      row["Costo Unitario"] = Math.round(cost);
-      row["Margen (%)"] = margin;
+      row["Tiempo de Entrega (días)"] = (p.leadTime !== undefined && p.leadTime !== null && p.leadTime !== "") ? parseInt(p.leadTime) : "";
+      row["Stock de Seguridad"] = (p.securityStock !== undefined && p.securityStock !== null && p.securityStock !== "") ? parseInt(p.securityStock) : "";
+      row["Materia Prima"] = Math.round(baseCost);
+
+      // Insumos por categoría
+      const selectedExtras = p.extras || {
+        estampados: p.estampadoId || "",
+        packagings: p.packagingId || "",
+        bordados: p.bordadoId || ""
+      };
+
+      extraCategoryKeys.forEach(catKey => {
+        const colName = getCategoryTitle(catKey);
+        const optId = selectedExtras[catKey] || "";
+        const opts = state.extras[catKey] || [];
+        const opt = opts.find(o => o.id === optId);
+        row[colName] = opt ? opt.name : "-";
+      });
+
+      row["Costo Unitario"] = Math.round(totalCost);
+      row["Margen (%)"] = Math.round(margin * 100) / 100;
       row["Precio de Venta"] = Math.round(price);
 
       return row;
