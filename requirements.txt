@@ -6,4 +6,5 @@ cachetools
 Flask-Compress
 Flask-CORS
 Flask-Limiter
+openpyxl
 

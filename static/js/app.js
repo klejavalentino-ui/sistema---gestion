@@ -4896,12 +4896,15 @@ function openEditProductModal(sku) {
   }
   
   // Cargar stock de todas las variantes del mismo producto y mismo color (compartiendo baseSku y color)
-  const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
+  const rawBase = (p.baseSku || p.sku || "").trim();
+  const cleanBase = rawBase.includes("-") ? rawBase.split("-")[0] : rawBase;
   const pColor = (p.color || "").toLowerCase().trim();
-  const variants = state.products.filter(prod => 
-    prod.baseSku === cleanBase && 
-    (prod.color || "").toLowerCase().trim() === pColor
-  );
+  const variants = state.products.filter(prod => {
+    const prodRawBase = (prod.baseSku || prod.sku || "").trim();
+    const prodCleanBase = prodRawBase.includes("-") ? prodRawBase.split("-")[0] : prodRawBase;
+    const prodColor = (prod.color || "").toLowerCase().trim();
+    return prodCleanBase.toLowerCase() === cleanBase.toLowerCase() && prodColor === pColor;
+  });
   
   // Build tempLocationStock from variants with case-insensitive location matching
   tempLocationStock = {};
@@ -5214,11 +5217,16 @@ async function saveProductForm(e) {
     const cleanBaseSku = baseSku.split("-")[0] || baseSku;
     const pColor = (color || "").toLowerCase().trim();
     for (const [size, stock] of Object.entries(sizeStocks)) {
-      const existingVariant = state.products.find(v => 
-        v.baseSku === cleanBaseSku && 
-        v.size === size && 
-        (v.color || "").toLowerCase().trim() === pColor
-      );
+      const existingVariant = state.products.find(v => {
+        const vRawBase = (v.baseSku || v.sku || "").trim();
+        const vCleanBase = vRawBase.includes("-") ? vRawBase.split("-")[0] : vRawBase;
+        const vColor = (v.color || "").toLowerCase().trim();
+        return (
+          vCleanBase.toLowerCase() === cleanBaseSku.toLowerCase() &&
+          (v.size || "").toLowerCase().trim() === (size || "").toLowerCase().trim() &&
+          vColor === pColor
+        );
+      });
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
       const safeSku = existingVariant ? existingVariant.sku.replace(/\//g, "_") : `${cleanBaseSku}-${cleanSizeStr}`;
