@@ -4,6 +4,15 @@ import { useAppStore } from '../store';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
+// Función auxiliar estricta: Elimina cualquier talle o guión previo del SKU
+const cleanSkuStrict = (skuStr: any): string => {
+  if (!skuStr) return '';
+  let str = String(skuStr).trim();
+  // Eliminar sufijos de talles conocidos (-XS, -S, -M, -L, -XL, -XXL, -XXXL, -UNICO, -1, -2, etc)
+  str = str.replace(/-(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|ÚNICO|UNICO|[0-9]+)$/gi, '');
+  return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
+};
+
 export default function Inventory() {
   const {
     products,
@@ -13,18 +22,18 @@ export default function Inventory() {
     categories,
     addCategory,
     sizes: storeSizes,
-    locations,
+    locations: storeLocations,
     supplies = []
   } = useAppStore() as any;
 
-  // 1. Talles Dinámicos
+  // Talles Dinámicos
   const availableSizes = useMemo(() => {
     return storeSizes && storeSizes.length > 0
       ? storeSizes
       : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
   }, [storeSizes]);
 
-  // 2. Categorías de Insumos Dinámicas (Para el Excel)
+  // Categorías de Insumos Dinámicas (para Excel)
   const supplyCategories = useMemo(() => {
     const cats = new Set<string>();
     supplies.forEach((s: any) => {
@@ -37,12 +46,13 @@ export default function Inventory() {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [selectedLocationFilter, setSelectedLocationFilter] = useState('Todas');
 
-  // Modal States
+  // Modales
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingBaseSku, setEditingBaseSku] = useState<string | null>(null);
+  const [oldBaseSku, setOldBaseSku] = useState<string | null>(null);
 
-  // Form State
+  // Formulario
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const [productForm, setProductForm] = useState({
@@ -50,28 +60,33 @@ export default function Inventory() {
     baseSku: '',
     category: '',
     color: '',
-    cost: '', // Materia Prima
+    cost: '',
     margin: '',
     securityStock: '',
-    leadTime: '', // Tiempo de entrega
+    leadTime: '',
   });
 
-  // Matriz de Doble Entrada: [Ubicación][Talle] = Stock
+  // Lista de ubicaciones dinámicas activas en la matriz del modal
+  const [modalLocations, setModalLocations] = useState<string[]>([]);
+  // Matriz [Ubicación][Talle] = Stock
   const [stockMatrix, setStockMatrix] = useState<Record<string, Record<string, number>>>({});
 
-  // Generador de SKU limpio (Extrae la base sin talles)
-  const getCleanBaseSku = (product: any) => {
-    if (product.baseSku) return String(product.baseSku).split('-')[0];
-    if (product.sku) return String(product.sku).split('-')[0];
-    return `PRO${Math.floor(100 + Math.random() * 900)}`;
-  };
+  // Inicializar defaults al abrir
+  useEffect(() => {
+    if (categories && categories.length > 0 && !productForm.category) {
+      setProductForm(prev => ({ ...prev, category: categories[0] }));
+    }
+  }, [categories]);
 
   const handleOpenAddModal = () => {
     setEditingBaseSku(null);
+    setOldBaseSku(null);
 
-    // Inicializar Matriz en 0
-    const initialMatrix: any = {};
-    (locations || ['Local Principal']).forEach((loc: string) => {
+    const locs = storeLocations && storeLocations.length > 0 ? storeLocations : ['Local Principal'];
+    setModalLocations(locs);
+
+    const initialMatrix: Record<string, Record<string, number>> = {};
+    locs.forEach((loc: string) => {
       initialMatrix[loc] = {};
       availableSizes.forEach((size: string) => {
         initialMatrix[loc][size] = 0;
@@ -81,7 +96,7 @@ export default function Inventory() {
     setStockMatrix(initialMatrix);
     setProductForm({
       name: '',
-      baseSku: '',
+      baseSku: `PRO${Math.floor(100 + Math.random() * 900)}`,
       category: categories[0] || 'Remeras',
       color: '',
       cost: '',
@@ -93,18 +108,33 @@ export default function Inventory() {
   };
 
   const handleOpenEditModal = (productGroup: any) => {
-    const cleanBase = productGroup.baseSku;
+    const cleanBase = cleanSkuStrict(productGroup.baseSku);
     setEditingBaseSku(cleanBase);
+    setOldBaseSku(cleanBase);
 
-    // Buscar todas las variantes (talles y ubicaciones)
-    const relatedProducts = products.filter((p: any) => getCleanBaseSku(p) === cleanBase);
+    // REGLA DE ORO DE STOCK: Buscar TODOS los productos de este grupo exacto
+    const relatedProducts = products.filter((p: any) => {
+      const pClean = cleanSkuStrict(p.baseSku || p.sku);
+      return pClean === cleanBase || (p.name && p.name.trim().toLowerCase() === productGroup.name.trim().toLowerCase());
+    });
 
-    // Armar Matriz de Stock actual
-    const currentMatrix: any = {};
-    (locations || ['Local Principal']).forEach((loc: string) => {
+    // Combinar ubicaciones de la base de datos + del store para NO PERDER ninguna unidad
+    const allLocations = Array.from(new Set([
+      ...(storeLocations && storeLocations.length > 0 ? storeLocations : ['Local Principal']),
+      ...relatedProducts.map((p: any) => p.location || 'Local Principal')
+    ]));
+
+    setModalLocations(allLocations);
+
+    // Reconstruir la matriz idéntica al stock total
+    const currentMatrix: Record<string, Record<string, number>> = {};
+    allLocations.forEach((loc: string) => {
       currentMatrix[loc] = {};
       availableSizes.forEach((size: string) => {
-        const match = relatedProducts.find((p: any) => p.location === loc && String(p.size).toUpperCase() === size.toUpperCase());
+        const match = relatedProducts.find((p: any) =>
+          (p.location || 'Local Principal').trim().toLowerCase() === loc.trim().toLowerCase() &&
+          String(p.size || 'Único').trim().toUpperCase() === size.trim().toUpperCase()
+        );
         currentMatrix[loc][size] = match ? Number(match.stock) || 0 : 0;
       });
     });
@@ -113,7 +143,7 @@ export default function Inventory() {
 
     setStockMatrix(currentMatrix);
     setProductForm({
-      name: first.name || '',
+      name: first.name || productGroup.name || '',
       baseSku: cleanBase,
       category: first.category || (categories[0] || 'Remeras'),
       color: first.color || '',
@@ -140,8 +170,8 @@ export default function Inventory() {
     e.preventDefault();
     if (!productForm.name || !productForm.cost) return;
 
-    // Usar el SKU que ingresó el usuario o generar uno
-    const finalBaseSku = productForm.baseSku.trim() || `PRO${Math.floor(100 + Math.random() * 900)}`;
+    // REGLA ESTRICTA DE SKU: El SKU Base se limpia de cualquier talle o símbolo
+    const finalBaseSku = cleanSkuStrict(productForm.baseSku) || `PRO${Math.floor(100 + Math.random() * 900)}`;
     const cost = parseFloat(productForm.cost) || 0;
     const margin = parseFloat(productForm.margin) || 0;
     const securityStock = parseInt(productForm.securityStock) || 0;
@@ -153,23 +183,28 @@ export default function Inventory() {
       Object.keys(stockMatrix[loc]).forEach(size => {
         const stock = stockMatrix[loc][size];
 
+        // Buscar si ya existía la variante anterior
         const existingProduct = products.find((p: any) => {
-          return getCleanBaseSku(p) === finalBaseSku && p.location === loc && String(p.size).toUpperCase() === size.toUpperCase();
+          const pClean = cleanSkuStrict(p.baseSku || p.sku);
+          return (pClean === oldBaseSku || pClean === finalBaseSku) &&
+            (p.location || 'Local Principal').trim().toLowerCase() === loc.trim().toLowerCase() &&
+            String(p.size || 'Único').trim().toUpperCase() === size.trim().toUpperCase();
         });
 
-        // Generar SKU de Variante puramente numérico (PRO001-1, PRO001-2)
-        const variantSku = existingProduct?.sku || `${finalBaseSku}-${variantCounter++}`;
+        // Generar SKU de Variante ESTRICTAMENTE NUMÉRICO (ej: PRO014-1, PRO014-2)
+        const variantSku = `${finalBaseSku}-${variantCounter++}`;
 
         const payload = {
           baseSku: finalBaseSku,
           sku: variantSku,
-          name: productForm.name,
+          name: productForm.name.trim(),
           category: productForm.category,
-          color: productForm.color,
+          size: size,
+          color: productForm.color.trim(),
           cost,
           margin,
           location: loc,
-          stock,
+          stock: Number(stock),
           securityStock,
           leadTime
         };
@@ -177,7 +212,7 @@ export default function Inventory() {
         if (existingProduct) {
           updateProduct(existingProduct.id, payload);
         } else if (stock > 0 || editingBaseSku) {
-          addProduct({ ...payload, id: Date.now() + Math.floor(Math.random() * 100000) });
+          addProduct({ ...payload, id: Date.now() + Math.floor(Math.random() * 1000000) });
         }
       });
     });
@@ -186,13 +221,22 @@ export default function Inventory() {
   };
 
   const handleDeleteGroup = (baseSku: string) => {
-    if (confirm('¿Está seguro de eliminar este producto y todos sus talles y ubicaciones?')) {
-      const relatedProducts = products.filter((p: any) => getCleanBaseSku(p) === baseSku);
+    if (confirm('¿Está seguro de eliminar este producto y todas sus variantes?')) {
+      const relatedProducts = products.filter((p: any) => cleanSkuStrict(p.baseSku || p.sku) === cleanSkuStrict(baseSku));
       relatedProducts.forEach((p: any) => deleteProduct(p.id));
     }
   };
 
-  // Importar desde Excel (Lectura Inteligente de Columnas y Agrupación)
+  const handleAddCategory = (e: FormEvent) => {
+    e.preventDefault();
+    if (newCategoryName.trim()) {
+      addCategory(newCategoryName.trim());
+      setNewCategoryName('');
+      setIsCategoryModalOpen(false);
+    }
+  };
+
+  // Importar desde Excel
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -208,16 +252,14 @@ export default function Inventory() {
       const nameToSkuMap: Record<string, string> = {};
 
       data.forEach((row: any) => {
-        // Mapeo exacto basado en las columnas de tu Excel
-        const productName = row['Producto'] || row['Nombre'];
+        const productName = row['Producto'] || row['Nombre'] || row['PRODUCTO'];
         if (!productName) return;
 
-        // Si el Excel no tiene columna SKU Base, agrupamos por Nombre de Producto
-        let baseSku = row['SKU Base'] || row['Base SKU'] || row['Código'];
+        let baseSku = cleanSkuStrict(row['SKU Base'] || row['Base SKU'] || row['Código']);
         if (!baseSku) {
-          const existing = products.find((p: any) => p.name.toLowerCase() === productName.toLowerCase());
+          const existing = products.find((p: any) => p.name.trim().toLowerCase() === productName.trim().toLowerCase());
           if (existing) {
-            baseSku = getCleanBaseSku(existing);
+            baseSku = cleanSkuStrict(existing.baseSku || existing.sku);
           } else if (nameToSkuMap[productName]) {
             baseSku = nameToSkuMap[productName];
           } else {
@@ -226,8 +268,8 @@ export default function Inventory() {
           }
         }
 
-        const size = String(row['Talle'] || 'Único').toUpperCase();
-        const location = row['Ubicación'] || locations[0] || 'Bahía Blanca';
+        const size = String(row['Talle'] || row['TALLE'] || 'Único').trim().toUpperCase();
+        const location = String(row['Ubicación'] || row['UBICACION'] || storeLocations?.[0] || 'Local Principal').trim();
         const cost = parseFloat(row['Materia Prima'] || row['Costo Unit'] || row['Costo'] || '0') || 0;
         const margin = parseFloat(row['Margen (%)'] || row['Margen'] || '100') || 100;
         const stock = parseInt(row['Stock Actual'] || row['Stock'] || '0') || 0;
@@ -235,22 +277,23 @@ export default function Inventory() {
         const leadTime = parseInt(row['Tiempo de Entrega'] || '0') || 0;
         const category = row['Categoría'] || categories[0] || 'Remeras';
 
-        // Mapeo Dinámico de Insumos
         const suppliesMap: Record<string, string> = {};
         supplyCategories.forEach(cat => {
           if (row[cat] !== undefined) suppliesMap[cat] = String(row[cat]);
         });
 
         const existingVariant = products.find((p: any) =>
-          getCleanBaseSku(p) === baseSku && p.location === location && String(p.size).toUpperCase() === size
+          cleanSkuStrict(p.baseSku || p.sku) === baseSku &&
+          (p.location || 'Local Principal').trim().toLowerCase() === location.toLowerCase() &&
+          String(p.size || 'Único').trim().toUpperCase() === size
         );
 
-        const skuVariant = existingVariant?.sku || `${baseSku}-${Math.floor(1 + Math.random() * 9999)}`;
+        const skuVariant = `${baseSku}-${Math.floor(10 + Math.random() * 89)}`;
 
         const productData = {
           baseSku,
           sku: skuVariant,
-          name: productName,
+          name: productName.trim(),
           category,
           size,
           cost,
@@ -265,7 +308,7 @@ export default function Inventory() {
         if (existingVariant) {
           updateProduct(existingVariant.id, productData);
         } else {
-          addProduct({ ...productData, id: Date.now() + Math.floor(Math.random() * 100000) });
+          addProduct({ ...productData, id: Date.now() + Math.floor(Math.random() * 1000000) });
         }
       });
 
@@ -275,11 +318,11 @@ export default function Inventory() {
     reader.readAsBinaryString(file);
   };
 
-  // Exportar Excel
+  // Exportar a Excel
   const exportToExcel = () => {
     const excelData = products.map((p: any) => {
       const row: Record<string, any> = {
-        'SKU Base': getCleanBaseSku(p),
+        'SKU Base': cleanSkuStrict(p.baseSku || p.sku),
         'SKU Variante': p.sku,
         'Producto': p.name,
         'Categoría': p.category,
@@ -289,12 +332,11 @@ export default function Inventory() {
         'Materia Prima': p.cost || 0
       };
 
-      // Insumos Dinámicos
       supplyCategories.forEach(cat => {
         row[cat] = p.suppliesMap?.[cat] || '';
       });
 
-      row['Costo Unit'] = p.cost; // Acumulado si se suma
+      row['Costo Unit'] = p.cost || 0;
       row['Margen (%)'] = p.margin || 0;
       row['Precio de Venta'] = Math.round((p.cost || 0) * (1 + (p.margin || 0) / 100));
       row['Tiempo de Entrega'] = p.leadTime || 0;
@@ -309,25 +351,27 @@ export default function Inventory() {
     XLSX.writeFile(workbook, `Inventario_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
   };
 
-  // Agrupar visualmente para la tabla
+  // Agrupar productos de forma limpia y exacta para la tabla
   const groupedProducts = useMemo(() => {
     const groups: Record<string, any> = {};
 
     products.forEach((p: any) => {
-      const cleanBase = getCleanBaseSku(p);
-      if (!groups[cleanBase]) {
-        groups[cleanBase] = {
+      const cleanBase = cleanSkuStrict(p.baseSku || p.sku);
+      const groupKey = cleanBase || p.name.trim().toLowerCase();
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
           baseSku: cleanBase,
           name: p.name,
           category: p.category,
           color: p.color,
           cost: p.cost,
           margin: p.margin,
-          location: p.location,
           totalStock: 0,
         };
       }
-      groups[cleanBase].totalStock += Number(p.stock) || 0;
+      // Suma matemática exacta de todas las variantes registradas en la DB
+      groups[groupKey].totalStock += Number(p.stock) || 0;
     });
 
     return Object.values(groups);
@@ -337,13 +381,12 @@ export default function Inventory() {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.baseSku.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'Todos' || item.category === selectedCategory;
-    const matchesLocation = selectedLocationFilter === 'Todas' || item.location === selectedLocationFilter;
-    return matchesSearch && matchesCategory && matchesLocation;
+    return matchesSearch && matchesCategory;
   });
 
   return (
     <div className="space-y-6">
-      {/* Header Bar */}
+      {/* Barra de Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
           <h1 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -351,7 +394,7 @@ export default function Inventory() {
             Control de Inventario
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-            Gestión de SKU, talles, insumos y ubicaciones
+            Gestión unificada de SKU, talles, existencias y costos
           </p>
         </div>
 
@@ -388,8 +431,8 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Barra de Filtros */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
@@ -397,32 +440,22 @@ export default function Inventory() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar por nombre o SKU..."
-            className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#e5383b]"
+            className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#e5383b] outline-none"
           />
         </div>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#e5383b]"
+          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#e5383b] outline-none"
         >
           <option value="Todos">Todas las Categorías</option>
           {categories?.map((cat: string) => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
-        <select
-          value={selectedLocationFilter}
-          onChange={(e) => setSelectedLocationFilter(e.target.value)}
-          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#e5383b]"
-        >
-          <option value="Todas">Todas las Ubicaciones</option>
-          {locations?.map((loc: string) => (
-            <option key={loc} value={loc}>{loc}</option>
-          ))}
-        </select>
       </div>
 
-      {/* Table */}
+      {/* Tabla Principal */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -443,13 +476,13 @@ export default function Inventory() {
                   <tr key={item.baseSku} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="p-3.5">
                       <p className="font-bold text-slate-900 dark:text-white">{item.name}</p>
-                      <p className="text-[10px] font-mono text-slate-400">{item.baseSku}</p>
+                      <p className="text-[10px] font-mono font-semibold text-slate-400">{item.baseSku}</p>
                     </td>
                     <td className="p-3.5 font-medium text-slate-600 dark:text-slate-300">{item.category}</td>
                     <td className="p-3.5 font-mono text-slate-700 dark:text-slate-300">$ {(item.cost || 0).toLocaleString()}</td>
                     <td className="p-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-400">$ {sellPrice.toLocaleString()}</td>
                     <td className="p-3.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400">
                         {item.totalStock} un.
                       </span>
                     </td>
@@ -457,12 +490,14 @@ export default function Inventory() {
                       <button
                         onClick={() => handleOpenEditModal(item)}
                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
+                        title="Editar Producto y Stock"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteGroup(item.baseSku)}
                         className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                        title="Eliminar Producto"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -470,18 +505,26 @@ export default function Inventory() {
                   </tr>
                 );
               })}
+
+              {filteredGroupedProducts.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                    No se encontraron productos en el inventario.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal Edit/Add Product */}
+      {/* Modal Editar/Agregar Producto */}
       {isProductModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden relative animate-in fade-in zoom-in duration-200">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {editingBaseSku ? 'Editar Variante' : 'Nuevo Producto'}
+                {editingBaseSku ? 'Editar Producto y Variantes' : 'Nuevo Producto'}
               </h3>
               <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-500 p-1 rounded-lg">
                 <X className="h-5 w-5" />
@@ -502,14 +545,23 @@ export default function Inventory() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Código (SKU Base)</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Código (SKU Base - Editable) *
+                  </label>
                   <input
                     type="text"
+                    required
                     value={productForm.baseSku}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, baseSku: e.target.value }))}
-                    placeholder="Ej. PR053"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none uppercase"
+                    onChange={(e) => setProductForm(prev => ({
+                      ...prev,
+                      baseSku: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                    }))}
+                    placeholder="Ej. PRO014"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none uppercase font-mono font-bold"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Strict: Sin guiones ni letras de talle (ej. PRO014)
+                  </p>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoría</label>
@@ -525,23 +577,33 @@ export default function Inventory() {
                 </div>
               </div>
 
-              {/* Matriz de Ubicaciones x Talles */}
+              {/* Matriz Completa de Ubicaciones x Talles */}
               <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <label className="block text-sm font-bold text-slate-900 dark:text-white mb-3">
-                  Stock por Ubicación (Variantes)
-                </label>
+                <div className="flex justify-between items-center mb-3">
+                  <label className="block text-xs font-bold text-slate-900 dark:text-white">
+                    Stock por Ubicación y Talle
+                  </label>
+                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                    Suma en pantalla: {
+                      Object.values(stockMatrix).reduce((accLoc, sizeObj) => {
+                        return accLoc + Object.values(sizeObj).reduce((accSize, val) => accSize + (Number(val) || 0), 0);
+                      }, 0)
+                    } un.
+                  </span>
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr>
-                        <th className="p-2 text-xs font-bold text-slate-500">Ubicación</th>
+                        <th className="p-2 text-[11px] font-bold text-slate-500">Ubicación</th>
                         {availableSizes.map((size: string) => (
-                          <th key={size} className="p-2 text-center text-xs font-bold text-slate-500 min-w-[60px]">{size}</th>
+                          <th key={size} className="p-2 text-center text-[11px] font-bold text-slate-500 min-w-[55px]">{size}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {(locations || ['Local Principal']).map((loc: string) => (
+                      {modalLocations.map((loc: string) => (
                         <tr key={loc} className="border-t border-slate-200 dark:border-slate-700">
                           <td className="p-2 text-xs font-bold text-slate-800 dark:text-slate-200">{loc}</td>
                           {availableSizes.map((size: string) => (
@@ -609,9 +671,9 @@ export default function Inventory() {
               <div className="pt-3">
                 <button
                   type="submit"
-                  className="w-full py-3 bg-[#e5383b] text-white rounded-xl text-xs font-bold hover:bg-[#ba1826] transition-colors"
+                  className="w-full py-3 bg-[#e5383b] text-white rounded-xl text-xs font-bold hover:bg-[#ba1826] transition-colors shadow-md"
                 >
-                  Guardar Cambios y Variantes
+                  Guardar Cambios y Actualizar Unidades
                 </button>
               </div>
             </form>
@@ -619,7 +681,45 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Modal Categorías - Se mantiene igual, fue omitido para no alargar más el bloque visualmente pero está integrado */}
+      {/* Modal Categorías */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Categorías</h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-500 p-1 rounded-lg">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <form onSubmit={handleAddCategory} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Nueva categoría..."
+                  className="flex-1 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs outline-none"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-2 bg-[#e5383b] text-white rounded-xl text-xs font-bold hover:bg-[#ba1826]"
+                >
+                  Agregar
+                </button>
+              </form>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {categories?.map((cat: string) => (
+                  <div key={cat} className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {cat}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
