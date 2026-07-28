@@ -5,492 +5,528 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 export default function Inventory() {
-  const { estampados, packagings, bordados, products, categories, setProducts, addCategory, updateCategory, deleteCategory } = useAppStore();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { 
+    products, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    categories, 
+    addCategory, 
+    sizes: storeSizes, 
+    locations 
+  } = useAppStore() as any;
+
+  // Lista de talles dinámica desde el Store (si no hay guardados, usa la lista base)
+  const availableSizes = useMemo(() => {
+    return storeSizes && storeSizes.length > 0 
+      ? storeSizes 
+      : ['S', 'M', 'L', 'XL', 'XXL'];
+  }, [storeSizes]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [selectedLocationFilter, setSelectedLocationFilter] = useState('Todas');
+
+  // Modal States
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingBaseSku, setEditingBaseSku] = useState<string | null>(null);
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Todas las Categorías');
 
-  // Form State
-  const [baseSku, setBaseSku] = useState('');
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState(categories[0] || '');
-  const [color, setColor] = useState('');
-  const [cost, setCost] = useState<number | ''>('');
-  const [margin, setMargin] = useState<number | ''>('');
-  const [selectedEstampado, setSelectedEstampado] = useState<string>('');
-  const [selectedPackaging, setSelectedPackaging] = useState<string>('');
-  const [selectedBordado, setSelectedBordado] = useState<string>('');
-  const [sizeStocks, setSizeStocks] = useState<Record<string, number | ''>>({
-    XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': ''
+  // Category Form State
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // Product Form State
+  const [productForm, setProductForm] = useState({
+    name: '',
+    category: '',
+    color: '',
+    cost: '',
+    margin: '',
+    location: '',
+    sizes: {} as Record<string, number>
   });
 
-  // Category Modal State
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryProducts, setNewCategoryProducts] = useState<string[]>([]);
-  const [editingCategory, setEditingCategory] = useState<{old: string, new: string} | null>(null);
-  const [editingCategoryProducts, setEditingCategoryProducts] = useState<string[]>([]);
-
+  // Inicializar categoría y ubicación por defecto
   useEffect(() => {
-    if (!editingBaseSku) {
-      const lowerName = name.toLowerCase();
-      if (lowerName.includes('minorista') && margin !== 40) {
-        setMargin(40);
-      } else if (lowerName.includes('mayorista') && margin !== 30) {
-        setMargin(30);
-      }
+    if (categories && categories.length > 0 && !productForm.category) {
+      setProductForm(prev => ({ ...prev, category: categories[0] }));
     }
-  }, [name, editingBaseSku]);
-  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+    if (locations && locations.length > 0 && !productForm.location) {
+      setProductForm(prev => ({ ...prev, location: locations[0] }));
+    }
+  }, [categories, locations]);
 
-  const baseCost = Number(cost) || 0;
-  const estCost = estampados.find(e => e.id === selectedEstampado)?.cost || 0;
-  const packCost = packagings.find(p => p.id === selectedPackaging)?.cost || 0;
-  const bordCost = bordados.find(b => b.id === selectedBordado)?.cost || 0;
-  const totalCost = baseCost + estCost + packCost + bordCost;
-  const calculatedPrice = totalCost * (1 + (Number(margin) || 0) / 100);
+  // Función para obtener un baseSku limpio sin sufijos de talle (-S, -XXL)
+  const getCleanBaseSku = (product: any) => {
+    if (product.baseSku) {
+      // Elimina cualquier talle que haya quedado pegado al final por error anterior
+      return product.baseSku.replace(/-(S|M|L|XL|XXL|XXXL|[0-9]+)$/i, '');
+    }
+    if (product.sku) {
+      return product.sku.replace(/-(S|M|L|XL|XXL|XXXL|[0-9]+)$/i, '');
+    }
+    return `SKU-${Date.now().toString().slice(-6)}`;
+  };
 
-  const handleOpenCreate = () => {
+  const handleOpenAddModal = () => {
     setEditingBaseSku(null);
-    setBaseSku('');
-    setName('');
-    setCategory(categories[0] || '');
-    setColor('');
-    setCost('');
-    setMargin(50);
-    setSelectedEstampado('');
-    setSelectedPackaging('');
-    setSelectedBordado('');
-    setSizeStocks({ XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' });
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEdit = (product: any) => {
-    setEditingBaseSku(product.baseSku);
-    setBaseSku(product.baseSku);
-    setName(product.name);
-    setCategory(product.category);
-    setColor(product.color);
-    setCost(product.baseCost || product.cost);
-    setMargin(product.margin);
-    setSelectedEstampado(product.estampadoId || '');
-    setSelectedPackaging(product.packagingId || '');
-    setSelectedBordado(product.bordadoId || '');
-    
-    const relatedProducts = products.filter(p => p.baseSku === product.baseSku);
-    const newSizeStocks: Record<string, number | ''> = { XS: '', S: '', M: '', L: '', XL: '', XXL: '', 'Único': '' };
-    relatedProducts.forEach(p => {
-      newSizeStocks[p.size] = p.stock;
+    const initialSizes: Record<string, number> = {};
+    availableSizes.forEach((size: string) => {
+      initialSizes[size] = 0;
     });
-    setSizeStocks(newSizeStocks);
-    setIsModalOpen(true);
+
+    setProductForm({
+      name: '',
+      category: categories[0] || 'Remeras',
+      color: '',
+      cost: '',
+      margin: '100',
+      location: locations[0] || 'Bahía Blanca',
+      sizes: initialSizes
+    });
+    setIsProductModalOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('¿Estás seguro de eliminar esta variante?')) {
-      setProducts(products.filter(p => p.id !== id));
-    }
+  const handleOpenEditModal = (productGroup: any) => {
+    const cleanBase = productGroup.baseSku;
+    setEditingBaseSku(cleanBase);
+    
+    // Buscar todos los productos que compartan este baseSku (o su versión limpia)
+    const relatedProducts = products.filter((p: any) => {
+      const pBase = getCleanBaseSku(p);
+      return pBase === cleanBase || p.baseSku === productGroup.originalBaseSku;
+    });
+    
+    const sizesStock: Record<string, number> = {};
+    availableSizes.forEach((size: string) => {
+      const match = relatedProducts.find((p: any) => p.size === size);
+      sizesStock[size] = match ? Number(match.stock) || 0 : 0;
+    });
+
+    const firstItem = relatedProducts[0] || productGroup;
+
+    setProductForm({
+      name: firstItem.name,
+      category: firstItem.category || (categories[0] || 'Remeras'),
+      color: firstItem.color || '',
+      cost: firstItem.cost ? String(firstItem.cost) : '',
+      margin: firstItem.margin ? String(firstItem.margin) : '100',
+      location: firstItem.location || (locations[0] || 'Bahía Blanca'),
+      sizes: sizesStock
+    });
+    setIsProductModalOpen(true);
   };
 
-  const handleSave = (e: FormEvent) => {
+  const handleSizeStockChange = (size: string, value: string) => {
+    const numValue = Math.max(0, parseInt(value) || 0);
+    setProductForm(prev => ({
+      ...prev,
+      sizes: {
+        ...prev.sizes,
+        [size]: numValue
+      }
+    }));
+  };
+
+  const handleSaveProduct = (e: FormEvent) => {
     e.preventDefault();
-    if (!name || !cost || !margin || !category) {
-      alert('Por favor, complete todos los campos requeridos, incluyendo la categoría.');
-      return;
-    }
+    if (!productForm.name || !productForm.cost) return;
 
-    const finalBaseSku = baseSku.trim() || `${category.substring(0,3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+    // SKU base garantizado sin sufijos de talle
+    const baseSku = editingBaseSku || `SKU-${Date.now().toString().slice(-6)}`;
+    const cost = parseFloat(productForm.cost) || 0;
+    const margin = parseFloat(productForm.margin) || 0;
 
-    let updatedProducts = [...products];
-    if (editingBaseSku) {
-      updatedProducts = updatedProducts.filter(p => p.baseSku !== editingBaseSku);
-    }
+    Object.entries(productForm.sizes).forEach(([size, stock]) => {
+      // Buscar si ya existe la variante específica para este talle
+      const existingProduct = products.find((p: any) => {
+        const pBase = getCleanBaseSku(p);
+        return (pBase === baseSku || p.baseSku === baseSku) && p.size === size;
+      });
 
-    const newVariants: any[] = [];
-    Object.entries(sizeStocks).forEach(([sz, stk]) => {
-      if (stk !== '') {
-        newVariants.push({
-          id: Date.now() + Math.random(),
-          baseSku: finalBaseSku,
-          sku: `${finalBaseSku}-${sz}`,
-          name,
-          category,
-          size: sz,
-          color,
-          stock: Number(stk),
-          cost: totalCost, // Guardamos el costo total
-          baseCost: Number(cost),
-          estampadoId: selectedEstampado,
-          packagingId: selectedPackaging,
-          bordadoId: selectedBordado,
-          margin: Number(margin)
+      if (existingProduct) {
+        updateProduct(existingProduct.id, {
+          baseSku: baseSku,
+          sku: `${baseSku}-${size}`,
+          name: productForm.name,
+          category: productForm.category,
+          color: productForm.color,
+          cost,
+          margin,
+          location: productForm.location,
+          stock: Number(stock)
+        });
+      } else if (stock > 0 || editingBaseSku) {
+        addProduct({
+          id: Date.now() + Math.floor(Math.random() * 10000),
+          baseSku: baseSku,
+          sku: `${baseSku}-${size}`,
+          name: productForm.name,
+          category: productForm.category,
+          size,
+          color: productForm.color,
+          cost,
+          margin,
+          location: productForm.location,
+          stock: Number(stock)
         });
       }
     });
 
-    if (newVariants.length === 0) {
-      alert('Debes ingresar stock para al menos un talle.');
-      return;
-    }
-
-    setProducts([...newVariants, ...updatedProducts]);
-    setIsModalOpen(false);
+    setIsProductModalOpen(false);
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          product.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'Todas las Categorías' || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const handleDeleteGroup = (baseSku: string, originalBaseSku: string) => {
+    if (confirm('¿Está seguro de eliminar este producto y todos sus talles?')) {
+      const relatedProducts = products.filter((p: any) => {
+        const pBase = getCleanBaseSku(p);
+        return pBase === baseSku || p.baseSku === originalBaseSku;
+      });
+      relatedProducts.forEach((p: any) => deleteProduct(p.id));
+    }
+  };
 
-  const uniqueProducts = Array.from(new Map(products.map(p => [p.baseSku, p])).values());
+  const handleAddCategory = (e: FormEvent) => {
+    e.preventDefault();
+    if (newCategoryName.trim()) {
+      addCategory(newCategoryName.trim());
+      setNewCategoryName('');
+      setIsCategoryModalOpen(false);
+    }
+  };
 
-  const exportToExcel = () => {
-    const data = filteredProducts.map(item => {
-      const price = item.cost * (1 + item.margin / 100);
-      return {
-        'SKU': item.sku,
-        'Nombre': item.name,
-        'Categoría': item.category,
-        'Color': item.color,
-        'Talle': item.size,
-        'Stock': item.stock,
-        'Costo Base': item.baseCost,
-        'Costo Adicionales': item.cost - item.baseCost,
-        'Costo Total': item.cost,
-        'Margen %': item.margin,
-        'Precio Venta': Math.round(price)
-      };
+  // Agrupar productos de forma limpia por baseSku
+  const groupedProducts = useMemo(() => {
+    const groups: Record<string, any> = {};
+
+    products.forEach((p: any) => {
+      const cleanBase = getCleanBaseSku(p);
+
+      if (!groups[cleanBase]) {
+        groups[cleanBase] = {
+          baseSku: cleanBase,
+          originalBaseSku: p.baseSku,
+          name: p.name,
+          category: p.category,
+          color: p.color,
+          cost: p.cost,
+          margin: p.margin,
+          location: p.location,
+          totalStock: 0,
+          sizes: {}
+        };
+      }
+      groups[cleanBase].totalStock += Number(p.stock) || 0;
+      groups[cleanBase].sizes[p.size] = Number(p.stock) || 0;
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
+    return Object.values(groups);
+  }, [products]);
+
+  const filteredGroupedProducts = groupedProducts.filter((item: any) => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          item.baseSku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (item.color && item.color.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = selectedCategory === 'Todos' || item.category === selectedCategory;
+    const matchesLocation = selectedLocationFilter === 'Todas' || item.location === selectedLocationFilter;
+
+    return matchesSearch && matchesCategory && matchesLocation;
+  });
+
+  const exportToExcel = () => {
+    const excelData = products.map((p: any) => ({
+      'Código Base (SKU)': getCleanBaseSku(p),
+      'SKU Variante': p.sku,
+      'Producto': p.name,
+      'Categoría': p.category,
+      'Color': p.color,
+      'Talle': p.size,
+      'Ubicación': p.location || 'N/A',
+      'Costo': p.cost,
+      'Margen %': p.margin,
+      'Precio Venta': Math.round(p.cost * (1 + p.margin / 100)),
+      'Stock': p.stock
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, `inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(data, `Inventario_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
-          <h2 className="text-2xl font-bold text-white">Inventario</h2>
+          <h1 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <Package className="h-6 w-6 text-[#e5383b]" />
+            Control de Inventario
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+            Gestión unificada de productos, talles y existencias
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button 
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
             onClick={exportToExcel}
-            className="flex items-center px-4 py-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors font-medium shadow-sm"
+            className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5"
           >
-            <Download className="h-5 w-5 mr-2" />
+            <Download className="h-4 w-4" />
             Exportar Excel
           </button>
-          <button 
-            onClick={handleOpenCreate}
-            className="flex items-center px-4 py-2 bg-[#e5383b] text-white rounded-lg hover:bg-[#ba1826] transition-colors font-medium"
+
+          <button
+            onClick={() => setIsCategoryModalOpen(true)}
+            className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
           >
-            <Plus className="h-5 w-5 mr-2" />
+            <Settings2 className="h-4 w-4" />
+            Categorías
+          </button>
+
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4 py-2 bg-[#e5383b] text-white rounded-xl text-xs font-bold hover:bg-[#ba1826] transition-colors flex items-center gap-1.5 shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
             Nuevo Producto
           </button>
         </div>
       </div>
 
-      <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row gap-4 justify-between items-center">
-          <div className="relative w-full sm:w-96">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-slate-400" />
-            </div>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-slate-700 rounded-lg leading-5 bg-slate-800 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#e5383b] focus:border-[#e5383b] sm:text-sm transition-colors"
-              placeholder="Buscar por SKU, nombre o categoría..."
-            />
-          </div>
-          <div className="flex gap-2">
-            <select 
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5"
-            >
-              <option>Todas las Categorías</option>
-              {categories.map(cat => (
-                <option key={cat}>{cat}</option>
-              ))}
-            </select>
-            <button 
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 p-2.5 rounded-lg transition-colors"
-              title="Gestionar Categorías"
-            >
-              <Settings2 className="h-5 w-5" />
-            </button>
-          </div>
+      {/* Filters Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por nombre, SKU o color..."
+            className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#e5383b]"
+          />
         </div>
 
+        {/* Category Filter */}
+        <select
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#e5383b]"
+        >
+          <option value="Todos">Todas las Categorías</option>
+          {categories?.map((cat: string) => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
+
+        {/* Location Filter */}
+        <select
+          value={selectedLocationFilter}
+          onChange={(e) => setSelectedLocationFilter(e.target.value)}
+          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#e5383b]"
+        >
+          <option value="Todas">Todas las Ubicaciones</option>
+          {locations?.map((loc: string) => (
+            <option key={loc} value={loc}>{loc}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-800">
-            <thead className="bg-slate-950/50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">SKU / Producto</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Categoría</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Variante</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Stock</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Costo Unit.</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Precio Venta</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Margen</th>
-                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Acciones</span></th>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400">
+                <th className="p-3.5">Producto</th>
+                <th className="p-3.5">Categoría</th>
+                <th className="p-3.5">Color</th>
+                <th className="p-3.5">Ubicación</th>
+                <th className="p-3.5">Costo Unit.</th>
+                <th className="p-3.5">Precio Venta</th>
+                <th className="p-3.5">Stock Total</th>
+                <th className="p-3.5 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="bg-slate-900 divide-y divide-slate-800">
-              {filteredProducts.map((item) => {
-                const price = item.cost * (1 + item.margin / 100);
-                
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+              {filteredGroupedProducts.map((item: any) => {
+                const sellPrice = Math.round((item.cost || 0) * (1 + (item.margin || 0) / 100));
+
                 return (
-                  <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700">
-                          <Package className="h-5 w-5 text-slate-400" />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-bold text-white">{item.name}</div>
-                          <div className="text-xs text-slate-500 font-mono mt-0.5">{item.sku}</div>
-                        </div>
-                      </div>
+                  <tr key={item.baseSku} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="p-3.5">
+                      <p className="font-bold text-slate-900 dark:text-white">{item.name}</p>
+                      <p className="text-[10px] font-mono text-slate-400">{item.baseSku}</p>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                        {item.category}
+                    <td className="p-3.5 font-medium text-slate-600 dark:text-slate-300">{item.category}</td>
+                    <td className="p-3.5 font-medium text-slate-600 dark:text-slate-300">{item.color || 'N/A'}</td>
+                    <td className="p-3.5 font-medium text-slate-600 dark:text-slate-300">{item.location || 'Bahía Blanca'}</td>
+                    <td className="p-3.5 font-mono text-slate-700 dark:text-slate-300">$ {(item.cost || 0).toLocaleString()}</td>
+                    <td className="p-3.5 font-mono font-bold text-slate-900 dark:text-white">$ {sellPrice.toLocaleString()}</td>
+                    <td className="p-3.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                        item.totalStock > 5 
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400' 
+                          : item.totalStock > 0 
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400' 
+                          : 'bg-rose-100 text-rose-800 dark:bg-rose-500/10 dark:text-rose-400'
+                      }`}>
+                        {item.totalStock} un.
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-white">{item.color}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">Talle: {item.size}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <span className={`text-sm font-bold ${item.stock <= 5 ? 'text-rose-500' : 'text-white'}`}>
-                        {item.stock} un.
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-400">
-                      ${item.cost.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-emerald-400">
-                      ${Math.round(price).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-300">
-                      <span className="bg-slate-800 px-2 py-1 rounded text-xs font-medium border border-slate-700">
-                        {item.margin}%
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-3">
-                        <button onClick={() => handleOpenEdit(item)} className="text-slate-400 hover:text-white transition-colors">
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-rose-500 transition-colors">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                    <td className="p-3.5 text-right space-x-1">
+                      <button
+                        onClick={() => handleOpenEditModal(item)}
+                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-lg transition-colors"
+                        title="Editar Producto y Talles"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGroup(item.baseSku, item.originalBaseSku)}
+                        className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                        title="Eliminar Producto"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 );
               })}
+
+              {filteredGroupedProducts.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-slate-400">
+                    No se encontraron productos en el inventario.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal Crear/Editar Producto */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-2xl shadow-xl my-8">
-            <div className="flex justify-between items-center p-6 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-white">
-                {editingBaseSku ? 'Editar Producto (Todos los talles)' : 'Nuevo Producto'}
+      {/* Modal Add/Edit Product */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden relative animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {editingBaseSku ? 'Editar Producto y Talles' : 'Nuevo Producto'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-500 p-1 rounded-lg">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleSave} className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Nombre del Producto</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5" 
-                    placeholder="Ej. Remera Oversize Básica"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Código (SKU Base)</label>
-                  <input 
-                    type="text" 
-                    value={baseSku}
-                    onChange={(e) => setBaseSku(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5" 
-                    placeholder="Ej. REM-OVR-N (Opcional)"
-                  />
-                </div>
 
+            <form onSubmit={handleSaveProduct} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nombre del Producto *</label>
+                <input
+                  type="text"
+                  required
+                  value={productForm.name}
+                  onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ej. Remera Regular Blanco Premium"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Categoría</label>
-                  <select 
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5"
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoría</label>
+                  <select
+                    value={productForm.category}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none"
                   >
-                    <option value="" disabled>Seleccione una categoría</option>
-                    {categories.map(cat => (
+                    {categories?.map((cat: string) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Color</label>
-                  <input 
-                    type="text" 
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5" 
-                    placeholder="Ej. Negro"
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Color</label>
+                  <input
+                    type="text"
+                    value={productForm.color}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, color: e.target.value }))}
+                    placeholder="Ej. Blanco"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none"
                   />
-                </div>
-
-                <div className="md:col-span-2 bg-slate-950/50 p-4 rounded-lg border border-slate-800">
-                  <label className="block text-sm font-medium text-slate-300 mb-3">Talles y Stock</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-4">
-                    {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'].map(sz => (
-                      <div key={sz}>
-                        <label className="block text-xs text-slate-500 mb-1 text-center font-medium">{sz}</label>
-                        <input 
-                          type="number" 
-                          min="0"
-                          value={sizeStocks[sz]} 
-                          onChange={e => setSizeStocks({...sizeStocks, [sz]: e.target.value === '' ? '' : Number(e.target.value)})}
-                          className="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          placeholder="-"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-3 text-center">Solo se guardarán los talles que tengan un valor ingresado.</p>
-                </div>
-
-                <div className="md:col-span-2 border-t border-slate-800 pt-6 mt-2">
-                  <h4 className="text-sm font-medium text-white mb-4">Adicionales</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">Estampado</label>
-                      <select 
-                        value={selectedEstampado}
-                        onChange={(e) => setSelectedEstampado(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5"
-                      >
-                        <option value="">Sin estampado ($0)</option>
-                        {estampados.map(est => (
-                          <option key={est.id} value={est.id}>{est.name} (+${est.cost})</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">Bordado</label>
-                      <select 
-                        value={selectedBordado}
-                        onChange={(e) => setSelectedBordado(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5"
-                      >
-                        <option value="">Sin bordado ($0)</option>
-                        {bordados.map(bor => (
-                          <option key={bor.id} value={bor.id}>{bor.name} (+${bor.cost})</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">Packaging</label>
-                      <select 
-                        value={selectedPackaging}
-                        onChange={(e) => setSelectedPackaging(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5"
-                      >
-                        <option value="">Sin packaging ($0)</option>
-                        {packagings.map(pack => (
-                          <option key={pack.id} value={pack.id}>{pack.name} (+${pack.cost})</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="md:col-span-2 border-t border-slate-800 pt-6 mt-2">
-                  <h4 className="text-sm font-medium text-white mb-4">Precios y Rentabilidad</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">Materia Prima ($)</label>
-                      <input 
-                        type="number" 
-                        required
-                        value={cost}
-                        onChange={(e) => setCost(e.target.value ? Number(e.target.value) : '')}
-                        className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                        placeholder="Ej. 6000"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">Margen (%)</label>
-                      <input 
-                        type="number" 
-                        required
-                        value={margin}
-                        onChange={(e) => setMargin(e.target.value ? Number(e.target.value) : '')}
-                        className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-2.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                        placeholder="Ej. 150"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">Precio Venta (Auto)</label>
-                      <div className="w-full bg-slate-950 border border-slate-800 text-emerald-400 font-bold text-lg rounded-lg block p-2.5 flex items-center">
-                        ${Math.round(calculatedPrice).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 bg-slate-900/80 border border-slate-800 rounded-xl p-5 flex items-center justify-between">
-                    <div>
-                      <h5 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Costo Unitario</h5>
-                      <p className="text-xs text-slate-500 mt-1">Materia Prima + Adicionales</p>
-                    </div>
-                    <div className="text-3xl font-black text-white">
-                      ${totalCost.toLocaleString()}
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              <div className="pt-6 flex gap-3 border-t border-slate-800">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors font-medium"
-                >
-                  Cancelar
-                </button>
-                <button 
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Costo Unit. ($) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    value={productForm.cost}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, cost: e.target.value }))}
+                    placeholder="10000"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Margen Ganancia (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productForm.margin}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, margin: e.target.value }))}
+                    placeholder="100"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Ubicación</label>
+                  <select
+                    value={productForm.location}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, location: e.target.value }))}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none"
+                  >
+                    {locations?.map((loc: string) => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Sección de Stock por Talles */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
+                  Stock por Talles ({availableSizes.join(', ')})
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {availableSizes.map((size: string) => (
+                    <div key={size} className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                      <span className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">{size}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={productForm.sizes[size] ?? 0}
+                        onChange={(e) => handleSizeStockChange(size, e.target.value)}
+                        className="w-full text-center p-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-bold focus:ring-1 focus:ring-[#e5383b] outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3">
+                <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#e5383b] text-white rounded-lg hover:bg-[#ba1826] transition-colors font-medium"
+                  className="w-full py-2.5 bg-[#e5383b] text-white rounded-xl text-xs font-bold hover:bg-[#ba1826] transition-colors"
                 >
                   {editingBaseSku ? 'Guardar Cambios' : 'Crear Producto'}
                 </button>
@@ -500,190 +536,41 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Modal Gestionar Categorías */}
+      {/* Modal Categorías */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg shadow-xl">
-            <div className="flex justify-between items-center p-6 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-white">Gestionar Categorías</h3>
-              <button onClick={() => { setIsCategoryModalOpen(false); setEditingCategory(null); setNewCategoryName(''); setNewCategoryProducts([]); setCategoryToDelete(null); }} className="text-slate-400 hover:text-white">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Categorías</h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-500 p-1 rounded-lg">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Add new category */}
-              <div className="space-y-3 border-b border-slate-800 pb-6">
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="Nueva categoría..."
-                    className="flex-1 bg-slate-950 border border-slate-700 text-white text-base rounded-lg focus:ring-[#e5383b] focus:border-[#e5383b] block p-3"
-                  />
-                  <button 
-                    onClick={() => {
-                      if (newCategoryName.trim() && !categories.includes(newCategoryName.trim())) {
-                        addCategory(newCategoryName.trim(), newCategoryProducts);
-                        setNewCategoryName('');
-                        setNewCategoryProducts([]);
-                      }
-                    }}
-                    disabled={!newCategoryName.trim() || categories.includes(newCategoryName.trim())}
-                    className="bg-[#e5383b] hover:bg-[#ba1826] text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-base"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Añadir
-                  </button>
-                </div>
-                {uniqueProducts.length > 0 && (
-                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <label className="block text-xs font-medium text-slate-400 mb-2">Asociar productos (opcional)</label>
-                    <div className="max-h-32 overflow-y-auto space-y-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                      {uniqueProducts.map(p => (
-                        <label key={p.baseSku} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white">
-                          <input 
-                            type="checkbox" 
-                            checked={newCategoryProducts.includes(p.baseSku)}
-                            onChange={(e) => {
-                              if (e.target.checked) setNewCategoryProducts([...newCategoryProducts, p.baseSku]);
-                              else setNewCategoryProducts(newCategoryProducts.filter(sku => sku !== p.baseSku));
-                            }}
-                            className="rounded bg-slate-900 border-slate-700 text-[#e5383b] focus:ring-[#e5383b]"
-                          />
-                          <span className="truncate">{p.name}</span>
-                          <span className="text-slate-500 text-xs ml-auto shrink-0">({p.category || 'Sin categoría'})</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {/* List categories */}
-              <div className="space-y-3 max-h-[400px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {categories.map(cat => (
-                  <div key={cat} className="flex flex-col sm:flex-row sm:items-start justify-between bg-slate-950 border border-slate-800 p-3 rounded-lg gap-3">
-                    {editingCategory?.old === cat ? (
-                      <div className="flex-1 space-y-3 w-full">
-                        <input 
-                          type="text"
-                          value={editingCategory.new}
-                          onChange={(e) => setEditingCategory({ ...editingCategory, new: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded focus:ring-[#e5383b] focus:border-[#e5383b] px-3 py-2"
-                          autoFocus
-                        />
-                        {uniqueProducts.length > 0 && (
-                          <div className="bg-slate-900 p-3 rounded border border-slate-700">
-                            <label className="block text-xs font-medium text-slate-400 mb-2">Productos asociados</label>
-                            <div className="max-h-32 overflow-y-auto space-y-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                              {uniqueProducts.map(p => (
-                                <label key={p.baseSku} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={editingCategoryProducts.includes(p.baseSku)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) setEditingCategoryProducts([...editingCategoryProducts, p.baseSku]);
-                                      else setEditingCategoryProducts(editingCategoryProducts.filter(sku => sku !== p.baseSku));
-                                    }}
-                                    className="rounded bg-slate-800 border-slate-600 text-[#e5383b] focus:ring-[#e5383b]"
-                                  />
-                                  <span className="truncate">{p.name}</span>
-                                  <span className="text-slate-500 text-xs ml-auto shrink-0">({p.category || 'Sin categoría'})</span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 justify-end mt-2">
-                          <button 
-                            onClick={() => {
-                              if (editingCategory.new.trim()) {
-                                if (editingCategory.new.trim() !== cat && categories.includes(editingCategory.new.trim())) {
-                                  alert('La categoría ya existe');
-                                  return;
-                                }
-                                updateCategory(cat, editingCategory.new.trim(), editingCategoryProducts);
-                                if (selectedCategory === cat) setSelectedCategory(editingCategory.new.trim());
-                                setEditingCategory(null);
-                              }
-                            }}
-                            className="text-emerald-400 hover:text-emerald-300 text-xs font-medium px-3 py-1.5 bg-emerald-400/10 rounded transition-colors"
-                          >
-                            Guardar
-                          </button>
-                          <button 
-                            onClick={() => setEditingCategory(null)}
-                            className="text-slate-400 hover:text-slate-300 text-xs font-medium px-3 py-1.5 bg-slate-800 rounded transition-colors"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-slate-300 text-sm font-medium mt-1">{cat}</span>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => {
-                              setEditingCategory({ old: cat, new: cat });
-                              setEditingCategoryProducts(uniqueProducts.filter(p => p.category === cat).map(p => p.baseSku));
-                            }}
-                            className="text-slate-400 hover:text-white transition-colors p-1"
-                            title="Editar"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => setCategoryToDelete(cat)}
-                            className="text-slate-400 hover:text-rose-500 transition-colors p-1"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </>
-                    )}
+            <div className="p-5 space-y-4">
+              <form onSubmit={handleAddCategory} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Nueva categoría..."
+                  className="flex-1 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs outline-none"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-2 bg-[#e5383b] text-white rounded-xl text-xs font-bold hover:bg-[#ba1826]"
+                >
+                  Agregar
+                </button>
+              </form>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {categories?.map((cat: string) => (
+                  <div key={cat} className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {cat}
                   </div>
                 ))}
-                {categories.length === 0 && (
-                  <div className="text-center text-slate-500 py-4 text-sm">
-                    No hay categorías creadas
-                  </div>
-                )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Category Confirmation Modal */}
-      {categoryToDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-sm shadow-xl p-6">
-            <h3 className="text-lg font-bold text-white mb-2">Eliminar Categoría</h3>
-            <p className="text-slate-400 text-sm mb-6">
-              ¿Estás seguro de eliminar la categoría <span className="font-semibold text-white">"{categoryToDelete}"</span>? 
-              Los productos asociados mantendrán la categoría pero no aparecerá en la lista.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button 
-                onClick={() => setCategoryToDelete(null)}
-                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={() => {
-                  deleteCategory(categoryToDelete);
-                  if (selectedCategory === categoryToDelete) setSelectedCategory('Todas las Categorías');
-                  setCategoryToDelete(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors"
-              >
-                Eliminar
-              </button>
             </div>
           </div>
         </div>
