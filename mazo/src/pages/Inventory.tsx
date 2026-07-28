@@ -4,43 +4,36 @@ import { useAppStore } from '../store';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
-// Función auxiliar estricta: Elimina cualquier talle o guión previo del SKU
-const cleanSkuStrict = (skuStr: any): string => {
-  if (!skuStr) return '';
-  let str = String(skuStr).trim();
-  // Eliminar sufijos de talles conocidos (-XS, -S, -M, -L, -XL, -XXL, -XXXL, -UNICO, -1, -2, etc)
-  str = str.replace(/-(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|ÚNICO|UNICO|[0-9]+)$/gi, '');
-  return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
-};
-
 export default function Inventory() {
   const {
     products,
     addProduct,
     updateProduct,
     deleteProduct,
-    categories,
     addCategory,
-    sizes: storeSizes,
-    locations: storeLocations,
-    supplies = []
+    settings,
+    fetchSettings
   } = useAppStore() as any;
 
-  // Talles Dinámicos
-  const availableSizes = useMemo(() => {
-    return storeSizes && storeSizes.length > 0
-      ? storeSizes
-      : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
-  }, [storeSizes]);
+  // 1. CARGA SEGURA Y ESTRICTA DE CONFIGURACIONES
+  useEffect(() => {
+    if (fetchSettings) fetchSettings();
+  }, [fetchSettings]);
 
-  // Categorías de Insumos Dinámicas (para Excel)
+  const availableSizes = settings?.sizes?.length > 0 ? settings.sizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
+  const availableLocations = settings?.locations?.length > 0 ? settings.locations : ['Local Principal'];
+  const categories = settings?.categories?.length > 0 ? settings.categories : ['Remeras'];
+
+  // Categorías de Insumos Dinámicas (Para el Excel)
   const supplyCategories = useMemo(() => {
     const cats = new Set<string>();
-    supplies.forEach((s: any) => {
-      if (s.category) cats.add(s.category);
-    });
+    if (settings?.supplies) {
+      settings.supplies.forEach((s: any) => {
+        if (s.category) cats.add(s.category);
+      });
+    }
     return Array.from(cats).length > 0 ? Array.from(cats) : ['Bordados', 'Estampados', 'Packaging'];
-  }, [supplies]);
+  }, [settings?.supplies]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todos');
@@ -49,10 +42,10 @@ export default function Inventory() {
   // Modales
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [editingBaseSku, setEditingBaseSku] = useState<string | null>(null);
-  const [oldBaseSku, setOldBaseSku] = useState<string | null>(null);
 
-  // Formulario
+  // Agrupador estricto para edición
+  const [editingProductGroup, setEditingProductGroup] = useState<string | null>(null);
+
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const [productForm, setProductForm] = useState({
@@ -60,7 +53,7 @@ export default function Inventory() {
     baseSku: '',
     category: '',
     color: '',
-    cost: '',
+    cost: '', // Materia Prima
     margin: '',
     securityStock: '',
     leadTime: '',
@@ -68,25 +61,59 @@ export default function Inventory() {
 
   // Lista de ubicaciones dinámicas activas en la matriz del modal
   const [modalLocations, setModalLocations] = useState<string[]>([]);
-  // Matriz [Ubicación][Talle] = Stock
+  // Matriz de Doble Entrada: [Ubicación][Talle] = Stock
   const [stockMatrix, setStockMatrix] = useState<Record<string, Record<string, number>>>({});
 
-  // Inicializar defaults al abrir
-  useEffect(() => {
-    if (categories && categories.length > 0 && !productForm.category) {
-      setProductForm(prev => ({ ...prev, category: categories[0] }));
-    }
-  }, [categories]);
+  // 2. AGRUPAMIENTO ESTRICTO DE PRODUCTOS POR NOMBRE
+  const groupedProducts = useMemo(() => {
+    const groups: Record<string, any> = {};
+
+    products.forEach((p: any) => {
+      // Regla de Oro: El Nombre es el identificador del grupo
+      const groupKey = p.name.trim().toLowerCase();
+
+      if (!groups[groupKey]) {
+        // Limpiamos el Base SKU de letras de talles viejos
+        let cleanBase = p.baseSku || p.sku || `PRO${Math.floor(100 + Math.random() * 900)}`;
+        cleanBase = cleanBase.replace(/-(XS|S|M|L|XL|XXL|XXXL|UNICO|ÚNICO|[0-9]+)$/i, '');
+
+        groups[groupKey] = {
+          baseSku: cleanBase,
+          name: p.name.trim(),
+          category: p.category || '',
+          color: p.color || '',
+          cost: p.cost || 0,
+          margin: p.margin || 0,
+          totalStock: 0,
+          variants: [] // Guardamos TODAS las variantes para que el lápiz las lea
+        };
+      }
+      groups[groupKey].totalStock += Number(p.stock) || 0;
+      groups[groupKey].variants.push(p);
+    });
+
+    return Object.values(groups);
+  }, [products]);
+
+  const filteredGroupedProducts = groupedProducts.filter((item: any) => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.baseSku.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'Todos' || item.category === selectedCategory;
+
+    // Filtro de ubicación revisa si ALGUNA variante tiene esa ubicación
+    const matchesLocation = selectedLocationFilter === 'Todas' ||
+      item.variants.some((v: any) => v.location === selectedLocationFilter && v.stock > 0);
+
+    return matchesSearch && matchesCategory && matchesLocation;
+  });
 
   const handleOpenAddModal = () => {
-    setEditingBaseSku(null);
-    setOldBaseSku(null);
+    setEditingProductGroup(null);
+    setModalLocations(availableLocations);
 
-    const locs = storeLocations && storeLocations.length > 0 ? storeLocations : ['Local Principal'];
-    setModalLocations(locs);
-
-    const initialMatrix: Record<string, Record<string, number>> = {};
-    locs.forEach((loc: string) => {
+    // Inicializar Matriz en 0 con las ubicaciones reales de la configuración
+    const initialMatrix: any = {};
+    availableLocations.forEach((loc: string) => {
       initialMatrix[loc] = {};
       availableSizes.forEach((size: string) => {
         initialMatrix[loc][size] = 0;
@@ -108,26 +135,21 @@ export default function Inventory() {
   };
 
   const handleOpenEditModal = (productGroup: any) => {
-    const cleanBase = cleanSkuStrict(productGroup.baseSku);
-    setEditingBaseSku(cleanBase);
-    setOldBaseSku(cleanBase);
+    setEditingProductGroup(productGroup.name.trim().toLowerCase());
+    const relatedProducts = productGroup.variants;
 
-    // REGLA DE ORO DE STOCK: Buscar TODOS los productos de este grupo exacto
-    const relatedProducts = products.filter((p: any) => {
-      const pClean = cleanSkuStrict(p.baseSku || p.sku);
-      return pClean === cleanBase || (p.name && p.name.trim().toLowerCase() === productGroup.name.trim().toLowerCase());
+    // Recopilar ubicaciones reales donde hay stock + las de la configuración
+    const activeLocationsSet = new Set<string>();
+    availableLocations.forEach((l: string) => activeLocationsSet.add(l));
+    relatedProducts.forEach((p: any) => {
+      if (p.location) activeLocationsSet.add(p.location);
     });
 
-    // Combinar ubicaciones de la base de datos + del store para NO PERDER ninguna unidad
-    const allLocations = Array.from(new Set([
-      ...(storeLocations && storeLocations.length > 0 ? storeLocations : ['Local Principal']),
-      ...relatedProducts.map((p: any) => p.location || 'Local Principal')
-    ]));
-
+    const allLocations = Array.from(activeLocationsSet);
     setModalLocations(allLocations);
 
-    // Reconstruir la matriz idéntica al stock total
-    const currentMatrix: Record<string, Record<string, number>> = {};
+    // Reconstruir Matriz EXACTA de Stock para que cuadre perfectamente con el total
+    const currentMatrix: any = {};
     allLocations.forEach((loc: string) => {
       currentMatrix[loc] = {};
       availableSizes.forEach((size: string) => {
@@ -139,18 +161,16 @@ export default function Inventory() {
       });
     });
 
-    const first = relatedProducts[0] || productGroup;
-
     setStockMatrix(currentMatrix);
     setProductForm({
-      name: first.name || productGroup.name || '',
-      baseSku: cleanBase,
-      category: first.category || (categories[0] || 'Remeras'),
-      color: first.color || '',
-      cost: first.cost !== undefined ? String(first.cost) : '',
-      margin: first.margin !== undefined ? String(first.margin) : '100',
-      securityStock: first.securityStock !== undefined ? String(first.securityStock) : '0',
-      leadTime: first.leadTime !== undefined ? String(first.leadTime) : '0'
+      name: productGroup.name || '',
+      baseSku: productGroup.baseSku,
+      category: productGroup.category || (categories[0] || 'Remeras'),
+      color: productGroup.color || '',
+      cost: productGroup.cost !== undefined ? String(productGroup.cost) : '',
+      margin: productGroup.margin !== undefined ? String(productGroup.margin) : '100',
+      securityStock: relatedProducts[0]?.securityStock !== undefined ? String(relatedProducts[0].securityStock) : '0',
+      leadTime: relatedProducts[0]?.leadTime !== undefined ? String(relatedProducts[0].leadTime) : '0'
     });
     setIsProductModalOpen(true);
   };
@@ -170,28 +190,29 @@ export default function Inventory() {
     e.preventDefault();
     if (!productForm.name || !productForm.cost) return;
 
-    // REGLA ESTRICTA DE SKU: El SKU Base se limpia de cualquier talle o símbolo
-    const finalBaseSku = cleanSkuStrict(productForm.baseSku) || `PRO${Math.floor(100 + Math.random() * 900)}`;
+    // SKU Base Libre de Talles
+    const finalBaseSku = productForm.baseSku.trim() || `PRO${Math.floor(100 + Math.random() * 900)}`;
     const cost = parseFloat(productForm.cost) || 0;
     const margin = parseFloat(productForm.margin) || 0;
     const securityStock = parseInt(productForm.securityStock) || 0;
     const leadTime = parseInt(productForm.leadTime) || 0;
 
-    let variantCounter = 1;
+    let variantCounter = 1; // Para que el SKU sea PRO001-1, PRO001-2
+
+    const groupKey = productForm.name.trim().toLowerCase();
+    const existingGroup = groupedProducts.find(g => g.name.trim().toLowerCase() === groupKey);
+    const relatedProducts = existingGroup ? existingGroup.variants : [];
 
     Object.keys(stockMatrix).forEach(loc => {
       Object.keys(stockMatrix[loc]).forEach(size => {
         const stock = stockMatrix[loc][size];
 
-        // Buscar si ya existía la variante anterior
-        const existingProduct = products.find((p: any) => {
-          const pClean = cleanSkuStrict(p.baseSku || p.sku);
-          return (pClean === oldBaseSku || pClean === finalBaseSku) &&
-            (p.location || 'Local Principal').trim().toLowerCase() === loc.trim().toLowerCase() &&
-            String(p.size || 'Único').trim().toUpperCase() === size.trim().toUpperCase();
-        });
+        const existingVariant = relatedProducts.find((p: any) =>
+          (p.location || 'Local Principal').trim().toLowerCase() === loc.trim().toLowerCase() &&
+          String(p.size || 'Único').trim().toUpperCase() === size.trim().toUpperCase()
+        );
 
-        // Generar SKU de Variante ESTRICTAMENTE NUMÉRICO (ej: PRO014-1, PRO014-2)
+        // Generar SKU puramente Numérico
         const variantSku = `${finalBaseSku}-${variantCounter++}`;
 
         const payload = {
@@ -209,9 +230,9 @@ export default function Inventory() {
           leadTime
         };
 
-        if (existingProduct) {
-          updateProduct(existingProduct.id, payload);
-        } else if (stock > 0 || editingBaseSku) {
+        if (existingVariant) {
+          updateProduct(existingVariant.id, payload);
+        } else if (stock > 0 || editingProductGroup) {
           addProduct({ ...payload, id: Date.now() + Math.floor(Math.random() * 1000000) });
         }
       });
@@ -220,10 +241,13 @@ export default function Inventory() {
     setIsProductModalOpen(false);
   };
 
-  const handleDeleteGroup = (baseSku: string) => {
-    if (confirm('¿Está seguro de eliminar este producto y todas sus variantes?')) {
-      const relatedProducts = products.filter((p: any) => cleanSkuStrict(p.baseSku || p.sku) === cleanSkuStrict(baseSku));
-      relatedProducts.forEach((p: any) => deleteProduct(p.id));
+  const handleDeleteGroup = (groupName: string) => {
+    if (confirm('¿Está seguro de eliminar este producto y TODAS sus variantes/talles?')) {
+      const groupKey = groupName.trim().toLowerCase();
+      const existingGroup = groupedProducts.find(g => g.name.trim().toLowerCase() === groupKey);
+      if (existingGroup) {
+        existingGroup.variants.forEach((p: any) => deleteProduct(p.id));
+      }
     }
   };
 
@@ -236,7 +260,7 @@ export default function Inventory() {
     }
   };
 
-  // Importar desde Excel
+  // 3. IMPORTACIÓN INTELIGENTE (Lee encabezados exactos del Excel)
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -252,14 +276,17 @@ export default function Inventory() {
       const nameToSkuMap: Record<string, string> = {};
 
       data.forEach((row: any) => {
-        const productName = row['Producto'] || row['Nombre'] || row['PRODUCTO'];
+        const productName = row['Producto'] || row['Nombre'] || row['PRODUCTO'] || row['Nombre del Producto'];
         if (!productName) return;
 
-        let baseSku = cleanSkuStrict(row['SKU Base'] || row['Base SKU'] || row['Código']);
+        // Búsqueda inteligente del producto en sistema para no duplicar
+        const groupKey = productName.trim().toLowerCase();
+        const existingGroup = groupedProducts.find(g => g.name.trim().toLowerCase() === groupKey);
+
+        let baseSku = row['SKU Base'] || row['Base SKU'] || row['Código'] || row['SKU BASE'];
         if (!baseSku) {
-          const existing = products.find((p: any) => p.name.trim().toLowerCase() === productName.trim().toLowerCase());
-          if (existing) {
-            baseSku = cleanSkuStrict(existing.baseSku || existing.sku);
+          if (existingGroup) {
+            baseSku = existingGroup.baseSku;
           } else if (nameToSkuMap[productName]) {
             baseSku = nameToSkuMap[productName];
           } else {
@@ -268,27 +295,31 @@ export default function Inventory() {
           }
         }
 
+        // Limpiar el SKU Base de cualquier talle viejo del excel
+        baseSku = baseSku.replace(/-(XS|S|M|L|XL|XXL|XXXL|UNICO|ÚNICO|[0-9]+)$/i, '');
+
         const size = String(row['Talle'] || row['TALLE'] || 'Único').trim().toUpperCase();
-        const location = String(row['Ubicación'] || row['UBICACION'] || storeLocations?.[0] || 'Local Principal').trim();
+        const location = String(row['Ubicación'] || row['UBICACION'] || availableLocations[0] || 'Local Principal').trim();
         const cost = parseFloat(row['Materia Prima'] || row['Costo Unit'] || row['Costo'] || '0') || 0;
-        const margin = parseFloat(row['Margen (%)'] || row['Margen'] || '100') || 100;
+        const margin = parseFloat(row['Margen (%)'] || row['Margen %'] || row['Margen'] || '100') || 100;
         const stock = parseInt(row['Stock Actual'] || row['Stock'] || '0') || 0;
         const securityStock = parseInt(row['Stock de Seguridad'] || '0') || 0;
         const leadTime = parseInt(row['Tiempo de Entrega'] || '0') || 0;
-        const category = row['Categoría'] || categories[0] || 'Remeras';
+        const category = row['Categoría'] || row['Categoria'] || categories[0] || 'Remeras';
 
+        // Mapeo Dinámico de Insumos (Busca textualmente las cabeceras)
         const suppliesMap: Record<string, string> = {};
         supplyCategories.forEach(cat => {
           if (row[cat] !== undefined) suppliesMap[cat] = String(row[cat]);
         });
 
-        const existingVariant = products.find((p: any) =>
-          cleanSkuStrict(p.baseSku || p.sku) === baseSku &&
+        const relatedProducts = existingGroup ? existingGroup.variants : [];
+        const existingVariant = relatedProducts.find((p: any) =>
           (p.location || 'Local Principal').trim().toLowerCase() === location.toLowerCase() &&
           String(p.size || 'Único').trim().toUpperCase() === size
         );
 
-        const skuVariant = `${baseSku}-${Math.floor(10 + Math.random() * 89)}`;
+        const skuVariant = existingVariant?.sku || `${baseSku}-${Math.floor(10 + Math.random() * 89)}`;
 
         const productData = {
           baseSku,
@@ -318,12 +349,12 @@ export default function Inventory() {
     reader.readAsBinaryString(file);
   };
 
-  // Exportar a Excel
+  // Exportar Excel
   const exportToExcel = () => {
     const excelData = products.map((p: any) => {
       const row: Record<string, any> = {
-        'SKU Base': cleanSkuStrict(p.baseSku || p.sku),
-        'SKU Variante': p.sku,
+        'SKU Base': p.baseSku || '',
+        'SKU Variante': p.sku || '',
         'Producto': p.name,
         'Categoría': p.category,
         'Talle': p.size,
@@ -332,11 +363,11 @@ export default function Inventory() {
         'Materia Prima': p.cost || 0
       };
 
+      // Insumos Dinámicos
       supplyCategories.forEach(cat => {
         row[cat] = p.suppliesMap?.[cat] || '';
       });
 
-      row['Costo Unit'] = p.cost || 0;
       row['Margen (%)'] = p.margin || 0;
       row['Precio de Venta'] = Math.round((p.cost || 0) * (1 + (p.margin || 0) / 100));
       row['Tiempo de Entrega'] = p.leadTime || 0;
@@ -351,39 +382,6 @@ export default function Inventory() {
     XLSX.writeFile(workbook, `Inventario_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
   };
 
-  // Agrupar productos de forma limpia y exacta para la tabla
-  const groupedProducts = useMemo(() => {
-    const groups: Record<string, any> = {};
-
-    products.forEach((p: any) => {
-      const cleanBase = cleanSkuStrict(p.baseSku || p.sku);
-      const groupKey = cleanBase || p.name.trim().toLowerCase();
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = {
-          baseSku: cleanBase,
-          name: p.name,
-          category: p.category,
-          color: p.color,
-          cost: p.cost,
-          margin: p.margin,
-          totalStock: 0,
-        };
-      }
-      // Suma matemática exacta de todas las variantes registradas en la DB
-      groups[groupKey].totalStock += Number(p.stock) || 0;
-    });
-
-    return Object.values(groups);
-  }, [products]);
-
-  const filteredGroupedProducts = groupedProducts.filter((item: any) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.baseSku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'Todos' || item.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
   return (
     <div className="space-y-6">
       {/* Barra de Encabezado */}
@@ -394,7 +392,7 @@ export default function Inventory() {
             Control de Inventario
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-            Gestión unificada de SKU, talles, existencias y costos
+            Gestión unificada de SKU, talles, insumos y ubicaciones
           </p>
         </div>
 
@@ -432,7 +430,7 @@ export default function Inventory() {
       </div>
 
       {/* Barra de Filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
@@ -451,6 +449,16 @@ export default function Inventory() {
           <option value="Todos">Todas las Categorías</option>
           {categories?.map((cat: string) => (
             <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
+        <select
+          value={selectedLocationFilter}
+          onChange={(e) => setSelectedLocationFilter(e.target.value)}
+          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#e5383b] outline-none"
+        >
+          <option value="Todas">Todas las Ubicaciones</option>
+          {availableLocations?.map((loc: string) => (
+            <option key={loc} value={loc}>{loc}</option>
           ))}
         </select>
       </div>
@@ -473,7 +481,7 @@ export default function Inventory() {
               {filteredGroupedProducts.map((item: any) => {
                 const sellPrice = Math.round((item.cost || 0) * (1 + (item.margin || 0) / 100));
                 return (
-                  <tr key={item.baseSku} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                  <tr key={item.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="p-3.5">
                       <p className="font-bold text-slate-900 dark:text-white">{item.name}</p>
                       <p className="text-[10px] font-mono font-semibold text-slate-400">{item.baseSku}</p>
@@ -495,7 +503,7 @@ export default function Inventory() {
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteGroup(item.baseSku)}
+                        onClick={() => handleDeleteGroup(item.name)}
                         className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
                         title="Eliminar Producto"
                       >
@@ -524,7 +532,7 @@ export default function Inventory() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden relative animate-in fade-in zoom-in duration-200">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {editingBaseSku ? 'Editar Producto y Variantes' : 'Nuevo Producto'}
+                {editingProductGroup ? 'Editar Producto Completo' : 'Nuevo Producto'}
               </h3>
               <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-500 p-1 rounded-lg">
                 <X className="h-5 w-5" />
@@ -554,13 +562,13 @@ export default function Inventory() {
                     value={productForm.baseSku}
                     onChange={(e) => setProductForm(prev => ({
                       ...prev,
-                      baseSku: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                      baseSku: e.target.value.toUpperCase()
                     }))}
                     placeholder="Ej. PRO014"
                     className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#e5383b] outline-none uppercase font-mono font-bold"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Strict: Sin guiones ni letras de talle (ej. PRO014)
+                    El sistema limpiará automáticamente letras de talles.
                   </p>
                 </div>
                 <div>
