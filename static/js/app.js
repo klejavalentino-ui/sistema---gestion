@@ -91,6 +91,14 @@ function getConfiguredSizes() {
   return ["XS", "S", "M", "L", "XL", "XXL"];
 }
 
+// Returns a numeric suffix for SKU based on size position: XS→1, S→2, M→3, etc. Único→U
+function getSizeSkuSuffix(size) {
+  if (!size || size === "Único" || size === "Unico") return "U";
+  const sizes = getConfiguredSizes();
+  const idx = sizes.findIndex(s => s.toLowerCase().trim() === size.toLowerCase().trim());
+  return idx >= 0 ? String(idx + 1) : size.replace(/[^A-Z0-9]/gi, "");
+}
+
 function getProductNameWithColor(p) {
   if (!p) return "";
   let name = (p.name || "").trim();
@@ -846,7 +854,7 @@ async function confirmPdfImport() {
           };
           batchPayload.push(updatedVariant);
         } else {
-          const sizeSkuSuffix = size === 'Único' ? 'U' : size;
+          const sizeSkuSuffix = getSizeSkuSuffix(size);
           const newVariant = {
             id: Date.now() + Math.random(),
             baseSku: baseSku,
@@ -975,29 +983,92 @@ async function confirmPdfImport() {
 
 function downloadExcelTemplate() {
   const isComercio = state.businessType === "comercio";
-  const headers = isComercio 
-    ? [["SKU", "Producto", "Categoría", "Variante", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]]
-    : [["SKU", "Producto", "Categoría", "Talle", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]];
+  
+  // Base columns
+  const baseHeaders = isComercio 
+    ? ["SKU", "Producto", "Categoría", "Variante", "Materia Prima", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"]
+    : ["SKU", "Producto", "Categoría", "Talle", "Materia Prima", "Costo Unitario", "Margen (%)", "Precio de Venta", "Stock Actual", "Tiempo de Entrega (días)", "Stock de seguridad"];
+  
+  // Add dynamic insumo category columns
+  const extraCategoryKeys = Object.keys(state.extras || {}).filter(k => !["sku", "name", "cost", "stock", "id"].includes(k));
+  const extraHeaders = extraCategoryKeys.map(catKey => getCategoryTitle(catKey));
+  
+  const allHeaders = [...baseHeaders, ...extraHeaders];
+  
+  // Location-based stock columns
+  const configuredLocs = (state.userProfile?.locations && state.userProfile.locations.length > 0)
+    ? state.userProfile.locations : [];
+  if (configuredLocs.length > 1) {
+    // Replace generic "Stock Actual" with per-location columns
+    const stockIdx = allHeaders.indexOf("Stock Actual");
+    if (stockIdx !== -1) {
+      allHeaders.splice(stockIdx, 1, ...configuredLocs.map(loc => `Stock Actual: ${loc}`));
+    }
+  }
+  
+  // Sample data
   const sampleData = isComercio
     ? [
-        ["PROD-001", "Coca Cola 1.5L", "Bebidas", "Único", "1200", "50", "1800", "24", "15", "5"],
-        ["PROD-002", "Alfajor de Chocolate", "Kiosco", "Único", "400", "62.5", "650", "50", "15", "5"],
-        ["PROD-003", "Yerba Mate 1Kg", "Almacén", "Único", "2500", "40", "3500", "30", "10", "8"],
-        ["PROD-004", "Galletitas Dulces", "Almacén", "Único", "800", "50", "1200", "60", "10", "12"]
+        ["PROD-001", "Coca Cola 1.5L", "Bebidas", "Único", "1200", "1200", "50", "1800", "24", "15", "5"],
+        ["PROD-002", "Alfajor de Chocolate", "Kiosco", "Único", "400", "400", "62.5", "650", "50", "15", "5"]
       ]
     : [
-        ["REM-NEGRA-M", "Remera Oversize Negra", "Remeras", "M", "3000", "100", "6000", "15", "5", "3"],
-        ["REM-NEGRA-S", "Remera Oversize Negra", "Remeras", "S", "3000", "100", "6000", "15", "5", "3"],
-        ["JEAN-AZUL-42", "Pantalón Jean Azul", "Pantalones", "42", "8000", "80", "14400", "20", "15", "4"],
-        ["BUZO-GRIS-L", "Buzo Canguro Gris", "Abrigos", "L", "12000", "90", "22800", "8", "20", "2"]
+        ["REM-001", "Remera Oversize Negra", "Remeras", "M", "3000", "3000", "100", "6000", "15", "5", "3"],
+        ["REM-001", "Remera Oversize Negra", "Remeras", "S", "3000", "3000", "100", "6000", "15", "5", "3"]
       ];
   
-  const sheetData = headers.concat(sampleData);
+  // Pad sample data rows to match header length
+  sampleData.forEach(row => {
+    while (row.length < allHeaders.length) row.push("");
+  });
+  
+  const sheetData = [allHeaders, ...sampleData];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  
+  // Add data validation (dropdowns) for insumo columns
+  const maxRows = 200; // support up to 200 rows of data
+  extraCategoryKeys.forEach((catKey, i) => {
+    const colIdx = baseHeaders.length + i;
+    const opts = (state.extras[catKey] || []).map(o => o.name).filter(Boolean);
+    if (opts.length === 0) return;
+    
+    // Add "Sin insumo" option
+    const allOpts = ["Sin insumo", ...opts];
+    const formula = '"' + allOpts.join(",") + '"';
+    
+    // Apply data validation to each cell in this column (rows 2 to maxRows)
+    for (let row = 1; row <= maxRows; row++) {
+      const cellRef = XLSX.utils.encode_cell({ r: row, c: colIdx });
+      if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
+      if (!ws["!dataValidation"]) ws["!dataValidation"] = [];
+    }
+    
+    // SheetJS community doesn't natively support dataValidation via ws["!dataValidation"],
+    // so we use a hidden "Options" sheet with the values and reference it
+    if (!wb.Sheets["_Opciones"]) {
+      const optsWs = XLSX.utils.aoa_to_sheet([]);
+      XLSX.utils.book_append_sheet(wb, optsWs, "_Opciones");
+    }
+    const optsWs = wb.Sheets["_Opciones"];
+    allOpts.forEach((optName, optIdx) => {
+      const cell = XLSX.utils.encode_cell({ r: optIdx, c: i });
+      optsWs[cell] = { t: "s", v: optName };
+    });
+    // Update range for options sheet
+    const optsRange = XLSX.utils.decode_range(optsWs["!ref"] || "A1");
+    optsRange.e.r = Math.max(optsRange.e.r, allOpts.length - 1);
+    optsRange.e.c = Math.max(optsRange.e.c, i);
+    optsWs["!ref"] = XLSX.utils.encode_range(optsRange);
+  });
+  
+  // Set column widths
+  ws["!cols"] = allHeaders.map((h, i) => ({ wch: Math.max(h.length + 2, 14) }));
+  
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla_Productos");
   XLSX.writeFile(wb, "Plantilla_Importar_Productos.xlsx");
 }
+
 
 function handleExcelImport(event) {
   const file = event.target.files[0];
@@ -1112,7 +1183,14 @@ function handleExcelImport(event) {
 
         extraCategoryKeys.forEach(catKey => {
           const catTitle = getCategoryTitle(catKey);
-          const val = getHeaderVal(cleanRow, [catTitle, catKey, `insumo: ${catTitle}`]);
+          // Build comprehensive aliases for matching: title, key, key with spaces, prefixed versions
+          const catKeySpaced = catKey.replace(/_/g, " ");
+          const aliases = [
+            catTitle, catKey, catKeySpaced,
+            `insumo: ${catTitle}`, `insumo: ${catKeySpaced}`,
+            `insumo ${catTitle}`, `insumo ${catKeySpaced}`
+          ];
+          const val = getHeaderVal(cleanRow, aliases);
           if (val && val !== "-" && val.toLowerCase() !== "ninguno" && val.toLowerCase() !== "sin insumo") {
             const opts = state.extras[catKey] || [];
             const matchedOpt = opts.find(o => (o.name || "").toLowerCase().trim() === val.toLowerCase().trim());
@@ -1189,19 +1267,20 @@ function handleExcelImport(event) {
         const securityStock = (securityStockStr !== "") ? parseInt(securityStockStr.replace(/[^0-9]/g, "")) : "";
         
         if (!sku && name) {
-          sku = (name.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 15)) + "-" + (size ? size.toUpperCase().replace(/[^A-Z0-9]/g, "") : "U");
+          const sizeSuffix = getSizeSkuSuffix(size);
+          sku = (name.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 15)) + "-" + sizeSuffix;
         }
 
         let skuVal = sku;
+        const sizeSuffix = getSizeSkuSuffix(size);
         if (state.businessType === "comercio" && (!size || size === "Único")) {
           size = "Único";
           if (skuVal && !skuVal.endsWith("-U")) {
             skuVal = `${skuVal}-U`;
           }
         } else if (size && size !== "Único") {
-          const sizeCleanForSku = size.replace(/[\/\s()]/g, "_");
-          if (skuVal && !skuVal.endsWith(`-${sizeCleanForSku}`) && !skuVal.endsWith(`-${size}`)) {
-            skuVal = `${skuVal}-${sizeCleanForSku}`;
+          if (skuVal && !skuVal.endsWith(`-${sizeSuffix}`)) {
+            skuVal = `${skuVal}-${sizeSuffix}`;
           }
         }
         
@@ -6535,7 +6614,7 @@ async function handleStockIntakeSubmit(e) {
         };
         batchPayload.push(updatedVariant);
       } else {
-        const sizeSkuSuffix = size === 'Único' ? 'U' : size;
+        const sizeSkuSuffix = getSizeSkuSuffix(size);
         const newVariant = {
           id: Date.now() + Math.random(),
           baseSku: baseSku,
