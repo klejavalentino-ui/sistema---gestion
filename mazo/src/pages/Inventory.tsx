@@ -136,25 +136,23 @@ export default function Inventory() {
 
   const handleOpenEditModal = (productGroup: any) => {
     setEditingProductGroup(productGroup.name.trim().toLowerCase());
-    const relatedProducts = productGroup.variants;
+    const relatedProducts = productGroup.variants || [];
 
-    // Recopilar ubicaciones reales donde hay stock + las de la configuración
-    const activeLocationsSet = new Set<string>();
-    availableLocations.forEach((l: string) => activeLocationsSet.add(l));
-    relatedProducts.forEach((p: any) => {
-      if (p.location) activeLocationsSet.add(p.location);
-    });
+    // 🛑 REGLA ESTRICTA: La ventana del lápiz usa ÚNICAMENTE las ubicaciones 
+    // activas de Configuración (availableLocations).
+    // Jamás rescata ubicaciones borradas del pasado (como 'Local Principal').
+    const currentLocations = availableLocations;
+    setModalLocations(currentLocations);
 
-    const allLocations = Array.from(activeLocationsSet);
-    setModalLocations(allLocations);
+    // Reconstruimos la tabla (matriz) de stock solo para las ubicaciones activas
+    const currentMatrix: Record<string, Record<string, number>> = {};
 
-    // Reconstruir Matriz EXACTA de Stock para que cuadre perfectamente con el total
-    const currentMatrix: any = {};
-    allLocations.forEach((loc: string) => {
+    currentLocations.forEach((loc: string) => {
       currentMatrix[loc] = {};
       availableSizes.forEach((size: string) => {
+        // Buscamos si el producto tiene stock en esta ubicación y talle válidos
         const match = relatedProducts.find((p: any) =>
-          (p.location || 'Local Principal').trim().toLowerCase() === loc.trim().toLowerCase() &&
+          p.location && p.location.trim().toLowerCase() === loc.trim().toLowerCase() &&
           String(p.size || 'Único').trim().toUpperCase() === size.trim().toUpperCase()
         );
         currentMatrix[loc][size] = match ? Number(match.stock) || 0 : 0;
@@ -162,16 +160,19 @@ export default function Inventory() {
     });
 
     setStockMatrix(currentMatrix);
+
+    // Cargar los datos del formulario (Nombre, Costo, Margen)
     setProductForm({
       name: productGroup.name || '',
-      baseSku: productGroup.baseSku,
-      category: productGroup.category || (categories[0] || 'Remeras'),
+      baseSku: productGroup.baseSku || '',
+      category: productGroup.category || (categories[0] || ''),
       color: productGroup.color || '',
       cost: productGroup.cost !== undefined ? String(productGroup.cost) : '',
       margin: productGroup.margin !== undefined ? String(productGroup.margin) : '100',
       securityStock: relatedProducts[0]?.securityStock !== undefined ? String(relatedProducts[0].securityStock) : '0',
       leadTime: relatedProducts[0]?.leadTime !== undefined ? String(relatedProducts[0].leadTime) : '0'
     });
+
     setIsProductModalOpen(true);
   };
 
