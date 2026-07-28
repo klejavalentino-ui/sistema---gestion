@@ -3147,7 +3147,9 @@ function openCheckoutModal() {
 
   const arcaBtn = document.getElementById("checkout-arca-btn");
   if (arcaBtn) {
-    const hasArcaAccess = (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com");
+    const arcaEnabled = state.userProfile?.arcaEnabled === true;
+    const hasArcaPermission = state.permissions?.arca && state.permissions.arca !== "none";
+    const hasArcaAccess = arcaEnabled || hasArcaPermission || state.role === "admin";
     arcaBtn.style.display = hasArcaAccess ? "block" : "none";
   }
 
@@ -5950,7 +5952,7 @@ function renderIntakeTallesGrid() {
   if (!container) return;
   const sizes = getConfiguredSizes();
   container.innerHTML = sizes.map(sz => `
-    <div style="flex: 1; min-width: 50px; max-width: 80px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;">
+    <div style="width: 60px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;">
       <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">${sz}</span>
       <input type="number" id="intake-qty-${sz}" class="form-input text-center" style="text-align: center; padding: 8px 4px; width: 100%;" placeholder="-" min="0">
       <span id="intake-stock-${sz}" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-weight: 700; font-size: 0.62rem; padding: 4px 2px; border-radius: 4px; margin-top: 6px; width: 100%; text-align: center; box-sizing: border-box;">Stock: 0</span>
@@ -9534,14 +9536,13 @@ async function renderIntegrationsStatus() {
     state.integrations = integrations;
     const tiendanube = integrations?.tiendanube;
     
-    // Controlar visibilidad de Tiendanube para el usuario específico
+    // Controlar visibilidad de Tiendanube: admin con flag habilitado O subuser con permiso
     const tnCard = document.getElementById("tiendanube-integration-card");
     if (tnCard) {
-      if (state.email === "klejavalentino@gmail.com" || state.email === "kljevalentino@gmail.com" || state.email === "matiascuchettidiaz@gmail.com" || state.email === "datamargen@gmail.com") {
-        tnCard.style.display = "block";
-      } else {
-        tnCard.style.display = "none";
-      }
+      const tnEnabled = state.userProfile?.tiendanubeEnabled === true;
+      const hasTnPermission = state.permissions?.tiendanube && state.permissions.tiendanube !== "none";
+      const tnVisible = tnEnabled || hasTnPermission || state.role === "admin";
+      tnCard.style.display = tnVisible ? "block" : "none";
     }
     
     const badge = document.getElementById("tiendanube-status-badge");
