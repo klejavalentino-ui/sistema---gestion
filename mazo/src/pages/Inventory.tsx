@@ -1,5 +1,5 @@
 import { useState, FormEvent, useMemo, useEffect } from 'react';
-import { Search, Plus, Package, Edit, Trash2, X, Settings2, Download } from 'lucide-react';
+import { Search, Plus, Package, Edit, Trash2, X, Settings2, Download, Upload } from 'lucide-react';
 import { useAppStore } from '../store';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -13,15 +13,25 @@ export default function Inventory() {
     categories, 
     addCategory, 
     sizes: storeSizes, 
-    locations 
+    locations,
+    supplies = []
   } = useAppStore() as any;
 
-  // Lista de talles dinámica desde el Store (si no hay guardados, usa la lista base)
+  // Lista de talles dinámica desde el Store
   const availableSizes = useMemo(() => {
     return storeSizes && storeSizes.length > 0 
       ? storeSizes 
       : ['S', 'M', 'L', 'XL', 'XXL'];
   }, [storeSizes]);
+
+  // Lista de categorías únicas de Insumos para dinámicamente armar columnas del Excel
+  const supplyCategories = useMemo(() => {
+    const cats = new Set<string>();
+    supplies.forEach((s: any) => {
+      if (s.category) cats.add(s.category);
+    });
+    return Array.from(cats);
+  }, [supplies]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todos');
@@ -56,16 +66,15 @@ export default function Inventory() {
     }
   }, [categories, locations]);
 
-  // Función para obtener un baseSku limpio sin sufijos de talle (-S, -XXL)
+  // Función para obtener baseSku limpio
   const getCleanBaseSku = (product: any) => {
     if (product.baseSku) {
-      // Elimina cualquier talle que haya quedado pegado al final por error anterior
-      return product.baseSku.replace(/-(S|M|L|XL|XXL|XXXL|[0-9]+)$/i, '');
+      return String(product.baseSku).split('-')[0];
     }
     if (product.sku) {
-      return product.sku.replace(/-(S|M|L|XL|XXL|XXXL|[0-9]+)$/i, '');
+      return String(product.sku).split('-')[0];
     }
-    return `SKU-${Date.now().toString().slice(-6)}`;
+    return `PRO001`;
   };
 
   const handleOpenAddModal = () => {
@@ -91,26 +100,25 @@ export default function Inventory() {
     const cleanBase = productGroup.baseSku;
     setEditingBaseSku(cleanBase);
     
-    // Buscar todos los productos que compartan este baseSku (o su versión limpia)
+    // Buscar todas las variantes asociadas a este producto base
     const relatedProducts = products.filter((p: any) => {
-      const pBase = getCleanBaseSku(p);
-      return pBase === cleanBase || p.baseSku === productGroup.originalBaseSku;
+      return p.baseSku === cleanBase || getCleanBaseSku(p) === cleanBase;
     });
     
     const sizesStock: Record<string, number> = {};
     availableSizes.forEach((size: string) => {
-      const match = relatedProducts.find((p: any) => p.size === size);
+      const match = relatedProducts.find((p: any) => String(p.size).toUpperCase() === String(size).toUpperCase());
       sizesStock[size] = match ? Number(match.stock) || 0 : 0;
     });
 
     const firstItem = relatedProducts[0] || productGroup;
 
     setProductForm({
-      name: firstItem.name,
+      name: firstItem.name || '',
       category: firstItem.category || (categories[0] || 'Remeras'),
       color: firstItem.color || '',
-      cost: firstItem.cost ? String(firstItem.cost) : '',
-      margin: firstItem.margin ? String(firstItem.margin) : '100',
+      cost: firstItem.cost !== undefined ? String(firstItem.cost) : '',
+      margin: firstItem.margin !== undefined ? String(firstItem.margin) : '100',
       location: firstItem.location || (locations[0] || 'Bahía Blanca'),
       sizes: sizesStock
     });
@@ -132,22 +140,27 @@ export default function Inventory() {
     e.preventDefault();
     if (!productForm.name || !productForm.cost) return;
 
-    // SKU base garantizado sin sufijos de talle
-    const baseSku = editingBaseSku || `SKU-${Date.now().toString().slice(-6)}`;
+    // Asignación de SKU base limpio (PRO001, PRO002...)
+    const baseSku = editingBaseSku || `PRO${Math.floor(100 + Math.random() * 900)}`;
     const cost = parseFloat(productForm.cost) || 0;
     const margin = parseFloat(productForm.margin) || 0;
 
+    let variantIndex = 1;
+
     Object.entries(productForm.sizes).forEach(([size, stock]) => {
-      // Buscar si ya existe la variante específica para este talle
       const existingProduct = products.find((p: any) => {
         const pBase = getCleanBaseSku(p);
-        return (pBase === baseSku || p.baseSku === baseSku) && p.size === size;
+        return (pBase === baseSku || p.baseSku === baseSku) && String(p.size).toUpperCase() === String(size).toUpperCase();
       });
+
+      // Formato de SKU numérico sin letras de talle: PRO001-1, PRO001-2, etc.
+      const variantSku = `${baseSku}-${variantIndex}`;
+      variantIndex++;
 
       if (existingProduct) {
         updateProduct(existingProduct.id, {
           baseSku: baseSku,
-          sku: `${baseSku}-${size}`,
+          sku: variantSku,
           name: productForm.name,
           category: productForm.category,
           color: productForm.color,
@@ -160,7 +173,7 @@ export default function Inventory() {
         addProduct({
           id: Date.now() + Math.floor(Math.random() * 10000),
           baseSku: baseSku,
-          sku: `${baseSku}-${size}`,
+          sku: variantSku,
           name: productForm.name,
           category: productForm.category,
           size,
@@ -176,11 +189,10 @@ export default function Inventory() {
     setIsProductModalOpen(false);
   };
 
-  const handleDeleteGroup = (baseSku: string, originalBaseSku: string) => {
+  const handleDeleteGroup = (baseSku: string) => {
     if (confirm('¿Está seguro de eliminar este producto y todos sus talles?')) {
       const relatedProducts = products.filter((p: any) => {
-        const pBase = getCleanBaseSku(p);
-        return pBase === baseSku || p.baseSku === originalBaseSku;
+        return p.baseSku === baseSku || getCleanBaseSku(p) === baseSku;
       });
       relatedProducts.forEach((p: any) => deleteProduct(p.id));
     }
@@ -205,7 +217,6 @@ export default function Inventory() {
       if (!groups[cleanBase]) {
         groups[cleanBase] = {
           baseSku: cleanBase,
-          originalBaseSku: p.baseSku,
           name: p.name,
           category: p.category,
           color: p.color,
@@ -233,20 +244,30 @@ export default function Inventory() {
     return matchesSearch && matchesCategory && matchesLocation;
   });
 
+  // Exportar a Excel agregando dinámicamente columnas para cada Categoría de Insumo
   const exportToExcel = () => {
-    const excelData = products.map((p: any) => ({
-      'Código Base (SKU)': getCleanBaseSku(p),
-      'SKU Variante': p.sku,
-      'Producto': p.name,
-      'Categoría': p.category,
-      'Color': p.color,
-      'Talle': p.size,
-      'Ubicación': p.location || 'N/A',
-      'Costo': p.cost,
-      'Margen %': p.margin,
-      'Precio Venta': Math.round(p.cost * (1 + p.margin / 100)),
-      'Stock': p.stock
-    }));
+    const excelData = products.map((p: any) => {
+      const row: Record<string, any> = {
+        'SKU Base': getCleanBaseSku(p),
+        'SKU Variante': p.sku,
+        'Producto': p.name,
+        'Categoría': p.category,
+        'Color': p.color || '',
+        'Talle': p.size,
+        'Ubicación': p.location || '',
+        'Costo': p.cost || 0,
+        'Margen %': p.margin || 0,
+        'Precio Venta': Math.round((p.cost || 0) * (1 + (p.margin || 0) / 100)),
+        'Stock': p.stock || 0
+      };
+
+      // Agregar columnas adicionales dinámicas para Categorías de Insumos
+      supplyCategories.forEach(cat => {
+        row[cat] = p.suppliesMap?.[cat] || '';
+      });
+
+      return row;
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
@@ -254,6 +275,85 @@ export default function Inventory() {
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(data, `Inventario_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+  };
+
+  // Importar desde Excel reconociendo exactamente por Nombre de Columna
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+      data.forEach((row: any) => {
+        // Mapeo directo por encabezado exacto
+        const productName = row['Producto'] || row['Nombre'] || row['PRODUCTO'];
+        if (!productName) return;
+
+        const baseSku = row['SKU Base'] || row['SKU BASE'] || row['Base SKU'] || `PRO${Math.floor(100 + Math.random() * 900)}`;
+        const size = String(row['Talle'] || row['TALLE'] || 'Único').toUpperCase();
+        const skuVariant = row['SKU Variante'] || `${baseSku}-${Math.floor(1 + Math.random() * 99)}`;
+        const cost = parseFloat(row['Costo'] || row['COSTO'] || '0') || 0;
+        const margin = parseFloat(row['Margen %'] || row['MARGEN %'] || '100') || 100;
+        const stock = parseInt(row['Stock'] || row['STOCK'] || '0') || 0;
+        const category = row['Categoría'] || row['CATEGORIA'] || categories[0] || 'Remeras';
+        const color = row['Color'] || row['COLOR'] || '';
+        const location = row['Ubicación'] || row['UBICACION'] || locations[0] || 'Bahía Blanca';
+
+        // Mapear campos dinámicos de Insumos presentes en la fila
+        const suppliesMap: Record<string, string> = {};
+        supplyCategories.forEach(cat => {
+          if (row[cat] !== undefined) {
+            suppliesMap[cat] = String(row[cat]);
+          }
+        });
+
+        // Verificar si existe el producto para actualizar o agregar
+        const existing = products.find((p: any) => 
+          (p.sku === skuVariant) || (getCleanBaseSku(p) === baseSku && String(p.size).toUpperCase() === size)
+        );
+
+        if (existing) {
+          updateProduct(existing.id, {
+            baseSku,
+            sku: skuVariant,
+            name: productName,
+            category,
+            size,
+            color,
+            cost,
+            margin,
+            location,
+            stock,
+            suppliesMap
+          });
+        } else {
+          addProduct({
+            id: Date.now() + Math.floor(Math.random() * 100000),
+            baseSku,
+            sku: skuVariant,
+            name: productName,
+            category,
+            size,
+            color,
+            cost,
+            margin,
+            location,
+            stock,
+            suppliesMap
+          });
+        }
+      });
+
+      alert('¡Importación de productos completada con éxito!');
+      e.target.value = '';
+    };
+    reader.readAsBinaryString(file);
   };
 
   return (
@@ -270,10 +370,16 @@ export default function Inventory() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          <label className="px-3.5 py-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+            <Upload className="h-4 w-4" />
+            Importar Excel
+            <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="hidden" />
+          </label>
+
           <button
             onClick={exportToExcel}
-            className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5"
+            className="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5"
           >
             <Download className="h-4 w-4" />
             Exportar Excel
@@ -387,7 +493,7 @@ export default function Inventory() {
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteGroup(item.baseSku, item.originalBaseSku)}
+                        onClick={() => handleDeleteGroup(item.baseSku)}
                         className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
                         title="Eliminar Producto"
                       >
