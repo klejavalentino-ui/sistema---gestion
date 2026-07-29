@@ -1140,17 +1140,22 @@ function handleExcelImport(event) {
       }
       
       const normalizedSheetHeaders = firstSheetRow.map(h => normalizeHeader(h));
+      
+      // Strict header presence check
       const aliasMap = {
         "sku": ["sku", "codigo", "code", "id", "sku base", "referencia", "ref"],
         "producto": ["producto", "nombre", "nombre del producto", "prenda", "articulo", "descripcion", "detalle"],
         "categoria": ["categoria", "categoría", "rubro", "tipo"],
-        "costo unitario": ["costo unitario", "costo", "costo total", "costo unit.", "costo unit", "costounitario", "costo_unitario"]
+        "materia prima": ["materia prima", "materia_prima", "basecost", "costo materia prima", "costo base"],
+        "costo unitario": ["costo unitario", "costo", "costo total", "costo unit.", "costo unit", "costounitario"],
+        "margen": ["margen (%)", "margen(%)", "margen", "margin"],
+        "precio de venta": ["precio de venta", "precio venta", "precio", "pv"]
       };
 
       const missingFields = [];
       Object.keys(aliasMap).forEach(field => {
         const aliases = aliasMap[field];
-        const found = normalizedSheetHeaders.some(h => aliases.includes(h));
+        const found = normalizedSheetHeaders.some(h => aliases.some(a => h.includes(a)));
         if (!found) {
           missingFields.push(field);
         }
@@ -1161,10 +1166,24 @@ function handleExcelImport(event) {
           "sku": "SKU",
           "producto": "Producto / Nombre",
           "categoria": "Categoría",
-          "costo unitario": "Costo Unitario / Costo"
+          "materia prima": "Materia Prima",
+          "costo unitario": "Costo Unitario",
+          "margen": "Margen (%)",
+          "precio de venta": "Precio de Venta"
         };
         const missingFriendly = missingFields.map(h => headerFriendlyMap[h] || h);
-        showToast(`El archivo no se puede leer. Faltan columnas: ${missingFriendly.join(", ")}`, true);
+        showToast(`El archivo no se puede leer. Faltan columnas obligatorias: ${missingFriendly.join(", ")}`, true);
+        return;
+      }
+
+      // Check column ordering: SKU must be col 1, Producto col 2, Categoría col 3, Talle col 4
+      const col1 = normalizedSheetHeaders[0] || "";
+      const col2 = normalizedSheetHeaders[1] || "";
+      const col3 = normalizedSheetHeaders[2] || "";
+      const col4 = normalizedSheetHeaders[3] || "";
+
+      if (!col1.includes("sku") || !col2.includes("producto") || !col3.includes("categoria") || (!col4.includes("talle") && !col4.includes("variante"))) {
+        showToast("El orden de las columnas del Excel no es correcto. Debe ser: 1. SKU, 2. Producto, 3. Categoría, 4. Talle.", true);
         return;
       }
 
@@ -1175,20 +1194,6 @@ function handleExcelImport(event) {
       }
       
       parsedImportProducts = [];
-      
-      const existingSkus = new Set(
-        state.products
-          .filter(p => p.sku)
-          .map(p => p.sku.toLowerCase().trim())
-      );
-      
-      const nameToFirstBaseSku = {};
-      (state.products || []).forEach(p => {
-        if (p && p.name && p.baseSku) {
-          nameToFirstBaseSku[cleanCompareText(p.name)] = p.baseSku;
-        }
-      });
-
       const importedSkusInBatch = new Set();
       let omittedCount = 0;
       
@@ -1202,11 +1207,20 @@ function handleExcelImport(event) {
         const name = getHeaderVal(cleanRow, ["producto", "nombre", "nombre del producto", "prenda", "articulo", "descripcion", "detalle"]);
         const category = getHeaderVal(cleanRow, ["categoria", "categoría", "rubro", "tipo"]) || "General";
         
-        const materiaPrimaStr = getHeaderVal(cleanRow, ["materia prima", "materia_prima", "basecost", "costo materia prima", "costo base"]);
-        let baseCost = materiaPrimaStr !== "" ? (parseFloat(materiaPrimaStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : null;
+        const rawStockStr = getHeaderVal(cleanRow, ["stock actual", "stock total", "existencias", "stock"]);
+        const rawMateriaPrimaStr = getHeaderVal(cleanRow, ["materia prima", "materia_prima", "basecost", "costo materia prima", "costo base"]);
+        const rawCostoUnitarioStr = getHeaderVal(cleanRow, ["costo unitario", "costo", "costo total", "costo unit.", "costo unit"]);
+        const rawMargenStr = getHeaderVal(cleanRow, ["margen (%)", "margen(%)", "margen", "margin"]);
+        const rawPrecioVentaStr = getHeaderVal(cleanRow, ["precio de venta", "precio venta", "precio", "pv"]);
 
-        const costStr = getHeaderVal(cleanRow, ["costo unitario", "costo", "costo total", "costo unit.", "costo unit", "costounitario", "costo_unitario"]);
-        let totalCost = costStr !== "" ? (parseFloat(costStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
+        // Validate mandatory presence per row: stock total, materia prima, costo unitario, margen, precio de venta
+        if (rawStockStr === "" || rawMateriaPrimaStr === "" || rawCostoUnitarioStr === "" || rawMargenStr === "" || rawPrecioVentaStr === "") {
+          omittedCount++;
+          return;
+        }
+
+        let baseCost = parseFloat(rawMateriaPrimaStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        let totalCost = parseFloat(rawCostoUnitarioStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
         
         const importedExtras = {};
         let totalExtrasCost = 0;
@@ -1214,7 +1228,6 @@ function handleExcelImport(event) {
 
         extraCategoryKeys.forEach(catKey => {
           const catTitle = getCategoryTitle(catKey);
-          // Build comprehensive aliases for matching: title, key, key with spaces, prefixed versions
           const catKeySpaced = catKey.replace(/_/g, " ");
           const aliases = [
             catTitle, catKey, catKeySpaced,
@@ -1224,7 +1237,11 @@ function handleExcelImport(event) {
           const val = getHeaderVal(cleanRow, aliases);
           if (val && val !== "-" && val.toLowerCase() !== "ninguno" && val.toLowerCase() !== "sin insumo") {
             const opts = state.extras[catKey] || [];
-            const matchedOpt = opts.find(o => (o.name || "").toLowerCase().trim() === val.toLowerCase().trim());
+            let matchedOpt = opts.find(o => (o.name || "").toLowerCase().trim() === val.toLowerCase().trim());
+            if (!matchedOpt && !isNaN(parseFloat(val))) {
+              const numVal = parseFloat(val);
+              matchedOpt = opts.find(o => Math.abs((parseFloat(o.cost) || 0) - numVal) < 0.01);
+            }
             if (matchedOpt) {
               importedExtras[catKey] = matchedOpt.id;
               totalExtrasCost += (parseFloat(matchedOpt.cost) || 0);
@@ -1232,20 +1249,12 @@ function handleExcelImport(event) {
           }
         });
 
-        if (baseCost === null) {
-          if (totalCost > 0) {
-            baseCost = Math.max(0, totalCost - totalExtrasCost);
-          } else {
-            baseCost = 0.0;
-          }
-        } else {
+        if (totalCost <= 0) {
           totalCost = baseCost + totalExtrasCost;
         }
-
         const cost = totalCost;
         
-        const priceStr = getHeaderVal(cleanRow, ["precio de venta", "precio venta", "precio", "precio local", "pv", "preciodeventa", "precioventa", "precio_venta", "venta"]);
-        const price = priceStr !== "" ? (parseFloat(priceStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0) : 0.0;
+        const price = parseFloat(rawPrecioVentaStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
         
         const locationsStock = {};
         let totalStock = 0;
@@ -1265,8 +1274,7 @@ function handleExcelImport(event) {
         });
         
         if (Object.keys(locationsStock).length === 0) {
-          const stockStr = getHeaderVal(cleanRow, ["stock actual", "stock", "cantidad", "stock total", "existencias"]);
-          const stockVal = stockStr !== "" ? (parseInt(stockStr.replace(/[^0-9]/g, "")) || 0) : 0;
+          const stockVal = parseInt(rawStockStr.replace(/[^0-9]/g, "")) || 0;
           const defaultLoc = configuredLocs[0] || "Local Principal";
           locationsStock[defaultLoc] = stockVal;
           totalStock = stockVal;
@@ -1277,21 +1285,13 @@ function handleExcelImport(event) {
 
         let color = getHeaderVal(cleanRow, ["color", "variante", "variacion"]);
         
-        const marginStr = getHeaderVal(cleanRow, ["margen (%)", "margen", "margin", "margen porcentaje"]);
-        const hasPercentSign = marginStr.includes("%");
-        let margin = parseFloat(marginStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
-        
-        if (hasPercentSign) {
-          // Si tiene %, es el valor directo
-        } else if (margin > 0 && margin <= 1.0) {
+        const hasPercentSign = rawMargenStr.includes("%");
+        let margin = parseFloat(rawMargenStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
+        if (!hasPercentSign && margin > 0 && margin <= 1.0) {
           margin = margin * 100;
         }
-        
-        if (price > 0 && cost > 0 && !marginStr) {
-          margin = ((price / cost) - 1) * 100;
-        }
 
-        const deliveryTimeStr = getHeaderVal(cleanRow, ["tiempo de entrega (dias)", "tiempo de entrega (días)", "tiempo de entrega", "dias de entrega", "días de entrega"]);
+        const deliveryTimeStr = getHeaderVal(cleanRow, ["tiempo de entrega (en dias)", "tiempo de entrega (dias)", "tiempo de entrega (días)", "tiempo de entrega"]);
         const leadTime = (deliveryTimeStr !== "") ? parseInt(deliveryTimeStr.replace(/[^0-9]/g, "")) : "";
 
         const securityStockStr = getHeaderVal(cleanRow, ["stock de seguridad", "stock critico", "stock minimo"]);
@@ -1318,18 +1318,48 @@ function handleExcelImport(event) {
         if (skuVal && name) {
           const skuLower = skuVal.toLowerCase().trim();
           const nameClean = cleanCompareText(name);
-          const sizeLower = size.toLowerCase().trim();
+          const rowBaseSku = getCleanBaseSku(skuVal);
 
-          let isUpdate = false;
+          // Matching logic rules:
+          // 1. Match existing by SKU
+          const matchedBySku = state.products.find(p => {
+            const pBase = getCleanBaseSku(p.baseSku || p.sku);
+            return (pBase && pBase === rowBaseSku) || (p.sku || "").toLowerCase().trim() === skuLower;
+          });
+
+          // 2. Match existing by Name & Size
+          const matchedByName = state.products.find(p => {
+            const pClean = cleanCompareText(p.name || "");
+            const pSizeClean = (p.size || "").toLowerCase().trim();
+            return pClean === nameClean && pSizeClean === (size || "único").toLowerCase().trim();
+          });
+
           let existingProduct = null;
-          
-          if (existingSkus.has(skuLower)) {
-            isUpdate = true;
-            existingProduct = state.products.find(p => p.sku.toLowerCase().trim() === skuLower);
-          } else {
-            existingProduct = state.products.find(p => cleanCompareText(p.name) === nameClean && (p.size || "").toLowerCase().trim() === sizeLower);
+
+          if (matchedBySku && matchedByName && matchedBySku.id === matchedByName.id) {
+            // Same SKU and Same Name -> Update existing product
+            existingProduct = matchedBySku;
+          } else if (matchedBySku && !matchedByName) {
+            // Same SKU but Different Product Name -> Conflict! Reject row
+            if (cleanCompareText(matchedBySku.name || "") !== nameClean) {
+              omittedCount++;
+              return;
+            }
+            existingProduct = matchedBySku;
+          } else if (!matchedBySku && matchedByName) {
+            // Same Product Name but Different SKU -> Conflict! Reject row
+            const pBase = getCleanBaseSku(matchedByName.baseSku || matchedByName.sku);
+            if (pBase !== rowBaseSku) {
+              omittedCount++;
+              return;
+            }
+            existingProduct = matchedByName;
+          } else if (matchedBySku && matchedByName && matchedBySku.id !== matchedByName.id) {
+            // SKU matches one product, Name matches another -> Conflict! Reject row
+            omittedCount++;
+            return;
           }
-          
+
           if (importedSkusInBatch.has(skuLower)) {
             omittedCount++;
             return;
@@ -1337,20 +1367,7 @@ function handleExcelImport(event) {
           
           importedSkusInBatch.add(skuLower);
           
-          let baseSku = "";
-          if (state.businessType === "comercio") {
-            baseSku = getCleanBaseSku(skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal);
-          } else {
-            if (skuVal.includes("-")) {
-              baseSku = getCleanBaseSku(skuVal.split("-")[0]);
-            } else if (nameToFirstBaseSku[nameClean]) {
-              baseSku = getCleanBaseSku(nameToFirstBaseSku[nameClean]);
-            } else {
-              baseSku = getCleanBaseSku(skuVal);
-            }
-          }
-          nameToFirstBaseSku[nameClean] = baseSku;
-
+          let baseSku = rowBaseSku;
           const prodPayload = existingProduct ? { ...existingProduct } : { id: Date.now() + Math.random(), extras: {} };
           
           prodPayload.baseSku = baseSku;
@@ -1385,14 +1402,10 @@ function handleExcelImport(event) {
           prodPayload.margin = Math.round(margin * 10) / 10;
           prodPayload.cost = totalCost;
 
-          // Guardar precio de venta
-          let calculatedPrice = 0;
-          if (price > 0) {
-            calculatedPrice = Math.round(price);
-          } else if (cost > 0 && margin > 0) {
+          let calculatedPrice = Math.round(price);
+          if (calculatedPrice <= 0 && cost > 0 && margin > 0) {
             calculatedPrice = Math.round(cost * (1 + margin / 100));
           }
-          
           if (calculatedPrice <= 0 && existingProduct) {
             calculatedPrice = existingProduct.price_local || existingProduct.price || 0;
           }

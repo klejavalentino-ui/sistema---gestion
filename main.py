@@ -1509,7 +1509,7 @@ def export_inventory_excel_route():
         for cat_key in extra_category_keys:
             headers.append(get_category_title_py(cat_key))
 
-        headers.extend(["Costo Unitario", "Margen (%)", "Precio de Venta", "Tiempo de Entrega (días)", "Stock de Seguridad"])
+        headers.extend(["Costo Unitario", "Margen (%)", "Precio de Venta", "Tiempo de Entrega (en días)", "Stock de Seguridad"])
 
         ws.append(headers)
 
