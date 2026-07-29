@@ -5419,12 +5419,6 @@ async function saveProductForm(e) {
 
       let existingVariant = matchingVariants.find(v => v.tiendanube_variant_id) || matchingVariants[0];
 
-      if (!existingVariant) {
-        const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
-        const safeSku = `${cleanBaseSku}-${cleanSizeStr}`;
-        existingVariant = state.products.find(v => v.sku && v.sku.toLowerCase() === safeSku.toLowerCase());
-      }
-
       if (matchingVariants.length > 1) {
         matchingVariants.forEach(dup => {
           if (dup.id !== existingVariant?.id && dup.sku) {
