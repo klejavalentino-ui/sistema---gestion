@@ -1587,7 +1587,10 @@ def export_inventory_excel_route():
                 row_data.append(st_val)
 
             # Formula de Stock Total
-            stock_formula = f"=SUM({first_loc_col}{row_num}:{last_loc_col}{row_num})"
+            if len(locations) == 1:
+                stock_formula = f"={first_loc_col}{row_num}"
+            else:
+                stock_formula = f"=SUM({first_loc_col}{row_num}:{last_loc_col}{row_num})"
             row_data.append(stock_formula)
             row_data.append(round(base_cost))
 
@@ -1656,6 +1659,25 @@ def export_inventory_excel_route():
             dv.errorTitle = 'Opción inválida'
             ws.add_data_validation(dv)
             dv.add(f"{dest_col_letter}2:{dest_col_letter}{len(products) + 500}")
+
+        # Configurar Protección de Hojas y Bloqueo de Fórmulas
+        from openpyxl.styles import Protection
+
+        ws.protection.sheet = True
+        ws_opts.protection.sheet = True
+
+        locked_headers = {"Stock Total", "Costo Unitario"}
+
+        for row in ws.iter_rows(min_row=1, max_row=len(products) + 1, min_col=1, max_col=len(headers)):
+            for cell in row:
+                col_idx = cell.column - 1
+                col_title = headers[col_idx] if col_idx < len(headers) else ""
+                
+                # Bloquear solo las celdas de fórmulas
+                if col_title in locked_headers or col_title.endswith(": Costo"):
+                    cell.protection = Protection(locked=True)
+                else:
+                    cell.protection = Protection(locked=False)
 
         output = io.BytesIO()
         wb.save(output)
