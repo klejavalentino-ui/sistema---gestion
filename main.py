@@ -1529,8 +1529,17 @@ def export_inventory_excel_route():
             margin = float(p.get("margin") or 0)
             price = float(p.get("price_local") or p.get("price") or (cost * (1 + margin / 100)))
 
+            raw_sku = p.get("baseSku") or p.get("sku") or p.get("id") or ""
+            base_sku = raw_sku.split("-")[0] if "-" in raw_sku else raw_sku
+            import re
+            m = re.match(r"^([A-Za-z]{2,3})(\d+)", base_sku)
+            if m:
+                clean_sku = (m.group(1) + m.group(2)).upper()
+            else:
+                clean_sku = re.sub(r"[^A-Za-z0-9]", "", base_sku).upper()
+
             row_data = [
-                p.get("sku") or p.get("id") or "",
+                clean_sku,
                 display_name,
                 p.get("category") or "",
                 p.get("size") or "Único"

@@ -1308,14 +1308,14 @@ function handleExcelImport(event) {
           
           let baseSku = "";
           if (state.businessType === "comercio") {
-            baseSku = (skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal);
+            baseSku = getCleanBaseSku(skuVal.endsWith("-U") ? skuVal.slice(0, -2) : skuVal);
           } else {
             if (skuVal.includes("-")) {
-              baseSku = skuVal.split("-")[0];
+              baseSku = getCleanBaseSku(skuVal.split("-")[0]);
             } else if (nameToFirstBaseSku[nameClean]) {
-              baseSku = nameToFirstBaseSku[nameClean];
+              baseSku = getCleanBaseSku(nameToFirstBaseSku[nameClean]);
             } else {
-              baseSku = skuVal;
+              baseSku = getCleanBaseSku(skuVal);
             }
           }
           nameToFirstBaseSku[nameClean] = baseSku;
@@ -4471,7 +4471,7 @@ function renderInventory() {
   actualProducts.forEach(p => {
     const pSku = p.sku || p.id || "";
     const cleanNameKey = cleanCompareText(p.name || "");
-    const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : cleanNameKey) || "PROD";
+    const baseSku = getCleanBaseSku(p.baseSku || pSku) || "PROD";
     const colorKey = p.color ? p.color.toLowerCase().trim() : "";
     const groupKey = (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
     const displayName = getProductNameWithColor(p);
@@ -4966,7 +4966,7 @@ function getProductGroupKey(p) {
   if (!p) return "";
   const pSku = p.sku || p.id || "";
   const cleanNameKey = cleanCompareText(p.name || "");
-  const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : cleanNameKey) || "PROD";
+  const baseSku = getCleanBaseSku(p.baseSku || pSku) || "PROD";
   const colorKey = p.color ? p.color.toLowerCase().trim() : "";
   return (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
 }
