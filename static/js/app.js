@@ -80,6 +80,17 @@ const state = {
 
 let tempLocationStock = {};
 
+function getCleanBaseSku(sku) {
+  if (!sku) return "";
+  let base = String(sku).trim().split("-")[0];
+  const match = base.match(/^([A-Za-z]{2,3})(\d+)/);
+  if (match) {
+    return (match[1] + match[2]).toUpperCase();
+  }
+  return base.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+window.getCleanBaseSku = getCleanBaseSku;
+
 function getConfiguredSizes() {
   const raw = (state.userProfile && state.userProfile.sizeVariants) || state.sizeVariants;
   if (Array.isArray(raw) && raw.length > 0) {
