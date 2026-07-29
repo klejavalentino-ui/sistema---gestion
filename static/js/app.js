@@ -4913,12 +4913,17 @@ function openCreateProductModal() {
   document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Negra";
   document.getElementById("prod-sku").placeholder = isComercio ? "Ej. ALFA-CHO-01" : "Ej. REM-OVR-N";
   
-  // Initialize locations stock
+  // Initialize locations stock strictly with configured user locations
   tempLocationStock = {};
-  const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
-  const initSizes = {};
-  getConfiguredSizes().forEach(sz => initSizes[sz] = 0);
-  tempLocationStock[defaultLoc] = initSizes;
+  const configuredUserLocs = (state.userProfile?.locations && state.userProfile.locations.length > 0)
+    ? state.userProfile.locations
+    : ["Local Principal"];
+
+  configuredUserLocs.forEach(loc => {
+    const initSizes = {};
+    getConfiguredSizes().forEach(sz => initSizes[sz] = 0);
+    tempLocationStock[loc] = initSizes;
+  });
   renderProductLocationRows();
   
   const talleCard = document.getElementById("product-talles-card");
@@ -5005,31 +5010,33 @@ function openEditProductModal(sku) {
     return getProductGroupKey(prod) === targetGroupKey;
   });
   
-  // Build tempLocationStock from variants with case-insensitive location matching
+  // Build tempLocationStock STRICTLY with configured user locations
   tempLocationStock = {};
   const configuredUserLocs = (state.userProfile?.locations && state.userProfile.locations.length > 0)
     ? state.userProfile.locations
-    : ["Bahia Blanca", "Buenos Aires", "Local Principal"];
+    : ["Local Principal"];
+
+  configuredUserLocs.forEach(loc => {
+    tempLocationStock[loc] = {};
+  });
 
   variants.forEach(v => {
-    if (v.locationsStock && Object.keys(v.locationsStock).length > 0) {
-      Object.keys(v.locationsStock).forEach(locKey => {
-        const match = configuredUserLocs.find(l => l.toLowerCase().trim() === locKey.toLowerCase().trim()) || locKey;
-        if (!tempLocationStock[match]) tempLocationStock[match] = {};
-        tempLocationStock[match][v.size] = parseInt(v.locationsStock[locKey]) || 0;
-      });
-    } else {
-      // Backwards compatibility: add stock to default location
-      const defaultLoc = configuredUserLocs[0] || "Local Principal";
-      if (!tempLocationStock[defaultLoc]) tempLocationStock[defaultLoc] = {};
-      tempLocationStock[defaultLoc][v.size] = parseInt(v.stock) || 0;
-    }
+    configuredUserLocs.forEach(loc => {
+      let qty = 0;
+      if (v.locationsStock) {
+        // Find matching key in locationsStock case-insensitively
+        const matchedKey = Object.keys(v.locationsStock).find(k => k.toLowerCase().trim() === loc.toLowerCase().trim());
+        if (matchedKey !== undefined) {
+          qty = parseInt(v.locationsStock[matchedKey]) || 0;
+        }
+      }
+      // Backwards compatibility: if locationsStock is empty/missing, assign the variant's main stock to the first configured location
+      if ((!v.locationsStock || Object.keys(v.locationsStock).length === 0) && loc === configuredUserLocs[0]) {
+        qty = parseInt(v.stock_local !== undefined ? v.stock_local : v.stock) || 0;
+      }
+      tempLocationStock[loc][v.size] = qty;
+    });
   });
-  
-  if (Object.keys(tempLocationStock).length === 0) {
-    const defaultLoc = (state.userProfile.locations && state.userProfile.locations.length > 0) ? state.userProfile.locations[0] : "Local Principal";
-    tempLocationStock[defaultLoc] = {};
-  }
   
   renderSecurityStockGrid();
   renderProductLocationRows();
