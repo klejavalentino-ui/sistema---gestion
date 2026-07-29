@@ -30,8 +30,8 @@
 
 // --- Estado Global ---
 const state = {
-  token: localStorage.getItem("datamargen_token"),
-  email: localStorage.getItem("datamargen_email"),
+  token: sessionStorage.getItem("datamargen_token"),
+  email: sessionStorage.getItem("datamargen_email"),
   businessType: localStorage.getItem("datamargen_business_type") || "textil",
   businessName: localStorage.getItem("datamargen_business_name") || "",
   projects: [],
@@ -374,11 +374,11 @@ async function handleLogin(e) {
     const bizType = data.businessType || document.getElementById("login-business-type").value || "textil";
     state.businessType = bizType;
     
-    localStorage.setItem("datamargen_token", data.token);
+    sessionStorage.setItem("datamargen_token", data.token);
     if (data.refreshToken) {
-      localStorage.setItem("datamargen_refresh_token", data.refreshToken);
+      sessionStorage.setItem("datamargen_refresh_token", data.refreshToken);
     }
-    localStorage.setItem("datamargen_email", data.email);
+    sessionStorage.setItem("datamargen_email", data.email);
     localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("¡Sesión iniciada!");
@@ -445,8 +445,8 @@ async function handleRegister(e) {
     state.token = data.token;
     state.email = data.email;
     state.businessType = bizType;
-    localStorage.setItem("datamargen_token", data.token);
-    localStorage.setItem("datamargen_email", data.email);
+    sessionStorage.setItem("datamargen_token", data.token);
+    sessionStorage.setItem("datamargen_email", data.email);
     localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("Registro exitoso. Verificá tu correo.");
@@ -542,9 +542,9 @@ function updateSidebarProfile() {
 function handleLogout() {
   state.token = null;
   state.email = null;
-  localStorage.removeItem("datamargen_token");
-  localStorage.removeItem("datamargen_refresh_token");
-  localStorage.removeItem("datamargen_email");
+  sessionStorage.removeItem("datamargen_token");
+  sessionStorage.removeItem("datamargen_refresh_token");
+  sessionStorage.removeItem("datamargen_email");
   showToast("Sesión cerrada");
   checkAuth();
 }
@@ -565,8 +565,8 @@ async function handleDeleteAccount() {
     showToast("Cuenta eliminada correctamente.");
     state.token = null;
     state.email = null;
-    localStorage.removeItem("datamargen_token");
-    localStorage.removeItem("datamargen_email");
+    sessionStorage.removeItem("datamargen_token");
+    sessionStorage.removeItem("datamargen_email");
     setTimeout(() => {
       checkAuth();
       window.location.reload();
@@ -1533,7 +1533,7 @@ async function updateBusinessType(type) {
 }
 
 async function refreshTokenFlow() {
-  const refreshToken = localStorage.getItem("datamargen_refresh_token");
+  const refreshToken = sessionStorage.getItem("datamargen_refresh_token");
   if (!refreshToken) throw new Error("No refresh token");
   
   const res = await fetch("/api/auth/refresh", {
@@ -1544,9 +1544,9 @@ async function refreshTokenFlow() {
   if (!res.ok) throw new Error("Refresh failed");
   const data = await res.json();
   state.token = data.token;
-  localStorage.setItem("datamargen_token", data.token);
+  sessionStorage.setItem("datamargen_token", data.token);
   if (data.refreshToken) {
-    localStorage.setItem("datamargen_refresh_token", data.refreshToken);
+    sessionStorage.setItem("datamargen_refresh_token", data.refreshToken);
   }
   return data.token;
 }
@@ -9667,11 +9667,11 @@ async function loginWithGoogle() {
     state.email = email;
     const bizType = document.getElementById("login-business-type")?.value || "textil";
     state.businessType = bizType;
-    localStorage.setItem("datamargen_token", idToken);
+    sessionStorage.setItem("datamargen_token", idToken);
     if (result.user.refreshToken) {
-      localStorage.setItem("datamargen_refresh_token", result.user.refreshToken);
+      sessionStorage.setItem("datamargen_refresh_token", result.user.refreshToken);
     }
-    localStorage.setItem("datamargen_email", email);
+    sessionStorage.setItem("datamargen_email", email);
     localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("¡Sesión iniciada con Google!");
