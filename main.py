@@ -1590,9 +1590,10 @@ def export_inventory_excel_route():
         insumos_start_col_idx = 4 + len(locations) + 2
 
         for c_idx, cat_key in enumerate(extra_category_keys):
-            col_letter = get_col_letter(insumos_start_col_idx + c_idx)
+            dest_col_letter = get_col_letter(insumos_start_col_idx + c_idx)
+            src_col_letter = get_col_letter(c_idx)
             opts_count = len(cat_opts_lists[cat_key])
-            formula_val = f"Opciones!${col_letter}$2:${col_letter}${opts_count + 1}"
+            formula_val = f"Opciones!${src_col_letter}$2:${src_col_letter}${opts_count + 1}"
 
             dv = DataValidation(
                 type="list",
@@ -1602,7 +1603,7 @@ def export_inventory_excel_route():
             dv.error = 'Por favor seleccione una opción válida de la lista.'
             dv.errorTitle = 'Opción inválida'
             ws.add_data_validation(dv)
-            dv.add(f"{col_letter}2:{col_letter}{len(products) + 500}")
+            dv.add(f"{dest_col_letter}2:{dest_col_letter}{len(products) + 500}")
 
         output = io.BytesIO()
         wb.save(output)

@@ -4957,12 +4957,24 @@ function openCreateProductModal() {
   document.getElementById("product-modal").className = "modal-overlay active";
 }
 
+function getProductGroupKey(p) {
+  if (!p) return "";
+  const pSku = p.sku || p.id || "";
+  const cleanNameKey = cleanCompareText(p.name || "");
+  const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : cleanNameKey) || "PROD";
+  const colorKey = p.color ? p.color.toLowerCase().trim() : "";
+  return (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
+}
+
 function openEditProductModal(sku) {
   const p = state.products.find(prod => prod.sku === sku);
   if (!p) return;
 
   document.getElementById("modal-product-title").innerText = "Editar Variante";
-  document.getElementById("prod-sku").value = p.sku;
+  
+  const rawBase = (p.baseSku || p.sku || "").trim();
+  const cleanBase = rawBase.includes("-") ? rawBase.split("-")[0] : rawBase;
+  document.getElementById("prod-sku").value = cleanBase;
   document.getElementById("prod-sku").readOnly = true; // no se edita SKU ya guardado
   document.getElementById("prod-name").value = getProductNameWithColor(p);
   document.getElementById("prod-color").value = p.color;
@@ -4980,15 +4992,17 @@ function openEditProductModal(sku) {
     priceLocalInput.dataset.auto = (p.price_local === undefined || p.price_local === "") ? "true" : "false";
   }
   
-  // Cargar stock de todas las variantes del mismo producto y mismo color (compartiendo baseSku y color)
-  const rawBase = (p.baseSku || p.sku || "").trim();
-  const cleanBase = rawBase.includes("-") ? rawBase.split("-")[0] : rawBase;
-  const pColor = (p.color || "").toLowerCase().trim();
+  // Cargar stock de todas las variantes del mismo producto y mismo color (compartiendo baseSku y color a través del groupKey)
+  const targetGroupKey = getProductGroupKey(p);
+  document.getElementById("product-modal").dataset.oldGroupKey = targetGroupKey;
+  
   const variants = state.products.filter(prod => {
-    const prodRawBase = (prod.baseSku || prod.sku || "").trim();
-    const prodCleanBase = prodRawBase.includes("-") ? prodRawBase.split("-")[0] : prodRawBase;
-    const prodColor = (prod.color || "").toLowerCase().trim();
-    return prodCleanBase.toLowerCase() === cleanBase.toLowerCase() && prodColor === pColor;
+    if (!prod) return false;
+    const s = prod.sku || prod.id || "";
+    if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
+      return false;
+    }
+    return getProductGroupKey(prod) === targetGroupKey;
   });
   
   // Build tempLocationStock from variants with case-insensitive location matching
@@ -5299,19 +5313,22 @@ async function saveProductForm(e) {
   
   if (isEditing) {
     // Guardar cambios para todos los talles ingresados
+    const oldGroupKey = document.getElementById("product-modal").dataset.oldGroupKey;
     const cleanBaseSku = baseSku.split("-")[0] || baseSku;
-    const pColor = (color || "").toLowerCase().trim();
     for (const [size, stock] of Object.entries(sizeStocks)) {
-      const existingVariant = state.products.find(v => {
-        const vRawBase = (v.baseSku || v.sku || "").trim();
-        const vCleanBase = vRawBase.includes("-") ? vRawBase.split("-")[0] : vRawBase;
-        const vColor = (v.color || "").toLowerCase().trim();
-        return (
-          vCleanBase.toLowerCase() === cleanBaseSku.toLowerCase() &&
-          (v.size || "").toLowerCase().trim() === (size || "").toLowerCase().trim() &&
-          vColor === pColor
-        );
+      let existingVariant = state.products.find(v => {
+        if (!v) return false;
+        const s = v.sku || v.id || "";
+        if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
+          return false;
+        }
+        return getProductGroupKey(v) === oldGroupKey && (v.size || "").toLowerCase().trim() === (size || "").toLowerCase().trim();
       });
+      if (!existingVariant) {
+        const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
+        const safeSku = `${cleanBaseSku}-${cleanSizeStr}`;
+        existingVariant = state.products.find(v => v.sku && v.sku.toLowerCase() === safeSku.toLowerCase());
+      }
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
       const safeSku = existingVariant ? existingVariant.sku.replace(/\//g, "_") : `${cleanBaseSku}-${cleanSizeStr}`;
