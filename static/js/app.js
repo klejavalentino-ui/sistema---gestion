@@ -91,6 +91,26 @@ function getCleanBaseSku(sku) {
 }
 window.getCleanBaseSku = getCleanBaseSku;
 
+function getProductLocationStockSum(p) {
+  if (!p) return 0;
+  const configuredUserLocs = (state.userProfile?.locations && state.userProfile.locations.length > 0)
+    ? state.userProfile.locations
+    : ["Local Principal"];
+
+  if (p.locationsStock && Object.keys(p.locationsStock).length > 0) {
+    let sum = 0;
+    configuredUserLocs.forEach(loc => {
+      const matchedKey = Object.keys(p.locationsStock).find(k => k.toLowerCase().trim() === loc.toLowerCase().trim());
+      if (matchedKey !== undefined) {
+        sum += parseInt(p.locationsStock[matchedKey]) || 0;
+      }
+    });
+    return sum;
+  }
+  return parseInt(p.stock_local !== undefined ? p.stock_local : p.stock) || 0;
+}
+window.getProductLocationStockSum = getProductLocationStockSum;
+
 function getConfiguredSizes() {
   const raw = (state.userProfile && state.userProfile.sizeVariants) || state.sizeVariants;
   if (Array.isArray(raw) && raw.length > 0) {
@@ -4503,9 +4523,7 @@ function renderInventory() {
       };
     }
     groupedProducts[groupKey].variants.push(p);
-    const stockLocalVal = (p.locationsStock && Object.keys(p.locationsStock).length > 0)
-      ? Object.values(p.locationsStock).reduce((a, b) => a + (parseInt(b) || 0), 0)
-      : (p.stock_local !== undefined ? (parseInt(p.stock_local) || 0) : (parseInt(p.stock) || 0));
+    const stockLocalVal = getProductLocationStockSum(p);
     groupedProducts[groupKey].totalStock += stockLocalVal;
     groupedProducts[groupKey].totalMinStock += getProductMinStock(p, salesByProduct);
   });
@@ -4556,9 +4574,7 @@ function renderInventory() {
     g.variants.forEach(v => {
       if (!v) return;
 
-      const stockVal = (v.locationsStock && Object.keys(v.locationsStock).length > 0)
-        ? Object.values(v.locationsStock).reduce((a, b) => a + (parseInt(b) || 0), 0)
-        : (v.stock_local !== undefined ? (parseInt(v.stock_local) || 0) : (parseInt(v.stock) || 0));
+      const stockVal = getProductLocationStockSum(v);
 
       // Solo tomamos en cuenta variantes que tengan ID de Tiendanube, o stock > 0, o si es la única variante del producto
       const isRealVariant = Boolean(v.tiendanube_variant_id) || stockVal > 0 || g.variants.length === 1;
