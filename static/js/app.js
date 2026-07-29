@@ -1195,6 +1195,7 @@ function handleExcelImport(event) {
       
       parsedImportProducts = [];
       const importedSkusInBatch = new Set();
+      const baseSkusByName = new Map();
       let omittedCount = 0;
       
       rows.forEach(row => {
@@ -1299,8 +1300,25 @@ function handleExcelImport(event) {
         const securityStock = (securityStockStr !== "") ? parseInt(securityStockStr.replace(/[^0-9]/g, "")) : "";
         
         if (!sku && name) {
-          const sizeSuffix = getSizeSkuSuffix(size);
-          sku = (name.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 15)) + "-" + sizeSuffix;
+          const nameClean = cleanCompareText(name);
+          const categoryClean = category.toLowerCase().trim();
+          const lookupKey = `${nameClean}_${categoryClean}`;
+          
+          let baseSku = baseSkusByName.get(lookupKey);
+          if (!baseSku) {
+            const matchedDb = state.products.find(p => {
+              return cleanCompareText(p.name || "") === nameClean && 
+                     (p.category || "").toLowerCase().trim() === categoryClean;
+            });
+            if (matchedDb) {
+              baseSku = getCleanBaseSku(matchedDb.baseSku || matchedDb.sku);
+            }
+          }
+          if (!baseSku) {
+            baseSku = name.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 15);
+            baseSku = baseSku.replace(/-+$/, "");
+          }
+          sku = baseSku;
         }
 
         let skuVal = sku;
@@ -1369,6 +1387,14 @@ function handleExcelImport(event) {
           importedSkusInBatch.add(skuLower);
           
           let baseSku = rowBaseSku;
+          if (name) {
+            const nameClean = cleanCompareText(name);
+            const categoryClean = (category || "").toLowerCase().trim();
+            const lookupKey = `${nameClean}_${categoryClean}`;
+            if (!baseSkusByName.has(lookupKey)) {
+              baseSkusByName.set(lookupKey, baseSku);
+            }
+          }
           const prodPayload = existingProduct ? { ...existingProduct } : { id: Date.now() + Math.random(), extras: {} };
           
           prodPayload.baseSku = baseSku;
