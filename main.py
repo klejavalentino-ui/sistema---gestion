@@ -1688,7 +1688,7 @@ def export_inventory_excel_route():
             row_data.append(round(margin, 2))
 
             # Formula de Precio de Venta
-            price_formula = f"=ROUND({costo_unit_col_letter}{row_num} * (1 + {margin_col_letter}{row_num} / 100), 0)"
+            price_formula = f"=ROUND({costo_unit_col_letter}{row_num} * (1 + {margin_col_letter}{row_num} / 100), -2)"
             row_data.append(price_formula)
 
             row_data.append(int(p["leadTime"]) if p.get("leadTime") not in [None, ""] else "")
@@ -1720,7 +1720,7 @@ def export_inventory_excel_route():
         ws.protection.sheet = True
         ws_opts.protection.sheet = True
 
-        locked_headers = {"Stock Total", "Costo Unitario"}
+        locked_headers = {"Stock Total", "Costo Unitario", "Precio de Venta"}
 
         for row in ws.iter_rows(min_row=1, max_row=len(products) + 1, min_col=1, max_col=len(headers)):
             for cell in row:

@@ -1400,7 +1400,7 @@ function handleExcelImport(event) {
           if (importedExtras.estampados) prodPayload.estampadoId = importedExtras.estampados;
           if (importedExtras.bordados) prodPayload.bordadoId = importedExtras.bordados;
           if (importedExtras.packagings) prodPayload.packagingId = importedExtras.packagings;
-          prodPayload.margin = Math.round(margin * 10) / 10;
+          prodPayload.margin = Math.round(margin * 100) / 100;
           prodPayload.cost = totalCost;
 
           let calculatedPrice = Math.round(price);
@@ -5268,7 +5268,7 @@ function recalculateMarginFromPrice() {
   const totalCost = baseCost + totalExtrasCost;
   if (totalCost > 0) {
     const margin = ((priceLocal / totalCost) - 1) * 100;
-    document.getElementById("prod-margin").value = Math.round(margin * 10) / 10;
+    document.getElementById("prod-margin").value = Math.round(margin * 100) / 100;
   }
 }
 

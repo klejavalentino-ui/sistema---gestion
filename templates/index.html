@@ -808,7 +808,7 @@
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px;">
                   <div class="form-group" id="intake-margin-container" style="margin-bottom: 0;">
                     <label class="form-label">Margen (%)</label>
-                    <input type="number" id="intake-margin" class="form-input" placeholder="Ej. 30">
+                    <input type="number" id="intake-margin" class="form-input" placeholder="Ej. 30" step="any">
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Ubicación / Depósito *</label>
@@ -3089,7 +3089,7 @@
               </div>
               <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label" style="font-size: 0.75rem;">Margen (%)</label>
-                <input type="number" id="prod-margin" class="form-input" placeholder="0" oninput="recalculateProductPrice()" required>
+                <input type="number" id="prod-margin" class="form-input" placeholder="0" oninput="recalculateProductPrice()" required step="any">
               </div>
               <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label" style="font-size: 0.75rem;">Precio Venta ($)</label>
