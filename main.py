@@ -1507,14 +1507,51 @@ def export_inventory_excel_route():
         headers.append("Materia Prima")
 
         for cat_key in extra_category_keys:
-            headers.append(get_category_title_py(cat_key))
+            cat_title = get_category_title_py(cat_key)
+            headers.append(f"Tipo: {cat_title}")
+            headers.append(f"{cat_title}: Costo")
 
         headers.extend(["Costo Unitario", "Margen (%)", "Precio de Venta", "Tiempo de Entrega (en días)", "Stock de Seguridad"])
 
         ws.append(headers)
 
+        # Hoja Secundaria "Opciones" para origen del desplegable y VLOOKUP de costos
+        ws_opts = wb.create_sheet(title="Opciones")
+        opts_headers = []
+        for cat_key in extra_category_keys:
+            cat_title = get_category_title_py(cat_key)
+            opts_headers.append(cat_title)
+            opts_headers.append(f"{cat_title} Costo")
+        ws_opts.append(opts_headers)
+
+        max_opts = 1
+        cat_opts_map = {}
+        for cat_key in extra_category_keys:
+            opts = [("-", 0)]
+            for o in extras_config.get(cat_key, []):
+                if o.get("name"):
+                    opts.append((o.get("name"), float(o.get("cost") or 0)))
+            cat_opts_map[cat_key] = opts
+            if len(opts) > max_opts:
+                max_opts = len(opts)
+
+        for r_idx in range(max_opts):
+            r_row = []
+            for cat_key in extra_category_keys:
+                opts = cat_opts_map[cat_key]
+                if r_idx < len(opts):
+                    r_row.append(opts[r_idx][0])
+                    r_row.append(opts[r_idx][1])
+                else:
+                    r_row.append("")
+                    r_row.append("")
+            ws_opts.append(r_row)
+
         first_loc_col = get_col_letter(4)
         last_loc_col = get_col_letter(3 + len(locations))
+        materia_prima_col_idx = 4 + len(locations) + 1  # 0-indexed column for Materia Prima
+        materia_prima_col_letter = get_col_letter(materia_prima_col_idx)
+        insumos_base_col_idx = materia_prima_col_idx + 1  # 0-indexed column for first insumo
 
         for idx, p in enumerate(products):
             row_num = idx + 2
@@ -1527,7 +1564,6 @@ def export_inventory_excel_route():
             cost = float(p.get("cost") or 0)
             base_cost = float(p.get("baseCost") or 0) if p.get("baseCost") is not None else cost
             margin = float(p.get("margin") or 0)
-            price = float(p.get("price_local") or p.get("price") or (cost * (1 + margin / 100)))
 
             raw_sku = p.get("baseSku") or p.get("sku") or p.get("id") or ""
             base_sku = raw_sku.split("-")[0] if "-" in raw_sku else raw_sku
@@ -1561,47 +1597,54 @@ def export_inventory_excel_route():
                 "bordados": p.get("bordadoId") or ""
             }
 
-            for cat_key in extra_category_keys:
+            cost_col_letters_to_sum = [materia_prima_col_letter]
+
+            for c_idx, cat_key in enumerate(extra_category_keys):
                 opt_id = selected_extras.get(cat_key, "")
                 opts = extras_config.get(cat_key, [])
                 matched_opt = next((o for o in opts if o.get("id") == opt_id), None)
-                row_data.append(matched_opt["name"] if matched_opt else "-")
+                opt_name = matched_opt["name"] if matched_opt else "-"
 
-            row_data.append(round(cost))
+                # 1. Tipo col
+                row_data.append(opt_name)
+
+                # 2. Costo col con formula VLOOKUP
+                tipo_col_idx = insumos_base_col_idx + 2 * c_idx
+                tipo_col_letter = get_col_letter(tipo_col_idx)
+                cost_col_letter = get_col_letter(tipo_col_idx + 1)
+                cost_col_letters_to_sum.append(cost_col_letter)
+
+                name_src_col_letter = get_col_letter(2 * c_idx)
+                cost_src_col_letter = get_col_letter(2 * c_idx + 1)
+                opts_count = len(cat_opts_map[cat_key])
+
+                cost_vlookup_formula = f"=IFERROR(VLOOKUP({tipo_col_letter}{row_num}, Opciones!${name_src_col_letter}$2:${cost_src_col_letter}${opts_count + 1}, 2, FALSE), 0)"
+                row_data.append(cost_vlookup_formula)
+
+            # Formula de Costo Unitario
+            costo_unit_col_idx = insumos_base_col_idx + 2 * len(extra_category_keys)
+            costo_unit_col_letter = get_col_letter(costo_unit_col_idx)
+            costo_unit_formula = f"=SUM(" + ", ".join([f"{col}{row_num}" for col in cost_col_letters_to_sum]) + ")"
+            row_data.append(costo_unit_formula)
+
+            margin_col_letter = get_col_letter(costo_unit_col_idx + 1)
             row_data.append(round(margin, 2))
-            row_data.append(round(price))
+
+            # Formula de Precio de Venta
+            price_formula = f"=ROUND({costo_unit_col_letter}{row_num} * (1 + {margin_col_letter}{row_num} / 100), 0)"
+            row_data.append(price_formula)
+
             row_data.append(int(p["leadTime"]) if p.get("leadTime") not in [None, ""] else "")
             row_data.append(int(p["securityStock"]) if p.get("securityStock") not in [None, ""] else "")
 
             ws.append(row_data)
 
-        # Hoja Secundaria "Opciones" para origen del desplegable
-        ws_opts = wb.create_sheet(title="Opciones")
-        opts_headers = [get_category_title_py(k) for k in extra_category_keys]
-        ws_opts.append(opts_headers)
-
-        max_opts = 1
-        cat_opts_lists = {}
-        for cat_key in extra_category_keys:
-            opts = ["-"] + [o.get("name") for o in extras_config.get(cat_key, []) if o.get("name")]
-            cat_opts_lists[cat_key] = opts
-            if len(opts) > max_opts:
-                max_opts = len(opts)
-
-        for r_idx in range(max_opts):
-            r_row = []
-            for cat_key in extra_category_keys:
-                opts = cat_opts_lists[cat_key]
-                r_row.append(opts[r_idx] if r_idx < len(opts) else "")
-            ws_opts.append(r_row)
-
         # Agregar Listas Desplegables de Validación de Datos
-        insumos_start_col_idx = 4 + len(locations) + 2
-
         for c_idx, cat_key in enumerate(extra_category_keys):
-            dest_col_letter = get_col_letter(insumos_start_col_idx + c_idx)
-            src_col_letter = get_col_letter(c_idx)
-            opts_count = len(cat_opts_lists[cat_key])
+            tipo_col_idx = insumos_base_col_idx + 2 * c_idx
+            dest_col_letter = get_col_letter(tipo_col_idx)
+            src_col_letter = get_col_letter(2 * c_idx)
+            opts_count = len(cat_opts_map[cat_key])
             formula_val = f"Opciones!${src_col_letter}$2:${src_col_letter}${opts_count + 1}"
 
             dv = DataValidation(

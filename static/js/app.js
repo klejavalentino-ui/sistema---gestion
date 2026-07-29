@@ -1230,6 +1230,7 @@ function handleExcelImport(event) {
           const catTitle = getCategoryTitle(catKey);
           const catKeySpaced = catKey.replace(/_/g, " ");
           const aliases = [
+            `tipo: ${catTitle}`, `tipo ${catTitle}`, `tipo: ${catKeySpaced}`, `tipo ${catKeySpaced}`,
             catTitle, catKey, catKeySpaced,
             `insumo: ${catTitle}`, `insumo: ${catKeySpaced}`,
             `insumo ${catTitle}`, `insumo ${catKeySpaced}`
