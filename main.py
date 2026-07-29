@@ -1055,6 +1055,26 @@ def get_all_state():
             user_docs.append(profile_doc_copy)
             profile_doc = profile_doc_copy
 
+        # Self-healing patch specifically for Matías to restore original profile config (talles, locations)
+        email = get_email_from_token(token)
+        if email == "matiascuchettidiaz@gmail.com" and profile_doc:
+            changed = False
+            if not profile_doc.get("locations") or profile_doc.get("locations") == ["Local Principal"]:
+                profile_doc["locations"] = ["Bahia Blanca", "Buenos Aires"]
+                changed = True
+            if not profile_doc.get("sizes") or len(profile_doc.get("sizes", [])) < 5:
+                profile_doc["sizes"] = ["XS", "S", "M", "L", "XL", "XXL", "Único", "Talle 1 (S/M)", "Talle 2 (M/L)", "Talle 2 (L/XL)", "Talle 3 (L/XL)"]
+                changed = True
+            if not profile_doc.get("salesChannels") or profile_doc.get("salesChannels") == ["Local Principal"]:
+                profile_doc["salesChannels"] = ["Local Principal"]
+                changed = True
+            if changed:
+                profile_doc_to_save = dict(profile_doc)
+                profile_doc_to_save["sku"] = f"{prefix}user_profile"
+                if "id" in profile_doc_to_save:
+                    del profile_doc_to_save["id"]
+                firebase_config.set_document("products", f"{prefix}user_profile", profile_doc_to_save, token)
+
         # Auto-sync profile to Google Sheets if not already synced
         if not profile_doc.get("googleSheetsSynced"):
             try:
@@ -1242,10 +1262,26 @@ def auto_restore_user_variants(prefix, token, user_docs):
         profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
         configured_locations = profile_doc.get("locations") or ["Local Principal"]
 
+        was_updated = False
         for d in user_docs:
-            if not isinstance(d.get("locationsStock"), dict):
-                d["locationsStock"] = {loc: safe_int(d.get("stock", 0)) if idx == 0 else 0 for idx, loc in enumerate(configured_locations)}
-        return False
+            doc_id = d.get("id", "")
+            if not doc_id.startswith((
+                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
+                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
+                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
+            )) and doc_id not in [f"{prefix}extras_config", f"{prefix}categories_config", f"{prefix}user_profile"]:
+                loc_stock = d.get("locationsStock")
+                if not isinstance(loc_stock, dict):
+                    loc_stock = {}
+                # Ensure all configured locations are in locationsStock keys
+                missing_keys = [loc for loc in configured_locations if loc not in loc_stock]
+                if missing_keys:
+                    for loc in missing_keys:
+                        loc_stock[loc] = 0
+                    d["locationsStock"] = loc_stock
+                    firebase_config.set_document("products", d["id"], d, token)
+                    was_updated = True
+        return was_updated
     except Exception as err:
         print(f"[AUTO RESTORE VARIANTS ERROR] {err}")
         return False
@@ -1274,7 +1310,7 @@ def get_products():
             f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
             f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
             f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
-        )) and d.get("id", "") not in [f"{prefix}extras_config", f"{prefix}categories_config"]]
+        )) and d.get("id", "") not in [f"{prefix}extras_config", f"{prefix}categories_config", f"{prefix}user_profile"]]
         
         return jsonify(products)
     except Exception as e:
@@ -3121,11 +3157,15 @@ def sync_tiendanube_catalog_route():
 
         for d in existing_docs:
             doc_id = d.get("id", "")
-            is_system_meta_doc = not doc_id.startswith(prefix) or doc_id.startswith((
-                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_",
-                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config",
-                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
-            )) or doc_id in [f"{prefix}extras_config", f"{prefix}categories_config"]
+            doc_id_lower = doc_id.lower()
+            is_system_meta_doc = not doc_id.startswith(prefix) or \
+                                 "user_profile" in doc_id_lower or \
+                                 "extras_config" in doc_id_lower or \
+                                 "categories_config" in doc_id_lower or \
+                                 any(x in doc_id_lower for x in [
+                                     "supplier_", "fixedcost_", "account_", "cashtransaction_",
+                                     "influencer_", "marketingexpense_", "stockintake_", "productionorder_"
+                                 ])
 
             if not is_system_meta_doc:
                 clean_sku = doc_id[len(prefix):].upper()
