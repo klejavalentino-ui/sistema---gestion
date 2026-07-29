@@ -5072,7 +5072,7 @@ function openEditProductModal(sku) {
   const targetGroupKey = getProductGroupKey(p);
   document.getElementById("product-modal").dataset.oldGroupKey = targetGroupKey;
   
-  const variants = state.products.filter(prod => {
+  const rawVariants = state.products.filter(prod => {
     if (!prod) return false;
     const s = prod.sku || prod.id || "";
     if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
@@ -5080,6 +5080,20 @@ function openEditProductModal(sku) {
     }
     return getProductGroupKey(prod) === targetGroupKey;
   });
+
+  const variantsBySize = new Map();
+  rawVariants.forEach(v => {
+    const szKey = (v.size || "").toLowerCase().trim();
+    if (!variantsBySize.has(szKey)) {
+      variantsBySize.set(szKey, v);
+    } else {
+      const existing = variantsBySize.get(szKey);
+      if (!existing.tiendanube_variant_id && v.tiendanube_variant_id) {
+        variantsBySize.set(szKey, v);
+      }
+    }
+  });
+  const variants = Array.from(variantsBySize.values());
   
   // Build tempLocationStock STRICTLY with configured user locations
   tempLocationStock = {};
@@ -5394,7 +5408,7 @@ async function saveProductForm(e) {
     const oldGroupKey = document.getElementById("product-modal").dataset.oldGroupKey;
     const cleanBaseSku = baseSku.split("-")[0] || baseSku;
     for (const [size, stock] of Object.entries(sizeStocks)) {
-      let existingVariant = state.products.find(v => {
+      const matchingVariants = state.products.filter(v => {
         if (!v) return false;
         const s = v.sku || v.id || "";
         if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
@@ -5402,10 +5416,21 @@ async function saveProductForm(e) {
         }
         return getProductGroupKey(v) === oldGroupKey && (v.size || "").toLowerCase().trim() === (size || "").toLowerCase().trim();
       });
+
+      let existingVariant = matchingVariants.find(v => v.tiendanube_variant_id) || matchingVariants[0];
+
       if (!existingVariant) {
         const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
         const safeSku = `${cleanBaseSku}-${cleanSizeStr}`;
         existingVariant = state.products.find(v => v.sku && v.sku.toLowerCase() === safeSku.toLowerCase());
+      }
+
+      if (matchingVariants.length > 1) {
+        matchingVariants.forEach(dup => {
+          if (dup.id !== existingVariant?.id && dup.sku) {
+            apiRequest(`/api/products/${dup.sku}`, "DELETE").catch(err => console.log("Cleaned dup variant error:", err));
+          }
+        });
       }
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");

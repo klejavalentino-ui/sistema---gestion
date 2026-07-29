@@ -1070,6 +1070,7 @@ def get_all_state():
             all_sales = future_sales.result()
             
         user_docs = filter_user_docs(all_products, prefix)
+        deduplicate_user_product_variants(prefix, token, user_docs)
         user_sales = filter_user_docs(all_sales, prefix)
         
         # 2. Get or initialize user profile (SaaS details)
@@ -1309,6 +1310,59 @@ def get_all_state():
 
 # --- 1. Rutas de Productos e Inventario (Reales) ---
 
+def deduplicate_user_product_variants(prefix, token, user_docs):
+    try:
+        seen_variants = {}
+        duplicates_to_delete = []
+
+        for d in user_docs:
+            doc_id = str(d.get("id", ""))
+            if doc_id.startswith((
+                "supplier_", "fixedcost_", "account_", "cashtransaction_", 
+                "influencer_", "marketingexpense_", "extras_config", 
+                "categories_config", "stockintake_", "productionorder_", "user_profile"
+            )) or doc_id in ["extras_config", "categories_config", "user_profile"]:
+                continue
+
+            name_key = str(d.get("name", "")).lower().strip()
+            color_key = str(d.get("color", "")).lower().strip()
+            size_key = str(d.get("size", "")).lower().strip()
+
+            if not name_key or not size_key:
+                continue
+
+            group_key = (name_key, color_key, size_key)
+
+            if group_key not in seen_variants:
+                seen_variants[group_key] = d
+            else:
+                existing = seen_variants[group_key]
+                existing_has_tn = bool(existing.get("tiendanube_variant_id"))
+                current_has_tn = bool(d.get("tiendanube_variant_id"))
+
+                if not existing_has_tn and current_has_tn:
+                    duplicates_to_delete.append(existing)
+                    seen_variants[group_key] = d
+                else:
+                    duplicates_to_delete.append(d)
+
+        if duplicates_to_delete:
+            print(f"[DEDUPLICATION] Removing {len(duplicates_to_delete)} duplicate variant documents in Firestore for prefix {prefix}")
+            for dup in duplicates_to_delete:
+                dup_doc_id = dup.get("id")
+                if dup_doc_id:
+                    clean_id = dup_doc_id[len(prefix):] if dup_doc_id.startswith(prefix) else dup_doc_id
+                    try:
+                        firebase_config.delete_document("products", f"{prefix}{clean_id}", token)
+                    except Exception as del_err:
+                        print(f"[DEDUPLICATION DELETE WARNING] {del_err}")
+                    if dup in user_docs:
+                        user_docs.remove(dup)
+            return True
+    except Exception as e:
+        print(f"[DEDUPLICATION ERROR] {e}")
+    return False
+
 def auto_restore_user_variants(prefix, token, user_docs):
     try:
         profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
@@ -1357,6 +1411,7 @@ def get_products():
         
         all_docs = firebase_config.list_documents("products", token)
         user_docs = filter_user_docs(all_docs, prefix)
+        deduplicate_user_product_variants(prefix, token, user_docs)
         
         # Ejecutar auto-restauración de variantes de talle si faltan
         auto_restore_user_variants(prefix, token, user_docs)
