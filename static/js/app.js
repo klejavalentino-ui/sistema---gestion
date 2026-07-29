@@ -1379,14 +1379,18 @@ function handleExcelImport(event) {
             return;
           }
 
-          if (importedSkusInBatch.has(skuLower)) {
+          let baseSku = rowBaseSku;
+          if (existingProduct) {
+            skuVal = existingProduct.sku;
+            baseSku = existingProduct.baseSku || getCleanBaseSku(existingProduct.sku);
+          }
+
+          const finalSkuLower = skuVal.toLowerCase().trim();
+          if (importedSkusInBatch.has(finalSkuLower)) {
             omittedCount++;
             return;
           }
-          
-          importedSkusInBatch.add(skuLower);
-          
-          let baseSku = rowBaseSku;
+          importedSkusInBatch.add(finalSkuLower);
           if (name) {
             const nameClean = cleanCompareText(name);
             const categoryClean = (category || "").toLowerCase().trim();
