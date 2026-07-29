@@ -1244,7 +1244,13 @@ def auto_restore_user_variants(prefix, token, user_docs):
         if not configured_locations:
             configured_locations = ["Bahia Blanca", "Buenos Aires"]
 
-        apparel_sizes_default = ["M", "L", "XL", "XXL"]
+        user_sizes = profile_doc.get("sizes") or profile_doc.get("talles") or profile_doc.get("variants") or []
+        if isinstance(user_sizes, str):
+            user_sizes = [s.strip() for s in user_sizes.split(",") if s.strip()]
+        
+        apparel_sizes = [s for s in user_sizes if s.lower() not in ["único", "unico"]]
+        if not apparel_sizes:
+            apparel_sizes = ["M", "L", "XL", "XXL"]
 
         grouped = {}
         for d in user_docs:
@@ -1270,9 +1276,9 @@ def auto_restore_user_variants(prefix, token, user_docs):
             if is_apparel:
                 existing_sizes = {str(d.get("size", "")).strip().upper() for d in docs if d.get("size")}
                 
-                # Check if standard size variants M, L, XL, XXL are missing
-                for sz in apparel_sizes_default:
-                    if sz not in existing_sizes:
+                # Check if standard size variants from user profile are missing
+                for sz in apparel_sizes:
+                    if sz.upper() not in existing_sizes:
                         size_suffix = sz.upper().replace(" ", "").replace("/", "-")
                         new_sku = f"{base_sku}-{size_suffix}"
                         new_doc_id = f"{prefix}{new_sku}"
