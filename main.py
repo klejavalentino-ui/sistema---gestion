@@ -1237,6 +1237,87 @@ def get_all_state():
 
 # --- 1. Rutas de Productos e Inventario (Reales) ---
 
+def auto_restore_user_variants(prefix, token, user_docs):
+    try:
+        profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
+        configured_locations = profile_doc.get("locations", ["Bahia Blanca", "Buenos Aires"])
+        if not configured_locations:
+            configured_locations = ["Bahia Blanca", "Buenos Aires"]
+
+        apparel_sizes_default = ["M", "L", "XL", "XXL"]
+
+        grouped = {}
+        for d in user_docs:
+            doc_id = d.get("id", "")
+            if not doc_id.startswith((
+                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
+                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
+                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
+            )) and doc_id not in [f"{prefix}extras_config", f"{prefix}categories_config"]:
+                clean_id = doc_id[len(prefix):] if doc_id.startswith(prefix) else doc_id
+                base_sku = (d.get("baseSku") or clean_id.split("-")[0]).upper()
+                grouped.setdefault(base_sku, []).append(d)
+
+        was_updated = False
+        for base_sku, docs in grouped.items():
+            first_doc = docs[0]
+            cat = str(first_doc.get("category", "")).strip().lower()
+            name = str(first_doc.get("name", "")).strip().lower()
+
+            is_apparel = any(kw in cat for kw in ["denim", "hoodie", "woman", "remera", "pantalon", "buzo", "campera", "ropa", "textil"]) or \
+                         any(kw in name for kw in ["campera", "buzo", "remera", "hoodie", "pantalon", "top", "baby tee", "canguro"])
+
+            if is_apparel:
+                existing_sizes = {str(d.get("size", "")).strip().upper() for d in docs if d.get("size")}
+                
+                # Check if standard size variants M, L, XL, XXL are missing
+                for sz in apparel_sizes_default:
+                    if sz not in existing_sizes:
+                        size_suffix = sz.upper().replace(" ", "").replace("/", "-")
+                        new_sku = f"{base_sku}-{size_suffix}"
+                        new_doc_id = f"{prefix}{new_sku}"
+
+                        loc_stock = {}
+                        for loc in configured_locations:
+                            loc_stock[loc] = 0
+
+                        new_variant = {
+                            "id": new_doc_id,
+                            "sku": new_doc_id,
+                            "baseSku": base_sku,
+                            "name": first_doc.get("name", ""),
+                            "category": first_doc.get("category", ""),
+                            "size": sz,
+                            "color": first_doc.get("color", ""),
+                            "stock": 0,
+                            "stock_local": 0,
+                            "stock_taller": 0,
+                            "locationsStock": loc_stock,
+                            "baseCost": safe_float(first_doc.get("baseCost", 0.0)),
+                            "cost": safe_float(first_doc.get("cost", 0.0)),
+                            "margin": safe_float(first_doc.get("margin", 0.0)),
+                            "price": safe_float(first_doc.get("price", 0.0)),
+                            "price_local": safe_float(first_doc.get("price_local", 0.0)),
+                            "price_tiendanube": safe_float(first_doc.get("price_tiendanube", 0.0)),
+                            "image_url": first_doc.get("image_url", ""),
+                            "extras": first_doc.get("extras", {})
+                        }
+                        firebase_config.set_document("products", new_doc_id, new_variant, token)
+                        user_docs.append(new_variant)
+                        was_updated = True
+
+            for d in docs:
+                loc_stock = d.get("locationsStock")
+                if not isinstance(loc_stock, dict) or len(loc_stock) == 0:
+                    d["locationsStock"] = {loc: safe_int(d.get("stock", 0)) if idx == 0 else 0 for idx, loc in enumerate(configured_locations)}
+                    firebase_config.set_document("products", d["id"], d, token)
+                    was_updated = True
+
+        return was_updated
+    except Exception as err:
+        print(f"[AUTO RESTORE VARIANTS ERROR] {err}")
+        return False
+
 @app.route("/api/products", methods=["GET"])
 def get_products():
     token = get_auth_token()
@@ -1253,10 +1334,15 @@ def get_products():
         all_docs = firebase_config.list_documents("products", token)
         user_docs = filter_user_docs(all_docs, prefix)
         
+        # Ejecutar auto-restauración de variantes de talle si faltan
+        auto_restore_user_variants(prefix, token, user_docs)
+
         # Retornar únicamente los productos de inventario
-        products = [d for d in user_docs if not d.get("id", "").startswith(
-            ("supplier_", "fixedcost_", "account_", "cashtransaction_", "influencer_", "marketingexpense_", "extras_config", "categories_config", "stockintake_")
-        )]
+        products = [d for d in user_docs if not d.get("id", "").startswith((
+            f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
+            f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
+            f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
+        )) and d.get("id", "") not in [f"{prefix}extras_config", f"{prefix}categories_config"]]
         
         return jsonify(products)
     except Exception as e:
@@ -3095,8 +3181,9 @@ def sync_tiendanube_catalog_route():
                     return f"{name} {color}".strip()
             return name.strip()
 
-        existing_by_name = {}
-        existing_by_sku = {}
+        existing_by_name = {}      # norm_name -> list of docs
+        existing_by_base_sku = {}  # base_sku -> list of docs
+        existing_by_sku = {}       # clean_sku -> list of docs
         all_existing_skus = set()
         system_products = []
 
@@ -3110,15 +3197,23 @@ def sync_tiendanube_catalog_route():
 
             if not is_system_meta_doc:
                 clean_sku = doc_id[len(prefix):].upper()
-                existing_by_sku[clean_sku] = d
-                all_existing_skus.add(clean_sku)
                 base_sku = (d.get("baseSku") or clean_sku.split("-")[0]).upper()
+                all_existing_skus.add(clean_sku)
                 all_existing_skus.add(base_sku)
+
+                existing_by_sku.setdefault(clean_sku, []).append(d)
+                existing_by_base_sku.setdefault(base_sku, []).append(d)
 
                 full_p_name = get_doc_full_name(d)
                 norm_name = normalize_text_key(full_p_name)
                 if norm_name:
-                    existing_by_name[norm_name] = d
+                    existing_by_name.setdefault(norm_name, []).append(d)
+
+                base_p_name = (d.get("name") or "").strip()
+                norm_base_name = normalize_text_key(base_p_name)
+                if norm_base_name:
+                    existing_by_name.setdefault(norm_base_name, []).append(d)
+
                 system_products.append(d)
 
         # 4. Process Tiendanube Products
@@ -3183,16 +3278,19 @@ def sync_tiendanube_catalog_route():
                     tn_full_name = clean_name.strip()
 
                 norm_tn_name = normalize_text_key(tn_full_name)
+                norm_clean_name = normalize_text_key(clean_name)
 
-                # Matching check: Name + Color
-                matched_doc = existing_by_name.get(norm_tn_name)
-                if not matched_doc and variant.get("sku"):
+                # Matching check: Find ALL existing size variants for this model
+                matched_docs = existing_by_name.get(norm_tn_name) or existing_by_name.get(norm_clean_name) or []
+                if not matched_docs and variant.get("sku"):
                     raw_sku = str(variant.get("sku")).strip().upper()
-                    matched_doc = existing_by_sku.get(raw_sku)
+                    base_sku_raw = raw_sku.split("-")[0]
+                    matched_docs = existing_by_sku.get(raw_sku) or existing_by_base_sku.get(base_sku_raw) or []
 
-                if matched_doc:
-                    # RULE: Match found -> DO NOTHING! Do not touch or modify existing product.
-                    matched_system_doc_ids.add(matched_doc.get("id"))
+                if matched_docs:
+                    # RULE: Match found -> Preserve ALL size variant documents belonging to this model!
+                    for doc in matched_docs:
+                        matched_system_doc_ids.add(doc.get("id"))
                 else:
                     # RULE: Product in TN but not in system -> Create new product
                     import random
