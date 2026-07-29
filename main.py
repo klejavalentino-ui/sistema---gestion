@@ -4974,7 +4974,9 @@ def update_business_settings():
             return jsonify({"error": "Perfil no encontrado"}), 404
             
         if "businessName" in data: doc["businessName"] = data["businessName"]
-        if "userProfileName" in data: doc["name"] = data["userProfileName"]
+        if "userProfileName" in data:
+            doc["name"] = data["userProfileName"]
+            doc["contactName"] = data["userProfileName"]
         if "userProfileUsername" in data:
             new_username = data["userProfileUsername"]
             old_username = doc.get("username")

@@ -11726,7 +11726,7 @@ async function loadBusinessUsers() {
           <button class="btn" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--accent-blue); font-size: 1.1rem; margin-right: 4px; display: inline-flex; align-items: center; justify-content: center; transition: opacity 0.2s;" onclick="editBusinessUser('admin')" title="Editar mi perfil">
             <i class="fa-solid fa-pencil"></i>
           </button>
-          <span style="font-size:0.7rem; color:var(--text-gray); font-style:italic; vertical-align:middle;">Owner</span>
+          <span style="font-size:0.7rem; color:var(--text-gray); font-style:italic; vertical-align:middle;">Dueño</span>
         `;
       } else if (isSubuser || u.isAdmin) {
         actionsCell = `<span style="font-size:0.75rem; color:var(--text-gray);">-</span>`;
