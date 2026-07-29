@@ -242,121 +242,14 @@ def filter_user_docs(all_docs, prefix):
     return user_docs
 
 def sync_stock_to_tiendanube(uid, items, token=None, db_client=None, prefix=None):
-    try:
-        if db_client:
-            config_doc = db_client.collection("users").document(uid).collection("integrations").document("tiendanube").get()
-            config = config_doc.to_dict() if config_doc.exists else None
-        else:
-            config = firebase_config.get_document("integrations", "tiendanube", token)
-            
-        if not config or not config.get("activo"):
-            return
-            
-        user_id = config.get("user_id")
-        access_token = config.get("access_token")
-        
-        # Sanitizar credenciales para evitar caracteres ocultos no-ASCII (ej: de copiar y pegar)
-        if access_token:
-            access_token = "".join(c for c in str(access_token) if ord(c) < 128).strip()
-        if user_id:
-            user_id = "".join(c for c in str(user_id) if ord(c) < 128).strip()
-        
-        headers = {
-            "Authentication": f"bearer {access_token}",
-            "Content-Type": "application/json",
-            "User-Agent": "Datamargen (klejavalentino@gmail.com)"
-        }
-        
-        if not prefix:
-            biz_type = request.headers.get("X-Business-Type", "textil") if request else "textil"
-            prefix = f"{biz_type}_"
-            
-        def update_single_variant_stock(item):
-            prod_info = item.get("product", {})
-            sku = prod_info.get("sku")
-            qty = safe_int(item.get("quantity", 0))
-            if not sku or qty <= 0:
-                return
-                
-            if db_client:
-                prod_doc = db_client.collection("users").document(uid).collection("products").document(f"{prefix}{sku}").get()
-                prod = prod_doc.to_dict() if prod_doc.exists else None
-            else:
-                prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
-                
-            if not prod:
-                return
-                
-            p_id = prod.get("tiendanube_product_id")
-            v_id = prod.get("tiendanube_variant_id")
-            new_stock = safe_int(prod.get("stock", 0))
-            
-            if p_id and v_id:
-                url = f"https://api.tiendanube.com/v1/{user_id}/products/{p_id}/variants/{v_id}"
-                payload = {"stock": new_stock}
-                r = requests.put(url, json=payload, headers=headers, timeout=15)
-                if r.ok:
-                    print(f"[TIENDANUBE] Stock sincronizado para SKU {sku}: {new_stock} unidades.")
-                else:
-                    print(f"[TIENDANUBE ERROR] Error al sincronizar SKU {sku}: {r.text}")
-                    
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            executor.map(update_single_variant_stock, items)
-            
-    except Exception as e:
-        print(f"Advertencia al sincronizar stock con Tiendanube: {e}")
+    # USER REQUEST: Do not modify Tiendanube prices/stocks automatically unless manual sync is triggered
+    print("[TIENDANUBE SYNC BYPASS] Automatic stock sync to Tiendanube bypassed by configuration.")
+    return
 
 def push_variant_to_tiendanube(item, token):
-    try:
-        config = firebase_config.get_document("integrations", "tiendanube", token)
-        if not config or not config.get("activo"):
-            return
-            
-        user_id = config.get("user_id")
-        access_token = config.get("access_token")
-        if not user_id or not access_token:
-            return
-            
-        if access_token:
-            access_token = "".join(c for c in str(access_token) if ord(c) < 128).strip()
-        if user_id:
-            user_id = "".join(c for c in str(user_id) if ord(c) < 128).strip()
-            
-        p_id = item.get("tiendanube_product_id")
-        v_id = item.get("tiendanube_variant_id")
-        
-        # If not present in item, try fetching from Firestore to be sure
-        if not p_id or not v_id:
-            prefix = get_user_prefix(token)
-            sku = item.get("sku", "")
-            if prefix and not sku.startswith(prefix):
-                sku = f"{prefix}{sku}"
-            prod = firebase_config.get_document("products", sku, token)
-            if prod:
-                p_id = prod.get("tiendanube_product_id")
-                v_id = prod.get("tiendanube_variant_id")
-                
-        if p_id and v_id:
-            stock = safe_int(item.get("stock_local", item.get("stock", 0)))
-            price = safe_float(item.get("price_tiendanube", item.get("price_local", item.get("price", 0))))
-            
-            payload = {"stock": stock}
-            if price > 0:
-                payload["price"] = str(price)
-                
-            headers = {
-                "Authentication": f"bearer {access_token}",
-                "User-Agent": "Datamargen (klejavalentino@gmail.com)",
-                "Content-Type": "application/json"
-            }
-            url = f"https://api.tiendanube.com/v1/{user_id}/products/{p_id}/variants/{v_id}"
-            r = requests.put(url, json=payload, headers=headers, timeout=15)
-            if r.ok:
-                print(f"[TIENDANUBE PUSH] Stock/Price synced for SKU {item.get('sku')}: stock={stock}, price={price}")
-            else:
-                print(f"[TIENDANUBE PUSH ERROR] Failed to sync SKU {item.get('sku')}: {r.text}")
-    except Exception as e:
-        print(f"[TIENDANUBE PUSH EXCEPTION] {e}")
+    # USER REQUEST: Do not modify Tiendanube prices/stocks automatically unless manual sync is triggered
+    print("[TIENDANUBE PUSH BYPASS] Automatic variant push to Tiendanube bypassed by configuration.")
+    return
 
 # --- Ruta Principal (SPA) ---
 @app.route("/")
