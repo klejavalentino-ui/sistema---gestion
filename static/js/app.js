@@ -5525,11 +5525,21 @@ async function exportInventoryToExcel() {
       ? state.userProfile.locations
       : ["Bahia Blanca", "Buenos Aires", "Local Principal"];
 
+    let token = state.token;
+    if (window.firebase && firebase.auth && firebase.auth().currentUser) {
+      try {
+        token = await firebase.auth().currentUser.getIdToken(true);
+        state.token = token;
+      } catch (err) {
+        console.warn("No se pudo refrescar el token de Firebase:", err);
+      }
+    }
+
     const response = await fetch("/api/export-inventory-excel", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${state.token}`
+        "Authorization": `Bearer ${token}`
       },
       body: JSON.stringify({
         products: filteredProducts,
