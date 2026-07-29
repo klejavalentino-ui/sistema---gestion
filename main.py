@@ -3077,86 +3077,87 @@ def sync_tiendanube_catalog_route():
                 clean_docs.append(d)
         existing_docs = clean_docs
 
-        existing_products_by_sku = {}
+        def normalize_text_key(text):
+            if not text:
+                return ""
+            import unicodedata
+            s = str(text).lower().strip()
+            s = unicodedata.normalize('NFD', s)
+            s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+            import re
+            return re.sub(r'\s+', ' ', s)
+
+        def get_doc_full_name(d):
+            name = (d.get("name") or "").strip()
+            color = (d.get("color") or "").strip()
+            if color and color.lower() not in ["único", "unico"]:
+                if color.lower() not in name.lower():
+                    return f"{name} {color}".strip()
+            return name.strip()
+
+        existing_by_name = {}
+        existing_by_sku = {}
+        all_existing_skus = set()
+        system_products = []
+
         for d in existing_docs:
             doc_id = d.get("id", "")
-            if doc_id.startswith(prefix) and not doc_id.startswith((
-                "supplier_", "fixedcost_", "account_", "cashtransaction_", "influencer_", "marketingexpense_", "extras_config", "categories_config", "stockintake_"
-            )):
+            is_system_meta_doc = not doc_id.startswith(prefix) or doc_id.startswith((
+                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_",
+                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config",
+                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
+            )) or doc_id in [f"{prefix}extras_config", f"{prefix}categories_config"]
+
+            if not is_system_meta_doc:
                 clean_sku = doc_id[len(prefix):].upper()
-                existing_products_by_sku[clean_sku] = d
-                
-        # 4. Prepare updates/creates
+                existing_by_sku[clean_sku] = d
+                all_existing_skus.add(clean_sku)
+                base_sku = (d.get("baseSku") or clean_sku.split("-")[0]).upper()
+                all_existing_skus.add(base_sku)
+
+                full_p_name = get_doc_full_name(d)
+                norm_name = normalize_text_key(full_p_name)
+                if norm_name:
+                    existing_by_name[norm_name] = d
+                system_products.append(d)
+
+        # 4. Process Tiendanube Products
         biz_type = request.headers.get("X-Business-Type", "textil")
         if biz_type not in ["textil", "comercio"]:
             biz_type = "textil"
-        products_to_save = []
-        newly_added_docs = []
-        
+
+        products_to_create = []
+        matched_system_doc_ids = set()
+
         for tn_prod in all_tn_products:
             p_id = tn_prod.get("id")
             p_name_dict = tn_prod.get("name", {})
             p_name = p_name_dict.get("es", p_name_dict.get("en", next(iter(p_name_dict.values())) if p_name_dict.values() else "Sin Nombre"))
             attributes = tn_prod.get("attributes", [])
-            
-            # Map category from categories list using our tn_categories dictionary
+
+            # Map category from categories list using tn_categories dictionary
             product_categories = tn_prod.get("categories", [])
             product_category = "General"
             if product_categories and isinstance(product_categories, list):
                 for cat_item in product_categories:
-                    cat_id = None
-                    if isinstance(cat_item, dict):
-                        cat_id = cat_item.get("id")
-                    elif isinstance(cat_item, (int, str)):
-                        cat_id = cat_item
-                    
+                    cat_id = cat_item.get("id") if isinstance(cat_item, dict) else cat_item
                     if cat_id is not None:
-                        if cat_id in tn_categories:
-                            product_category = tn_categories[cat_id]
+                        if cat_id in tn_categories or str(cat_id) in tn_categories:
+                            product_category = tn_categories.get(cat_id) or tn_categories.get(str(cat_id))
                             break
-                        elif str(cat_id) in tn_categories:
-                            product_category = tn_categories[str(cat_id)]
-                            break
-                        else:
-                            try:
-                                int_id = int(cat_id)
-                                if int_id in tn_categories:
-                                    product_category = tn_categories[int_id]
-                                    break
-                            except (ValueError, TypeError):
-                                pass
-            
+
             for variant in tn_prod.get("variants", []):
                 v_id = variant.get("id")
-                raw_sku = variant.get("sku")
-                if not raw_sku or not str(raw_sku).strip():
-                    # Fallback para variantes sin SKU en Tiendanube (evitando guión después de TN para baseSku correcto)
-                    raw_sku = f"TN{p_id}-{v_id}"
-                
-                sku = str(raw_sku).strip().upper()
-                if biz_type == "comercio" and not sku.endswith("-U"):
-                    sku = f"{sku}-U"
-                    
-                stock = safe_int(variant.get("stock"))
                 price = safe_float(variant.get("price"))
-                
+
                 # Parse talle y color
                 size = "Único"
                 color = ""
                 values = variant.get("values", [])
                 for attr, val in zip(attributes, values):
-                    attr_name = ""
-                    if isinstance(attr, dict):
-                        attr_name = attr.get("es", attr.get("en", "")).lower()
-                    elif isinstance(attr, str):
-                        attr_name = attr.lower()
-                    
-                    val_str = ""
-                    if isinstance(val, dict):
-                        val_str = val.get("es", val.get("en", next(iter(val.values())) if val.values() else ""))
-                    elif isinstance(val, str):
-                        val_str = val
-                        
+                    attr_name = attr.get("es", attr.get("en", "")).lower() if isinstance(attr, dict) else str(attr).lower()
+                    val_str = val.get("es", val.get("en", next(iter(val.values())) if val.values() else "")) if isinstance(val, dict) else str(val)
+
                     if "tall" in attr_name or "size" in attr_name:
                         size = val_str
                     elif "color" in attr_name or "variant" in attr_name or "opci" in attr_name:
@@ -3165,74 +3166,68 @@ def sync_tiendanube_catalog_route():
                         if val_str.upper() in ["XS", "S", "M", "L", "XL", "XXL", "U", "ÚNICO"]:
                             size = val_str
                         else:
-                            if not color:
-                                color = val_str
-                            else:
-                                color += f" - {val_str}"
-                                
+                            color = f"{color} - {val_str}".strip(" - ") if color else val_str
+
                 if biz_type == "comercio":
                     size = "Único"
-                    
-                # Clean size suffix from product name (e.g. "Campera WOMAN L" -> "Campera WOMAN")
+
                 clean_name, size = clean_product_name_and_size(p_name, size)
-                
-                baseSku = sku.split("-")[0] if "-" in sku else sku
-                
-                images = tn_prod.get("images", [])
-                image_url = images[0].get("src") if images else ""
 
-                raw_stock = variant.get("stock")
-                if raw_stock is None:
-                    stock_local_val = 0
-                    stock_taller_val = 0
+                # Compute full name (Product Name + Variant Color)
+                if color and color.lower() not in ["único", "unico"]:
+                    if color.lower() not in clean_name.lower():
+                        tn_full_name = f"{clean_name} {color}".strip()
+                    else:
+                        tn_full_name = clean_name.strip()
                 else:
-                    stock_local_val = safe_int(raw_stock)
-                    stock_taller_val = safe_int(raw_stock)
+                    tn_full_name = clean_name.strip()
 
-                if sku in existing_products_by_sku:
-                    existing_prod = existing_products_by_sku[sku]
-                    existing_prod["name"] = clean_name
-                    existing_prod["size"] = size
-                    existing_prod["color"] = color
-                    existing_prod["category"] = product_category
-                    if image_url:
-                        existing_prod["image_url"] = image_url
-                    existing_prod["price_tiendanube"] = price
-                    existing_prod["price_local"] = price
-                    existing_prod["price"] = price
-                    existing_prod["tiendanube_product_id"] = p_id
-                    existing_prod["tiendanube_variant_id"] = v_id
-                    
-                    # Actualizar stock de Tiendanube (si es infinito en TN, en inventario es 0)
-                    if raw_stock is None:
-                        existing_prod["stock_taller"] = 0
-                        existing_prod["stock_local"] = 0
-                        existing_prod["stock"] = 0
-                    else:
-                        existing_prod["stock_taller"] = stock_taller_val
-                        existing_prod["stock_local"] = stock_local_val
-                        existing_prod["stock"] = stock_local_val
-                        
-                    cost_val = safe_float(existing_prod.get("cost", 0.0))
-                    existing_prod["cost"] = cost_val
-                    if cost_val > 0:
-                        existing_prod["margin"] = round(((price / cost_val) - 1.0) * 100.0, 2)
-                    else:
-                        existing_prod["margin"] = safe_float(existing_prod.get("margin", 0.0))
-                    
-                    products_to_save.append(existing_prod)
+                norm_tn_name = normalize_text_key(tn_full_name)
+
+                # Matching check: Name + Color
+                matched_doc = existing_by_name.get(norm_tn_name)
+                if not matched_doc and variant.get("sku"):
+                    raw_sku = str(variant.get("sku")).strip().upper()
+                    matched_doc = existing_by_sku.get(raw_sku)
+
+                if matched_doc:
+                    # RULE: Match found -> DO NOTHING! Do not touch or modify existing product.
+                    matched_system_doc_ids.add(matched_doc.get("id"))
                 else:
+                    # RULE: Product in TN but not in system -> Create new product
+                    import random
+                    base_num = int(p_id) if (p_id and str(p_id).isdigit()) else random.randint(100000, 999999)
+                    candidate_base_sku = f"TN{base_num}"
+                    
+                    suffix_counter = 1
+                    while candidate_base_sku in all_existing_skus:
+                        candidate_base_sku = f"TN{base_num}{suffix_counter}"
+                        suffix_counter += 1
+
+                    all_existing_skus.add(candidate_base_sku)
+
+                    def get_size_sku_suffix(s):
+                        if not s or s.lower() in ["único", "unico", "u"]:
+                            return "U"
+                        return s.upper().replace(" ", "").replace("/", "-")
+
+                    size_suffix = get_size_sku_suffix(size) if (size and size != "Único") else ("U" if biz_type == "comercio" else "")
+                    final_sku = f"{candidate_base_sku}-{size_suffix}" if size_suffix else candidate_base_sku
+
+                    images = tn_prod.get("images", [])
+                    image_url = images[0].get("src") if images else ""
+
                     new_prod = {
-                        "id": f"{prefix}{sku}",
-                        "sku": f"{prefix}{sku}",
-                        "baseSku": baseSku,
+                        "id": f"{prefix}{final_sku}",
+                        "sku": f"{prefix}{final_sku}",
+                        "baseSku": candidate_base_sku,
                         "name": clean_name,
                         "category": product_category,
                         "size": size,
                         "color": color,
-                        "stock": stock_local_val,
-                        "stock_local": stock_local_val,
-                        "stock_taller": stock_taller_val,
+                        "stock": 0,
+                        "stock_local": 0,
+                        "stock_taller": 0,
                         "baseCost": 0.0,
                         "cost": 0.0,
                         "margin": 0.0,
@@ -3243,9 +3238,9 @@ def sync_tiendanube_catalog_route():
                         "tiendanube_product_id": p_id,
                         "tiendanube_variant_id": v_id
                     }
-                    products_to_save.append(new_prod)
-                    newly_added_docs.append(new_prod)
-                    
+                    products_to_create.append(new_prod)
+                    matched_system_doc_ids.add(new_prod["id"])
+
         # Update categories config with any new category names imported from Tiendanube
         try:
             cat_config = firebase_config.get_document("products", f"{prefix}categories_config", token)
@@ -3261,7 +3256,7 @@ def sync_tiendanube_catalog_route():
                 current_categories = []
                 
             updated = False
-            for prod in products_to_save:
+            for prod in products_to_create:
                 p_cat = prod.get("category")
                 if p_cat and p_cat not in current_categories:
                     current_categories.append(p_cat)
@@ -3273,7 +3268,7 @@ def sync_tiendanube_catalog_route():
         except Exception as cat_err:
             print(f"[CATEGORY SYNC] Failed to update categories_config: {cat_err}")
 
-        # 5. Save products concurrently
+        # 5. Save newly created products concurrently
         from flask import copy_current_request_context
         
         @copy_current_request_context
@@ -3282,31 +3277,26 @@ def sync_tiendanube_catalog_route():
             firebase_config.set_document("products", sku_with_prefix, prod, token)
             
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            executor.map(save_one_product, products_to_save)
-            
-        # Clean up any product documents in Firestore that are no longer in TiendaNube (except Producción categories)
-        deleted_docs = []
-        current_synced_skus = {p.get("sku") for p in products_to_save if p.get("sku")}
-        for d in existing_docs:
-            doc_id = d.get("id", "")
-            cat = str(d.get("category", "")).strip().lower()
-            is_production_cat = cat.startswith("producc")
-            
-            is_system_doc = not doc_id.startswith(prefix) or doc_id.startswith((
-                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
-                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
-                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
-            )) or doc_id in [f"{prefix}extras_config", f"{prefix}categories_config"]
-            
-            if not is_system_doc and not is_production_cat and doc_id not in current_synced_skus:
-                try:
-                    firebase_config.delete_document("products", doc_id, token)
-                    deleted_docs.append(d)
-                    print(f"[SYNC CLEANUP] Deleted product not in Tiendanube: {doc_id}")
-                except Exception as del_err:
-                    print(f"[SYNC CLEANUP ERROR] Failed to delete {doc_id}: {del_err}")
+            executor.map(save_one_product, products_to_create)
 
-        # Group deleted and added items by unique product model (name + color or baseSku)
+        # 6. Delete products in system not in TN, EXCEPT categories starting with "Producción" / "produccion"
+        deleted_docs = []
+        for d in system_products:
+            doc_id = d.get("id", "")
+            if doc_id not in matched_system_doc_ids:
+                cat = str(d.get("category", "")).strip().lower()
+                cat_norm = normalize_text_key(cat)
+                is_production_cat = cat_norm.startswith("producc")
+
+                if not is_production_cat:
+                    try:
+                        firebase_config.delete_document("products", doc_id, token)
+                        deleted_docs.append(d)
+                        print(f"[SYNC CLEANUP] Deleted product not in Tiendanube: {doc_id}")
+                    except Exception as del_err:
+                        print(f"[SYNC CLEANUP ERROR] Failed to delete {doc_id}: {del_err}")
+
+        # Group deleted and added items by unique product model
         unique_deleted_models = set()
         for d in deleted_docs:
             name_clean = (d.get("name") or "").strip().lower()
@@ -3317,7 +3307,7 @@ def sync_tiendanube_catalog_route():
                 unique_deleted_models.add(model_key)
 
         unique_added_models = set()
-        for p in newly_added_docs:
+        for p in products_to_create:
             name_clean = (p.get("name") or "").strip().lower()
             color_clean = (p.get("color") or "").strip().lower()
             base_sku = (p.get("baseSku") or p.get("sku") or "").strip().lower()
@@ -3329,9 +3319,9 @@ def sync_tiendanube_catalog_route():
             "success": True, 
             "added_count": len(unique_added_models),
             "deleted_count": len(unique_deleted_models),
-            "added_variants_count": len(newly_added_docs),
+            "added_variants_count": len(products_to_create),
             "deleted_variants_count": len(deleted_docs),
-            "synced_count": len(products_to_save)
+            "synced_count": len(all_tn_products)
         })
     except Exception as e:
         return handle_error(e)
