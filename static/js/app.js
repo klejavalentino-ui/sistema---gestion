@@ -5364,7 +5364,7 @@ async function saveProductForm(e) {
     Object.keys(tempLocationStock[loc]).forEach(sz => {
       if (isComercio && sz !== "Único") return;
       const qty = tempLocationStock[loc][sz] || 0;
-      if (!sizeStocks[sz]) {
+      if (sizeStocks[sz] === undefined) {
         sizeStocks[sz] = 0;
         locationsStocksPerSize[sz] = {};
       }

@@ -306,6 +306,58 @@ def sync_stock_to_tiendanube(uid, items, token=None, db_client=None, prefix=None
     except Exception as e:
         print(f"Advertencia al sincronizar stock con Tiendanube: {e}")
 
+def push_variant_to_tiendanube(item, token):
+    try:
+        config = firebase_config.get_document("integrations", "tiendanube", token)
+        if not config or not config.get("activo"):
+            return
+            
+        user_id = config.get("user_id")
+        access_token = config.get("access_token")
+        if not user_id or not access_token:
+            return
+            
+        if access_token:
+            access_token = "".join(c for c in str(access_token) if ord(c) < 128).strip()
+        if user_id:
+            user_id = "".join(c for c in str(user_id) if ord(c) < 128).strip()
+            
+        p_id = item.get("tiendanube_product_id")
+        v_id = item.get("tiendanube_variant_id")
+        
+        # If not present in item, try fetching from Firestore to be sure
+        if not p_id or not v_id:
+            prefix = get_user_prefix(token)
+            sku = item.get("sku", "")
+            if prefix and not sku.startswith(prefix):
+                sku = f"{prefix}{sku}"
+            prod = firebase_config.get_document("products", sku, token)
+            if prod:
+                p_id = prod.get("tiendanube_product_id")
+                v_id = prod.get("tiendanube_variant_id")
+                
+        if p_id and v_id:
+            stock = safe_int(item.get("stock_local", item.get("stock", 0)))
+            price = safe_float(item.get("price_tiendanube", item.get("price_local", item.get("price", 0))))
+            
+            payload = {"stock": stock}
+            if price > 0:
+                payload["price"] = str(price)
+                
+            headers = {
+                "Authentication": f"bearer {access_token}",
+                "User-Agent": "Datamargen (klejavalentino@gmail.com)",
+                "Content-Type": "application/json"
+            }
+            url = f"https://api.tiendanube.com/v1/{user_id}/products/{p_id}/variants/{v_id}"
+            r = requests.put(url, json=payload, headers=headers, timeout=15)
+            if r.ok:
+                print(f"[TIENDANUBE PUSH] Stock/Price synced for SKU {item.get('sku')}: stock={stock}, price={price}")
+            else:
+                print(f"[TIENDANUBE PUSH ERROR] Failed to sync SKU {item.get('sku')}: {r.text}")
+    except Exception as e:
+        print(f"[TIENDANUBE PUSH EXCEPTION] {e}")
+
 # --- Ruta Principal (SPA) ---
 @app.route("/")
 def index():
@@ -1266,10 +1318,10 @@ def auto_restore_user_variants(prefix, token, user_docs):
         for d in user_docs:
             doc_id = d.get("id", "")
             if not doc_id.startswith((
-                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
-                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
-                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
-            )) and doc_id not in [f"{prefix}extras_config", f"{prefix}categories_config", f"{prefix}user_profile"]:
+                "supplier_", "fixedcost_", "account_", "cashtransaction_", 
+                "influencer_", "marketingexpense_", "extras_config", 
+                "categories_config", "stockintake_", "productionorder_"
+            )) and doc_id not in ["extras_config", "categories_config", "user_profile"]:
                 loc_stock = d.get("locationsStock")
                 if not isinstance(loc_stock, dict):
                     loc_stock = {}
@@ -1279,7 +1331,11 @@ def auto_restore_user_variants(prefix, token, user_docs):
                     for loc in missing_keys:
                         loc_stock[loc] = 0
                     d["locationsStock"] = loc_stock
-                    firebase_config.set_document("products", d["id"], d, token)
+                    d_copy = dict(d)
+                    d_copy["id"] = f"{prefix}{doc_id}"
+                    if "sku" in d_copy:
+                        d_copy["sku"] = f"{prefix}{d_copy['sku']}" if not str(d_copy['sku']).startswith(prefix) else d_copy['sku']
+                    firebase_config.set_document("products", f"{prefix}{doc_id}", d_copy, token)
                     was_updated = True
         return was_updated
     except Exception as err:
@@ -1358,7 +1414,8 @@ def save_products_batch():
             # Push updates to Tiendanube in background thread pool
             try:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                    executor.map(lambda item: push_variant_to_tiendanube(item, token), data)
+                    for item in data:
+                        executor.submit(push_variant_to_tiendanube, item, token)
             except Exception as push_err:
                 print(f"[TIENDANUBE PUSH BATCH ERROR] {push_err}")
 
