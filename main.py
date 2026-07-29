@@ -1240,86 +1240,12 @@ def get_all_state():
 def auto_restore_user_variants(prefix, token, user_docs):
     try:
         profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
-        configured_locations = profile_doc.get("locations", ["Bahia Blanca", "Buenos Aires"])
-        if not configured_locations:
-            configured_locations = ["Bahia Blanca", "Buenos Aires"]
+        configured_locations = profile_doc.get("locations") or ["Local Principal"]
 
-        user_sizes = profile_doc.get("sizes") or profile_doc.get("talles") or profile_doc.get("variants") or []
-        if isinstance(user_sizes, str):
-            user_sizes = [s.strip() for s in user_sizes.split(",") if s.strip()]
-        
-        apparel_sizes = [s for s in user_sizes if s.lower() not in ["único", "unico"]]
-        if not apparel_sizes:
-            apparel_sizes = ["M", "L", "XL", "XXL"]
-
-        grouped = {}
         for d in user_docs:
-            doc_id = d.get("id", "")
-            if not doc_id.startswith((
-                f"{prefix}supplier_", f"{prefix}fixedcost_", f"{prefix}account_", f"{prefix}cashtransaction_", 
-                f"{prefix}influencer_", f"{prefix}marketingexpense_", f"{prefix}extras_config", 
-                f"{prefix}categories_config", f"{prefix}stockintake_", f"{prefix}productionorder_"
-            )) and doc_id not in [f"{prefix}extras_config", f"{prefix}categories_config"]:
-                clean_id = doc_id[len(prefix):] if doc_id.startswith(prefix) else doc_id
-                base_sku = (d.get("baseSku") or clean_id.split("-")[0]).upper()
-                grouped.setdefault(base_sku, []).append(d)
-
-        was_updated = False
-        for base_sku, docs in grouped.items():
-            first_doc = docs[0]
-            cat = str(first_doc.get("category", "")).strip().lower()
-            name = str(first_doc.get("name", "")).strip().lower()
-
-            is_apparel = any(kw in cat for kw in ["denim", "hoodie", "woman", "remera", "pantalon", "buzo", "campera", "ropa", "textil"]) or \
-                         any(kw in name for kw in ["campera", "buzo", "remera", "hoodie", "pantalon", "top", "baby tee", "canguro"])
-
-            if is_apparel:
-                existing_sizes = {str(d.get("size", "")).strip().upper() for d in docs if d.get("size")}
-                
-                # Check if standard size variants from user profile are missing
-                for sz in apparel_sizes:
-                    if sz.upper() not in existing_sizes:
-                        size_suffix = sz.upper().replace(" ", "").replace("/", "-")
-                        new_sku = f"{base_sku}-{size_suffix}"
-                        new_doc_id = f"{prefix}{new_sku}"
-
-                        loc_stock = {}
-                        for loc in configured_locations:
-                            loc_stock[loc] = 0
-
-                        new_variant = {
-                            "id": new_doc_id,
-                            "sku": new_doc_id,
-                            "baseSku": base_sku,
-                            "name": first_doc.get("name", ""),
-                            "category": first_doc.get("category", ""),
-                            "size": sz,
-                            "color": first_doc.get("color", ""),
-                            "stock": 0,
-                            "stock_local": 0,
-                            "stock_taller": 0,
-                            "locationsStock": loc_stock,
-                            "baseCost": safe_float(first_doc.get("baseCost", 0.0)),
-                            "cost": safe_float(first_doc.get("cost", 0.0)),
-                            "margin": safe_float(first_doc.get("margin", 0.0)),
-                            "price": safe_float(first_doc.get("price", 0.0)),
-                            "price_local": safe_float(first_doc.get("price_local", 0.0)),
-                            "price_tiendanube": safe_float(first_doc.get("price_tiendanube", 0.0)),
-                            "image_url": first_doc.get("image_url", ""),
-                            "extras": first_doc.get("extras", {})
-                        }
-                        firebase_config.set_document("products", new_doc_id, new_variant, token)
-                        user_docs.append(new_variant)
-                        was_updated = True
-
-            for d in docs:
-                loc_stock = d.get("locationsStock")
-                if not isinstance(loc_stock, dict) or len(loc_stock) == 0:
-                    d["locationsStock"] = {loc: safe_int(d.get("stock", 0)) if idx == 0 else 0 for idx, loc in enumerate(configured_locations)}
-                    firebase_config.set_document("products", d["id"], d, token)
-                    was_updated = True
-
-        return was_updated
+            if not isinstance(d.get("locationsStock"), dict):
+                d["locationsStock"] = {loc: safe_int(d.get("stock", 0)) if idx == 0 else 0 for idx, loc in enumerate(configured_locations)}
+        return False
     except Exception as err:
         print(f"[AUTO RESTORE VARIANTS ERROR] {err}")
         return False
