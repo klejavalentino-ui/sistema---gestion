@@ -13527,6 +13527,78 @@ function updateQuoteItemQty(index, newQty) {
   renderQuotesUI();
 }
 
+function getCleanNameAndSize(item) {
+  let name = item.name || "";
+  let size = item.size || "Único";
+
+  if (size && size !== "Único") {
+    const suffixWithSpace = ` (${size})`;
+    const suffixNoSpace = `(${size})`;
+    if (name.endsWith(suffixWithSpace)) {
+      name = name.slice(0, -suffixWithSpace.length).trim();
+    } else if (name.endsWith(suffixNoSpace)) {
+      name = name.slice(0, -suffixNoSpace.length).trim();
+    }
+  } else {
+    // Search if name has (Talle ...) or size inside parens at the end
+    const talleMatch = name.match(/^(.*?)\s*\((Talle\s+.*?)\)$/i);
+    if (talleMatch) {
+      name = talleMatch[1].trim();
+      size = talleMatch[2].trim();
+    } else {
+      const parenMatch = name.match(/^(.*?)\s*\(([^)]+)\)$/i);
+      if (parenMatch) {
+        name = parenMatch[1].trim();
+        size = parenMatch[2].trim();
+      }
+    }
+  }
+
+  return { cleanName: name, sizeStr: size };
+}
+
+function openQuoteConfigModal() {
+  const cfg = state.userProfile?.quoteConfig || {};
+  const defaultTerms = "Presupuesto válido por 7 días corridos.\nPrecios sujetos a disponibilidad de stock al confirmar el pedido.\nComprobante de cotización no válido como factura fiscal.";
+  const defaultWa = "¡Gracias por tu consulta! Quedamos a tu disposición.";
+
+  const termsEl = document.getElementById("quote-cfg-terms");
+  const waEl = document.getElementById("quote-cfg-wa-footer");
+
+  if (termsEl) termsEl.value = cfg.termsText !== undefined ? cfg.termsText : defaultTerms;
+  if (waEl) waEl.value = cfg.waFooterText !== undefined ? cfg.waFooterText : defaultWa;
+
+  document.getElementById("quote-config-modal").className = "modal-backdrop active";
+}
+window.openQuoteConfigModal = openQuoteConfigModal;
+
+function closeQuoteConfigModal() {
+  document.getElementById("quote-config-modal").className = "modal-backdrop";
+}
+window.closeQuoteConfigModal = closeQuoteConfigModal;
+
+async function saveQuoteConfig() {
+  const termsText = document.getElementById("quote-cfg-terms")?.value || "";
+  const waFooterText = document.getElementById("quote-cfg-wa-footer")?.value || "";
+
+  if (!state.userProfile) state.userProfile = {};
+  state.userProfile.quoteConfig = {
+    termsText: termsText,
+    waFooterText: waFooterText
+  };
+
+  try {
+    showToast("Guardando estructura de presupuesto...");
+    await apiRequest("/api/profile", "POST", state.userProfile);
+    showToast("¡Estructura de presupuesto guardada con éxito!", false);
+    closeQuoteConfigModal();
+    renderQuotesUI();
+  } catch (err) {
+    showToast("Error al guardar estructura: " + err.message, true);
+  }
+}
+window.saveQuoteConfig = saveQuoteConfig;
+
 function renderQuotesUI() {
   const tbody = document.getElementById("quote-items-tbody");
   if (!tbody) return;
@@ -13561,27 +13633,31 @@ function renderQuotesUI() {
   if (items.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px 10px;">
+        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px 10px;">
           No hay productos agregados al presupuesto. Usá el panel de la izquierda para agregar.
         </td>
       </tr>
     `;
   } else {
-    tbody.innerHTML = items.map((item, idx) => `
-      <tr>
-        <td style="font-family: monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">${item.sku}</td>
-        <td style="font-weight: 700; color: var(--text-white);">${item.name}</td>
-        <td style="text-align: right; font-weight: 700; color: var(--text-white);">$${Math.round(item.price).toLocaleString('es-AR')}</td>
-        <td style="text-align: center;">
-          <input type="number" class="form-control no-print" value="${item.qty}" min="1" style="width: 60px; padding: 2px 6px; text-align: center; margin: 0 auto;" onchange="updateQuoteItemQty(${idx}, this.value)">
-          <span class="print-only" style="display: none;">${item.qty}</span>
-        </td>
-        <td style="text-align: right; font-weight: 800; color: var(--accent-emerald);">$${Math.round(item.subtotal).toLocaleString('es-AR')}</td>
-        <td class="no-print" style="text-align: center;">
-          <button class="btn-action btn-delete" style="width:28px; height:28px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;" onclick="removeQuoteItem(${idx})" title="Eliminar Item">🗑️</button>
-        </td>
-      </tr>
-    `).join("");
+    tbody.innerHTML = items.map((item, idx) => {
+      const { cleanName, sizeStr } = getCleanNameAndSize(item);
+      return `
+        <tr>
+          <td style="font-family: monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">${item.sku}</td>
+          <td style="font-weight: 700; color: var(--text-white);">${cleanName}</td>
+          <td style="text-align: center; font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">${sizeStr}</td>
+          <td style="text-align: right; font-weight: 700; color: var(--text-white);">$${Math.round(item.price).toLocaleString('es-AR')}</td>
+          <td style="text-align: center;">
+            <input type="number" class="form-control no-print" value="${item.qty}" min="1" style="width: 60px; padding: 2px 6px; text-align: center; margin: 0 auto;" onchange="updateQuoteItemQty(${idx}, this.value)">
+            <span class="print-only" style="display: none;">${item.qty}</span>
+          </td>
+          <td style="text-align: right; font-weight: 800; color: var(--accent-emerald);">$${Math.round(item.subtotal).toLocaleString('es-AR')}</td>
+          <td class="no-print" style="text-align: center;">
+            <button class="btn-action btn-delete" style="width:28px; height:28px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;" onclick="removeQuoteItem(${idx})" title="Eliminar Item">🗑️</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
   }
   
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
@@ -13615,6 +13691,9 @@ function copyQuoteToWhatsApp() {
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const total = Math.max(0, subtotal - discount);
   
+  const customFooter = state.userProfile?.quoteConfig?.waFooterText;
+  const customTerms = state.userProfile?.quoteConfig?.termsText;
+
   let msg = `📋 *PRESUPUESTO - ${bName.toUpperCase()}*\n`;
   msg += `📅 Fecha: ${dateStr}\n`;
   if (clientName) msg += `👤 Cliente: ${clientName}\n`;
@@ -13622,7 +13701,9 @@ function copyQuoteToWhatsApp() {
   msg += `----------------------------------------\n`;
   
   items.forEach(item => {
-    msg += `• *[${item.sku}]* ${item.name}\n`;
+    const { cleanName, sizeStr } = getCleanNameAndSize(item);
+    const sizeInfo = (sizeStr && sizeStr !== 'Único') ? ` [Talle: ${sizeStr}]` : '';
+    msg += `• *[${item.sku}]* ${cleanName}${sizeInfo}\n`;
     msg += `   ${item.qty} u. x $${Math.round(item.price).toLocaleString('es-AR')} = *$${Math.round(item.subtotal).toLocaleString('es-AR')}*\n`;
   });
   
@@ -13631,8 +13712,16 @@ function copyQuoteToWhatsApp() {
     msg += `Subtotal: $${Math.round(subtotal).toLocaleString('es-AR')}\n`;
     msg += `Descuento: -$${Math.round(discount).toLocaleString('es-AR')}\n`;
   }
-  msg += `💰 *TOTAL FINAL: $${Math.round(total).toLocaleString('es-AR')}*\n\n`;
-  msg += `¡Gracias por tu consulta! Quedamos a tu disposición.`;
+  msg += `💰 *TOTAL FINAL: $${Math.round(total).toLocaleString('es-AR')}*\n`;
+
+  if (customTerms && customTerms.trim()) {
+    msg += `\n*Condiciones Comerciales:*\n`;
+    customTerms.split('\n').forEach(line => {
+      if (line.trim()) msg += `• ${line.trim()}\n`;
+    });
+  }
+
+  msg += `\n${customFooter && customFooter.trim() ? customFooter.trim() : '¡Gracias por tu consulta! Quedamos a tu disposición.'}`;
   
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(msg).then(() => {
@@ -13689,6 +13778,16 @@ async function downloadQuotePDF() {
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const total = Math.max(0, subtotal - discount);
 
+  const customTerms = state.userProfile?.quoteConfig?.termsText;
+  let termsListHtml = `
+    <li>Presupuesto válido por 7 días corridos.</li>
+    <li>Precios sujetos a disponibilidad de stock al confirmar el pedido.</li>
+    <li>Comprobante de cotización no válido como factura fiscal.</li>
+  `;
+  if (customTerms && customTerms.trim()) {
+    termsListHtml = customTerms.split('\n').map(line => line.trim()).filter(line => line.length > 0).map(line => `<li>${line}</li>`).join("");
+  }
+
   // Layout comercial A4 ultra-profesional
   const pdfContainer = document.createElement("div");
   pdfContainer.style.padding = "35px 40px";
@@ -13701,7 +13800,6 @@ async function downloadQuotePDF() {
     <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
       <div>
         <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
-        <div style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Presupuesto / Cotización Comercial</div>
       </div>
       <div style="text-align: right;">
         <div style="font-size: 16px; font-weight: 900; color: #2563eb; letter-spacing: 1px;">PRESUPUESTO</div>
@@ -13724,23 +13822,28 @@ async function downloadQuotePDF() {
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px;">
       <thead>
         <tr style="background-color: #0f172a; color: #ffffff;">
-          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">SKU / Código</th>
-          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">Descripción del Producto</th>
+          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">SKU</th>
+          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">Nombre del Producto</th>
+          <th style="padding: 9px 12px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase;">Talle</th>
           <th style="padding: 9px 12px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase;">Precio Unit.</th>
           <th style="padding: 9px 12px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase;">Cant.</th>
           <th style="padding: 9px 12px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase;">Subtotal</th>
         </tr>
       </thead>
       <tbody>
-        ${items.map((it, idx) => `
-          <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-            <td style="padding: 9px 12px; font-size: 11px; font-weight: 700; color: #2563eb; font-family: monospace;">${it.sku}</td>
-            <td style="padding: 9px 12px; font-size: 12px; font-weight: 600; color: #0f172a;">${it.name}</td>
-            <td style="padding: 9px 12px; font-size: 12px; text-align: right; color: #334155;">$${Math.round(it.price).toLocaleString('es-AR')}</td>
-            <td style="padding: 9px 12px; font-size: 12px; text-align: center; font-weight: 700; color: #0f172a;">${it.qty}</td>
-            <td style="padding: 9px 12px; font-size: 12px; text-align: right; font-weight: 700; color: #0f172a;">$${Math.round(it.subtotal).toLocaleString('es-AR')}</td>
-          </tr>
-        `).join("")}
+        ${items.map((it, idx) => {
+          const { cleanName, sizeStr } = getCleanNameAndSize(it);
+          return `
+            <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+              <td style="padding: 9px 12px; font-size: 11px; font-weight: 700; color: #2563eb; font-family: monospace;">${it.sku}</td>
+              <td style="padding: 9px 12px; font-size: 12px; font-weight: 600; color: #0f172a;">${cleanName}</td>
+              <td style="padding: 9px 12px; font-size: 11px; text-align: center; color: #475569; font-weight: 600;">${sizeStr}</td>
+              <td style="padding: 9px 12px; font-size: 12px; text-align: right; color: #334155;">$${Math.round(it.price).toLocaleString('es-AR')}</td>
+              <td style="padding: 9px 12px; font-size: 12px; text-align: center; font-weight: 700; color: #0f172a;">${it.qty}</td>
+              <td style="padding: 9px 12px; font-size: 12px; text-align: right; font-weight: 700; color: #0f172a;">$${Math.round(it.subtotal).toLocaleString('es-AR')}</td>
+            </tr>
+          `;
+        }).join("")}
       </tbody>
     </table>
 
@@ -13748,11 +13851,31 @@ async function downloadQuotePDF() {
       <div style="max-width: 380px;">
         <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px;">Condiciones Comerciales:</div>
         <ul style="margin: 0; padding-left: 14px; font-size: 10.5px; color: #475569; line-height: 1.4;">
-          <li>Presupuesto válido por 7 días corridos.</li>
-          <li>Precios sujetos a disponibilidad de stock al confirmar el pedido.</li>
-          <li>Comprobante de cotización no válido como factura fiscal.</li>
+          ${termsListHtml}
         </ul>
       </div>
+
+      <div style="text-align: right; min-width: 200px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+          <span>Subtotal:</span>
+          <span>$${Math.round(subtotal).toLocaleString('es-AR')}</span>
+        </div>
+        ${discount > 0 ? `
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ef4444; margin-bottom: 4px;">
+          <span>Descuento:</span>
+          <span>-$${Math.round(discount).toLocaleString('es-AR')}</span>
+        </div>` : ''}
+        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0f172a; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 4px;">
+          <span>TOTAL:</span>
+          <span style="color: #10b981;">$${Math.round(total).toLocaleString('es-AR')}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+      Documento emitido por Datamargen ERP • www.datamargen.com
+    </div>
+  `;
 
       <div style="text-align: right; min-width: 200px;">
         <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">

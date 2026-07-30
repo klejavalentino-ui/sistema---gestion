@@ -1830,6 +1830,9 @@
             <p>Construí un presupuesto rápido con tus productos, precios y cantidades para compartir por WhatsApp o descargar en PDF profesional.</p>
           </div>
           <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn btn-secondary" onclick="openQuoteConfigModal()" title="Configurar condiciones comerciales y WhatsApp">
+              <i>⚙️</i> Configurar Estructura
+            </button>
             <button class="btn btn-emerald" onclick="copyQuoteToWhatsApp()">
               <i>📲</i> Copiar para WhatsApp
             </button>
@@ -1920,11 +1923,12 @@
               <table class="idx-table" style="width: 100%;">
                 <thead>
                   <tr>
-                    <th style="width: 18%;">Código (SKU)</th>
-                    <th>Producto</th>
-                    <th style="width: 18%; text-align: right;">Precio Unit.</th>
-                    <th style="width: 12%; text-align: center;">Cant.</th>
-                    <th style="width: 20%; text-align: right;">Subtotal</th>
+                    <th style="width: 15%;">SKU</th>
+                    <th>Nombre del Producto</th>
+                    <th style="width: 14%; text-align: center;">Talle</th>
+                    <th style="width: 15%; text-align: right;">Precio Unit.</th>
+                    <th style="width: 10%; text-align: center;">Cant.</th>
+                    <th style="width: 18%; text-align: right;">Subtotal</th>
                     <th class="no-print" style="width: 10%; text-align: center;">Acciones</th>
                   </tr>
                 </thead>
@@ -3912,6 +3916,41 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeProductionCategoryConfigModal()">Cancelar</button>
         <button type="button" class="btn btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald);" onclick="saveProductionCategoriesConfig()">Guardar Configuración</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIGURACIÓN DE ESTRUCTURA Y CONDICIONES DEL PRESUPUESTO -->
+  <div id="quote-config-modal" class="modal-backdrop">
+    <div class="modal-content max-w-xl">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Estructura y Condiciones del Presupuesto</h3>
+        <span class="modal-close-btn" onclick="closeQuoteConfigModal()">✕</span>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); padding: 10px; border-radius: 8px;">
+          <i class="fas fa-info-circle"></i> Podés personalizar las <strong>Condiciones Comerciales</strong> que aparecen al pie del PDF y el mensaje de cierre para WhatsApp.
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <label class="form-label" style="font-weight: 700; color: var(--text-white); margin-bottom: 6px;">
+            📄 Condiciones Comerciales (Aparecen al pie del PDF):
+          </label>
+          <div style="font-size: 0.72rem; color: var(--text-gray); margin-bottom: 6px;">Ingresá una condición por línea.</div>
+          <textarea id="quote-cfg-terms" class="form-input" rows="5" style="font-size: 0.8rem; width: 100%;" placeholder="Presupuesto válido por 7 días corridos.&#10;Precios sujetos a disponibilidad de stock al confirmar el pedido.&#10;Comprobante de cotización no válido como factura fiscal."></textarea>
+        </div>
+
+        <div>
+          <label class="form-label" style="font-weight: 700; color: var(--text-white); margin-bottom: 6px;">
+            📲 Mensaje / Cierre para WhatsApp:
+          </label>
+          <div style="font-size: 0.72rem; color: var(--text-gray); margin-bottom: 6px;">Texto de despedida al copiar el presupuesto para WhatsApp.</div>
+          <textarea id="quote-cfg-wa-footer" class="form-input" rows="3" style="font-size: 0.8rem; width: 100%;" placeholder="¡Gracias por tu consulta! Quedamos a tu disposición."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeQuoteConfigModal()">Cancelar</button>
+        <button type="button" class="btn btn-primary" style="background: var(--accent-blue); border-color: var(--accent-blue);" onclick="saveQuoteConfig()">Guardar Configuración</button>
       </div>
     </div>
   </div>
