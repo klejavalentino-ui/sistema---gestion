@@ -620,6 +620,9 @@
             <p>Transformá stock de prendas base (sin insumos / mayorista) a prendas terminadas para venta local (minorista).</p>
           </div>
           <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" style="font-size: 0.8rem; background: rgba(255,255,255,0.05); color: var(--text-white); border: 1px solid var(--border-color);" onclick="openProductionCategoryConfigModal()">
+              <i class="fas fa-tags" style="color: var(--accent-emerald);"></i> Categorías de Producción
+            </button>
             <button class="btn btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald);" onclick="openProductionModal()">
               + Nueva Transformación
             </button>
@@ -3801,55 +3804,68 @@
         <div class="modal-body" style="padding: 20px;">
           <!-- Informante explicativo -->
           <div style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.78rem; color: var(--accent-emerald);">
-            <i class="fas fa-info-circle"></i> <strong>Instrucciones:</strong> Restará stock de la prenda base (sin transformar / mayorista) y lo sumará a la prenda final lista para venta en el local minorista.
+            <i class="fas fa-info-circle"></i> <strong>Instrucciones:</strong> Descuenta stock por talle de la prenda base (origen) y suma stock al producto final (destino) en la ubicación elegida, descontando los insumos consumidos.
+          </div>
+
+          <div class="grid-2" style="margin-bottom: 12px;">
+            <!-- Ubicación de Transformación -->
+            <div class="form-group">
+              <label class="form-label" for="prod-location-select">Ubicación de Stock <span style="color:var(--accent-red)">*</span></label>
+              <select id="prod-location-select" class="form-select" required onchange="onProductionOriginChange()">
+                <!-- Opciones dinámicas de ubicaciones -->
+              </select>
+            </div>
+
+            <!-- Observaciones / Taller -->
+            <div class="form-group">
+              <label class="form-label" for="prod-notes-input">Observaciones / Taller</label>
+              <input type="text" id="prod-notes-input" class="form-input" placeholder="Ej. Taller Bordado + Estampa logo">
+            </div>
           </div>
 
           <div class="grid-2">
             <!-- Prenda Origen -->
             <div class="form-group">
-              <label class="form-label" for="prod-origin-select">Prenda Base / Origen (Mayorista) <span style="color:var(--accent-red)">*</span></label>
+              <label class="form-label" for="prod-origin-select">Prenda Base / Origen (A Producir) <span style="color:var(--accent-red)">*</span></label>
               <select id="prod-origin-select" class="form-select" required onchange="onProductionOriginChange()">
                 <option value="">Seleccione prenda base...</option>
               </select>
-              <div id="prod-origin-stock-info" style="font-size: 0.72rem; color: var(--text-gray); margin-top: 4px; font-weight: 600;"></div>
+              <div id="prod-origin-stock-info" style="font-size: 0.72rem; color: var(--accent-emerald); margin-top: 4px; font-weight: 600;"></div>
             </div>
 
             <!-- Prenda Destino -->
             <div class="form-group">
-              <label class="form-label" for="prod-target-select">Prenda Destino (Local / Minorista) <span style="color:var(--accent-red)">*</span></label>
+              <label class="form-label" for="prod-target-select">Prenda Destino (Producida / Final) <span style="color:var(--accent-red)">*</span></label>
               <select id="prod-target-select" class="form-select" required>
-                <option value="">Seleccione prenda final local...</option>
+                <option value="">Seleccione prenda final...</option>
               </select>
             </div>
           </div>
 
-          <!-- Cantidad total y Observaciones -->
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label" for="prod-quantity-input">Cantidad a Transformar <span style="color:var(--accent-red)">*</span></label>
-              <input type="number" id="prod-quantity-input" class="form-input" min="1" placeholder="Ej. 10" required oninput="renderProductionSizesBreakdown()">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="prod-notes-input">Observaciones / Taller</label>
-              <input type="text" id="prod-notes-input" class="form-input" placeholder="Ej. Bordado Mazo + Estampa">
-            </div>
+          <!-- Cantidad total a transformar -->
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" for="prod-quantity-input">Cantidad Total a Transformar <span style="color:var(--accent-red)">*</span></label>
+            <input type="number" id="prod-quantity-input" class="form-input" min="1" placeholder="Ej. 10" required>
           </div>
 
           <!-- Desglose por talles -->
-          <div id="prod-sizes-breakdown-container" style="display: none; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
-            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-white); margin-bottom: 8px;">Desglose por Talles (Opcional)</div>
-            <div id="prod-sizes-inputs-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px;">
+          <div id="prod-sizes-breakdown-container" style="display: none; background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-white); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <span><i class="fas fa-ruler-combined" style="color: var(--accent-blue);"></i> Cantidades a Transformar por Talle</span>
+              <span style="font-size: 0.7rem; color: var(--text-gray);">Ingrese unidades para descontar/sumar por variante</span>
+            </div>
+            <div id="prod-sizes-inputs-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 10px;">
               <!-- Carga dinámicamente -->
             </div>
           </div>
 
-          <!-- Insumos aplicados (opcional) -->
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+          <!-- Insumos aplicados (desde la sección Insumos) -->
+          <div style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-white);"><i class="fas fa-tags" style="color: var(--accent-emerald);"></i> Insumos Aplicados (Bordados, Estampas, Etiquetas)</span>
-              <button type="button" class="btn btn-sm" style="font-size: 0.7rem; padding: 2px 8px; background: rgba(16,185,129,0.1); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.2);" onclick="addProductionInsumoRow()">+ Insumo</button>
+              <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-white);"><i class="fas fa-boxes-packing" style="color: var(--accent-emerald);"></i> Insumos Utilizados (Sección Insumos)</span>
+              <button type="button" class="btn btn-sm" style="font-size: 0.7rem; padding: 3px 10px; background: rgba(16,185,129,0.12); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.25);" onclick="addProductionInsumoRow()">+ Usar Insumo</button>
             </div>
-            <div id="prod-insumos-rows-container">
+            <div id="prod-insumos-rows-container" style="display: flex; flex-direction: column; gap: 8px;">
               <!-- Filas dinámicas -->
             </div>
           </div>
@@ -3860,6 +3876,43 @@
           <button type="submit" id="btn-save-production" class="btn btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald);">Registrar Transformación</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIGURAR CATEGORÍAS DE PRODUCCIÓN -->
+  <div id="production-categories-modal" class="modal-backdrop">
+    <div class="modal-content max-w-xl">
+      <div class="modal-header">
+        <h3 class="modal-title">🏷️ Categorías de Producción (Origen y Destino)</h3>
+        <span class="modal-close-btn" onclick="closeProductionCategoryConfigModal()">✕</span>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); padding: 10px; border-radius: 8px;">
+          <i class="fas fa-info-circle"></i> Seleccioná cuáles categorías de tu Inventario corresponden a <strong>Prendas Base / Origen</strong> (a producir) y cuáles a <strong>Productos Terminados / Destino</strong> (producidos).
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <label class="form-label" style="font-weight: 700; color: var(--text-white); margin-bottom: 8px;">
+            📦 Categorías Origen ("Prendas Base / A Producir"):
+          </label>
+          <div id="prod-base-categories-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px;">
+            <!-- Renderizado dinámico de checkboxes de categorías origen -->
+          </div>
+        </div>
+
+        <div>
+          <label class="form-label" style="font-weight: 700; color: var(--text-white); margin-bottom: 8px;">
+            ✨ Categorías Destino ("Productos Producidos / Terminados"):
+          </label>
+          <div id="prod-target-categories-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px;">
+            <!-- Renderizado dinámico de checkboxes de categorías destino -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeProductionCategoryConfigModal()">Cancelar</button>
+        <button type="button" class="btn btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald);" onclick="saveProductionCategoriesConfig()">Guardar Configuración</button>
+      </div>
     </div>
   </div>
 

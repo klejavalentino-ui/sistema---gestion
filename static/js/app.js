@@ -14004,12 +14004,101 @@ window.syncZecatCatalog = syncZecatCatalog;
 
 // --- PRODUCCIÓN (TRANSFORMACIÓN DE PRENDAS) LOGIC ---
 
+function getProductionCategoriesConfig() {
+  const allCategories = getCategories() || [];
+  
+  let baseCategories = state.userProfile?.productionBaseCategories || [];
+  let targetCategories = state.userProfile?.productionTargetCategories || [];
+
+  // Si no hay configuración explícita, usar heurísticas por defecto
+  if (!baseCategories || baseCategories.length === 0) {
+    baseCategories = allCategories.filter(cat => {
+      const cLower = (cat || "").toLowerCase();
+      return cLower.includes("producción") || cLower.includes("produccion") || cLower.includes("base") || cLower.includes("mayorista") || cLower.includes("sin insumo") || cLower.includes("sin transformar");
+    });
+  }
+
+  if (!targetCategories || targetCategories.length === 0) {
+    targetCategories = allCategories.filter(cat => !baseCategories.includes(cat));
+  }
+
+  return { baseCategories, targetCategories, allCategories };
+}
+
+function openProductionCategoryConfigModal() {
+  const { baseCategories, targetCategories, allCategories } = getProductionCategoriesConfig();
+  const baseContainer = document.getElementById("prod-base-categories-checkboxes");
+  const targetContainer = document.getElementById("prod-target-categories-checkboxes");
+  if (!baseContainer || !targetContainer) return;
+
+  baseContainer.innerHTML = "";
+  targetContainer.innerHTML = "";
+
+  if (allCategories.length === 0) {
+    baseContainer.innerHTML = `<div style="font-size:0.75rem; color:var(--text-gray);">No hay categorías registradas en el inventario.</div>`;
+    targetContainer.innerHTML = `<div style="font-size:0.75rem; color:var(--text-gray);">No hay categorías registradas en el inventario.</div>`;
+  } else {
+    allCategories.forEach(cat => {
+      const isBase = baseCategories.includes(cat);
+      const isTarget = targetCategories.includes(cat);
+
+      const baseLabel = document.createElement("label");
+      baseLabel.style.cssText = "display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-white); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px; cursor: pointer;";
+      baseLabel.innerHTML = `
+        <input type="checkbox" class="prod-cat-base-chk" value="${cat}" ${isBase ? "checked" : ""}>
+        <span>${cat}</span>
+      `;
+      baseContainer.appendChild(baseLabel);
+
+      const targetLabel = document.createElement("label");
+      targetLabel.style.cssText = "display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-white); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px; cursor: pointer;";
+      targetLabel.innerHTML = `
+        <input type="checkbox" class="prod-cat-target-chk" value="${cat}" ${isTarget ? "checked" : ""}>
+        <span>${cat}</span>
+      `;
+      targetContainer.appendChild(targetLabel);
+    });
+  }
+
+  document.getElementById("production-categories-modal").className = "modal-backdrop active";
+}
+window.openProductionCategoryConfigModal = openProductionCategoryConfigModal;
+
+function closeProductionCategoryConfigModal() {
+  document.getElementById("production-categories-modal").className = "modal-backdrop";
+}
+window.closeProductionCategoryConfigModal = closeProductionCategoryConfigModal;
+
+async function saveProductionCategoriesConfig() {
+  const baseChks = document.querySelectorAll(".prod-cat-base-chk:checked");
+  const targetChks = document.querySelectorAll(".prod-cat-target-chk:checked");
+
+  const selectedBase = Array.from(baseChks).map(c => c.value);
+  const selectedTarget = Array.from(targetChks).map(c => c.value);
+
+  if (!state.userProfile) state.userProfile = {};
+  state.userProfile.productionBaseCategories = selectedBase;
+  state.userProfile.productionTargetCategories = selectedTarget;
+
+  try {
+    showToast("Guardando configuración de categorías...");
+    await apiRequest("/api/profile", "POST", state.userProfile);
+    showToast("¡Categorías de Producción guardadas!", false);
+    closeProductionCategoryConfigModal();
+    renderProductionUI();
+  } catch (err) {
+    showToast("Error al guardar categorías: " + err.message, true);
+  }
+}
+window.saveProductionCategoriesConfig = saveProductionCategoriesConfig;
+
 function renderProductionUI() {
   const baseTableBody = document.getElementById("prod-base-table-body");
   const historyTableBody = document.getElementById("prod-history-table-body");
   if (!baseTableBody && !historyTableBody) return;
 
   const searchQuery = (document.getElementById("prod-base-search")?.value || "").toLowerCase().trim();
+  const { baseCategories } = getProductionCategoriesConfig();
 
   // Filtrar productos reales
   const actualProducts = (state.products || []).filter(p => {
@@ -14028,39 +14117,49 @@ function renderProductionUI() {
       sku !== "categories_config";
   });
 
-  // Identificar prendas base (Categoría "Mayorista", "Sin Insumos", "Base" o por SKU/Nombre)
+  // Agrupar prendas base por modelo (getProductGroupKey)
   const baseProductsMap = {};
   actualProducts.forEach(p => {
-    const sku = p.sku || p.id || "";
-    const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku);
-    const cat = (p.category || "").toLowerCase();
+    const cat = p.category || "";
     const name = getProductNameWithColor(p);
-    const isBaseCandidate = cat.includes("mayorista") || cat.includes("base") || cat.includes("sin insumo") || name.toLowerCase().includes("mayorista") || name.toLowerCase().includes("sin transformar") || name.toLowerCase().includes("base");
+    
+    let isBaseCandidate = false;
+    if (baseCategories && baseCategories.length > 0) {
+      isBaseCandidate = baseCategories.includes(cat);
+    } else {
+      const catLower = cat.toLowerCase();
+      isBaseCandidate = catLower.includes("mayorista") || catLower.includes("base") || catLower.includes("sin insumo") || catLower.includes("producción") || name.toLowerCase().includes("mayorista") || name.toLowerCase().includes("sin transformar") || name.toLowerCase().includes("base");
+    }
 
     if (isBaseCandidate) {
-      if (!baseProductsMap[baseSku]) {
-        baseProductsMap[baseSku] = {
+      const groupKey = getProductGroupKey(p);
+      const baseSku = p.baseSku || (p.sku && p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
+
+      if (!baseProductsMap[groupKey]) {
+        baseProductsMap[groupKey] = {
+          groupKey: groupKey,
           baseSku: baseSku,
           name: name,
-          category: p.category || "Mayorista / Base",
+          category: cat || "Base",
           totalStock: 0,
           variants: []
         };
       }
-      baseProductsMap[baseSku].variants.push(p);
+      baseProductsMap[groupKey].variants.push(p);
       const sVal = p.stock_local !== undefined ? p.stock_local : p.stock;
-      baseProductsMap[baseSku].totalStock += (parseInt(sVal) || 0);
+      baseProductsMap[groupKey].totalStock += (parseInt(sVal) || 0);
     }
   });
 
-  // Si no hay productos identificados por categoría mayorista/base, tomar todos los modelos agrupados
+  // Si no hay productos filtrados por baseCategories, mostrar todos los modelos agrupados
   if (Object.keys(baseProductsMap).length === 0) {
     actualProducts.forEach(p => {
-      const sku = p.sku || p.id || "";
-      const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku);
+      const groupKey = getProductGroupKey(p);
+      const baseSku = p.baseSku || (p.sku && p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
       const name = getProductNameWithColor(p);
-      if (!baseProductsMap[baseSku]) {
-        baseProductsMap[baseSku] = {
+      if (!baseProductsMap[groupKey]) {
+        baseProductsMap[groupKey] = {
+          groupKey: groupKey,
           baseSku: baseSku,
           name: name,
           category: p.category || "General",
@@ -14068,9 +14167,9 @@ function renderProductionUI() {
           variants: []
         };
       }
-      baseProductsMap[baseSku].variants.push(p);
+      baseProductsMap[groupKey].variants.push(p);
       const sVal = p.stock_local !== undefined ? p.stock_local : p.stock;
-      baseProductsMap[baseSku].totalStock += (parseInt(sVal) || 0);
+      baseProductsMap[groupKey].totalStock += (parseInt(sVal) || 0);
     });
   }
 
@@ -14105,7 +14204,7 @@ function renderProductionUI() {
   if (baseTableBody) {
     baseTableBody.innerHTML = "";
     if (filteredBase.length === 0) {
-      baseTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-gray); padding: 20px; font-size: 0.8rem;">No hay prendas base registradas.</td></tr>`;
+      baseTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-gray); padding: 20px; font-size: 0.8rem;">No hay prendas base registradas en las categorías origen seleccionadas.</td></tr>`;
     } else {
       filteredBase.forEach(b => {
         const configuredSizes = getConfiguredSizes();
@@ -14130,7 +14229,7 @@ function renderProductionUI() {
           </td>
           <td style="font-size: 0.75rem; color: var(--text-gray);">${tallesStr}</td>
           <td style="text-align: right;">
-            <button class="btn btn-sm" style="background: rgba(16,185,129,0.12); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.25); font-size: 0.72rem; padding: 4px 10px; font-weight: 600;" onclick="openProductionModal('${b.baseSku}')">
+            <button class="btn btn-sm" style="background: rgba(16,185,129,0.12); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.25); font-size: 0.72rem; padding: 4px 10px; font-weight: 600;" onclick="openProductionModal('${b.groupKey}')">
               <i class="fas fa-magic"></i> Transformar a Local
             </button>
           </td>
@@ -14170,10 +14269,25 @@ function renderProductionUI() {
 }
 window.renderProductionUI = renderProductionUI;
 
-function openProductionModal(preselectOriginSku = null) {
+function openProductionModal(preselectOriginKey = null) {
   const originSelect = document.getElementById("prod-origin-select");
   const targetSelect = document.getElementById("prod-target-select");
+  const locationSelect = document.getElementById("prod-location-select");
   if (!originSelect || !targetSelect) return;
+
+  // Llenar selector de ubicaciones
+  if (locationSelect) {
+    const locs = getUserLocations();
+    locationSelect.innerHTML = "";
+    locs.forEach(loc => {
+      const opt = document.createElement("option");
+      opt.value = loc;
+      opt.innerText = loc;
+      locationSelect.appendChild(opt);
+    });
+  }
+
+  const { baseCategories, targetCategories } = getProductionCategoriesConfig();
 
   const actualProducts = (state.products || []).filter(p => {
     if (!p) return false;
@@ -14191,13 +14305,11 @@ function openProductionModal(preselectOriginSku = null) {
       sku !== "categories_config";
   });
 
-  // Agrupar por modelo/baseSku y color
+  // Agrupar por getProductGroupKey
   const groupedMap = {};
   actualProducts.forEach(p => {
-    const sku = p.sku || p.id || "";
-    const baseSku = p.baseSku || (sku.includes("-") ? sku.split("-")[0] : sku);
-    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+    const groupKey = getProductGroupKey(p);
+    const baseSku = p.baseSku || (p.sku && p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
     const displayName = getProductNameWithColor(p);
 
     if (!groupedMap[groupKey]) {
@@ -14221,19 +14333,46 @@ function openProductionModal(preselectOriginSku = null) {
   targetSelect.innerHTML = `<option value="">Seleccione prenda final local (destino)...</option>`;
 
   list.forEach(g => {
-    const optOrig = document.createElement("option");
-    optOrig.value = g.groupKey;
-    optOrig.innerText = `${g.name} [Stock: ${g.totalStock} u.] (${g.baseSku})`;
-    originSelect.appendChild(optOrig);
+    const cat = g.category || "";
+    const isBase = baseCategories.length === 0 || baseCategories.includes(cat);
+    const isTarget = targetCategories.length === 0 || targetCategories.includes(cat);
 
-    const optTarg = document.createElement("option");
-    optTarg.value = g.groupKey;
-    optTarg.innerText = `${g.name} (${g.baseSku})`;
-    targetSelect.appendChild(optTarg);
+    if (isBase) {
+      const optOrig = document.createElement("option");
+      optOrig.value = g.groupKey;
+      optOrig.innerText = `${g.name} [Cat: ${g.category} - Stock: ${g.totalStock} u.]`;
+      originSelect.appendChild(optOrig);
+    }
+
+    if (isTarget) {
+      const optTarg = document.createElement("option");
+      optTarg.value = g.groupKey;
+      optTarg.innerText = `${g.name} [Cat: ${g.category}]`;
+      targetSelect.appendChild(optTarg);
+    }
   });
 
-  if (preselectOriginSku) {
-    const match = list.find(g => g.groupKey === preselectOriginSku || g.baseSku === preselectOriginSku);
+  // Si por filtro no quedó alguna opción, listar todos los productos
+  if (originSelect.options.length <= 1) {
+    list.forEach(g => {
+      const optOrig = document.createElement("option");
+      optOrig.value = g.groupKey;
+      optOrig.innerText = `${g.name} [Stock: ${g.totalStock} u.]`;
+      originSelect.appendChild(optOrig);
+    });
+  }
+
+  if (targetSelect.options.length <= 1) {
+    list.forEach(g => {
+      const optTarg = document.createElement("option");
+      optTarg.value = g.groupKey;
+      optTarg.innerText = `${g.name}`;
+      targetSelect.appendChild(optTarg);
+    });
+  }
+
+  if (preselectOriginKey) {
+    const match = list.find(g => g.groupKey === preselectOriginKey || g.baseSku === preselectOriginKey);
     if (match) originSelect.value = match.groupKey;
   }
 
@@ -14254,6 +14393,7 @@ window.closeProductionModal = closeProductionModal;
 
 function onProductionOriginChange() {
   const originVal = document.getElementById("prod-origin-select")?.value;
+  const selectedLocation = document.getElementById("prod-location-select")?.value || getUserLocations()[0];
   const stockInfo = document.getElementById("prod-origin-stock-info");
   if (!originVal || !stockInfo) {
     if (stockInfo) stockInfo.innerText = "";
@@ -14261,15 +14401,18 @@ function onProductionOriginChange() {
   }
 
   const actualProducts = (state.products || []).filter(p => p && p.sku && !p.sku.startsWith("supplier_") && !p.sku.startsWith("productionorder_"));
-  const originVars = actualProducts.filter(p => {
-    const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
-    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
-    return groupKey === originVal || baseSku === originVal;
+  const originVars = actualProducts.filter(p => getProductGroupKey(p) === originVal);
+
+  let locStockSum = 0;
+  originVars.forEach(v => {
+    if (v.locationsStock && v.locationsStock[selectedLocation] !== undefined) {
+      locStockSum += (parseInt(v.locationsStock[selectedLocation]) || 0);
+    } else {
+      locStockSum += (parseInt(v.stock) || 0);
+    }
   });
 
-  const totalStock = originVars.reduce((sum, p) => sum + (parseInt(p.stock_local !== undefined ? p.stock_local : p.stock) || 0), 0);
-  stockInfo.innerText = `Stock Disponible Origen: ${totalStock} u.`;
+  stockInfo.innerText = `Stock Disponible Origen (${selectedLocation}): ${locStockSum} u.`;
 
   renderProductionSizesBreakdown();
 }
@@ -14277,37 +14420,25 @@ window.onProductionOriginChange = onProductionOriginChange;
 
 function renderProductionSizesBreakdown() {
   const originVal = document.getElementById("prod-origin-select")?.value;
+  const selectedLocation = document.getElementById("prod-location-select")?.value || getUserLocations()[0];
   const container = document.getElementById("prod-sizes-breakdown-container");
   const grid = document.getElementById("prod-sizes-inputs-grid");
   if (!originVal || !container || !grid) return;
 
   const actualProducts = (state.products || []).filter(p => p && p.sku && !p.sku.startsWith("supplier_") && !p.sku.startsWith("productionorder_"));
-  const originVars = actualProducts.filter(p => {
-    const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
-    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-    const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
-    return groupKey === originVal || baseSku === originVal;
-  });
+  const originVars = actualProducts.filter(p => getProductGroupKey(p) === originVal);
 
   const configuredSizes = getConfiguredSizes();
   const sizesFound = new Set();
   originVars.forEach(v => {
-    if (v.size && v.size !== "Único") {
+    if (v.size) {
       const match = configuredSizes.find(cs => cs.toLowerCase().trim() === v.size.toLowerCase().trim());
-      if (match) sizesFound.add(match);
-    }
-    if (v.sizesStock && typeof v.sizesStock === 'object') {
-      Object.keys(v.sizesStock).forEach(sz => {
-        const match = configuredSizes.find(cs => cs.toLowerCase().trim() === sz.toLowerCase().trim());
-        if (match) sizesFound.add(match);
-      });
+      sizesFound.add(match || v.size);
     }
   });
 
   if (sizesFound.size === 0) {
-    container.style.display = "none";
-    grid.innerHTML = "";
-    return;
+    sizesFound.add("Único");
   }
 
   container.style.display = "block";
@@ -14315,41 +14446,79 @@ function renderProductionSizesBreakdown() {
 
   const sortedSizes = [...sizesFound].sort((a, b) => configuredSizes.indexOf(a) - configuredSizes.indexOf(b));
   sortedSizes.forEach(sz => {
+    const matchingVar = originVars.find(v => (v.size || "").toLowerCase().trim() === sz.toLowerCase().trim());
+    let szStock = 0;
+    if (matchingVar) {
+      if (matchingVar.locationsStock && matchingVar.locationsStock[selectedLocation] !== undefined) {
+        szStock = parseInt(matchingVar.locationsStock[selectedLocation]) || 0;
+      } else {
+        szStock = parseInt(matchingVar.stock) || 0;
+      }
+    }
+
     const div = document.createElement("div");
-    div.style.display = "flex";
-    div.style.flexDirection = "column";
-    div.style.alignItems = "center";
+    div.style.cssText = "display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 6px; border: 1px solid var(--border-color);";
     div.innerHTML = `
-      <label style="font-size: 0.68rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase;">${sz}</label>
-      <input type="number" id="prod-size-input-${sz}" class="form-input prod-size-breakdown-input" style="font-size: 0.75rem; padding: 4px 6px; text-align: center;" placeholder="0" min="0" data-size="${sz}">
+      <label style="font-size: 0.68rem; color: var(--text-white); font-weight: 700; text-transform: uppercase;">${sz}</label>
+      <span style="font-size: 0.65rem; color: ${szStock > 0 ? 'var(--accent-emerald)' : '#f87171'}; margin-bottom: 4px; font-weight: 600;">Disp: ${szStock} u.</span>
+      <input type="number" id="prod-size-input-${sz}" class="form-input prod-size-breakdown-input" style="font-size: 0.78rem; padding: 4px 6px; text-align: center; width: 100%;" placeholder="0" min="0" data-size="${sz}" data-avail="${szStock}" oninput="updateProductionTotalQtyFromSizes()">
     `;
     grid.appendChild(div);
   });
 }
 window.renderProductionSizesBreakdown = renderProductionSizesBreakdown;
 
+function updateProductionTotalQtyFromSizes() {
+  const sizeInputs = document.querySelectorAll(".prod-size-breakdown-input");
+  let totalSum = 0;
+  sizeInputs.forEach(inp => {
+    totalSum += (parseInt(inp.value) || 0);
+  });
+  if (totalSum > 0) {
+    document.getElementById("prod-quantity-input").value = totalSum;
+  }
+}
+window.updateProductionTotalQtyFromSizes = updateProductionTotalQtyFromSizes;
+
 function addProductionInsumoRow() {
   const container = document.getElementById("prod-insumos-rows-container");
   if (!container) return;
 
-  const extras = state.extras || [];
-  let optionsHtml = `<option value="">Seleccione insumo...</option>`;
-  extras.forEach(ex => {
-    const name = ex.name || ex.id || "";
-    optionsHtml += `<option value="${name}">${name}</option>`;
-  });
+  const extras = state.extras || {};
+  let optionsHtml = `<option value="">Seleccione insumo de inventario...</option>`;
+
+  if (Array.isArray(extras)) {
+    extras.forEach(ex => {
+      const name = ex.name || ex.id || "";
+      const stock = ex.stock !== undefined ? ex.stock : "-";
+      const cost = ex.cost || 0;
+      optionsHtml += `<option value="${name}" data-cost="${cost}" data-stock="${stock}">${name} (Stock: ${stock} u. - $${cost})</option>`;
+    });
+  } else if (typeof extras === 'object') {
+    Object.keys(extras).forEach(catKey => {
+      const list = extras[catKey];
+      if (Array.isArray(list) && list.length > 0) {
+        const catName = catKey.charAt(0).toUpperCase() + catKey.slice(1);
+        optionsHtml += `<optgroup label="${catName}">`;
+        list.forEach(ex => {
+          const name = ex.name || ex.id || "";
+          const stock = ex.stock !== undefined ? ex.stock : "-";
+          const cost = ex.cost || 0;
+          optionsHtml += `<option value="${name}" data-cat="${catKey}" data-id="${ex.id || name}" data-cost="${cost}" data-stock="${stock}">${name} (Stock: ${stock} u. - $${cost})</option>`;
+        });
+        optionsHtml += `</optgroup>`;
+      }
+    });
+  }
 
   const row = document.createElement("div");
   row.className = "prod-insumo-row";
-  row.style.display = "flex";
-  row.style.gap = "8px";
-  row.style.alignItems = "center";
-  row.style.marginTop = "6px";
+  row.style.cssText = "display: flex; gap: 8px; align-items: center;";
   row.innerHTML = `
-    <select class="form-select prod-insumo-name-select" style="font-size: 0.75rem; flex: 2;">
+    <select class="form-select prod-insumo-name-select" style="font-size: 0.75rem; flex: 3;">
       ${optionsHtml}
     </select>
-    <input type="number" class="form-input prod-insumo-qty-input" style="font-size: 0.75rem; flex: 1;" placeholder="Cant. u." min="1" value="1">
+    <input type="number" class="form-input prod-insumo-qty-input" style="font-size: 0.75rem; flex: 1;" placeholder="Cant." min="1" value="1" title="Cantidad consumida por prenda">
     <button type="button" class="btn btn-sm" style="background: rgba(239,68,68,0.1); color: var(--accent-red); border: none; padding: 4px 8px;" onclick="this.parentElement.remove()">✕</button>
   `;
   container.appendChild(row);
@@ -14360,7 +14529,8 @@ async function saveProductionOrderForm(e) {
   e.preventDefault();
   const originVal = document.getElementById("prod-origin-select").value;
   const targetVal = document.getElementById("prod-target-select").value;
-  const quantity = parseInt(document.getElementById("prod-quantity-input").value) || 0;
+  const selectedLocation = document.getElementById("prod-location-select")?.value || getUserLocations()[0];
+  const quantityInput = parseInt(document.getElementById("prod-quantity-input").value) || 0;
   const notes = document.getElementById("prod-notes-input").value.trim();
 
   if (!originVal || !targetVal) {
@@ -14368,8 +14538,42 @@ async function saveProductionOrderForm(e) {
     return;
   }
 
-  if (quantity <= 0) {
-    showToast("Ingresá una cantidad válida mayor a 0.", true);
+  if (originVal === targetVal) {
+    showToast("La prenda origen y destino deben ser distintas.", true);
+    return;
+  }
+
+  const actualProducts = (state.products || []).filter(p => p && p.sku && !p.sku.startsWith("supplier_") && !p.sku.startsWith("productionorder_"));
+  const originVars = actualProducts.filter(p => getProductGroupKey(p) === originVal);
+  const targetVars = actualProducts.filter(p => getProductGroupKey(p) === targetVal);
+
+  if (originVars.length === 0 || targetVars.length === 0) {
+    showToast("No se encontraron las variantes de origen o destino.", true);
+    return;
+  }
+
+  // Recolectar desglose por talles
+  const sizeInputs = document.querySelectorAll(".prod-size-breakdown-input");
+  const sizesToTransform = {};
+  let totalUnitsFromSizes = 0;
+
+  sizeInputs.forEach(inp => {
+    const sz = inp.getAttribute("data-size");
+    const val = parseInt(inp.value) || 0;
+    const avail = parseInt(inp.getAttribute("data-avail")) || 0;
+    if (val > 0) {
+      if (val > avail) {
+        showToast(`Stock insuficiente en ${selectedLocation} para el talle ${sz}. Disponible: ${avail} u., Solicitado: ${val} u.`, true);
+        throw new Error("Stock insuficiente");
+      }
+      sizesToTransform[sz] = val;
+      totalUnitsFromSizes += val;
+    }
+  });
+
+  const totalQuantity = totalUnitsFromSizes > 0 ? totalUnitsFromSizes : quantityInput;
+  if (totalQuantity <= 0) {
+    showToast("Ingresá una cantidad a transformar mayor a 0 en al menos un talle.", true);
     return;
   }
 
@@ -14377,70 +14581,139 @@ async function saveProductionOrderForm(e) {
   if (btn) { btn.innerText = "Transformando..."; btn.disabled = true; }
 
   try {
-    const actualProducts = (state.products || []).filter(p => p && p.sku && !p.sku.startsWith("supplier_") && !p.sku.startsWith("productionorder_"));
-    
-    // Obtener variantes origen y destino
-    const originVars = actualProducts.filter(p => {
-      const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
-      const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-      const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
-      return groupKey === originVal || baseSku === originVal;
-    });
-
-    const targetVars = actualProducts.filter(p => {
-      const baseSku = p.baseSku || (p.sku.includes("-") ? p.sku.split("-")[0] : p.sku);
-      const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-      const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
-      return groupKey === targetVal || baseSku === targetVal;
-    });
-
-    if (originVars.length === 0 || targetVars.length === 0) {
-      showToast("No se encontraron las variantes de origen o destino.", true);
-      return;
-    }
-
     const originName = getProductNameWithColor(originVars[0]);
     const targetName = getProductNameWithColor(targetVars[0]);
+    const originBaseSku = originVars[0].baseSku || originVars[0].sku;
+    const targetBaseSku = targetVars[0].baseSku || targetVars[0].sku;
 
-    // Recolectar desglose por talles
-    const sizeInputs = document.querySelectorAll(".prod-size-breakdown-input");
-    const sizesUsed = [];
-    sizeInputs.forEach(inp => {
-      const val = parseInt(inp.value) || 0;
-      if (val > 0) {
-        sizesUsed.push(`${val} ${inp.getAttribute("data-size")}`);
+    const batchProductsPayload = [];
+
+    // Si se especificó desglose por talles, actualizar por variante de talle
+    if (Object.keys(sizesToTransform).length > 0) {
+      for (const [sz, qty] of Object.entries(sizesToTransform)) {
+        // 1. Restar de Producto Origen (X)
+        const origVar = originVars.find(v => (v.size || "").toLowerCase().trim() === sz.toLowerCase().trim()) || originVars[0];
+        const origLocsStock = origVar.locationsStock || {};
+        const curOrigLocStock = origLocsStock[selectedLocation] !== undefined ? (parseInt(origLocsStock[selectedLocation]) || 0) : (parseInt(origVar.stock) || 0);
+        const updatedOrigLocStock = {
+          ...origLocsStock,
+          [selectedLocation]: Math.max(0, curOrigLocStock - qty)
+        };
+        const newOrigTotalStock = Object.values(updatedOrigLocStock).reduce((acc, v) => acc + (parseInt(v) || 0), 0);
+
+        origVar.locationsStock = updatedOrigLocStock;
+        origVar.stock = newOrigTotalStock;
+        origVar.stock_local = newOrigTotalStock;
+        batchProductsPayload.push(origVar);
+
+        // 2. Sumar a Producto Destino (Y)
+        let targVar = targetVars.find(v => (v.size || "").toLowerCase().trim() === sz.toLowerCase().trim());
+        if (targVar) {
+          const targLocsStock = targVar.locationsStock || {};
+          const curTargLocStock = targLocsStock[selectedLocation] !== undefined ? (parseInt(targLocsStock[selectedLocation]) || 0) : (parseInt(targVar.stock) || 0);
+          const updatedTargLocStock = {
+            ...targLocsStock,
+            [selectedLocation]: curTargLocStock + qty
+          };
+          const newTargTotalStock = Object.values(updatedTargLocStock).reduce((acc, v) => acc + (parseInt(v) || 0), 0);
+
+          targVar.locationsStock = updatedTargLocStock;
+          targVar.stock = newTargTotalStock;
+          targVar.stock_local = newTargTotalStock;
+          batchProductsPayload.push(targVar);
+        } else {
+          // Crear variante de talle si no existía en el Producto Destino
+          const sizeSkuSuffix = getSizeSkuSuffix(sz);
+          const newVariant = {
+            id: Date.now() + Math.random(),
+            baseSku: targetBaseSku,
+            sku: `${targetBaseSku}-${sizeSkuSuffix}`,
+            name: targetVars[0].name,
+            category: targetVars[0].category,
+            size: sz,
+            color: targetVars[0].color || 'Único',
+            stock: qty,
+            locationsStock: { [selectedLocation]: qty },
+            location: selectedLocation,
+            baseCost: targetVars[0].baseCost || 0,
+            margin: targetVars[0].margin || 0,
+            cost: targetVars[0].cost || 0
+          };
+          batchProductsPayload.push(newVariant);
+        }
       }
-    });
+    } else {
+      // Si no hubo desglose por talles, actualizar sobre la variante principal
+      const firstOrig = originVars[0];
+      const firstTarg = targetVars[0];
 
-    const sizesStr = sizesUsed.length > 0 ? sizesUsed.join(", ") : "Único";
+      const origLocsStock = firstOrig.locationsStock || {};
+      const curOrigStock = origLocsStock[selectedLocation] !== undefined ? (parseInt(origLocsStock[selectedLocation]) || 0) : (parseInt(firstOrig.stock) || 0);
+      const updatedOrigLocStock = { ...origLocsStock, [selectedLocation]: Math.max(0, curOrigStock - totalQuantity) };
+      firstOrig.locationsStock = updatedOrigLocStock;
+      firstOrig.stock = Object.values(updatedOrigLocStock).reduce((acc, v) => acc + (parseInt(v) || 0), 0);
+      batchProductsPayload.push(firstOrig);
 
-    // Recolectar insumos aplicados
+      const targLocsStock = firstTarg.locationsStock || {};
+      const curTargStock = targLocsStock[selectedLocation] !== undefined ? (parseInt(targLocsStock[selectedLocation]) || 0) : (parseInt(firstTarg.stock) || 0);
+      const updatedTargLocStock = { ...targLocsStock, [selectedLocation]: curTargStock + totalQuantity };
+      firstTarg.locationsStock = updatedTargLocStock;
+      firstTarg.stock = Object.values(updatedTargLocStock).reduce((acc, v) => acc + (parseInt(v) || 0), 0);
+      batchProductsPayload.push(firstTarg);
+    }
+
+    // 3. Procesar y Descontar Insumos seleccionados de state.extras
     const insumoRows = document.querySelectorAll(".prod-insumo-row");
     const insumosUsed = [];
+    let totalInsumosCost = 0;
+    let extrasModified = false;
+
     insumoRows.forEach(row => {
-      const name = row.querySelector(".prod-insumo-name-select")?.value;
-      const qty = parseInt(row.querySelector(".prod-insumo-qty-input")?.value) || 0;
-      if (name && qty > 0) {
-        insumosUsed.push(`${qty} ${name}`);
+      const selectEl = row.querySelector(".prod-insumo-name-select");
+      const name = selectEl?.value;
+      const qtyPerUnit = parseInt(row.querySelector(".prod-insumo-qty-input")?.value) || 0;
+      if (name && qtyPerUnit > 0) {
+        const totalInsumoQty = qtyPerUnit * totalQuantity;
+        insumosUsed.push(`${totalInsumoQty} u. de ${name}`);
+
+        // Descontar de state.extras
+        const selectedOpt = selectEl.options[selectEl.selectedIndex];
+        const catKey = selectedOpt?.getAttribute("data-cat");
+        const insumoId = selectedOpt?.getAttribute("data-id");
+        const unitCost = parseFloat(selectedOpt?.getAttribute("data-cost")) || 0;
+
+        totalInsumosCost += (unitCost * totalInsumoQty);
+
+        if (state.extras && typeof state.extras === 'object') {
+          if (catKey && Array.isArray(state.extras[catKey])) {
+            const match = state.extras[catKey].find(item => (item.id || item.name) === (insumoId || name));
+            if (match) {
+              match.stock = Math.max(0, (parseInt(match.stock) || 0) - totalInsumoQty);
+              extrasModified = true;
+            }
+          } else if (Array.isArray(state.extras)) {
+            const match = state.extras.find(item => item.name === name || item.id === name);
+            if (match) {
+              match.stock = Math.max(0, (parseInt(match.stock) || 0) - totalInsumoQty);
+              extrasModified = true;
+            }
+          }
+        }
       }
     });
+
+    if (extrasModified) {
+      await apiRequest("/api/extras", "POST", state.extras);
+    }
+
+    // Guardar actualizaciones de stock de productos (origen y destino)
+    await apiRequest("/api/products", "POST", batchProductsPayload);
+
+    // Formatear cadenas para el registro histórico
+    const sizesStr = Object.keys(sizesToTransform).length > 0 
+      ? Object.entries(sizesToTransform).map(([sz, q]) => `${q} ${sz}`).join(", ") 
+      : `${totalQuantity} u.`;
     const insumosStr = insumosUsed.length > 0 ? insumosUsed.join(", ") : "Sin Insumos";
-
-    // Restar stock de origen y sumar en destino
-    const firstOrig = originVars[0];
-    const firstTarg = targetVars[0];
-
-    const curOrigStock = parseInt(firstOrig.stock_local !== undefined ? firstOrig.stock_local : firstOrig.stock) || 0;
-    const curTargStock = parseInt(firstTarg.stock_local !== undefined ? firstTarg.stock_local : firstTarg.stock) || 0;
-
-    firstOrig.stock_local = Math.max(0, curOrigStock - quantity);
-    firstOrig.stock = Math.max(0, curOrigStock - quantity);
-
-    firstTarg.stock_local = curTargStock + quantity;
-    firstTarg.stock = curTargStock + quantity;
-
-    await apiRequest("/api/products", "POST", firstOrig);
-    await apiRequest("/api/products", "POST", firstTarg);
 
     // Registrar orden de producción
     const orderId = `productionorder_${Date.now()}`;
@@ -14448,19 +14721,21 @@ async function saveProductionOrderForm(e) {
       id: orderId,
       sku: orderId,
       date: new Date().toISOString(),
-      origin_sku: firstOrig.baseSku || firstOrig.sku,
+      location: selectedLocation,
+      origin_sku: originBaseSku,
       origin_name: originName,
-      target_sku: firstTarg.baseSku || firstTarg.sku,
+      target_sku: targetBaseSku,
       target_name: targetName,
-      quantity: quantity,
+      quantity: totalQuantity,
       sizes: sizesStr,
       insumos: insumosStr,
+      insumos_cost: totalInsumosCost,
       notes: notes
     };
 
     await apiRequest("/api/products", "POST", orderPayload);
 
-    showToast(`✨ Transformación registrada: ${quantity} u. de ${originName} ➔ ${targetName}`, false);
+    showToast(`✨ Transformación registrada (${selectedLocation}): ${totalQuantity} u. de ${originName} ➔ ${targetName}`, false);
 
     closeProductionModal();
     refreshState();
@@ -14469,7 +14744,9 @@ async function saveProductionOrderForm(e) {
     }, 100);
 
   } catch (error) {
-    showToast(error.message, true);
+    if (error.message !== "Stock insuficiente") {
+      showToast(error.message, true);
+    }
   } finally {
     if (btn) { btn.innerText = "Registrar Transformación"; btn.disabled = false; }
   }
