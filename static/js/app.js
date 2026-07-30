@@ -80,14 +80,14 @@ const state = {
 
 let tempLocationStock = {};
 
-function getCleanBaseSku(sku) {
-  if (!sku) return "";
-  let base = String(sku).trim().split("-")[0];
-  const match = base.match(/^([A-Za-z]{2,3})(\d+)/);
-  if (match) {
-    return (match[1] + match[2]).toUpperCase();
+function getCleanBaseSku(sku, baseSku) {
+  if (baseSku && String(baseSku).trim()) {
+    return String(baseSku).trim().toUpperCase();
   }
-  return base.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!sku) return "";
+  let str = String(sku).trim();
+  str = str.replace(/-(_?)(XS|S|M|L|XL|XXL|3XL|U|UNIC[OÁ]|ÚNICO|[0-9]{1,2})$/i, "");
+  return str.toUpperCase();
 }
 window.getCleanBaseSku = getCleanBaseSku;
 
@@ -4350,7 +4350,7 @@ function onBulkPriceCategoryChange() {
     
     const pSku = p.sku || p.id || "";
     const cleanNameKey = cleanCompareText(p.name || "");
-    const baseSku = p.baseSku || (pSku.includes("-") ? pSku.split("-")[0] : cleanNameKey) || "PROD";
+    const baseSku = getCleanBaseSku(pSku, p.baseSku) || cleanNameKey || "PROD";
     const colorKey = p.color ? p.color.toLowerCase().trim() : "";
     const groupKey = (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
 
@@ -4545,10 +4545,8 @@ function renderInventory() {
   const groupedProducts = {};
   actualProducts.forEach(p => {
     const pSku = p.sku || p.id || "";
-    const cleanNameKey = cleanCompareText(p.name || "");
-    const baseSku = getCleanBaseSku(p.baseSku || pSku) || "PROD";
-    const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-    const groupKey = (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
+    const baseSku = getCleanBaseSku(p.sku, p.baseSku) || "PROD";
+    const groupKey = getProductGroupKey(p);
     const displayName = getProductNameWithColor(p);
 
     if (!groupedProducts[groupKey]) {
@@ -5036,10 +5034,18 @@ function openCreateProductModal() {
 function getProductGroupKey(p) {
   if (!p) return "";
   const pSku = p.sku || p.id || "";
-  const cleanNameKey = cleanCompareText(p.name || "");
-  const baseSku = getCleanBaseSku(p.baseSku || pSku) || "PROD";
-  const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-  return (cleanNameKey || baseSku) + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
+  const cleanBase = getCleanBaseSku(p.sku, p.baseSku) || "";
+  let nameStr = (p.name || "").trim();
+  const colorStr = (p.color || "").trim();
+  
+  if (colorStr && colorStr.toLowerCase() !== "único" && colorStr.toLowerCase() !== "unico") {
+    const regex = new RegExp(`\\s+${colorStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i");
+    nameStr = nameStr.replace(regex, "").trim();
+  }
+  
+  const cleanNameKey = cleanCompareText(nameStr);
+  const colorKey = colorStr ? colorStr.toLowerCase() : "";
+  return (cleanNameKey || cleanBase || "PROD") + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
 }
 
 function openEditProductModal(sku) {
@@ -5048,12 +5054,17 @@ function openEditProductModal(sku) {
 
   document.getElementById("modal-product-title").innerText = "Editar Variante";
   
-  const rawBase = (p.baseSku || p.sku || "").trim();
-  const cleanBase = rawBase.includes("-") ? rawBase.split("-")[0] : rawBase;
+  const cleanBase = getCleanBaseSku(p.sku, p.baseSku);
   document.getElementById("prod-sku").value = cleanBase;
   document.getElementById("prod-sku").readOnly = true; // no se edita SKU ya guardado
-  document.getElementById("prod-name").value = getProductNameWithColor(p);
-  document.getElementById("prod-color").value = p.color;
+  let baseProdName = (p.name || "").trim();
+  const pColorStr = (p.color || "").trim();
+  if (pColorStr && pColorStr.toLowerCase() !== "único" && pColorStr.toLowerCase() !== "unico") {
+    const regex = new RegExp(`\\s+${pColorStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i");
+    baseProdName = baseProdName.replace(regex, "").trim();
+  }
+  document.getElementById("prod-name").value = baseProdName;
+  document.getElementById("prod-color").value = p.color || "";
   document.getElementById("prod-cost-input").value = Math.round(p.baseCost || p.cost).toLocaleString("es-AR");
   formatCurrencyField(document.getElementById("prod-cost-input"));
   document.getElementById("prod-margin").value = p.margin;
@@ -5406,7 +5417,9 @@ async function saveProductForm(e) {
   if (isEditing) {
     // Guardar cambios para todos los talles ingresados
     const oldGroupKey = document.getElementById("product-modal").dataset.oldGroupKey;
-    const cleanBaseSku = baseSku.split("-")[0] || baseSku;
+    const cleanBaseSku = baseSku.trim().toUpperCase();
+    const cleanColorStr = (color && color.toLowerCase() !== "único" && color.toLowerCase() !== "unico") ? color.replace(/[\/\s()]/g, "_").toUpperCase() : "";
+
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const matchingVariants = state.products.filter(v => {
         if (!v) return false;
@@ -5428,7 +5441,7 @@ async function saveProductForm(e) {
       }
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
-      const safeSku = existingVariant ? existingVariant.sku.replace(/\//g, "_") : `${cleanBaseSku}-${cleanSizeStr}`;
+      const safeSku = existingVariant ? existingVariant.sku.replace(/\//g, "_") : (cleanColorStr ? `${cleanBaseSku}-${cleanColorStr}-${cleanSizeStr}` : `${cleanBaseSku}-${cleanSizeStr}`);
       
       const payload = {
         id: existingVariant ? existingVariant.id : Date.now() + Math.random(),
@@ -5459,10 +5472,11 @@ async function saveProductForm(e) {
     }
   } else {
     // Crear variantes
+    const cleanColorStr = (color && color.toLowerCase() !== "único" && color.toLowerCase() !== "unico") ? color.replace(/[\/\s()]/g, "_").toUpperCase() : "";
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
       const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
-      const safeSku = `${baseSku}-${cleanSizeStr}`;
+      const safeSku = cleanColorStr ? `${baseSku}-${cleanColorStr}-${cleanSizeStr}` : `${baseSku}-${cleanSizeStr}`;
       const payload = {
         id: Date.now() + Math.random(),
         baseSku: baseSku,
@@ -5506,7 +5520,7 @@ async function saveProductForm(e) {
 function deleteProduct(sku) {
   const p = state.products.find(prod => prod.sku === sku);
   if (!p) return;
-  const cleanBase = p.baseSku || p.sku.split("-")[0] || p.sku;
+  const cleanBase = getCleanBaseSku(p.sku, p.baseSku);
   const cleanName = cleanCompareText(p.name || "");
   const variants = state.products.filter(prod => 
     !prod.sku.startsWith("supplier_") && 
@@ -5518,7 +5532,7 @@ function deleteProduct(sku) {
     !prod.sku.startsWith("stockintake_") && 
     prod.sku !== "extras_config" && 
     prod.sku !== "categories_config" &&
-    (prod.baseSku === cleanBase || prod.sku.split("-")[0] === cleanBase || cleanCompareText(prod.name || "") === cleanName)
+    (getCleanBaseSku(prod.sku, prod.baseSku) === cleanBase || cleanCompareText(prod.name || "") === cleanName)
   );
 
   showConfirmModal(`¿Estás seguro de eliminar el producto "${p.name}" y todas sus variantes?`, async () => {
@@ -9397,6 +9411,7 @@ function cleanCompareText(str) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parseLocalFloat(val) {
