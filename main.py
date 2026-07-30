@@ -3827,7 +3827,7 @@ def ship_tiendanube_order_route():
     try:
         sale = firebase_config.get_document("sales", doc_id, token)
         if not sale:
-            all_sales = firebase_config.get_collection("sales", token)
+            all_sales = firebase_config.list_documents("sales", token) or []
             user_sales = filter_user_docs(all_sales, prefix)
             clean_sid = str(sale_id).replace("TN-", "").replace("#", "").strip()
             matched_sale = None
@@ -3860,7 +3860,7 @@ def ship_tiendanube_order_route():
                 return jsonify({"error": "Ubicacion requerida para descontar stock"}), 400
                 
             items = sale.get("items", [])
-            all_prods = firebase_config.get_collection("products", token)
+            all_prods = firebase_config.list_documents("products", token) or []
             user_prods = filter_user_docs(all_prods, prefix)
 
             stock_errors = []
