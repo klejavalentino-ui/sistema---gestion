@@ -5065,13 +5065,7 @@ function openEditProductModal(sku) {
   const cleanBase = getCleanBaseSku(p.sku, p.baseSku);
   document.getElementById("prod-sku").value = cleanBase;
   document.getElementById("prod-sku").readOnly = true; // no se edita SKU ya guardado
-  let baseProdName = (p.name || "").trim();
-  const pColorStr = (p.color || "").trim();
-  if (pColorStr && pColorStr.toLowerCase() !== "único" && pColorStr.toLowerCase() !== "unico") {
-    const regex = new RegExp(`\\s+${pColorStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i");
-    baseProdName = baseProdName.replace(regex, "").trim();
-  }
-  document.getElementById("prod-name").value = baseProdName;
+  document.getElementById("prod-name").value = getProductNameWithColor(p);
   document.getElementById("prod-color").value = p.color || "";
   document.getElementById("prod-cost-input").value = Math.round(p.baseCost || p.cost).toLocaleString("es-AR");
   formatCurrencyField(document.getElementById("prod-cost-input"));
