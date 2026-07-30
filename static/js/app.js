@@ -111,6 +111,20 @@ function getProductLocationStockSum(p) {
 }
 window.getProductLocationStockSum = getProductLocationStockSum;
 
+function getVariantStockForLocation(p, locationName) {
+  if (!p) return 0;
+  if (p.locationsStock && typeof p.locationsStock === "object" && Object.keys(p.locationsStock).length > 0) {
+    if (locationName) {
+      const matchedKey = Object.keys(p.locationsStock).find(k => k.toLowerCase().trim() === locationName.toLowerCase().trim());
+      if (matchedKey !== undefined) {
+        return parseInt(p.locationsStock[matchedKey]) || 0;
+      }
+    }
+  }
+  return parseInt(p.stock_local !== undefined ? p.stock_local : p.stock) || 0;
+}
+window.getVariantStockForLocation = getVariantStockForLocation;
+
 function getConfiguredSizes() {
   const raw = (state.userProfile && state.userProfile.sizeVariants) || state.sizeVariants;
   if (Array.isArray(raw) && raw.length > 0) {
@@ -2662,6 +2676,10 @@ function renderSalesPOS() {
     // Categoría seleccionada
     const activePill = document.querySelector("#pos-categories-pills .pos-category-btn.active");
     const selectedCat = activePill ? activePill.dataset.category : "Todos";
+
+    // Ubicación seleccionada
+    const locationSelect = document.getElementById("pos-cart-location-select");
+    const selectedLocation = locationSelect ? locationSelect.value : "";
     
     container.innerHTML = "";
 
@@ -2677,7 +2695,7 @@ function renderSalesPOS() {
                                                       p.sku !== "extras_config" && 
                                                       p.sku !== "categories_config");
 
-    // Agrupar variantes por baseSku para mostrar una sola tarjeta por modelo
+    // Agrupar variantes usando getProductGroupKey para mostrar exactamente UNA tarjeta por modelo
     const baseProductsMap = {};
     actualProducts.forEach(p => {
       const name = p.name || "";
@@ -2690,14 +2708,12 @@ function renderSalesPOS() {
       const matchesCat = selectedCat === "Todos" || category === selectedCat;
       
       if (matchesSearch && matchesCat) {
-        const baseSku = p.baseSku || sku.split('-').slice(0, -1).join('-') || sku;
-        const colorKey = p.color ? p.color.toLowerCase().trim() : "";
-        const groupKey = (colorKey && colorKey !== "único" && colorKey !== "unico") ? `${baseSku}_${colorKey}` : baseSku;
+        const groupKey = getProductGroupKey(p);
         const displayName = getProductNameWithColor(p);
         
         if (!baseProductsMap[groupKey]) {
           baseProductsMap[groupKey] = {
-            baseSku: baseSku,
+            baseSku: getCleanBaseSku(p.sku, p.baseSku) || "PROD",
             groupKey: groupKey,
             name: displayName,
             category: category,
@@ -2725,8 +2741,8 @@ function renderSalesPOS() {
     }
 
     uniqueBaseProducts.forEach(bp => {
-      // Sumar el stock de todas sus variantes
-      const totalStock = bp.variants.reduce((acc, curr) => acc + (parseInt(curr.stock) || 0), 0);
+      // Sumar el stock de todas sus variantes en la ubicación seleccionada
+      const totalLocationStock = bp.variants.reduce((acc, curr) => acc + getVariantStockForLocation(curr, selectedLocation), 0);
       // Calcular el precio (usando la primera variante como referencia)
       const ref = bp.variants[0];
       const cost = parseFloat(ref.cost) || 0;
@@ -2744,7 +2760,7 @@ function renderSalesPOS() {
         </div>
         <div class="pos-product-footer">
           <span class="pos-product-price">$ ${Math.round(price).toLocaleString()}</span>
-          <button class="pos-product-plus-btn">${totalStock > 0 ? '+' : '✕'}</button>
+          <button class="pos-product-plus-btn">${totalLocationStock > 0 ? '+' : '✕'}</button>
         </div>
       `;
       container.appendChild(card);
@@ -2780,22 +2796,19 @@ function renderPOSCategoryPills(selectedCat) {
 }
 
 function handlePOSProductClick(bp) {
-  const totalStock = bp.variants.reduce((acc, curr) => acc + curr.stock, 0);
-  if (totalStock <= 0) {
-    showToast(state.businessType === "comercio" ? "Producto sin stock disponible." : "Prenda sin stock disponible.", true);
+  const locationSelect = document.getElementById("pos-cart-location-select");
+  const selectedLocation = locationSelect ? locationSelect.value : "";
+
+  // Filtrar variantes con stock estrictamente > 0 en la ubicación seleccionada
+  const availableVariants = bp.variants.filter(v => getVariantStockForLocation(v, selectedLocation) > 0);
+  
+  if (availableVariants.length === 0) {
+    showToast(state.businessType === "comercio" ? "Producto sin stock en esta ubicación." : "Prenda sin stock en esta ubicación.", true);
     return;
   }
 
-  // Filtrar variantes con stock real
-  const availableVariants = bp.variants.filter(v => v.stock > 0);
-  
-  if (availableVariants.length > 1) {
-    // Abrir modal de selección de talle
-    openSizeSelectionModal(bp, availableVariants);
-  } else if (availableVariants.length === 1) {
-    // Agregar directo
-    addVariantToCart(availableVariants[0]);
-  }
+  // Siempre abre el modal para seleccionar/mostrar qué talle hay (incluso si es 1 solo talle como Único o XL)
+  openSizeSelectionModal(bp, availableVariants);
 }
 
 function openSizeSelectionModal(bp, variants) {
@@ -2806,12 +2819,36 @@ function openSizeSelectionModal(bp, variants) {
   const grid = document.getElementById("size-modal-options-grid");
   grid.innerHTML = "";
   
+  const locationSelect = document.getElementById("pos-cart-location-select");
+  const selectedLocation = locationSelect ? locationSelect.value : "";
+
+  // Regla estricta: Filtrar variantes con stock > 0 y evitar duplicados de talle
+  const uniqueSizeMap = {};
   variants.forEach(v => {
+    const rawSize = (v.size || "Único").trim();
+    const cleanSizeKey = rawSize.toLowerCase();
+    const vStock = getVariantStockForLocation(v, selectedLocation);
+
+    if (vStock > 0) {
+      if (!uniqueSizeMap[cleanSizeKey] || getVariantStockForLocation(uniqueSizeMap[cleanSizeKey], selectedLocation) < vStock) {
+        uniqueSizeMap[cleanSizeKey] = v;
+      }
+    }
+  });
+
+  const finalVariants = Object.values(uniqueSizeMap);
+
+  if (finalVariants.length === 0) {
+    showToast("No hay talles con stock disponible en esta ubicación.", true);
+    return;
+  }
+
+  finalVariants.forEach(v => {
     const btn = document.createElement("button");
     btn.className = "btn btn-secondary";
     btn.style.padding = "12px";
     btn.style.fontWeight = "800";
-    btn.innerText = v.size;
+    btn.innerText = v.size || "Único";
     btn.onclick = () => {
       addVariantToCart(v);
       closeSizeModal();
@@ -2829,43 +2866,21 @@ function closeSizeModal() {
 
 function addVariantToCart(variant) {
   const existingIndex = state.cart.findIndex(item => item.product.sku === variant.sku);
-  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
-  
+  const locationSelect = document.getElementById("pos-cart-location-select");
+  const selectedLocation = locationSelect ? locationSelect.value : "";
+  const availableStock = getVariantStockForLocation(variant, selectedLocation);
+
   if (existingIndex > -1) {
     const currentQty = state.cart[existingIndex].quantity;
-    if (origin === "local") {
-      const stockLocalVal = variant.stock_local !== undefined ? variant.stock_local : variant.stock;
-      if (currentQty + 1 > stockLocalVal) {
-        showToast(`Solo quedan ${stockLocalVal} unidades en el stock local.`, true);
-        return;
-      }
-    } else if (origin === "tiendanube") {
-      const stockTallerVal = variant.stock_taller;
-      if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
-        const tVal = parseInt(stockTallerVal) || 0;
-        if (currentQty + 1 > tVal) {
-          showToast(`Solo quedan ${tVal} unidades en el taller.`, true);
-          return;
-        }
-      }
+    if (currentQty + 1 > availableStock) {
+      showToast(`Solo quedan ${availableStock} unidades disponibles en ${selectedLocation || "esta ubicación"}.`, true);
+      return;
     }
     state.cart[existingIndex].quantity += 1;
   } else {
-    if (origin === "local") {
-      const stockLocalVal = variant.stock_local !== undefined ? variant.stock_local : variant.stock;
-      if (stockLocalVal < 1) {
-        showToast("No hay stock local disponible para este producto.", true);
-        return;
-      }
-    } else if (origin === "tiendanube") {
-      const stockTallerVal = variant.stock_taller;
-      if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
-        const tVal = parseInt(stockTallerVal) || 0;
-        if (tVal < 1) {
-          showToast("No hay stock en el taller para este producto.", true);
-          return;
-        }
-      }
+    if (availableStock < 1) {
+      showToast(`No hay stock disponible en ${selectedLocation || "esta ubicación"}.`, true);
+      return;
     }
     state.cart.push({
       product: variant,
@@ -2884,26 +2899,16 @@ function updatePOSCartQty(sku, delta) {
   
   const item = state.cart[idx];
   const newQty = item.quantity + delta;
-  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
+  const locationSelect = document.getElementById("pos-cart-location-select");
+  const selectedLocation = locationSelect ? locationSelect.value : "";
+  const availableStock = getVariantStockForLocation(item.product, selectedLocation);
   
   if (newQty < 1) {
     state.cart.splice(idx, 1);
   } else {
-    if (origin === "local") {
-      const stockLocalVal = item.product.stock_local !== undefined ? item.product.stock_local : item.product.stock;
-      if (newQty > stockLocalVal) {
-        showToast(`Solo quedan ${stockLocalVal} unidades en el stock local.`, true);
-        return;
-      }
-    } else if (origin === "tiendanube") {
-      const stockTallerVal = item.product.stock_taller;
-      if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
-        const tVal = parseInt(stockTallerVal) || 0;
-        if (newQty > tVal) {
-          showToast(`Solo quedan ${tVal} unidades en el taller.`, true);
-          return;
-        }
-      }
+    if (newQty > availableStock) {
+      showToast(`Solo quedan ${availableStock} unidades disponibles en ${selectedLocation || "esta ubicación"}.`, true);
+      return;
     }
     state.cart[idx].quantity = newQty;
   }
