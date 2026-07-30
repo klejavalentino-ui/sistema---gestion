@@ -3477,6 +3477,8 @@ def push_all_to_tiendanube_route():
         return handle_error(e)
 
 def resolve_shipping_status(local_val, remote_val):
+    if remote_val == "cancelled" or local_val == "cancelled":
+        return "cancelled"
     order_map = {"unshipped": 1, "shipped": 2, "delivered": 3}
     local_weight = order_map.get(local_val, 1)
     remote_weight = order_map.get(remote_val, 1)
@@ -3577,8 +3579,6 @@ def sync_tiendanube_orders_route():
         sales_saved = 0
         new_sales_count = 0
         for order in all_orders:
-            if order.get("status") == "cancelled":
-                continue
             order_id = str(order.get("id"))
             
             raw_gateway = str(order.get("gateway") or "").lower().strip()
@@ -3686,14 +3686,19 @@ def sync_tiendanube_orders_route():
             discount_amount = safe_float(order.get("discount"))
             discount_pct = (discount_amount / subtotal_price * 100.0) if (subtotal_price > 0 and discount_amount > 0) else 0.0
             
+            order_tn_status = str(order.get("status") or "").lower().strip()
+            payment_tn_status = str(order.get("payment_status") or "").lower().strip()
+            
             shipping_status = order.get("shipping_status", "unshipped")
-            if shipping_status not in ["unshipped", "shipped", "delivered"]:
+            if order_tn_status == "cancelled" or payment_tn_status in ["cancelled", "voided"]:
+                shipping_status = "cancelled"
+            elif shipping_status not in ["unshipped", "shipped", "delivered"]:
                 if shipping_status == "fulfilled":
                     shipping_status = "delivered"
                 else:
                     shipping_status = "unshipped"
             
-            if order.get("status") == "closed":
+            if order_tn_status == "closed":
                 shipping_status = "delivered"
 
             client_name = str(order.get("contact_name") or "").strip()
@@ -3714,8 +3719,9 @@ def sync_tiendanube_orders_route():
                 "fee_fijo_tn": fee_fijo,
                 "comision_pasarela_pago": comision,
                 "total_neto": total_neto,
-                "payment_status": order.get("payment_status", "pending"),
+                "payment_status": payment_tn_status if payment_tn_status else order.get("payment_status", "pending"),
                 "shipping_status": shipping_status,
+                "status": "cancelada" if (order_tn_status == "cancelled" or payment_tn_status in ["cancelled", "voided"]) else "activa",
                 "client_name": client_name,
                 "client_email": client_email,
                 "client_phone": client_phone,
@@ -3733,12 +3739,14 @@ def sync_tiendanube_orders_route():
                 is_changed = True
                 new_sales_count += 1
             else:
-                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "status", "ubicacion", "shipping_option", "shipping_pickup_type"]:
+                for k in ["arca_invoice_id", "arca_cae", "arca_cae_due", "fiscal_status", "ubicacion", "shipping_option", "shipping_pickup_type"]:
                     if k in existing_sale:
                         sale_data[k] = existing_sale[k]
                 
                 local_sh = existing_sale.get("shipping_status", "unshipped")
                 sale_data["shipping_status"] = resolve_shipping_status(local_sh, shipping_status)
+                if sale_data["shipping_status"] == "cancelled":
+                    sale_data["status"] = "cancelada"
                 
                 for k, v in sale_data.items():
                     if k == "items":

@@ -9923,7 +9923,8 @@ async function renderIntegrationsStatus() {
 
       const sNet = grossVal - sFees - saleOpCost;
       
-      const isPaid = s.payment_status === "paid" || s.payment_status === "authorized";
+      const isCancelled = s.shipping_status === "cancelled" || s.payment_status === "cancelled" || s.status === "cancelled" || s.status === "cancelada";
+      const isPaid = !isCancelled && (s.payment_status === "paid" || s.payment_status === "authorized");
       if (isPaid) {
         tnGross += grossVal;
         tnFees += sFees;
@@ -9937,7 +9938,7 @@ async function renderIntegrationsStatus() {
 
     // 2. Set active style on filters UI
     state.tiendanubeShippingFilter = state.tiendanubeShippingFilter || "unshipped";
-    const shippingFilters = ["unshipped", "shipped", "delivered", "all"];
+    const shippingFilters = ["unshipped", "shipped", "delivered", "cancelled", "all"];
     shippingFilters.forEach(f => {
       const btn = document.getElementById(`tn-filter-${f}`);
       if (btn) {
@@ -9953,8 +9954,11 @@ async function renderIntegrationsStatus() {
 
     // 3. Filter orders based on shipping filter tab
     const filteredTnSales = tnSales.filter(s => {
-      if (state.tiendanubeShippingFilter === "all") return true;
       const shStatus = s.shipping_status || "unshipped";
+      const isCancelled = shStatus === "cancelled" || s.payment_status === "cancelled" || s.status === "cancelled" || s.status === "cancelada";
+      if (state.tiendanubeShippingFilter === "all") return true;
+      if (state.tiendanubeShippingFilter === "cancelled") return isCancelled;
+      if (isCancelled) return false;
       return shStatus === state.tiendanubeShippingFilter;
     });
 
@@ -10017,8 +10021,11 @@ async function renderIntegrationsStatus() {
 
       // shipping status badge
       const shStatus = s.shipping_status || "unshipped";
+      const isCancelled = shStatus === "cancelled" || s.payment_status === "cancelled" || s.status === "cancelled" || s.status === "cancelada";
       let shippingBadge = "";
-      if (shStatus === "unshipped") {
+      if (isCancelled) {
+        shippingBadge = `<span class="badge-red" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-weight: 600;">Cancelada</span>`;
+      } else if (shStatus === "unshipped") {
         shippingBadge = `<span class="badge-orange" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.1); color: #f59e0b; font-weight: 600;">Por empaquetar</span>`;
       } else if (shStatus === "shipped") {
         shippingBadge = `<span class="badge-blue" style="font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.2); background: rgba(59, 130, 246, 0.1); color: #3b82f6; font-weight: 600;">Enviado</span>`;
@@ -10049,7 +10056,13 @@ async function renderIntegrationsStatus() {
       let actionHTML = "";
       const missingLocation = !s.ubicacion;
 
-      if (missingLocation && (shStatus === "shipped" || shStatus === "delivered")) {
+      if (isCancelled) {
+        actionHTML = `
+          <div style="display: flex; justify-content: flex-start; align-items: center; width: 100%;">
+            <span style="font-size: 0.68rem; color: var(--accent-red); font-style: italic;">⛔ Venta Cancelada</span>
+          </div>
+        `;
+      } else if (missingLocation && (shStatus === "shipped" || shStatus === "delivered")) {
         const configuredLocations = state.userProfile?.locations || ["Local Principal"];
         const optionsHTML = configuredLocations.map(loc => `<option value="${loc}">${loc}</option>`).join("");
         actionHTML = `
