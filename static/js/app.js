@@ -14004,6 +14004,18 @@ window.syncZecatCatalog = syncZecatCatalog;
 
 // --- PRODUCCIÓN (TRANSFORMACIÓN DE PRENDAS) LOGIC ---
 
+function getCategories() {
+  return state.categories || [];
+}
+window.getCategories = getCategories;
+
+function getUserLocations() {
+  return (state.userProfile?.locations && state.userProfile.locations.length > 0)
+    ? state.userProfile.locations
+    : ["Depósito Casa", "Web"];
+}
+window.getUserLocations = getUserLocations;
+
 function getProductionCategoriesConfig() {
   const allCategories = getCategories() || [];
   
