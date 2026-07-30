@@ -6740,23 +6740,39 @@ async function handleStockIntakeSubmit(e) {
     
     const batchPayload = [];
     
+    const targetGroupKey = getProductGroupKey(selectedProduct);
+    
     for (const [size, qty] of sizesToUpdate) {
-      let existing = state.products.find(p => 
-        (p.baseSku === baseSku || p.sku.startsWith(baseSku)) && 
-        p.size === size
-      );
+      let existing = state.products.find(p => {
+        if (!p) return false;
+        const isGroupMatch = getProductGroupKey(p) === targetGroupKey;
+        const isSkuMatch = (p.baseSku && p.baseSku.toLowerCase() === baseSku.toLowerCase()) || 
+                           (p.sku && (p.sku.toLowerCase() === baseSku.toLowerCase() || p.sku.toLowerCase().startsWith(baseSku.toLowerCase() + '-')));
+        const isSizeMatch = (p.size || "").toLowerCase().trim() === size.toLowerCase().trim();
+        return (isGroupMatch || isSkuMatch) && isSizeMatch;
+      });
       
       if (existing) {
-        const currentLocStock = (existing.locationsStock && existing.locationsStock[selectedLocation] !== undefined)
-          ? existing.locationsStock[selectedLocation]
-          : 0;
+        const locsStock = existing.locationsStock || {};
+        const matchedLocKey = Object.keys(locsStock).find(k => k.trim().toLowerCase() === selectedLocation.trim().toLowerCase()) || selectedLocation;
+        
+        let currentLocStock = 0;
+        if (locsStock[matchedLocKey] !== undefined) {
+          currentLocStock = parseInt(locsStock[matchedLocKey]) || 0;
+        } else if (existing.stock !== undefined && existing.stock !== null) {
+          currentLocStock = parseInt(existing.stock) || 0;
+        }
+        
         const updatedLocStock = {
-          ...(existing.locationsStock || {}),
-          [selectedLocation]: currentLocStock + qty
+          ...locsStock,
+          [matchedLocKey]: currentLocStock + qty
         };
+
+        const newTotalStock = Object.values(updatedLocStock).reduce((acc, v) => acc + (parseInt(v) || 0), 0);
+
         const updatedVariant = {
           ...existing,
-          stock: (existing.stock || 0) + qty,
+          stock: newTotalStock,
           locationsStock: updatedLocStock,
           location: selectedLocation,
           baseCost: baseCost,
