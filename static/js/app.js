@@ -6210,34 +6210,47 @@ function handleProductSearchInput() {
     return;
   }
   
-  // Agrupar variantes por SKU base para evitar duplicados en la lista de búsqueda
+  // Agrupar variantes por modelo/color usando getProductGroupKey para evitar duplicados en la lista de búsqueda
   const uniqueProducts = [];
   const seen = new Set();
   
-  const actualProducts = state.products.filter(p => !p.sku.startsWith("supplier_") && 
-                                                    !p.sku.startsWith("fixedcost_") && 
-                                                    !p.sku.startsWith("account_") && 
-                                                    !p.sku.startsWith("cashtransaction_") && 
-                                                    !p.sku.startsWith("influencer_") && 
-                                                    !p.sku.startsWith("marketingexpense_") && 
-                                                    p.sku !== "extras_config" && 
-                                                    p.sku !== "categories_config");
+  const actualProducts = state.products.filter(p => {
+    if (!p || !p.sku) return false;
+    const s = String(p.sku).toLowerCase();
+    return !s.startsWith("supplier_") && 
+           !s.startsWith("fixedcost_") && 
+           !s.startsWith("account_") && 
+           !s.startsWith("cashtransaction_") && 
+           !s.startsWith("influencer_") && 
+           !s.startsWith("marketingexpense_") && 
+           !s.startsWith("stockintake_") && 
+           !s.startsWith("productionorder_") && 
+           s !== "extras_config" && 
+           s !== "categories_config" && 
+           s !== "user_profile";
+  });
   
   actualProducts.forEach(p => {
-    const baseKey = p.baseSku || p.sku.split('-').slice(0, -1).join('-');
-    if (!seen.has(baseKey)) {
-      seen.add(baseKey);
+    const groupKey = getProductGroupKey(p);
+    if (!seen.has(groupKey)) {
+      seen.add(groupKey);
       uniqueProducts.push(p);
     }
   });
   
-  const filtered = uniqueProducts.filter(p => 
-    p.name.toLowerCase().includes(query) || 
-    p.sku.toLowerCase().includes(query) ||
-    (p.baseSku && p.baseSku.toLowerCase().includes(query))
-  ).sort((a, b) => {
-    const nameA = (a.name || "").toString().toLowerCase().trim();
-    const nameB = (b.name || "").toString().toLowerCase().trim();
+  const filtered = uniqueProducts.filter(p => {
+    const pName = (p.name || "").toLowerCase();
+    const pSku = (p.sku || "").toLowerCase();
+    const pBaseSku = (p.baseSku || "").toLowerCase();
+    const displayName = getProductNameWithColor(p).toLowerCase();
+
+    return pName.includes(query) || 
+           displayName.includes(query) ||
+           pSku.includes(query) ||
+           (pBaseSku && pBaseSku.includes(query));
+  }).sort((a, b) => {
+    const nameA = getProductNameWithColor(a).toLowerCase().trim();
+    const nameB = getProductNameWithColor(b).toLowerCase().trim();
     return nameA.localeCompare(nameB);
   });
   
@@ -6248,10 +6261,11 @@ function handleProductSearchInput() {
   }
   
   resultsDiv.innerHTML = filtered.map(p => {
-    const baseSku = p.baseSku || p.sku.split('-').slice(0, -1).join('-');
+    const displayName = getProductNameWithColor(p);
+    const cleanBase = getCleanBaseSku(p.sku, p.baseSku);
     return `
       <div class="autocomplete-item" onclick="selectIntakeProduct('${p.sku}')">
-        <strong>${p.name}</strong> <span style="font-size: 0.7rem; color: var(--text-gray);">(${baseSku})</span>
+        <strong>${displayName}</strong> <span style="font-size: 0.7rem; color: var(--text-gray);">(${cleanBase})</span>
       </div>
     `;
   }).join("");
@@ -6262,7 +6276,8 @@ function selectIntakeProduct(sku) {
   const p = state.products.find(prod => prod.sku === sku);
   if (!p) return;
   
-  document.getElementById("intake-product-search").value = p.name;
+  const displayName = getProductNameWithColor(p);
+  document.getElementById("intake-product-search").value = displayName;
   document.getElementById("intake-product-sku").value = p.sku;
   document.getElementById("intake-search-results").style.display = "none";
   
@@ -6274,16 +6289,16 @@ function selectIntakeProduct(sku) {
   // Seleccionar adicionales si existen
   populateIntakeExtras(p);
   
-  // Rellenar stock actual por talles
-  const baseSku = p.baseSku || p.sku.split('-').slice(0, -1).join('-');
+  // Rellenar stock actual por talles de todas las variantes del mismo producto (mismo groupKey)
+  const targetGroupKey = getProductGroupKey(p);
   const variants = state.products.filter(prod => {
-    const pBase = prod.baseSku || prod.sku.split('-').slice(0, -1).join('-');
-    return pBase.toLowerCase() === baseSku.toLowerCase();
+    if (!prod) return false;
+    return getProductGroupKey(prod) === targetGroupKey;
   });
   
   if (state.businessType === "comercio") {
-    const variant = variants.find(v => v.size === "Único");
-    const stock = variant ? parseInt(variant.stock) || 0 : 0;
+    const variant = variants.find(v => (v.size || "").toLowerCase().trim() === "único" || (v.size || "").toLowerCase().trim() === "unico");
+    const stock = variant ? getProductLocationStockSum(variant) : (variants[0] ? getProductLocationStockSum(variants[0]) : 0);
     const elSimple = document.getElementById("intake-stock-simple-display");
     if (elSimple) {
       elSimple.innerText = `Stock Actual: ${stock}`;
@@ -6291,8 +6306,8 @@ function selectIntakeProduct(sku) {
     }
   } else {
     getConfiguredSizes().forEach(sz => {
-      const variant = variants.find(v => v.size === sz);
-      const stock = variant ? parseInt(variant.stock) || 0 : 0;
+      const variant = variants.find(v => (v.size || "").toLowerCase().trim() === sz.toLowerCase().trim());
+      const stock = variant ? getProductLocationStockSum(variant) : 0;
       const el = document.getElementById(`intake-stock-${sz}`);
       if (el) {
         el.innerText = `Stock: ${stock}`;
