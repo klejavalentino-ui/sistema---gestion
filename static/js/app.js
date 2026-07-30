@@ -13589,7 +13589,7 @@ async function saveQuoteConfig() {
 
   try {
     showToast("Guardando estructura de presupuesto...");
-    await apiRequest("/api/profile", "POST", state.userProfile);
+    await apiRequest("/api/user/profile", "POST", state.userProfile);
     showToast("¡Estructura de presupuesto guardada con éxito!", false);
     closeQuoteConfigModal();
     renderQuotesUI();
@@ -14195,7 +14195,7 @@ async function saveProductionCategoriesConfig() {
 
   try {
     showToast("Guardando configuración de categorías...");
-    await apiRequest("/api/profile", "POST", state.userProfile);
+    await apiRequest("/api/user/profile", "POST", state.userProfile);
     showToast("¡Categorías de Producción guardadas!", false);
     closeProductionCategoryConfigModal();
     renderProductionUI();
