@@ -3554,10 +3554,12 @@ def sync_tiendanube_orders_route():
             page += 1
             
         products_list = firebase_config.list_documents("products", token)
+        user_products = []
         products_by_sku = {}
         for p in products_list:
             doc_id = p.get("id", "")
             if doc_id.startswith(prefix):
+                user_products.append(p)
                 clean_sku = doc_id[len(prefix):].upper()
                 products_by_sku[clean_sku] = p
 
@@ -3626,7 +3628,7 @@ def sync_tiendanube_orders_route():
                 if not matched_local_prod:
                     item_name = str(item.get("name") or "").strip().lower()
                     if item_name:
-                        matched_local_prod = next((p for p in all_products if str(p.get("name") or "").strip().lower() in item_name or item_name in str(p.get("name") or "").strip().lower()), None)
+                        matched_local_prod = next((p for p in user_products if str(p.get("name") or "").strip().lower() in item_name or item_name in str(p.get("name") or "").strip().lower()), None)
                 
                 cat_val = matched_local_prod.get("category") if matched_local_prod and matched_local_prod.get("category") and str(matched_local_prod.get("category")).lower() != "general" else item.get("category")
                 if not cat_val or str(cat_val).lower() == "general":
