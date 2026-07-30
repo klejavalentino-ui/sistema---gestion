@@ -3100,7 +3100,10 @@ function renderPOSCart(recalc = true) {
     const discountPct = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
     const subtotal = total;
     const discountAmount = (subtotal * discountPct) / 100;
-    const finalTotal = subtotal - discountAmount;
+    let finalTotal = subtotal - discountAmount;
+    if (discountPct > 0) {
+      finalTotal = Math.round(finalTotal / 100) * 100;
+    }
 
     const totalValEl = document.getElementById("pos-cart-total-val");
     if (totalValEl) {
