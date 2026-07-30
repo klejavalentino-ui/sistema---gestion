@@ -13877,28 +13877,6 @@ async function downloadQuotePDF() {
     </div>
   `;
 
-      <div style="text-align: right; min-width: 200px;">
-        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
-          <span>Subtotal:</span>
-          <span>$${Math.round(subtotal).toLocaleString('es-AR')}</span>
-        </div>
-        ${discount > 0 ? `
-        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ef4444; margin-bottom: 4px;">
-          <span>Descuento:</span>
-          <span>-$${Math.round(discount).toLocaleString('es-AR')}</span>
-        </div>` : ''}
-        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0f172a; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 4px;">
-          <span>TOTAL:</span>
-          <span style="color: #10b981;">$${Math.round(total).toLocaleString('es-AR')}</span>
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-      Documento emitido por Datamargen ERP • www.datamargen.com
-    </div>
-  `;
-
   if (window.html2pdf) {
     const opt = {
       margin:       [8, 8, 8, 8],
