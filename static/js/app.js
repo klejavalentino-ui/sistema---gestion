@@ -12627,13 +12627,78 @@ async function shipTiendanubeOrder(saleId, status, selectElId = null) {
     }
   }
   
-  if (status === "shipped" && !location) {
+  if ((status === "shipped" || status === "delivered") && selectElId && !location) {
     showToast("Por favor selecciona una ubicación para descontar stock.", true);
     return;
   }
   
   const actionText = status === "shipped" ? "despachar" : "entregar";
   
+  // Validar si hay stock disponible en la ubicación seleccionada antes de permitir el despacho
+  const allSales = [...(state.tiendanubeSales || []), ...(state.sales || [])];
+  const sale = allSales.find(s => String(s.id) === String(saleId) || String(s.tn_number) === String(saleId));
+
+  if (location && sale && sale.items && sale.items.length > 0) {
+    const stockErrors = [];
+
+    sale.items.forEach(it => {
+      const prodInfo = it.product || {};
+      const qtyRequired = parseInt(it.quantity) || 1;
+      const itemSize = (it.size || "").trim();
+      const itemColor = (prodInfo.color || "").trim();
+      const itemSku = prodInfo.sku || "";
+      const itemBaseSku = getCleanBaseSku(itemSku, prodInfo.baseSku || "").toLowerCase();
+
+      // Buscar la variante correspondiente en state.products
+      let matchedProd = null;
+      if (itemSku) {
+        matchedProd = state.products.find(p => p.sku === itemSku);
+      }
+      if (!matchedProd) {
+        matchedProd = state.products.find(p => {
+          const pBase = getCleanBaseSku(p.sku, p.baseSku).toLowerCase();
+          const pSize = (p.size || "").trim().toLowerCase();
+          const pColor = (p.color || "").trim().toLowerCase();
+          const pName = (p.name || "").trim().toLowerCase();
+          const itemName = (prodInfo.name || "").trim().toLowerCase();
+
+          const matchesBaseOrName = (pBase && pBase === itemBaseSku) || (pName && (pName === itemName || getProductNameWithColor(p).toLowerCase() === itemName));
+          const matchesSize = !itemSize || pSize === itemSize.toLowerCase() || (pSize === "único" && itemSize.toLowerCase() === "u") || (pSize === "u" && itemSize.toLowerCase() === "único");
+          const matchesColor = !itemColor || !pColor || pColor === itemColor.toLowerCase();
+
+          return matchesBaseOrName && matchesSize && matchesColor;
+        });
+      }
+
+      if (matchedProd) {
+        let availInLoc = 0;
+        if (matchedProd.locationsStock && typeof matchedProd.locationsStock === "object") {
+          const matchedLocKey = Object.keys(matchedProd.locationsStock).find(k => k.trim().toLowerCase() === location.trim().toLowerCase());
+          if (matchedLocKey !== undefined) {
+            availInLoc = parseInt(matchedProd.locationsStock[matchedLocKey]) || 0;
+          } else {
+            availInLoc = parseInt(matchedProd.stock_local !== undefined ? matchedProd.stock_local : matchedProd.stock) || 0;
+          }
+        } else {
+          availInLoc = parseInt(matchedProd.stock_local !== undefined ? matchedProd.stock_local : matchedProd.stock) || 0;
+        }
+
+        if (availInLoc < qtyRequired) {
+          const prodTitle = getProductNameWithColor(matchedProd) || prodInfo.name || "Producto";
+          const sizeInfo = itemSize ? ` (${itemSize})` : "";
+          stockErrors.push(`• ${prodTitle}${sizeInfo}: Stock disponible en '${location}': ${availInLoc} u. | Requeridos: ${qtyRequired} u.`);
+        }
+      }
+    });
+
+    if (stockErrors.length > 0) {
+      const errorText = `⚠️ FALTANTE DE STOCK EN '${location.toUpperCase()}':\nNo se puede despachar la venta porque no hay stock suficiente:\n\n${stockErrors.join("\n")}`;
+      alert(errorText);
+      showToast(`Faltante de stock en '${location}'. No se pudo despachar el pedido.`, true);
+      return; // Bloquear despacho
+    }
+  }
+
   try {
     showToast("Procesando despacho...");
     const res = await apiRequest("/api/integrations/tiendanube/ship-order", "POST", {
@@ -12643,7 +12708,7 @@ async function shipTiendanubeOrder(saleId, status, selectElId = null) {
     });
     
     if (res.success) {
-      showToast(`Pedido ${saleId} marcado como ${status === "shipped" ? "enviado" : "entregado"} con éxito.`);
+      showToast(`Pedido marcado como ${status === "shipped" ? "enviado" : "entregado"} con éxito.`);
       await refreshState();
     }
   } catch (error) {

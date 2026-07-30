@@ -3827,6 +3827,23 @@ def ship_tiendanube_order_route():
     try:
         sale = firebase_config.get_document("sales", doc_id, token)
         if not sale:
+            all_sales = firebase_config.get_collection("sales", token)
+            user_sales = filter_user_docs(all_sales, prefix)
+            clean_sid = str(sale_id).replace("TN-", "").replace("#", "").strip()
+            matched_sale = None
+            for s in user_sales:
+                tn_num = str(s.get("tn_number", "")).strip()
+                s_id = str(s.get("id", "")).replace(prefix, "").strip()
+                if clean_sid in [tn_num, s_id] or str(s.get("id")) == str(sale_id):
+                    matched_sale = s
+                    break
+            if matched_sale:
+                sale = matched_sale
+                doc_id = sale.get("id")
+                if not doc_id.startswith(prefix):
+                    doc_id = f"{prefix}{doc_id}"
+
+        if not sale:
             return jsonify({"error": "Venta no encontrada"}), 404
             
         old_status = sale.get("shipping_status", "unshipped")
@@ -3843,41 +3860,90 @@ def ship_tiendanube_order_route():
                 return jsonify({"error": "Ubicacion requerida para descontar stock"}), 400
                 
             items = sale.get("items", [])
+            all_prods = firebase_config.get_collection("products", token)
+            user_prods = filter_user_docs(all_prods, prefix)
+
+            stock_errors = []
+            updates_list = []
+
             for it in items:
                 prod_info = it.get("product", {})
-                sku = prod_info.get("sku")
+                sku = prod_info.get("sku", "")
                 qty = safe_int(it.get("quantity", 0))
-                if sku and qty > 0:
-                    prod = firebase_config.get_document("products", f"{prefix}{sku}", token)
-                    if prod:
-                        loc_stock = prod.get("locationsStock", {})
-                        if not isinstance(loc_stock, dict):
-                            loc_stock = {}
-                        if ubicacion in loc_stock:
-                            loc_stock[ubicacion] = max(0, safe_int(loc_stock[ubicacion]) - qty)
-                        else:
-                            current_stock = safe_int(prod.get("stock_local", prod.get("stock", 0)))
-                            prod["stock_local"] = max(0, current_stock - qty)
-                            prod["stock"] = prod["stock_local"]
-                            
-                        prod["locationsStock"] = loc_stock
-                        if loc_stock:
-                            total_stock = sum(safe_int(v) for v in loc_stock.values())
-                            prod["stock"] = total_stock
-                            prod["stock_local"] = total_stock
-                            
-                        firebase_config.set_document("products", f"{prefix}{sku}", prod, token)
-            
-            uid = get_uid_from_token(token)
-            import threading
-            threading.Thread(
-                target=sync_stock_to_tiendanube,
-                args=(uid, items),
-                kwargs={"token": token, "prefix": prefix}
-            ).start()
+                item_size = (it.get("size") or "").strip().lower()
+                item_color = (prod_info.get("color") or "").strip().lower()
+                item_name = (prod_info.get("name") or "").strip().lower()
+                item_base = get_clean_base_sku(sku, prod_info.get("baseSku", "")).lower()
+
+                if qty <= 0:
+                    continue
+
+                # Find product in user_prods
+                prod = None
+                if sku:
+                    prod = next((p for p in user_prods if p.get("sku") == sku or p.get("id") == sku), None)
+                if not prod:
+                    prod = next((p for p in user_prods if 
+                        (get_clean_base_sku(p.get("sku"), p.get("baseSku")).lower() == item_base or p.get("name", "").lower() == item_name) and
+                        (not item_size or (p.get("size") or "").strip().lower() == item_size)
+                    ), None)
+
+                if prod:
+                    loc_stock = prod.get("locationsStock")
+                    if not isinstance(loc_stock, dict):
+                        loc_stock = {}
+                    
+                    matched_loc_key = next((k for k in loc_stock.keys() if k.strip().lower() == ubicacion.strip().lower()), None)
+                    if matched_loc_key is not None:
+                        current_avail = safe_int(loc_stock[matched_loc_key])
+                        loc_key_to_use = matched_loc_key
+                    else:
+                        current_avail = safe_int(prod.get("stock_local", prod.get("stock", 0)))
+                        loc_key_to_use = ubicacion
+
+                    if current_avail < qty:
+                        p_title = prod.get("name") or prod_info.get("name") or "Producto"
+                        size_txt = f" ({it.get('size')})" if it.get("size") else ""
+                        stock_errors.append(f"{p_title}{size_txt}: Stock disponible en '{ubicacion}' es {current_avail} u., pero se requieren {qty} u.")
+                    else:
+                        updates_list.append((prod, loc_key_to_use, current_avail, qty))
+
+            if stock_errors:
+                return jsonify({
+                    "error": f"Faltante de stock en '{ubicacion}'. No se puede despachar la venta.",
+                    "details": stock_errors
+                }), 400
+
+            # Execute stock deduction
+            dispatched_items = []
+            for prod, loc_key, current_avail, qty in updates_list:
+                loc_stock = prod.get("locationsStock")
+                if not isinstance(loc_stock, dict):
+                    loc_stock = {}
+                
+                loc_stock[loc_key] = max(0, current_avail - qty)
+                prod["locationsStock"] = loc_stock
+                
+                total_stock = sum(safe_int(v) for v in loc_stock.values())
+                prod["stock"] = total_stock
+                prod["stock_local"] = total_stock
+                
+                p_doc_id = prod.get("id") or prod.get("sku")
+                full_id = f"{prefix}{p_doc_id}" if not str(p_doc_id).startswith(prefix) else p_doc_id
+                firebase_config.set_document("products", full_id, prod, token)
+                dispatched_items.append(prod)
+
+            if dispatched_items:
+                uid = get_uid_from_token(token)
+                import threading
+                threading.Thread(
+                    target=sync_stock_to_tiendanube,
+                    args=(uid, items),
+                    kwargs={"token": token, "prefix": prefix}
+                ).start()
             
             if status == "shipped":
-                clean_order_id = sale_id.replace("TN-", "").replace(prefix, "")
+                clean_order_id = str(sale_id).replace("TN-", "").replace(prefix, "")
                 threading.Thread(
                     target=notify_tiendanube_shipped,
                     args=(uid, clean_order_id, token)
