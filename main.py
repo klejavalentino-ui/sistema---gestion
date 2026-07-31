@@ -830,6 +830,38 @@ def simulate_payment():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/admin/activate-subscription", methods=["POST"])
+def admin_activate_subscription():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    
+    caller_email = get_email_from_token(token)
+    if caller_email not in ["datamargen@gmail.com", "klejavalentino@gmail.com"]:
+        return jsonify({"error": "Acceso denegado: solo el Administrador General de Datamargen puede activar suscripciones."}), 403
+
+    data = request.json or {}
+    target_email = data.get("target_email")
+    status = data.get("status", "active")
+    
+    if not target_email:
+        return jsonify({"error": "Correo de cliente requerido (target_email)."}), 400
+
+    try:
+        if db_admin:
+            user = admin_auth.get_user_by_email(target_email)
+            target_uid = user.uid
+            user_ref = db_admin.collection("users").document(target_uid)
+            user_doc = user_ref.get().to_dict() or {}
+            projects = user_doc.get("projects", {})
+            for pid in projects.keys():
+                prof_ref = user_ref.collection("projects").document(pid).collection("products").document("user_profile")
+                prof_ref.set({"subscriptionStatus": status}, merge=True)
+            return jsonify({"success": True, "target_email": target_email, "subscriptionStatus": status})
+        return jsonify({"error": "Firestore Admin no disponible"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/firebase-config", methods=["GET"])
 def get_firebase_config():
     return jsonify({
