@@ -13642,8 +13642,12 @@ function renderQuotesUI() {
   if (clientNoteDisp) {
     clientNoteDisp.innerText = clientNote ? `Nota: ${clientNote}` : "";
   }
+  const clientDetailsContainer = document.getElementById("quote-display-details-container");
   if (clientDetailsDisp) {
-    clientDetailsDisp.innerText = clientDetails ? `Detalles: ${clientDetails}` : "";
+    clientDetailsDisp.innerText = clientDetails;
+  }
+  if (clientDetailsContainer) {
+    clientDetailsContainer.style.display = clientDetails ? "block" : "none";
   }
   
   const items = state.quoteItems || [];
