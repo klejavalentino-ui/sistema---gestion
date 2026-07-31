@@ -13562,9 +13562,11 @@ function openQuoteConfigModal() {
   const defaultTerms = "Presupuesto válido por 7 días corridos.\nPrecios sujetos a disponibilidad de stock al confirmar el pedido.\nComprobante de cotización no válido como factura fiscal.";
   const defaultWa = "¡Gracias por tu consulta! Quedamos a tu disposición.";
 
+  const bankEl = document.getElementById("quote-cfg-bank-data");
   const termsEl = document.getElementById("quote-cfg-terms");
   const waEl = document.getElementById("quote-cfg-wa-footer");
 
+  if (bankEl) bankEl.value = cfg.bankDataText !== undefined ? cfg.bankDataText : "";
   if (termsEl) termsEl.value = cfg.termsText !== undefined ? cfg.termsText : defaultTerms;
   if (waEl) waEl.value = cfg.waFooterText !== undefined ? cfg.waFooterText : defaultWa;
 
@@ -13578,18 +13580,27 @@ function closeQuoteConfigModal() {
 window.closeQuoteConfigModal = closeQuoteConfigModal;
 
 async function saveQuoteConfig() {
+  const bankDataText = document.getElementById("quote-cfg-bank-data")?.value || "";
   const termsText = document.getElementById("quote-cfg-terms")?.value || "";
   const waFooterText = document.getElementById("quote-cfg-wa-footer")?.value || "";
 
   if (!state.userProfile) state.userProfile = {};
-  state.userProfile.quoteConfig = {
+  const newQuoteConfig = {
+    bankDataText: bankDataText,
     termsText: termsText,
     waFooterText: waFooterText
   };
 
   try {
     showToast("Guardando estructura de presupuesto...");
-    await apiRequest("/api/user/profile", "POST", state.userProfile);
+    const res = await apiRequest("/api/business/settings", "PUT", {
+      quoteConfig: newQuoteConfig
+    });
+    if (res && res.userProfile) {
+      state.userProfile = res.userProfile;
+    } else {
+      state.userProfile.quoteConfig = newQuoteConfig;
+    }
     showToast("¡Estructura de presupuesto guardada con éxito!", false);
     closeQuoteConfigModal();
     renderQuotesUI();
@@ -13778,6 +13789,20 @@ async function downloadQuotePDF() {
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const total = Math.max(0, subtotal - discount);
 
+  const customBankData = state.userProfile?.quoteConfig?.bankDataText;
+  let bankDataHtml = "";
+  if (customBankData && customBankData.trim()) {
+    const bankLines = customBankData.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    bankDataHtml = `
+      <div style="margin-bottom: 12px; font-size: 11px; color: #0f172a; background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
+        <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 4px;">🏦 Datos Bancarios:</div>
+        <div style="font-weight: 700; color: #0f172a; line-height: 1.4;">
+          ${bankLines.map(line => `<strong>${line}</strong>`).join("<br>")}
+        </div>
+      </div>
+    `;
+  }
+
   const customTerms = state.userProfile?.quoteConfig?.termsText;
   let termsListHtml = `
     <li>Presupuesto válido por 7 días corridos.</li>
@@ -13849,6 +13874,7 @@ async function downloadQuotePDF() {
 
     <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #cbd5e1; padding-top: 18px;">
       <div style="max-width: 380px;">
+        ${bankDataHtml}
         <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px;">Condiciones Comerciales:</div>
         <ul style="margin: 0; padding-left: 14px; font-size: 10.5px; color: #475569; line-height: 1.4;">
           ${termsListHtml}
@@ -14190,12 +14216,21 @@ async function saveProductionCategoriesConfig() {
   const selectedTarget = Array.from(targetChks).map(c => c.value);
 
   if (!state.userProfile) state.userProfile = {};
-  state.userProfile.productionBaseCategories = selectedBase;
-  state.userProfile.productionTargetCategories = selectedTarget;
+  const newBase = selectedBase;
+  const newTarget = selectedTarget;
 
   try {
     showToast("Guardando configuración de categorías...");
-    await apiRequest("/api/user/profile", "POST", state.userProfile);
+    const res = await apiRequest("/api/business/settings", "PUT", {
+      productionBaseCategories: newBase,
+      productionTargetCategories: newTarget
+    });
+    if (res && res.userProfile) {
+      state.userProfile = res.userProfile;
+    } else {
+      state.userProfile.productionBaseCategories = newBase;
+      state.userProfile.productionTargetCategories = newTarget;
+    }
     showToast("¡Categorías de Producción guardadas!", false);
     closeProductionCategoryConfigModal();
     renderProductionUI();

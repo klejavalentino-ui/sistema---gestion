@@ -5044,10 +5044,12 @@ def update_business_settings():
     data = request.json
     try:
         admin_uid = firebase_config.verify_id_token(token)
-        # Check if caller is already a subuser. Only admin can change business settings.
         real_uid = firebase_config.get_real_uid(admin_uid, token)
-        if real_uid != admin_uid:
-            return jsonify({"error": "Acceso denegado: solo el administrador puede modificar los ajustes."}), 403
+        
+        # Restricted admin-only fields check (only main admin can modify credentials or business type)
+        admin_only_requested = any(k in data for k in ["userProfileEmail", "userProfilePassword", "userProfileUsername", "businessType"])
+        if admin_only_requested and real_uid != admin_uid:
+            return jsonify({"error": "Acceso denegado: solo el administrador principal puede modificar credenciales o tipo de negocio."}), 403
             
         prefix = get_user_prefix(token)
         doc = firebase_config.get_document("products", f"{prefix}user_profile", token)
@@ -5127,15 +5129,15 @@ def update_business_settings():
             else:
                 doc["businessType"] = new_biz_type
                 
-        if "ivaCondition" in data: doc["ivaCondition"] = data["ivaCondition"]
-        if "businessModel" in data: doc["businessModel"] = data["businessModel"]
-        if "locations" in data: doc["locations"] = data["locations"]
-        if "salesChannels" in data: doc["salesChannels"] = data["salesChannels"]
-        if "priceLists" in data: doc["priceLists"] = data["priceLists"]
-        if "printSettings" in data: doc["printSettings"] = data["printSettings"]
-        if "bizCheckboxes" in data: doc["bizCheckboxes"] = data["bizCheckboxes"]
-        if "paymentMethods" in data: doc["paymentMethods"] = data["paymentMethods"]
-        if "sizeVariants" in data: doc["sizeVariants"] = data["sizeVariants"]
+        keys_to_update = [
+            "ivaCondition", "businessModel", "locations", "salesChannels", "priceLists",
+            "printSettings", "bizCheckboxes", "paymentMethods", "sizeVariants",
+            "quoteConfig", "productionBaseCategories", "productionTargetCategories",
+            "zecatConfig", "zecatEnabled"
+        ]
+        for key in keys_to_update:
+            if key in data:
+                doc[key] = data[key]
         
         if biz_type_changed:
             firebase_config.set_document("products", f"{new_prefix}user_profile", doc, token)
