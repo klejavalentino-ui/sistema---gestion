@@ -15124,7 +15124,26 @@ function renderServicesUI() {
 }
 
 // --- MODAL Y GESTIÓN DE CATÁLOGO DE SERVICIOS ---
+let editingCatalogItemIndex = null;
+
 function openServiceCatalogModal() {
+  editingCatalogItemIndex = null;
+  const nameInput = document.getElementById("cat-service-name");
+  const priceInput = document.getElementById("cat-service-price");
+  const costInput = document.getElementById("cat-service-cost");
+  const titleEl = document.getElementById("cat-service-form-title");
+  const btnSave = document.getElementById("btn-save-cat-service");
+
+  if (nameInput) nameInput.value = "";
+  if (priceInput) priceInput.value = "";
+  if (costInput) costInput.value = "";
+  if (titleEl) titleEl.innerText = "➕ Nuevo Servicio / Precios y Costos";
+  if (btnSave) {
+    btnSave.innerText = "+ Guardar al Catálogo";
+    btnSave.classList.remove("btn-emerald");
+    btnSave.classList.add("btn-primary");
+  }
+
   renderServiceCatalogModalList();
   const modal = document.getElementById("service-catalog-modal");
   if (modal) modal.style.display = "flex";
@@ -15155,17 +15174,45 @@ function renderServiceCatalogModalList() {
         <td style="text-align: right; font-weight: 700; color: var(--accent-red);">$${Math.round(cost).toLocaleString('es-AR')}</td>
         <td style="text-align: right; font-weight: 800; color: var(--accent-blue);">$${Math.round(margin).toLocaleString('es-AR')}</td>
         <td style="text-align: center;">
-          <button class="btn" style="background: none; border: none; color: var(--accent-red); font-size: 0.9rem; cursor: pointer;" onclick="deleteCatalogServiceItem(${idx})">🗑️</button>
+          <div style="display: flex; gap: 6px; justify-content: center;">
+            <button class="btn" style="background: none; border: none; color: var(--accent-blue); font-size: 0.95rem; cursor: pointer;" onclick="editCatalogServiceItem(${idx})" title="Editar Servicio">✏️</button>
+            <button class="btn" style="background: none; border: none; color: var(--accent-red); font-size: 0.95rem; cursor: pointer;" onclick="deleteCatalogServiceItem(${idx})" title="Eliminar Servicio">🗑️</button>
+          </div>
         </td>
       </tr>
     `;
   }).join("");
 }
 
+function editCatalogServiceItem(idx) {
+  const catalog = state.servicesCatalog || [];
+  const item = catalog[idx];
+  if (!item) return;
+
+  editingCatalogItemIndex = idx;
+  const nameInput = document.getElementById("cat-service-name");
+  const priceInput = document.getElementById("cat-service-price");
+  const costInput = document.getElementById("cat-service-cost");
+  const titleEl = document.getElementById("cat-service-form-title");
+  const btnSave = document.getElementById("btn-save-cat-service");
+
+  if (nameInput) nameInput.value = item.name;
+  if (priceInput) priceInput.value = item.price;
+  if (costInput) costInput.value = item.cost || 0;
+  if (titleEl) titleEl.innerText = "✏️ Editar Servicio del Catálogo";
+  if (btnSave) {
+    btnSave.innerText = "💾 Guardar Cambios";
+    btnSave.classList.remove("btn-primary");
+    btnSave.classList.add("btn-emerald");
+  }
+}
+
 async function addCatalogServiceItem() {
   const nameInput = document.getElementById("cat-service-name");
   const priceInput = document.getElementById("cat-service-price");
   const costInput = document.getElementById("cat-service-cost");
+  const titleEl = document.getElementById("cat-service-form-title");
+  const btnSave = document.getElementById("btn-save-cat-service");
 
   const name = nameInput ? nameInput.value.trim() : "";
   const price = priceInput ? parseLocalFloat(priceInput.value) : 0;
@@ -15176,24 +15223,37 @@ async function addCatalogServiceItem() {
     return;
   }
 
-  const newItem = {
-    id: "serv_" + Date.now(),
-    name: name,
-    price: price,
-    cost: cost
-  };
-
   if (!state.servicesCatalog) state.servicesCatalog = [];
-  state.servicesCatalog.push(newItem);
 
-  nameInput.value = "";
-  priceInput.value = "";
+  if (editingCatalogItemIndex !== null && state.servicesCatalog[editingCatalogItemIndex]) {
+    state.servicesCatalog[editingCatalogItemIndex].name = name;
+    state.servicesCatalog[editingCatalogItemIndex].price = price;
+    state.servicesCatalog[editingCatalogItemIndex].cost = cost;
+    editingCatalogItemIndex = null;
+  } else {
+    state.servicesCatalog.push({
+      id: "serv_" + Date.now(),
+      name: name,
+      price: price,
+      cost: cost
+    });
+  }
+
+  if (nameInput) nameInput.value = "";
+  if (priceInput) priceInput.value = "";
   if (costInput) costInput.value = "";
+  if (titleEl) titleEl.innerText = "➕ Nuevo Servicio / Precios y Costos";
+  if (btnSave) {
+    btnSave.innerText = "+ Guardar al Catálogo";
+    btnSave.classList.remove("btn-emerald");
+    btnSave.classList.add("btn-primary");
+  }
 
   try {
     await apiRequest("/api/services/catalog", "POST", state.servicesCatalog);
-    showToast("Servicio guardado en el catálogo");
+    showToast("Catálogo de servicios actualizado");
     renderServiceCatalogModalList();
+    renderServiceOrderFormItems();
   } catch (e) {
     showToast("Error al guardar catálogo: " + e.message, true);
   }
@@ -15206,6 +15266,7 @@ async function deleteCatalogServiceItem(idx) {
       await apiRequest("/api/services/catalog", "POST", state.servicesCatalog);
       showToast("Servicio eliminado del catálogo");
       renderServiceCatalogModalList();
+      renderServiceOrderFormItems();
     } catch (e) {
       showToast("Error al actualizar catálogo: " + e.message, true);
     }
@@ -15250,28 +15311,52 @@ function onGarmentQtyChange(idx, val) {
   if (activeGarmentsForm[idx]) activeGarmentsForm[idx].qty = Math.max(1, parseInt(val) || 1);
 }
 
+let _tallerClientsMap = new Map();
+
 function populateTallerClientsDatalist() {
   const datalist = document.getElementById("taller-clients-datalist");
   if (!datalist) return;
 
-  const clientNames = new Set();
+  _tallerClientsMap.clear();
+
   if (Array.isArray(state.currentAccounts)) {
     state.currentAccounts.filter(a => a.type === "cliente").forEach(a => {
-      if (a.entityName) clientNames.add(a.entityName.trim());
+      if (a.entityName) {
+        _tallerClientsMap.set(a.entityName.trim(), a.phone || a.telefono || "");
+      }
     });
   }
   if (Array.isArray(state.sales)) {
     state.sales.forEach(s => {
-      if (s.client_name) clientNames.add(s.client_name.trim());
+      if (s.client_name) {
+        const name = s.client_name.trim();
+        if (!_tallerClientsMap.has(name) || !_tallerClientsMap.get(name)) {
+          _tallerClientsMap.set(name, s.client_phone || s.phone || "");
+        }
+      }
     });
   }
   if (Array.isArray(state.quotes)) {
     state.quotes.forEach(q => {
-      if (q.clientName) clientNames.add(q.clientName.trim());
+      if (q.clientName) {
+        const name = q.clientName.trim();
+        if (!_tallerClientsMap.has(name) || !_tallerClientsMap.get(name)) {
+          _tallerClientsMap.set(name, q.clientPhone || q.phone || "");
+        }
+      }
     });
   }
 
-  datalist.innerHTML = Array.from(clientNames).sort().map(name => `<option value="${name}">`).join("");
+  datalist.innerHTML = Array.from(_tallerClientsMap.keys()).sort().map(name => `<option value="${name}">`).join("");
+}
+
+function onTallerClientSelected(val) {
+  if (!val) return;
+  const matchPhone = _tallerClientsMap.get(val.trim());
+  const phoneInput = document.getElementById("service-order-client-phone");
+  if (matchPhone && phoneInput && !phoneInput.value) {
+    phoneInput.value = matchPhone;
+  }
 }
 
 // --- MODAL Y GESTIÓN DE ÓRDENES DE TRABAJO ---
@@ -15387,7 +15472,7 @@ function renderServiceOrderFormItems() {
           <input type="number" class="form-input" style="padding: 4px 8px; text-align: center; font-size: 0.85rem;" value="${it.qty}" min="1" oninput="onOrderFormItemQtyChange(${idx}, this.value)">
         </td>
         <td style="text-align: right;">
-          <input type="number" class="form-input" style="padding: 4px 8px; text-align: right; font-size: 0.85rem;" value="${it.price}" min="0" oninput="onOrderFormItemPriceChange(${idx}, this.value)">
+          <input type="number" class="form-input" style="padding: 4px 8px; text-align: right; font-size: 0.85rem; background: rgba(255, 255, 255, 0.05); color: var(--text-muted); cursor: not-allowed;" value="${it.price}" readonly title="El precio unitario se establece desde el Catálogo de Servicios">
         </td>
         <td style="text-align: right; font-weight: 800; color: var(--accent-emerald); font-size: 0.9rem;">
           $${Math.round(it.qty * it.price).toLocaleString('es-AR')}
@@ -15794,5 +15879,8 @@ window.removeGarmentRowFromOrderForm = removeGarmentRowFromOrderForm;
 window.onGarmentNameChange = onGarmentNameChange;
 window.onGarmentQtyChange = onGarmentQtyChange;
 window.onOrderFormItemSelectChange = onOrderFormItemSelectChange;
+window.editCatalogServiceItem = editCatalogServiceItem;
+window.onTallerClientSelected = onTallerClientSelected;
+window.populateTallerClientsDatalist = populateTallerClientsDatalist;
 
 
