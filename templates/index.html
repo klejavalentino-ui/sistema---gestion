@@ -1991,34 +1991,54 @@
         </div>
 
         <!-- TARJETAS DE ESTADÍSTICAS -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
-          <div class="idx-card" style="padding: 16px; display: flex; align-items: center; gap: 14px;">
-            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(37, 99, 235, 0.15); color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px;">
+          <div class="idx-card" style="padding: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+              📥
+            </div>
+            <div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Pendientes</div>
+              <div style="font-size: 1.3rem; font-weight: 900; color: #f59e0b;" id="services-stat-pending">0</div>
+            </div>
+          </div>
+
+          <div class="idx-card" style="padding: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(37, 99, 235, 0.15); color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
               🎨
             </div>
             <div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">En Producción</div>
-              <div style="font-size: 1.4rem; font-weight: 900; color: var(--text-white);" id="services-stat-active">0</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">En Producción</div>
+              <div style="font-size: 1.3rem; font-weight: 900; color: #3b82f6;" id="services-stat-active">0</div>
             </div>
           </div>
 
-          <div class="idx-card" style="padding: 16px; display: flex; align-items: center; gap: 14px;">
-            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+          <div class="idx-card" style="padding: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(168, 85, 247, 0.15); color: #a855f7; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
               📦
             </div>
             <div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Listas p/ Entregar</div>
-              <div style="font-size: 1.4rem; font-weight: 900; color: var(--accent-amber);" id="services-stat-ready">0</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Listas p/ Entregar</div>
+              <div style="font-size: 1.3rem; font-weight: 900; color: #a855f7;" id="services-stat-ready">0</div>
             </div>
           </div>
 
-          <div class="idx-card" style="padding: 16px; display: flex; align-items: center; gap: 14px;">
-            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(16, 185, 129, 0.15); color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+          <div class="idx-card" style="padding: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(16, 185, 129, 0.15); color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+              ✅
+            </div>
+            <div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Entregados</div>
+              <div style="font-size: 1.3rem; font-weight: 900; color: #10b981;" id="services-stat-delivered">0</div>
+            </div>
+          </div>
+
+          <div class="idx-card" style="padding: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
               💰
             </div>
             <div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Total Recaudado</div>
-              <div style="font-size: 1.4rem; font-weight: 900; color: var(--accent-emerald);" id="services-stat-total">$0</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Total Recaudado</div>
+              <div style="font-size: 1.3rem; font-weight: 900; color: var(--accent-emerald);" id="services-stat-total">$0</div>
             </div>
           </div>
         </div>
@@ -4174,22 +4194,23 @@
       <!-- FILA 1: DATOS CLIENTE Y FECHA -->
       <div style="display: grid; grid-template-columns: 1fr 1fr 160px; gap: 12px; margin-bottom: 16px;">
         <div class="form-group" style="margin: 0;">
-          <label>Cliente / Negocio <span style="color: var(--accent-red);">*</span></label>
-          <input type="text" id="service-order-client-name" class="form-input" placeholder="Ej: Deportes Central / Juan Pérez">
+          <label>Cliente <span style="color: var(--accent-red);">*</span></label>
+          <input type="text" id="service-order-client-name" list="taller-clients-datalist" class="form-input" placeholder="Buscar o ingresar cliente...">
+          <datalist id="taller-clients-datalist"></datalist>
         </div>
         <div class="form-group" style="margin: 0;">
           <label>Teléfono / Contacto</label>
           <input type="text" id="service-order-client-phone" class="form-input" placeholder="Ej: 291-4567890">
         </div>
         <div class="form-group" style="margin: 0;">
-          <label>Fecha Entrega</label>
+          <label>Fecha Entrega <span style="color: var(--accent-red);">*</span></label>
           <input type="date" id="service-order-delivery-date" class="form-input">
         </div>
       </div>
 
       <!-- FILA 2: PRENDAS RECIBIDAS DEL CLIENTE -->
       <div class="form-group" style="margin-bottom: 16px;">
-        <label style="color: var(--accent-emerald); font-weight: 700;">👕 Prendas Recibidas del Cliente (Sin costo de prenda física)</label>
+        <label style="color: var(--accent-emerald); font-weight: 700;">👕 Prendas Recibidas del Cliente <span style="color: var(--accent-red);">*</span> (Sin costo de prenda física)</label>
         <textarea id="service-order-garments" class="form-input" rows="2" placeholder="Ej: 50 Buzos Canguro Negros (20 L, 30 XL), 30 Remeras Blancas (M)"></textarea>
       </div>
 

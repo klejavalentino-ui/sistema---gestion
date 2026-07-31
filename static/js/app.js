@@ -15039,16 +15039,22 @@ function renderServicesUI() {
   const orders = state.serviceOrders || [];
 
   // Update Statistics Cards
-  const inProdCount = orders.filter(o => o.status === "En Producción" || o.status === "Pendiente").length;
+  const pendingCount = orders.filter(o => o.status === "Pendiente").length;
+  const inProdCount = orders.filter(o => o.status === "En Producción").length;
   const readyCount = orders.filter(o => o.status === "Listo para Entregar").length;
-  const totalEarned = orders.reduce((sum, o) => sum + (o.deposit || 0) + (o.status === "Entregado" ? (o.balance || 0) : 0), 0);
+  const deliveredCount = orders.filter(o => o.status === "Entregado").length;
+  const totalEarned = orders.reduce((sum, o) => sum + (o.deposit || 0) + (o.status === "Entregado" ? (o.total - (o.balance || 0)) : (o.deposit || 0)), 0);
 
+  const statPendingEl = document.getElementById("services-stat-pending");
   const statActiveEl = document.getElementById("services-stat-active");
   const statReadyEl = document.getElementById("services-stat-ready");
+  const statDeliveredEl = document.getElementById("services-stat-delivered");
   const statTotalEl = document.getElementById("services-stat-total");
 
+  if (statPendingEl) statPendingEl.innerText = pendingCount;
   if (statActiveEl) statActiveEl.innerText = inProdCount;
   if (statReadyEl) statReadyEl.innerText = readyCount;
+  if (statDeliveredEl) statDeliveredEl.innerText = deliveredCount;
   if (statTotalEl) statTotalEl.innerText = `$${Math.round(totalEarned).toLocaleString('es-AR')}`;
 
   // Filter Orders
@@ -15189,6 +15195,30 @@ async function deleteCatalogServiceItem(idx) {
 
 let pendingInsumoDeductions = [];
 
+function populateTallerClientsDatalist() {
+  const datalist = document.getElementById("taller-clients-datalist");
+  if (!datalist) return;
+
+  const clientNames = new Set();
+  if (Array.isArray(state.currentAccounts)) {
+    state.currentAccounts.filter(a => a.type === "cliente").forEach(a => {
+      if (a.entityName) clientNames.add(a.entityName.trim());
+    });
+  }
+  if (Array.isArray(state.sales)) {
+    state.sales.forEach(s => {
+      if (s.client_name) clientNames.add(s.client_name.trim());
+    });
+  }
+  if (Array.isArray(state.quotes)) {
+    state.quotes.forEach(q => {
+      if (q.clientName) clientNames.add(q.clientName.trim());
+    });
+  }
+
+  datalist.innerHTML = Array.from(clientNames).sort().map(name => `<option value="${name}">`).join("");
+}
+
 function populateInsumoSelectDropdown() {
   const select = document.getElementById("service-order-insumo-select");
   if (!select) return;
@@ -15241,6 +15271,7 @@ function addInsumoToServiceOrder() {
 function openServiceOrderModal(orderId = null) {
   pendingInsumoDeductions = [];
   populateInsumoSelectDropdown();
+  populateTallerClientsDatalist();
 
   const modalTitle = document.getElementById("service-order-modal-title");
   const orderIdInput = document.getElementById("service-order-id");
@@ -15277,7 +15308,7 @@ function openServiceOrderModal(orderId = null) {
     if (orderIdInput) orderIdInput.value = "";
     if (clientNameInput) clientNameInput.value = "";
     if (clientPhoneInput) clientPhoneInput.value = "";
-    if (deliveryDateInput) deliveryDateInput.value = new Date().toISOString().split('T')[0];
+    if (deliveryDateInput) deliveryDateInput.value = ""; // Dejar fecha en blanco por defecto
     if (garmentsInput) garmentsInput.value = "";
     if (notesInput) notesInput.value = "";
     if (discountInput) discountInput.value = "0";
@@ -15413,8 +15444,24 @@ async function saveServiceOrderFromModal() {
   const depositInput = document.getElementById("service-order-deposit");
 
   const clientName = clientNameInput ? clientNameInput.value.trim() : "";
+  const garments = garmentsInput ? garmentsInput.value.trim() : "";
+  const deliveryDate = deliveryDateInput ? deliveryDateInput.value.trim() : "";
+
   if (!clientName) {
-    showToast("Ingresá el nombre del cliente o negocio", true);
+    showToast("El campo 'Cliente' es obligatorio", true);
+    if (clientNameInput) clientNameInput.focus();
+    return;
+  }
+
+  if (!garments) {
+    showToast("El campo 'Prendas Recibidas del Cliente' es obligatorio", true);
+    if (garmentsInput) garmentsInput.focus();
+    return;
+  }
+
+  if (!deliveryDate) {
+    showToast("El campo 'Fecha de Entrega' es obligatorio", true);
+    if (deliveryDateInput) deliveryDateInput.focus();
     return;
   }
 
@@ -15447,8 +15494,8 @@ async function saveServiceOrderFromModal() {
     id: existingId,
     clientName: clientName,
     clientPhone: clientPhoneInput ? clientPhoneInput.value.trim() : "",
-    deliveryDate: deliveryDateInput ? deliveryDateInput.value : "",
-    garments: garmentsInput ? garmentsInput.value.trim() : "",
+    deliveryDate: deliveryDate,
+    garments: garments,
     items: activeOrderItemsForm,
     notes: notesInput ? notesInput.value.trim() : "",
     subtotal: subtotal,
@@ -15502,9 +15549,6 @@ async function updateServiceOrderStatus(orderId, newStatus) {
   if (!existing) return;
 
   existing.status = newStatus;
-  if (newStatus === "Entregado") {
-    existing.balance = 0; // Fully paid upon delivery
-  }
 
   try {
     await apiRequest("/api/services/orders", "POST", state.serviceOrders);
