@@ -15481,7 +15481,7 @@ function renderServiceOrderFormItems() {
         <td style="text-align: right;">
           <input type="number" class="form-input" style="padding: 4px 8px; text-align: right; font-size: 0.85rem; background: rgba(255, 255, 255, 0.05); color: var(--text-muted); cursor: not-allowed;" value="${it.price}" readonly title="El precio unitario se establece desde el Catálogo de Servicios">
         </td>
-        <td style="text-align: right; font-weight: 800; color: var(--accent-emerald); font-size: 0.9rem;">
+        <td style="text-align: right; font-weight: 800; color: var(--accent-emerald); font-size: 0.9rem;" id="service-order-item-subtotal-${idx}">
           $${Math.round(it.qty * it.price).toLocaleString('es-AR')}
         </td>
         <td style="text-align: center;">
@@ -15524,8 +15524,14 @@ function onOrderFormItemQtyChange(idx, val) {
   const qty = Math.max(1, parseInt(val) || 1);
   if (activeOrderItemsForm[idx]) {
     activeOrderItemsForm[idx].qty = qty;
-    activeOrderItemsForm[idx].subtotal = qty * activeOrderItemsForm[idx].price;
-    renderServiceOrderFormItems();
+    const itemSubtotal = qty * activeOrderItemsForm[idx].price;
+    activeOrderItemsForm[idx].subtotal = itemSubtotal;
+    
+    // Update the subtotal cell dynamically in the DOM so we don't lose input focus
+    const subtotalCell = document.getElementById(`service-order-item-subtotal-${idx}`);
+    if (subtotalCell) {
+      subtotalCell.innerText = `$${Math.round(itemSubtotal).toLocaleString('es-AR')}`;
+    }
   }
   calculateServiceOrderTotals();
 }
