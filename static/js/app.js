@@ -13627,17 +13627,23 @@ function renderQuotesUI() {
   
   const clientNameInput = document.getElementById("quote-client-name");
   const clientNoteInput = document.getElementById("quote-client-note");
+  const clientDetailsInput = document.getElementById("quote-client-details");
   const clientNameDisp = document.getElementById("quote-display-client-name");
   const clientNoteDisp = document.getElementById("quote-display-client-note");
+  const clientDetailsDisp = document.getElementById("quote-display-client-details");
   
   const clientName = clientNameInput ? clientNameInput.value.trim() : "";
   const clientNote = clientNoteInput ? clientNoteInput.value.trim() : "";
+  const clientDetails = clientDetailsInput ? clientDetailsInput.value.trim() : "";
   
   if (clientNameDisp) {
     clientNameDisp.innerText = clientName ? `Cliente: ${clientName}` : "Cliente: Consumidor Final";
   }
   if (clientNoteDisp) {
     clientNoteDisp.innerText = clientNote ? `Nota: ${clientNote}` : "";
+  }
+  if (clientDetailsDisp) {
+    clientDetailsDisp.innerText = clientDetails ? `Detalles: ${clientDetails}` : "";
   }
   
   const items = state.quoteItems || [];
@@ -13673,9 +13679,25 @@ function renderQuotesUI() {
   
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const discountInput = document.getElementById("quote-discount-input");
-  const discount = discountInput ? parseLocalFloat(discountInput.value) : 0;
-  const total = Math.max(0, subtotal - discount);
+  const discountPercent = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  const discountAmount = subtotal * (discountPercent / 100);
+  let total = Math.max(0, subtotal - discountAmount);
+  total = Math.round(total / 100) * 100;
   
+  const subtotalDiscountContainer = document.getElementById("quote-subtotal-discount-container");
+  const subtotalDisp = document.getElementById("quote-subtotal-display");
+  const discountPercentDisp = document.getElementById("quote-discount-percent-display");
+  const discountAmountDisp = document.getElementById("quote-discount-amount-display");
+
+  if (discountPercent > 0 && items.length > 0) {
+    if (subtotalDiscountContainer) subtotalDiscountContainer.style.display = "block";
+    if (subtotalDisp) subtotalDisp.innerText = `$${Math.round(subtotal).toLocaleString('es-AR')}`;
+    if (discountPercentDisp) discountPercentDisp.innerText = discountPercent;
+    if (discountAmountDisp) discountAmountDisp.innerText = `$${Math.round(discountAmount).toLocaleString('es-AR')}`;
+  } else {
+    if (subtotalDiscountContainer) subtotalDiscountContainer.style.display = "none";
+  }
+
   const totalEl = document.getElementById("quote-total-display");
   if (totalEl) {
     totalEl.innerText = `$${Math.round(total).toLocaleString('es-AR')}`;
@@ -13692,15 +13714,19 @@ function copyQuoteToWhatsApp() {
   const bName = state.businessName || state.userProfile?.businessName || "Datamargen";
   const clientNameInput = document.getElementById("quote-client-name");
   const clientNoteInput = document.getElementById("quote-client-note");
+  const clientDetailsInput = document.getElementById("quote-client-details");
   const discountInput = document.getElementById("quote-discount-input");
   
   const clientName = clientNameInput ? clientNameInput.value.trim() : "";
   const clientNote = clientNoteInput ? clientNoteInput.value.trim() : "";
-  const discount = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  const clientDetails = clientDetailsInput ? clientDetailsInput.value.trim() : "";
+  const discountPercent = discountInput ? parseLocalFloat(discountInput.value) : 0;
   
   const dateStr = new Date().toLocaleDateString('es-AR');
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
-  const total = Math.max(0, subtotal - discount);
+  const discountAmount = subtotal * (discountPercent / 100);
+  let total = Math.max(0, subtotal - discountAmount);
+  total = Math.round(total / 100) * 100;
   
   const customFooter = state.userProfile?.quoteConfig?.waFooterText;
   const customTerms = state.userProfile?.quoteConfig?.termsText;
@@ -13709,6 +13735,7 @@ function copyQuoteToWhatsApp() {
   msg += `📅 Fecha: ${dateStr}\n`;
   if (clientName) msg += `👤 Cliente: ${clientName}\n`;
   if (clientNote) msg += `📝 Nota: ${clientNote}\n`;
+  if (clientDetails) msg += `📌 Detalles: ${clientDetails}\n`;
   msg += `----------------------------------------\n`;
   
   items.forEach(item => {
@@ -13719,9 +13746,9 @@ function copyQuoteToWhatsApp() {
   });
   
   msg += `----------------------------------------\n`;
-  if (discount > 0) {
+  if (discountPercent > 0) {
     msg += `Subtotal: $${Math.round(subtotal).toLocaleString('es-AR')}\n`;
-    msg += `Descuento: -$${Math.round(discount).toLocaleString('es-AR')}\n`;
+    msg += `Descuento (${discountPercent}%): -$${Math.round(discountAmount).toLocaleString('es-AR')}\n`;
   }
   msg += `💰 *TOTAL FINAL: $${Math.round(total).toLocaleString('es-AR')}*\n`;
 
@@ -13780,14 +13807,18 @@ async function downloadQuotePDF() {
   const dateStr = new Date().toLocaleDateString('es-AR');
   const clientNameInput = document.getElementById("quote-client-name");
   const clientNoteInput = document.getElementById("quote-client-note");
+  const clientDetailsInput = document.getElementById("quote-client-details");
   const discountInput = document.getElementById("quote-discount-input");
   
   const clientName = clientNameInput ? clientNameInput.value.trim() : "Consumidor Final";
   const clientNote = clientNoteInput ? clientNoteInput.value.trim() : "";
-  const discount = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  const clientDetails = clientDetailsInput ? clientDetailsInput.value.trim() : "";
+  const discountPercent = discountInput ? parseLocalFloat(discountInput.value) : 0;
   
   const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
-  const total = Math.max(0, subtotal - discount);
+  const discountAmount = subtotal * (discountPercent / 100);
+  let total = Math.max(0, subtotal - discountAmount);
+  total = Math.round(total / 100) * 100;
 
   const customBankData = state.userProfile?.quoteConfig?.bankDataText;
   let bankDataHtml = "";
@@ -13795,7 +13826,7 @@ async function downloadQuotePDF() {
     const bankLines = customBankData.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     bankDataHtml = `
       <div style="margin-bottom: 12px; font-size: 11px; color: #0f172a; background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
-        <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 4px;">🏦 Datos Bancarios:</div>
+        <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 4px;">🏦 DATOS BANCARIOS:</div>
         <div style="font-weight: 700; color: #0f172a; line-height: 1.4;">
           ${bankLines.map(line => `<strong>${line}</strong>`).join("<br>")}
         </div>
@@ -13872,10 +13903,16 @@ async function downloadQuotePDF() {
       </tbody>
     </table>
 
+    ${clientDetails ? `
+    <div style="margin-bottom: 18px; padding: 10px 14px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px;">
+      <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 4px;"><strong>DETALLES:</strong></div>
+      <div style="font-size: 11.5px; color: #0f172a; line-height: 1.4; white-space: pre-wrap; font-weight: 600;">${clientDetails}</div>
+    </div>` : ''}
+
     <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #cbd5e1; padding-top: 18px;">
       <div style="max-width: 380px;">
         ${bankDataHtml}
-        <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px;">Condiciones Comerciales:</div>
+        <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 4px;"><strong>CONDICIONES COMERCIALES:</strong></div>
         <ul style="margin: 0; padding-left: 14px; font-size: 10.5px; color: #475569; line-height: 1.4;">
           ${termsListHtml}
         </ul>
@@ -13886,10 +13923,10 @@ async function downloadQuotePDF() {
           <span>Subtotal:</span>
           <span>$${Math.round(subtotal).toLocaleString('es-AR')}</span>
         </div>
-        ${discount > 0 ? `
+        ${discountPercent > 0 ? `
         <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ef4444; margin-bottom: 4px;">
-          <span>Descuento:</span>
-          <span>-$${Math.round(discount).toLocaleString('es-AR')}</span>
+          <span>Descuento (${discountPercent}%):</span>
+          <span>-$${Math.round(discountAmount).toLocaleString('es-AR')}</span>
         </div>` : ''}
         <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0f172a; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 4px;">
           <span>TOTAL:</span>
@@ -14095,6 +14132,7 @@ function clearQuote() {
   const searchInput = document.getElementById("quote-product-search");
   const clientNameInput = document.getElementById("quote-client-name");
   const clientNoteInput = document.getElementById("quote-client-note");
+  const clientDetailsInput = document.getElementById("quote-client-details");
   const discountInput = document.getElementById("quote-discount-input");
   const priceInput = document.getElementById("quote-item-price");
   const qtyInput = document.getElementById("quote-item-qty");
@@ -14103,6 +14141,7 @@ function clearQuote() {
   if (searchInput) searchInput.value = "";
   if (clientNameInput) clientNameInput.value = "";
   if (clientNoteInput) clientNoteInput.value = "";
+  if (clientDetailsInput) clientDetailsInput.value = "";
   if (discountInput) discountInput.value = "";
   if (priceInput) priceInput.value = "";
   if (qtyInput) qtyInput.value = "1";
