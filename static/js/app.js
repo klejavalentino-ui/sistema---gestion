@@ -4062,10 +4062,16 @@ function getInvoiceTicketInnerHTML(sale) {
       </div>
       <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
       ${exchangeTicketHtml}
-      <div style="margin-top: 10px; text-align: center;">
-        ${qrImgHtml}
-        <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
-        <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
+      <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="width: 100px; text-align: left;">
+          ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 40px; max-width: 100px; object-fit: contain;">` : ''}
+        </div>
+        <div style="text-align: center; flex-grow: 1;">
+          ${qrImgHtml}
+          <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
+          <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
+        </div>
+        <div style="width: 100px;"></div>
       </div>
     `;
   }
@@ -11698,6 +11704,26 @@ async function loadBusinessData() {
     document.getElementById("business-settings-model").value = curProj?.businessModel || state.userProfile.businessModel || "Indumentaria";
     document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
     
+    // Mapear Logo
+    const logoBase64 = state.userProfile.logoBase64;
+    const previewContainer = document.getElementById("business-settings-logo-preview-container");
+    const previewImg = document.getElementById("business-settings-logo-preview");
+    const removeBtn = document.getElementById("business-settings-logo-remove-btn");
+    const fileInput = document.getElementById("business-settings-logo-input");
+
+    if (fileInput) fileInput.value = "";
+    state.tempLogoBase64 = null;
+    state.removeLogoFlag = false;
+
+    if (logoBase64 && previewContainer && previewImg && removeBtn) {
+      previewImg.src = logoBase64;
+      previewContainer.style.display = "flex";
+      removeBtn.style.display = "inline-block";
+    } else if (previewContainer && removeBtn) {
+      previewContainer.style.display = "none";
+      removeBtn.style.display = "none";
+    }
+
     // Configuración de Talles
     const sizeVariantsInput = document.getElementById("business-settings-sizes");
     const sizeVariantsContainer = document.getElementById("business-settings-sizes-container");
@@ -11728,16 +11754,70 @@ async function loadBusinessData() {
 }
 window.loadBusinessData = loadBusinessData;
 
+function handleLogoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  if (file.size > 500 * 1024) {
+    showToast("El logo debe ser de un tamaño menor a 500 KB.", true);
+    input.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result;
+    const previewImg = document.getElementById("business-settings-logo-preview");
+    const previewContainer = document.getElementById("business-settings-logo-preview-container");
+    const removeBtn = document.getElementById("business-settings-logo-remove-btn");
+    if (previewImg && previewContainer && removeBtn) {
+      previewImg.src = base64;
+      previewContainer.style.display = "flex";
+      removeBtn.style.display = "inline-block";
+    }
+    state.tempLogoBase64 = base64;
+    state.removeLogoFlag = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeBusinessLogo() {
+  const previewImg = document.getElementById("business-settings-logo-preview");
+  const previewContainer = document.getElementById("business-settings-logo-preview-container");
+  const removeBtn = document.getElementById("business-settings-logo-remove-btn");
+  const fileInput = document.getElementById("business-settings-logo-input");
+  
+  if (fileInput) fileInput.value = "";
+  if (previewImg) previewImg.src = "";
+  if (previewContainer) previewContainer.style.display = "none";
+  if (removeBtn) removeBtn.style.display = "none";
+  
+  state.tempLogoBase64 = null;
+  state.removeLogoFlag = true;
+}
+
+window.handleLogoUpload = handleLogoUpload;
+window.removeBusinessLogo = removeBusinessLogo;
+
 async function saveBusinessSettings() {
   try {
     const model = document.getElementById("business-settings-model").value;
     const type = (model === "Indumentaria") ? "textil" : "comercio";
     const name = document.getElementById("business-settings-name").value.trim();
+
+    let logoValue = state.userProfile.logoBase64 || null;
+    if (state.removeLogoFlag) {
+      logoValue = null;
+    } else if (state.tempLogoBase64) {
+      logoValue = state.tempLogoBase64;
+    }
+
     const data = {
       businessName: name,
       businessModel: model,
       businessType: type,
       ivaCondition: document.getElementById("business-settings-iva").value,
+      logoBase64: logoValue,
       sizeVariants: document.getElementById("business-settings-sizes") 
                       ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 
                       : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
@@ -13961,8 +14041,14 @@ async function downloadQuotePDF() {
       </div>
     </div>
 
-    <div style="margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-      Documento emitido por Datamargen ERP • www.datamargen.com
+    <div style="margin-top: 35px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+      <div style="width: 150px; text-align: left;">
+        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 40px; max-width: 150px; object-fit: contain;">` : ''}
+      </div>
+      <div style="font-size: 10px; color: #94a3b8; text-align: center; flex-grow: 1;">
+        Documento emitido por Datamargen ERP • www.datamargen.com
+      </div>
+      <div style="width: 150px;"></div>
     </div>
   `;
 
@@ -15956,8 +16042,14 @@ async function downloadServiceOrderPDF(orderId) {
       </div>
     </div>
 
-    <div style="margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-      Documento emitido por Datamargen ERP • www.datamargen.com
+    <div style="margin-top: 35px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+      <div style="width: 150px; text-align: left;">
+        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 40px; max-width: 150px; object-fit: contain;">` : ''}
+      </div>
+      <div style="font-size: 10px; color: #94a3b8; text-align: center; flex-grow: 1;">
+        Documento emitido por Datamargen ERP • www.datamargen.com
+      </div>
+      <div style="width: 150px;"></div>
     </div>
   `;
 
@@ -15986,7 +16078,9 @@ async function openRemitoConfigModal() {
     const settings = await apiRequest("/api/services/settings", "GET");
     const textarea = document.getElementById("remito-config-conditions");
     if (textarea && settings) {
-      textarea.value = settings.remitoConditions || "";
+      textarea.value = (settings.remitoConditions !== undefined && settings.remitoConditions !== null)
+        ? settings.remitoConditions
+        : "La empresa no se responsabiliza por fallas previas en las prendas del cliente.\nComprobante válido como orden de trabajo y remito de entrega.";
     }
   } catch (e) {
     console.error("Error loading remito config:", e);

@@ -2397,6 +2397,19 @@
                   <option value="exento">Exento</option>
                 </select>
               </div>
+              <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Logo de la Empresa (PNG, JPG, JPEG)</label>
+                <div style="display: flex; align-items: center; gap: 14px; margin-top: 6px;">
+                  <input type="file" id="business-settings-logo-input" accept="image/png, image/jpeg, image/jpg" class="form-input" style="padding: 6px; font-size: 0.8rem; flex-grow: 1;" onchange="handleLogoUpload(this)">
+                  <div id="business-settings-logo-preview-container" style="display: none; align-items: center; justify-content: center; width: 60px; height: 60px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; padding: 4px;">
+                    <img id="business-settings-logo-preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                  </div>
+                  <button type="button" id="business-settings-logo-remove-btn" class="btn" style="display: none; padding: 6px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-size: 0.75rem; font-weight: bold;" onclick="removeBusinessLogo()">Quitar</button>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">
+                  El logo se incluirá automáticamente abajo a la izquierda en todas las facturas, presupuestos, remitos, notas de crédito y notas de débito emitidas por el sistema.
+                </p>
+              </div>
               <div class="form-group" id="business-settings-sizes-container" style="margin-bottom: 0; grid-column: span 2;">
                 <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Variantes de Talle (Separados por coma)</label>
                 <input type="text" id="business-settings-sizes" class="form-input" placeholder="Ej: XS, S, M, L, XL, XXL, Único">
