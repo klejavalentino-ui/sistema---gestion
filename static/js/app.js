@@ -11590,6 +11590,24 @@ function formatAllCurrencyInputs() {
 // BUSINESS SETTINGS & USERS
 // ==========================================
 
+function isAdminSectionAllowed(secId) {
+  const adminEmails = ["valentinoklcv@gmail.com", "jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"];
+  const adminEmail = (state.userProfile?.contactEmail || state.userProfile?.email || "").toLowerCase();
+  const isAdminAllowedEmail = adminEmails.includes(adminEmail);
+
+  if (secId === "tiendanube") {
+    return (state.userProfile?.tiendanubeEnabled === true) || isAdminAllowedEmail;
+  }
+  if (secId === "arca") {
+    return (state.userProfile?.arcaEnabled === true) || isAdminAllowedEmail;
+  }
+  if (secId === "zecat") {
+    const zecatAllowedEmails = ["jomoindumentaria@gmail.com"];
+    return (state.userProfile?.zecatEnabled === true) || zecatAllowedEmails.includes(adminEmail);
+  }
+  return true;
+}
+
 function applyPermissionsToUI() {
   const delAccBtn = document.getElementById("business-delete-account-btn");
   if (delAccBtn) {
@@ -11612,9 +11630,11 @@ function applyPermissionsToUI() {
     const menuItem = document.querySelector(`.menu-item[data-tab="${sec.id}"]`);
     const sectionEl = document.getElementById(`${sec.id}-section`);
     
+    const isAllowedForAdmin = isAdminSectionAllowed(sec.id);
+    
     // 1. Control de Visibilidad en el menú
     if (menuItem) {
-      if (access === "none") {
+      if (!isAllowedForAdmin || access === "none") {
         menuItem.style.display = "none";
         // Si estaba activo, sacarlo al panel u otro lado
         if (state.activeTab === sec.id) switchTab("panel");
