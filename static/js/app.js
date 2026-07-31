@@ -14987,17 +14987,6 @@ window.deleteProductionOrder = deleteProductionOrder;
 // ==========================================
 
 let activeOrderItemsForm = [];
-
-async function loadServicesData() {
-  try {
-    const catalogRes = await apiRequest("/api/services/catalog", "GET");
-    if (Array.isArray(catalogRes) && catalogRes.length > 0) {
-      state.servicesCatalog = catalogRes;
-    } else if (!state.servicesCatalog || state.servicesCatalog.length === 0) {
-      state.servicesCatalog = [
-        { id: "serv_1", name: "Estampado Frente A4/A3", price: 3500 },
-        { id: "serv_2", name: "Estampado Espalda Grande", price: 4000 },
-let activeOrderItemsForm = [];
 let activeGarmentsForm = [];
 
 async function loadServicesData() {
