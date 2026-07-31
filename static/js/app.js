@@ -15837,7 +15837,7 @@ async function downloadServiceOrderPDF(orderId) {
   const order = (state.serviceOrders || []).find(o => o.id === orderId);
   if (!order) return;
 
-  let conditionsText = "• La empresa no se responsabiliza por fallas previas en las prendas del cliente.\n• Comprobante válido como orden de trabajo y remito de entrega.";
+  let conditionsText = "La empresa no se responsabiliza por fallas previas en las prendas del cliente.\nComprobante válido como orden de trabajo y remito de entrega.";
   try {
     const settings = await apiRequest("/api/services/settings", "GET");
     if (settings && settings.remitoConditions) {
@@ -15851,7 +15851,7 @@ async function downloadServiceOrderPDF(orderId) {
     .split("\n")
     .map(line => line.trim())
     .filter(line => line.length > 0)
-    .map(line => `<div style="color: #64748b; font-weight: normal; margin-bottom: 2px;">${line}</div>`)
+    .map(line => `<li>${line}</li>`)
     .join("");
 
   const bizName = state.businessName || state.userProfile?.businessName || "Datamargen";
@@ -15927,9 +15927,11 @@ async function downloadServiceOrderPDF(orderId) {
     </div>` : ''}
 
     <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #cbd5e1; padding-top: 18px;">
-      <div style="max-width: 350px; font-size: 10.5px; color: #0f172a; line-height: 1.4;">
+      <div style="max-width: 350px; font-size: 10.5px; line-height: 1.4;">
         <strong style="font-size: 11px; display: block; margin-bottom: 4px; font-weight: bold; color: #0f172a;">Condiciones del Servicio:</strong>
-        ${conditionsHtml}
+        <ul style="margin: 0; padding-left: 14px; font-size: 10.5px; color: #64748b; line-height: 1.4;">
+          ${conditionsHtml}
+        </ul>
       </div>
 
       <div style="text-align: right; min-width: 260px;">

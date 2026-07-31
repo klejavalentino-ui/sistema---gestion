@@ -4372,9 +4372,11 @@
       </div>
 
       <div class="form-group" style="margin-bottom: 18px;">
-        <label style="color: var(--text-white); font-weight: 700; display: block; margin-bottom: 8px;">Condiciones del Servicio:</label>
-        <textarea id="remito-config-conditions" class="form-input" style="width: 100%; height: 160px; font-family: monospace; font-size: 0.85rem; resize: vertical; line-height: 1.4;" placeholder="Escribe una condición por línea, ej:&#10;• La empresa no se responsabiliza por fallas previas en las prendas del cliente.&#10;• Comprobante válido como orden de trabajo y remito de entrega."></textarea>
-        <small style="color: var(--text-muted); display: block; margin-top: 6px; font-size: 0.75rem;">Cada renglón que ingreses aquí se mostrará al final del remito PDF.</small>
+        <label class="form-label" style="font-weight: 700; color: var(--text-white); margin-bottom: 6px; display: block;">
+          📄 Condiciones del Servicio (Aparecen al pie del PDF):
+        </label>
+        <div style="font-size: 0.72rem; color: var(--text-gray); margin-bottom: 6px;">Ingresá una condición por línea.</div>
+        <textarea id="remito-config-conditions" class="form-input" rows="5" style="font-size: 0.8rem; width: 100%; resize: vertical;" placeholder="La empresa no se responsabiliza por fallas previas en las prendas del cliente.&#10;Comprobante válido como orden de trabajo y remito de entrega."></textarea>
       </div>
 
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
