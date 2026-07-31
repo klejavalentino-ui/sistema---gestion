@@ -15656,11 +15656,77 @@ async function saveServiceOrderFromModal() {
 
   try {
     await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+    
+    // Sync with Cobranzas (Cuentas Corrientes)
+    await syncServiceOrderWithCurrentAccount(orderData);
+    
     showToast(`Orden de Trabajo ${existingId} guardada con éxito`);
     closeServiceOrderModal();
     renderServicesUI();
   } catch (e) {
     showToast("Error al guardar la orden: " + e.message, true);
+  }
+}
+
+// --- SYNC SERVICES ORDERS WITH CURRENT ACCOUNTS (COBRANZAS) ---
+async function syncServiceOrderWithCurrentAccount(order) {
+  if (!order || !order.clientName) return;
+
+  const clientName = order.clientName.trim();
+  
+  // Find matching account in state.currentAccounts
+  let account = (state.currentAccounts || []).find(a => a.type === "cliente" && a.entityName.toLowerCase() === clientName.toLowerCase());
+  let accId = account ? account.id : null;
+
+  if (!account) {
+    try {
+      account = await apiRequest("/api/current-accounts", "POST", {
+        entityName: clientName,
+        type: "cliente",
+        phone: order.clientPhone || ""
+      });
+      accId = account.id;
+      state.currentAccounts.push(account);
+    } catch (e) {
+      console.error("Error creating current account automatically:", e);
+      return;
+    }
+  }
+
+  // Look for any existing transaction for this Order ID in the account.
+  if (account && Array.isArray(account.transactions)) {
+    const matchTx = account.transactions.find(tx => tx.description && tx.description.includes(order.id));
+    if (matchTx) {
+      try {
+        await apiRequest(`/api/current-accounts/${accId}/transactions/${matchTx.id}`, "DELETE");
+        account.transactions = account.transactions.filter(t => t.id !== matchTx.id);
+      } catch (e) {
+        console.error("Error deleting old service order transaction:", e);
+      }
+    }
+  }
+
+  // If status is "Entregado" or "Cobrado", register transaction
+  if (order.status === "Entregado" || order.status === "Cobrado") {
+    const paymentValue = (order.status === "Cobrado" || order.balance === 0) ? order.total : (order.deposit || 0);
+    const payload = {
+      description: `Orden de Trabajo ${order.id} (${order.status})`,
+      amount: order.total,
+      payment: paymentValue,
+      date: new Date().toISOString()
+    };
+    try {
+      const updatedAcc = await apiRequest(`/api/current-accounts/${accId}/transactions`, "POST", payload);
+      if (updatedAcc && updatedAcc.transactions) {
+        account.transactions = updatedAcc.transactions;
+      }
+    } catch (e) {
+      console.error("Error posting service order transaction:", e);
+    }
+  }
+
+  if (typeof refreshState === "function") {
+    await refreshState();
   }
 }
 
@@ -15675,6 +15741,10 @@ async function updateServiceOrderStatus(orderId, newStatus) {
 
   try {
     await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+    
+    // Sync with Cobranzas (Cuentas Corrientes)
+    await syncServiceOrderWithCurrentAccount(existing);
+    
     showToast(`Estado de ${orderId} actualizado a ${newStatus}`);
     renderServicesUI();
   } catch (e) {
@@ -15684,11 +15754,28 @@ async function updateServiceOrderStatus(orderId, newStatus) {
 
 async function deleteServiceOrder(orderId) {
   if (confirm(`¿Eliminar la orden de trabajo ${orderId}?`)) {
+    const order = (state.serviceOrders || []).find(o => o.id === orderId);
     state.serviceOrders = (state.serviceOrders || []).filter(o => o.id !== orderId);
     try {
       await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+      
+      // Delete corresponding transaction in Cobranzas if it exists
+      if (order && order.clientName) {
+        const clientName = order.clientName.trim();
+        const account = (state.currentAccounts || []).find(a => a.type === "cliente" && a.entityName.toLowerCase() === clientName.toLowerCase());
+        if (account && Array.isArray(account.transactions)) {
+          const matchTx = account.transactions.find(tx => tx.description && tx.description.includes(orderId));
+          if (matchTx) {
+            await apiRequest(`/api/current-accounts/${account.id}/transactions/${matchTx.id}`, "DELETE");
+          }
+        }
+      }
+      
       showToast(`Orden ${orderId} eliminada`);
       renderServicesUI();
+      if (typeof refreshState === "function") {
+        await refreshState();
+      }
     } catch (e) {
       showToast("Error al eliminar orden: " + e.message, true);
     }
@@ -15722,8 +15809,12 @@ async function chargeServiceOrderToCash(orderId) {
     try {
       await apiRequest("/api/sales", "POST", salePayload);
       order.balance = 0;
-      order.status = "Entregado";
+      order.status = "Cobrado";
       await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+      
+      // Sync with Cobranzas (Cuentas Corrientes) to register fully paid status
+      await syncServiceOrderWithCurrentAccount(order);
+      
       showToast(`¡Venta de servicio ${order.id} cobrada y registrada en Caja con éxito!`);
       renderServicesUI();
     } catch (e) {
@@ -15897,5 +15988,6 @@ window.editCatalogServiceItem = editCatalogServiceItem;
 window.onTallerClientSelected = onTallerClientSelected;
 window.populateTallerClientsDatalist = populateTallerClientsDatalist;
 window.calculateCatalogServiceFields = calculateCatalogServiceFields;
+window.syncServiceOrderWithCurrentAccount = syncServiceOrderWithCurrentAccount;
 
 
