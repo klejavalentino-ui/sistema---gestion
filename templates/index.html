@@ -4193,15 +4193,11 @@
       <input type="hidden" id="service-order-id" value="">
 
       <!-- FILA 1: DATOS CLIENTE Y FECHA -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr 160px; gap: 12px; margin-bottom: 16px;">
+      <div style="display: grid; grid-template-columns: 1fr 200px; gap: 12px; margin-bottom: 16px;">
         <div class="form-group" style="margin: 0;">
           <label>Cliente <span style="color: var(--accent-red);">*</span></label>
-          <input type="text" id="service-order-client-name" list="taller-clients-datalist" class="form-input" placeholder="Buscar o ingresar cliente..." onchange="onTallerClientSelected(this.value)" oninput="onTallerClientSelected(this.value)">
+          <input type="text" id="service-order-client-name" list="taller-clients-datalist" class="form-input" placeholder="Buscar cliente de Cobranzas...">
           <datalist id="taller-clients-datalist"></datalist>
-        </div>
-        <div class="form-group" style="margin: 0;">
-          <label>Teléfono / Contacto</label>
-          <input type="text" id="service-order-client-phone" class="form-input" placeholder="Ej: 291-4567890">
         </div>
         <div class="form-group" style="margin: 0;">
           <label>Fecha Entrega <span style="color: var(--accent-red);">*</span></label>
@@ -4318,15 +4314,18 @@
       <!-- FORMULARIO AGREGAR / EDITAR SERVICIO -->
       <div style="background: var(--bg-input); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 18px;">
         <div id="cat-service-form-title" style="font-size: 0.85rem; font-weight: 800; color: var(--text-white); margin-bottom: 10px;">➕ Nuevo Servicio / Precios y Costos</div>
-        <div style="display: grid; grid-template-columns: 1fr 120px 120px; gap: 10px; margin-bottom: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 120px 120px 100px; gap: 10px; margin-bottom: 10px;">
           <div class="form-group" style="margin: 0;">
             <input type="text" id="cat-service-name" class="form-input" placeholder="Nombre (Ej: Estampado Frente A4)">
           </div>
           <div class="form-group" style="margin: 0;">
-            <input type="number" id="cat-service-price" class="form-input" placeholder="Precio Venta ($)">
+            <input type="number" id="cat-service-price" class="form-input" placeholder="Precio Venta ($)" oninput="calculateCatalogServiceFields('price')">
           </div>
           <div class="form-group" style="margin: 0;">
-            <input type="number" id="cat-service-cost" class="form-input" placeholder="Costo Unit. ($)">
+            <input type="number" id="cat-service-cost" class="form-input" placeholder="Costo Unit. ($)" oninput="calculateCatalogServiceFields('cost')">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <input type="number" id="cat-service-margin-pct" class="form-input" placeholder="Margen (%)" oninput="calculateCatalogServiceFields('margin')" min="0" max="100">
           </div>
         </div>
         <button id="btn-save-cat-service" class="btn btn-primary" style="width: 100%; font-size: 0.85rem;" onclick="addCatalogServiceItem()">+ Guardar al Catálogo</button>

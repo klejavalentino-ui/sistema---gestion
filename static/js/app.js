@@ -15131,12 +15131,14 @@ function openServiceCatalogModal() {
   const nameInput = document.getElementById("cat-service-name");
   const priceInput = document.getElementById("cat-service-price");
   const costInput = document.getElementById("cat-service-cost");
+  const marginInput = document.getElementById("cat-service-margin-pct");
   const titleEl = document.getElementById("cat-service-form-title");
   const btnSave = document.getElementById("btn-save-cat-service");
 
   if (nameInput) nameInput.value = "";
   if (priceInput) priceInput.value = "";
   if (costInput) costInput.value = "";
+  if (marginInput) marginInput.value = "";
   if (titleEl) titleEl.innerText = "➕ Nuevo Servicio / Precios y Costos";
   if (btnSave) {
     btnSave.innerText = "+ Guardar al Catálogo";
@@ -15166,13 +15168,13 @@ function renderServiceCatalogModalList() {
 
   tbody.innerHTML = catalog.map((s, idx) => {
     const cost = s.cost || 0;
-    const margin = s.price - cost;
+    const marginPct = s.price > 0 ? Math.round(((s.price - cost) / s.price) * 100) : 0;
     return `
       <tr>
         <td style="font-weight: 700; color: var(--text-white);">${s.name}</td>
         <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$${Math.round(s.price).toLocaleString('es-AR')}</td>
         <td style="text-align: right; font-weight: 700; color: var(--accent-red);">$${Math.round(cost).toLocaleString('es-AR')}</td>
-        <td style="text-align: right; font-weight: 800; color: var(--accent-blue);">$${Math.round(margin).toLocaleString('es-AR')}</td>
+        <td style="text-align: right; font-weight: 800; color: var(--accent-blue);">${marginPct}%</td>
         <td style="text-align: center;">
           <div style="display: flex; gap: 6px; justify-content: center;">
             <button class="btn" style="background: none; border: none; color: var(--accent-blue); font-size: 0.95rem; cursor: pointer;" onclick="editCatalogServiceItem(${idx})" title="Editar Servicio">✏️</button>
@@ -15193,12 +15195,16 @@ function editCatalogServiceItem(idx) {
   const nameInput = document.getElementById("cat-service-name");
   const priceInput = document.getElementById("cat-service-price");
   const costInput = document.getElementById("cat-service-cost");
+  const marginInput = document.getElementById("cat-service-margin-pct");
   const titleEl = document.getElementById("cat-service-form-title");
   const btnSave = document.getElementById("btn-save-cat-service");
+
+  const marginPct = item.price > 0 ? Math.round(((item.price - (item.cost || 0)) / item.price) * 100) : 0;
 
   if (nameInput) nameInput.value = item.name;
   if (priceInput) priceInput.value = item.price;
   if (costInput) costInput.value = item.cost || 0;
+  if (marginInput) marginInput.value = marginPct;
   if (titleEl) titleEl.innerText = "✏️ Editar Servicio del Catálogo";
   if (btnSave) {
     btnSave.innerText = "💾 Guardar Cambios";
@@ -15207,10 +15213,37 @@ function editCatalogServiceItem(idx) {
   }
 }
 
+function calculateCatalogServiceFields(triggerField) {
+  const priceInput = document.getElementById("cat-service-price");
+  const costInput = document.getElementById("cat-service-cost");
+  const marginInput = document.getElementById("cat-service-margin-pct");
+
+  if (!priceInput || !costInput || !marginInput) return;
+
+  const price = parseLocalFloat(priceInput.value) || 0;
+  const cost = parseLocalFloat(costInput.value) || 0;
+  const marginPct = parseLocalFloat(marginInput.value) || 0;
+
+  if (triggerField === 'price' || triggerField === 'cost') {
+    if (price > 0) {
+      marginInput.value = Math.round(((price - cost) / price) * 100);
+    } else {
+      marginInput.value = 0;
+    }
+  } else if (triggerField === 'margin') {
+    if (price > 0) {
+      costInput.value = Math.max(0, Math.round(price * (1 - marginPct / 100)));
+    } else if (cost > 0) {
+      priceInput.value = marginPct < 100 ? Math.round(cost / (1 - marginPct / 100)) : cost;
+    }
+  }
+}
+
 async function addCatalogServiceItem() {
   const nameInput = document.getElementById("cat-service-name");
   const priceInput = document.getElementById("cat-service-price");
   const costInput = document.getElementById("cat-service-cost");
+  const marginInput = document.getElementById("cat-service-margin-pct");
   const titleEl = document.getElementById("cat-service-form-title");
   const btnSave = document.getElementById("btn-save-cat-service");
 
@@ -15242,6 +15275,7 @@ async function addCatalogServiceItem() {
   if (nameInput) nameInput.value = "";
   if (priceInput) priceInput.value = "";
   if (costInput) costInput.value = "";
+  if (marginInput) marginInput.value = "";
   if (titleEl) titleEl.innerText = "➕ Nuevo Servicio / Precios y Costos";
   if (btnSave) {
     btnSave.innerText = "+ Guardar al Catálogo";
@@ -15272,6 +15306,7 @@ async function deleteCatalogServiceItem(idx) {
     }
   }
 }
+
 
 // --- GESTIÓN DE FILAS DE PRENDAS (2 COLUMNAS: PRODUCTO + UNIDADES) ---
 function addGarmentRowToOrderForm() {
@@ -15320,29 +15355,9 @@ function populateTallerClientsDatalist() {
   _tallerClientsMap.clear();
 
   if (Array.isArray(state.currentAccounts)) {
-    state.currentAccounts.filter(a => a.type === "cliente").forEach(a => {
-      if (a.entityName) {
+    state.currentAccounts.forEach(a => {
+      if (a.type === "cliente" && a.entityName) {
         _tallerClientsMap.set(a.entityName.trim(), a.phone || a.telefono || "");
-      }
-    });
-  }
-  if (Array.isArray(state.sales)) {
-    state.sales.forEach(s => {
-      if (s.client_name) {
-        const name = s.client_name.trim();
-        if (!_tallerClientsMap.has(name) || !_tallerClientsMap.get(name)) {
-          _tallerClientsMap.set(name, s.client_phone || s.phone || "");
-        }
-      }
-    });
-  }
-  if (Array.isArray(state.quotes)) {
-    state.quotes.forEach(q => {
-      if (q.clientName) {
-        const name = q.clientName.trim();
-        if (!_tallerClientsMap.has(name) || !_tallerClientsMap.get(name)) {
-          _tallerClientsMap.set(name, q.clientPhone || q.phone || "");
-        }
       }
     });
   }
@@ -15351,12 +15366,7 @@ function populateTallerClientsDatalist() {
 }
 
 function onTallerClientSelected(val) {
-  if (!val) return;
-  const matchPhone = _tallerClientsMap.get(val.trim());
-  const phoneInput = document.getElementById("service-order-client-phone");
-  if (matchPhone && phoneInput && !phoneInput.value) {
-    phoneInput.value = matchPhone;
-  }
+  // Ignored or left simple to avoid lagging
 }
 
 // --- MODAL Y GESTIÓN DE ÓRDENES DE TRABAJO ---
@@ -15366,7 +15376,6 @@ function openServiceOrderModal(orderId = null) {
   const modalTitle = document.getElementById("service-order-modal-title");
   const orderIdInput = document.getElementById("service-order-id");
   const clientNameInput = document.getElementById("service-order-client-name");
-  const clientPhoneInput = document.getElementById("service-order-client-phone");
   const deliveryDateInput = document.getElementById("service-order-delivery-date");
   const notesInput = document.getElementById("service-order-notes");
   const discountInput = document.getElementById("service-order-discount");
@@ -15382,7 +15391,6 @@ function openServiceOrderModal(orderId = null) {
     if (modalTitle) modalTitle.innerText = `Editar Orden de Trabajo (${existing.id})`;
     if (orderIdInput) orderIdInput.value = existing.id;
     if (clientNameInput) clientNameInput.value = existing.clientName || "";
-    if (clientPhoneInput) clientPhoneInput.value = existing.clientPhone || "";
     if (deliveryDateInput) deliveryDateInput.value = existing.deliveryDate || "";
     if (notesInput) notesInput.value = existing.notes || "";
     if (discountInput) discountInput.value = existing.discountPercent || 0;
@@ -15403,7 +15411,6 @@ function openServiceOrderModal(orderId = null) {
     if (modalTitle) modalTitle.innerText = "Nueva Orden de Trabajo";
     if (orderIdInput) orderIdInput.value = "";
     if (clientNameInput) clientNameInput.value = "";
-    if (clientPhoneInput) clientPhoneInput.value = "";
     if (deliveryDateInput) deliveryDateInput.value = "";
     if (notesInput) notesInput.value = "";
     if (discountInput) discountInput.value = "0";
@@ -15559,7 +15566,6 @@ function calculateServiceOrderTotals() {
 async function saveServiceOrderFromModal() {
   const orderIdInput = document.getElementById("service-order-id");
   const clientNameInput = document.getElementById("service-order-client-name");
-  const clientPhoneInput = document.getElementById("service-order-client-phone");
   const deliveryDateInput = document.getElementById("service-order-delivery-date");
   const notesInput = document.getElementById("service-order-notes");
   const discountInput = document.getElementById("service-order-discount");
@@ -15612,10 +15618,12 @@ async function saveServiceOrderFromModal() {
     existingId = `OS-${String(count).padStart(3, '0')}`;
   }
 
+  const clientPhone = _tallerClientsMap.get(clientName.trim()) || "";
+
   const orderData = {
     id: existingId,
     clientName: clientName,
-    clientPhone: clientPhoneInput ? clientPhoneInput.value.trim() : "",
+    clientPhone: clientPhone,
     deliveryDate: deliveryDate,
     garments: garmentsStr,
     garmentItems: validGarments,
@@ -15882,5 +15890,6 @@ window.onOrderFormItemSelectChange = onOrderFormItemSelectChange;
 window.editCatalogServiceItem = editCatalogServiceItem;
 window.onTallerClientSelected = onTallerClientSelected;
 window.populateTallerClientsDatalist = populateTallerClientsDatalist;
+window.calculateCatalogServiceFields = calculateCatalogServiceFields;
 
 
