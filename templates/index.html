@@ -2048,12 +2048,13 @@
           <div style="display: flex; gap: 14px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
             <div style="display: flex; gap: 10px; flex: 1; min-width: 280px;">
               <input type="text" id="services-search-input" class="form-input" placeholder="Buscar por cliente, N° de orden u observaciones..." oninput="renderServicesUI()">
-              <select id="services-status-filter" class="form-input" style="width: 200px;" onchange="renderServicesUI()">
+              <select id="services-status-filter" class="form-input" style="width: 220px;" onchange="renderServicesUI()">
                 <option value="ALL">Todos los Estados</option>
                 <option value="Pendiente">📥 Pendientes</option>
                 <option value="En Producción">🎨 En Producción</option>
                 <option value="Listo para Entregar">📦 Listas p/ Entregar</option>
-                <option value="Entregado">✅ Entregadas y Cobradas</option>
+                <option value="Entregado">🚚 Entregados (Mercadería Entregada)</option>
+                <option value="Cobrado">✅ Cobrados (Finalizados)</option>
               </select>
             </div>
           </div>
@@ -4208,10 +4209,30 @@
         </div>
       </div>
 
-      <!-- FILA 2: PRENDAS RECIBIDAS DEL CLIENTE -->
-      <div class="form-group" style="margin-bottom: 16px;">
-        <label style="color: var(--accent-emerald); font-weight: 700;">👕 Prendas Recibidas del Cliente <span style="color: var(--accent-red);">*</span> (Sin costo de prenda física)</label>
-        <textarea id="service-order-garments" class="form-input" rows="2" placeholder="Ej: 50 Buzos Canguro Negros (20 L, 30 XL), 30 Remeras Blancas (M)"></textarea>
+      <!-- FILA 2: PRENDAS RECIBIDAS DEL CLIENTE (TABLA DE 2 COLUMNAS) -->
+      <div style="margin-bottom: 16px; background: var(--bg-input); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <label style="color: var(--accent-emerald); font-weight: 700; margin: 0;">
+            👕 Prendas Recibidas del Cliente <span style="color: var(--accent-red);">*</span> (Sin costo de prenda física)
+          </label>
+          <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="addGarmentRowToOrderForm()">
+            + Agregar Prenda
+          </button>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="idx-table" style="width: 100%; margin: 0;">
+            <thead>
+              <tr>
+                <th>Producto / Descripción de la Prenda</th>
+                <th style="width: 130px; text-align: center;">Unidades</th>
+                <th style="width: 40px; text-align: center;"></th>
+              </tr>
+            </thead>
+            <tbody id="service-order-garments-tbody">
+              <!-- Filas dinámicas de prendas -->
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- FILA 3: SERVICIOS A APLICAR -->
@@ -4239,25 +4260,10 @@
         </div>
       </div>
 
-      <!-- FILA 4: VINCULACIÓN CON INSUMOS -->
-      <div style="margin-bottom: 16px; background: var(--bg-input); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <label style="font-weight: 800; color: var(--accent-blue); margin: 0; font-size: 0.85rem;">
-            ⚙️ Insumos Consumidos del Taller (Vinculado a Insumos)
-          </label>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 100px 140px; gap: 8px; margin-bottom: 8px;">
-          <select id="service-order-insumo-select" class="form-input" style="font-size: 0.85rem;">
-            <option value="">-- Seleccionar Insumo del Stock --</option>
-          </select>
-          <input type="number" id="service-order-insumo-qty" class="form-input" placeholder="Cant." min="1" value="1" style="font-size: 0.85rem;">
-          <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 4px 8px;" onclick="addInsumoToServiceOrder()">
-            + Asignar Insumo
-          </button>
-        </div>
-        <div class="form-group" style="margin: 0;">
-          <input type="text" id="service-order-notes" class="form-input" placeholder="Notas e insumos asignados a este trabajo..." style="font-size: 0.85rem;">
-        </div>
+      <!-- FILA 4: NOTAS Y OBSERVACIONES DEL TALLER -->
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label>Notas / Observaciones del Taller</label>
+        <input type="text" id="service-order-notes" class="form-input" placeholder="Ej: Shablón A3, Tinta especial, Entregar plegado y embolsado...">
       </div>
 
       <!-- RESUMEN FINANCIERO -->
@@ -4301,7 +4307,7 @@
 
   <!-- MODAL: CATÁLOGO DE SERVICIOS -->
   <div id="service-catalog-modal" class="modal-backdrop">
-    <div class="modal-content" style="max-width: 650px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto;">
+    <div class="modal-content" style="max-width: 700px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 18px;">
         <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-white); margin: 0;">
           ⚙️ Catálogo de Servicios de Taller
@@ -4311,13 +4317,16 @@
 
       <!-- FORMULARIO AGREGAR SERVICIO -->
       <div style="background: var(--bg-input); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 18px;">
-        <div style="font-size: 0.85rem; font-weight: 800; color: var(--text-white); margin-bottom: 10px;">➕ Nuevo Servicio / Precio Predeterminado</div>
-        <div style="display: grid; grid-template-columns: 1fr 140px; gap: 10px; margin-bottom: 10px;">
+        <div style="font-size: 0.85rem; font-weight: 800; color: var(--text-white); margin-bottom: 10px;">➕ Nuevo Servicio / Precios y Costos</div>
+        <div style="display: grid; grid-template-columns: 1fr 120px 120px; gap: 10px; margin-bottom: 10px;">
           <div class="form-group" style="margin: 0;">
-            <input type="text" id="cat-service-name" class="form-input" placeholder="Nombre (Ej: Estampado Espalda A3)">
+            <input type="text" id="cat-service-name" class="form-input" placeholder="Nombre (Ej: Estampado Frente A4)">
           </div>
           <div class="form-group" style="margin: 0;">
-            <input type="number" id="cat-service-price" class="form-input" placeholder="Precio ($)">
+            <input type="number" id="cat-service-price" class="form-input" placeholder="Precio Venta ($)">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <input type="number" id="cat-service-cost" class="form-input" placeholder="Costo Unit. ($)">
           </div>
         </div>
         <button class="btn btn-primary" style="width: 100%; font-size: 0.85rem;" onclick="addCatalogServiceItem()">+ Guardar al Catálogo</button>
@@ -4329,8 +4338,10 @@
           <thead>
             <tr>
               <th>Nombre del Servicio</th>
-              <th style="width: 130px; text-align: right;">Precio Base</th>
-              <th style="width: 80px; text-align: center;">Acción</th>
+              <th style="width: 110px; text-align: right;">Precio Venta</th>
+              <th style="width: 110px; text-align: right;">Costo Unit.</th>
+              <th style="width: 100px; text-align: right;">Margen</th>
+              <th style="width: 60px; text-align: center;">Acción</th>
             </tr>
           </thead>
           <tbody id="service-catalog-tbody">

@@ -14997,19 +14997,31 @@ async function loadServicesData() {
       state.servicesCatalog = [
         { id: "serv_1", name: "Estampado Frente A4/A3", price: 3500 },
         { id: "serv_2", name: "Estampado Espalda Grande", price: 4000 },
-        { id: "serv_3", name: "Bordado Pecho (Logo)", price: 2800 },
-        { id: "serv_4", name: "Bajada de Shablón / Matriz", price: 8000 },
-        { id: "serv_5", name: "DTF Pliego A3", price: 5000 }
+let activeOrderItemsForm = [];
+let activeGarmentsForm = [];
+
+async function loadServicesData() {
+  try {
+    const catalogRes = await apiRequest("/api/services/catalog", "GET");
+    if (Array.isArray(catalogRes) && catalogRes.length > 0) {
+      state.servicesCatalog = catalogRes;
+    } else if (!state.servicesCatalog || state.servicesCatalog.length === 0) {
+      state.servicesCatalog = [
+        { id: "serv_1", name: "Estampado Frente A4/A3", price: 3500, cost: 800 },
+        { id: "serv_2", name: "Estampado Espalda Grande", price: 4000, cost: 1000 },
+        { id: "serv_3", name: "Bordado Pecho (Logo)", price: 2800, cost: 600 },
+        { id: "serv_4", name: "Bajada de Shablón / Matriz", price: 8000, cost: 2000 },
+        { id: "serv_5", name: "DTF Pliego A3", price: 5000, cost: 1500 }
       ];
     }
   } catch (e) {
     if (!state.servicesCatalog || state.servicesCatalog.length === 0) {
       state.servicesCatalog = [
-        { id: "serv_1", name: "Estampado Frente A4/A3", price: 3500 },
-        { id: "serv_2", name: "Estampado Espalda Grande", price: 4000 },
-        { id: "serv_3", name: "Bordado Pecho (Logo)", price: 2800 },
-        { id: "serv_4", name: "Bajada de Shablón / Matriz", price: 8000 },
-        { id: "serv_5", name: "DTF Pliego A3", price: 5000 }
+        { id: "serv_1", name: "Estampado Frente A4/A3", price: 3500, cost: 800 },
+        { id: "serv_2", name: "Estampado Espalda Grande", price: 4000, cost: 1000 },
+        { id: "serv_3", name: "Bordado Pecho (Logo)", price: 2800, cost: 600 },
+        { id: "serv_4", name: "Bajada de Shablón / Matriz", price: 8000, cost: 2000 },
+        { id: "serv_5", name: "DTF Pliego A3", price: 5000, cost: 1500 }
       ];
     }
   }
@@ -15043,18 +15055,25 @@ function renderServicesUI() {
   const inProdCount = orders.filter(o => o.status === "En Producción").length;
   const readyCount = orders.filter(o => o.status === "Listo para Entregar").length;
   const deliveredCount = orders.filter(o => o.status === "Entregado").length;
-  const totalEarned = orders.reduce((sum, o) => sum + (o.deposit || 0) + (o.status === "Entregado" ? (o.total - (o.balance || 0)) : (o.deposit || 0)), 0);
+  const paidCount = orders.filter(o => o.status === "Cobrado").length;
+
+  const totalEarned = orders.reduce((sum, o) => {
+    if (o.status === "Cobrado") return sum + o.total;
+    return sum + (o.deposit || 0);
+  }, 0);
 
   const statPendingEl = document.getElementById("services-stat-pending");
   const statActiveEl = document.getElementById("services-stat-active");
   const statReadyEl = document.getElementById("services-stat-ready");
   const statDeliveredEl = document.getElementById("services-stat-delivered");
+  const statPaidEl = document.getElementById("services-stat-paid");
   const statTotalEl = document.getElementById("services-stat-total");
 
   if (statPendingEl) statPendingEl.innerText = pendingCount;
   if (statActiveEl) statActiveEl.innerText = inProdCount;
   if (statReadyEl) statReadyEl.innerText = readyCount;
   if (statDeliveredEl) statDeliveredEl.innerText = deliveredCount;
+  if (statPaidEl) statPaidEl.innerText = paidCount;
   if (statTotalEl) statTotalEl.innerText = `$${Math.round(totalEarned).toLocaleString('es-AR')}`;
 
   // Filter Orders
@@ -15098,14 +15117,15 @@ function renderServicesUI() {
             <option value="Pendiente" ${o.status === 'Pendiente' ? 'selected' : ''}>📥 Pendiente</option>
             <option value="En Producción" ${o.status === 'En Producción' ? 'selected' : ''}>🎨 En Producción</option>
             <option value="Listo para Entregar" ${o.status === 'Listo para Entregar' ? 'selected' : ''}>📦 Listo p/ Entregar</option>
-            <option value="Entregado" ${o.status === 'Entregado' ? 'selected' : ''}>✅ Entregado</option>
+            <option value="Entregado" ${o.status === 'Entregado' ? 'selected' : ''}>🚚 Entregado</option>
+            <option value="Cobrado" ${o.status === 'Cobrado' ? 'selected' : ''}>✅ Cobrado</option>
           </select>
         </td>
         <td style="text-align: center; padding: 12px;">
           <div style="display: flex; gap: 6px; justify-content: center;">
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-blue); font-size: 1rem;" onclick="openServiceOrderModal('${o.id}')" title="Ver / Editar Orden">✏️</button>
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-purple); font-size: 1rem;" onclick="downloadServiceOrderPDF('${o.id}')" title="Imprimir Remito PDF">📄</button>
-            ${o.balance > 0 ? `<button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-emerald); font-size: 1rem;" onclick="chargeServiceOrderToCash('${o.id}')" title="Cobrar Saldo en Caja">💰</button>` : ''}
+            ${(o.balance > 0 && o.status !== "Cobrado") ? `<button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-emerald); font-size: 1rem;" onclick="chargeServiceOrderToCash('${o.id}')" title="Cobrar Saldo en Caja">💰</button>` : ''}
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-red); font-size: 1rem;" onclick="deleteServiceOrder('${o.id}')" title="Eliminar Orden">🗑️</button>
           </div>
         </td>
@@ -15132,27 +15152,35 @@ function renderServiceCatalogModalList() {
 
   const catalog = state.servicesCatalog || [];
   if (catalog.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 16px;">No hay servicios guardados en el catálogo.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 16px;">No hay servicios guardados en el catálogo.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = catalog.map((s, idx) => `
-    <tr>
-      <td style="font-weight: 700; color: var(--text-white);">${s.name}</td>
-      <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$${Math.round(s.price).toLocaleString('es-AR')}</td>
-      <td style="text-align: center;">
-        <button class="btn" style="background: none; border: none; color: var(--accent-red); font-size: 0.9rem; cursor: pointer;" onclick="deleteCatalogServiceItem(${idx})">🗑️</button>
-      </td>
-    </tr>
-  `).join("");
+  tbody.innerHTML = catalog.map((s, idx) => {
+    const cost = s.cost || 0;
+    const margin = s.price - cost;
+    return `
+      <tr>
+        <td style="font-weight: 700; color: var(--text-white);">${s.name}</td>
+        <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$${Math.round(s.price).toLocaleString('es-AR')}</td>
+        <td style="text-align: right; font-weight: 700; color: var(--accent-red);">$${Math.round(cost).toLocaleString('es-AR')}</td>
+        <td style="text-align: right; font-weight: 800; color: var(--accent-blue);">$${Math.round(margin).toLocaleString('es-AR')}</td>
+        <td style="text-align: center;">
+          <button class="btn" style="background: none; border: none; color: var(--accent-red); font-size: 0.9rem; cursor: pointer;" onclick="deleteCatalogServiceItem(${idx})">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
 }
 
 async function addCatalogServiceItem() {
   const nameInput = document.getElementById("cat-service-name");
   const priceInput = document.getElementById("cat-service-price");
+  const costInput = document.getElementById("cat-service-cost");
 
   const name = nameInput ? nameInput.value.trim() : "";
   const price = priceInput ? parseLocalFloat(priceInput.value) : 0;
+  const cost = costInput ? parseLocalFloat(costInput.value) : 0;
 
   if (!name) {
     showToast("Ingresá el nombre del servicio", true);
@@ -15162,7 +15190,8 @@ async function addCatalogServiceItem() {
   const newItem = {
     id: "serv_" + Date.now(),
     name: name,
-    price: price
+    price: price,
+    cost: cost
   };
 
   if (!state.servicesCatalog) state.servicesCatalog = [];
@@ -15170,6 +15199,7 @@ async function addCatalogServiceItem() {
 
   nameInput.value = "";
   priceInput.value = "";
+  if (costInput) costInput.value = "";
 
   try {
     await apiRequest("/api/services/catalog", "POST", state.servicesCatalog);
@@ -15193,7 +15223,43 @@ async function deleteCatalogServiceItem(idx) {
   }
 }
 
-let pendingInsumoDeductions = [];
+// --- GESTIÓN DE FILAS DE PRENDAS (2 COLUMNAS: PRODUCTO + UNIDADES) ---
+function addGarmentRowToOrderForm() {
+  activeGarmentsForm.push({ name: "", qty: 1 });
+  renderGarmentsFormItems();
+}
+
+function removeGarmentRowFromOrderForm(idx) {
+  activeGarmentsForm.splice(idx, 1);
+  renderGarmentsFormItems();
+}
+
+function renderGarmentsFormItems() {
+  const tbody = document.getElementById("service-order-garments-tbody");
+  if (!tbody) return;
+
+  tbody.innerHTML = activeGarmentsForm.map((g, idx) => `
+    <tr>
+      <td>
+        <input type="text" class="form-input" style="padding: 4px 8px; font-size: 0.85rem;" value="${g.name}" placeholder="Ej: Buzos Canguro Negros (L, XL)" oninput="onGarmentNameChange(${idx}, this.value)">
+      </td>
+      <td style="text-align: center;">
+        <input type="number" class="form-input" style="padding: 4px 8px; text-align: center; font-size: 0.85rem;" value="${g.qty}" min="1" oninput="onGarmentQtyChange(${idx}, this.value)">
+      </td>
+      <td style="text-align: center;">
+        <button type="button" class="btn" style="background: none; border: none; color: var(--accent-red); cursor: pointer;" onclick="removeGarmentRowFromOrderForm(${idx})">🗑️</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function onGarmentNameChange(idx, val) {
+  if (activeGarmentsForm[idx]) activeGarmentsForm[idx].name = val;
+}
+
+function onGarmentQtyChange(idx, val) {
+  if (activeGarmentsForm[idx]) activeGarmentsForm[idx].qty = Math.max(1, parseInt(val) || 1);
+}
 
 function populateTallerClientsDatalist() {
   const datalist = document.getElementById("taller-clients-datalist");
@@ -15219,58 +15285,8 @@ function populateTallerClientsDatalist() {
   datalist.innerHTML = Array.from(clientNames).sort().map(name => `<option value="${name}">`).join("");
 }
 
-function populateInsumoSelectDropdown() {
-  const select = document.getElementById("service-order-insumo-select");
-  if (!select) return;
-
-  select.innerHTML = `<option value="">-- Seleccionar Insumo del Stock --</option>`;
-  const extras = state.extras || {};
-  Object.keys(extras).forEach(catKey => {
-    if (["sku", "name", "cost", "stock", "id"].includes(catKey)) return;
-    const items = extras[catKey] || [];
-    items.forEach(it => {
-      if (it && it.name) {
-        const option = document.createElement("option");
-        option.value = JSON.stringify({ category: catKey, id: it.id, name: it.name });
-        option.innerText = `[${catKey}] ${it.name} (Stock: ${it.stock || 0})`;
-        select.appendChild(option);
-      }
-    });
-  });
-}
-
-function addInsumoToServiceOrder() {
-  const select = document.getElementById("service-order-insumo-select");
-  const qtyInput = document.getElementById("service-order-insumo-qty");
-  const notesInput = document.getElementById("service-order-notes");
-
-  if (!select || !select.value) {
-    showToast("Seleccioná un insumo de la lista", true);
-    return;
-  }
-
-  const qty = parseInt(qtyInput ? qtyInput.value : 1) || 1;
-  const data = JSON.parse(select.value);
-
-  const textToAdd = `• Insumo: ${qty} u. de ${data.name}`;
-  if (notesInput) {
-    notesInput.value = notesInput.value ? `${notesInput.value} | ${textToAdd}` : textToAdd;
-  }
-
-  pendingInsumoDeductions.push({
-    category: data.category,
-    id: data.id,
-    qty: qty,
-    name: data.name
-  });
-
-  showToast(`Insumo asignado: ${qty} u. de ${data.name}`);
-}
-
 // --- MODAL Y GESTIÓN DE ÓRDENES DE TRABAJO ---
 function openServiceOrderModal(orderId = null) {
-  pendingInsumoDeductions = [];
-  populateInsumoSelectDropdown();
   populateTallerClientsDatalist();
 
   const modalTitle = document.getElementById("service-order-modal-title");
@@ -15278,7 +15294,6 @@ function openServiceOrderModal(orderId = null) {
   const clientNameInput = document.getElementById("service-order-client-name");
   const clientPhoneInput = document.getElementById("service-order-client-phone");
   const deliveryDateInput = document.getElementById("service-order-delivery-date");
-  const garmentsInput = document.getElementById("service-order-garments");
   const notesInput = document.getElementById("service-order-notes");
   const discountInput = document.getElementById("service-order-discount");
   const depositInput = document.getElementById("service-order-deposit");
@@ -15295,32 +15310,40 @@ function openServiceOrderModal(orderId = null) {
     if (clientNameInput) clientNameInput.value = existing.clientName || "";
     if (clientPhoneInput) clientPhoneInput.value = existing.clientPhone || "";
     if (deliveryDateInput) deliveryDateInput.value = existing.deliveryDate || "";
-    if (garmentsInput) garmentsInput.value = existing.garments || "";
     if (notesInput) notesInput.value = existing.notes || "";
     if (discountInput) discountInput.value = existing.discountPercent || 0;
     if (depositInput) depositInput.value = existing.deposit || 0;
 
+    if (Array.isArray(existing.garmentItems) && existing.garmentItems.length > 0) {
+      activeGarmentsForm = JSON.parse(JSON.stringify(existing.garmentItems));
+    } else if (existing.garments) {
+      activeGarmentsForm = [{ name: existing.garments, qty: 1 }];
+    } else {
+      activeGarmentsForm = [{ name: "", qty: 1 }];
+    }
+
     activeOrderItemsForm = JSON.parse(JSON.stringify(existing.items || []));
     if (btnPrint) btnPrint.style.display = "inline-flex";
-    if (btnCharge) btnCharge.style.display = existing.balance > 0 ? "inline-flex" : "none";
+    if (btnCharge) btnCharge.style.display = (existing.balance > 0 && existing.status !== "Cobrado") ? "inline-flex" : "none";
   } else {
     if (modalTitle) modalTitle.innerText = "Nueva Orden de Trabajo";
     if (orderIdInput) orderIdInput.value = "";
     if (clientNameInput) clientNameInput.value = "";
     if (clientPhoneInput) clientPhoneInput.value = "";
-    if (deliveryDateInput) deliveryDateInput.value = ""; // Dejar fecha en blanco por defecto
-    if (garmentsInput) garmentsInput.value = "";
+    if (deliveryDateInput) deliveryDateInput.value = "";
     if (notesInput) notesInput.value = "";
     if (discountInput) discountInput.value = "0";
     if (depositInput) depositInput.value = "0";
 
+    activeGarmentsForm = [{ name: "", qty: 1 }];
     activeOrderItemsForm = [];
-    addServiceItemToOrderForm(); // Add 1 blank row by default
+    addServiceItemToOrderForm();
 
     if (btnPrint) btnPrint.style.display = "none";
     if (btnCharge) btnCharge.style.display = "none";
   }
 
+  renderGarmentsFormItems();
   renderServiceOrderFormItems();
   calculateServiceOrderTotals();
 
@@ -15334,11 +15357,14 @@ function closeServiceOrderModal() {
 }
 
 function addServiceItemToOrderForm() {
-  const firstCat = (state.servicesCatalog && state.servicesCatalog.length > 0) ? state.servicesCatalog[0] : { name: "Estampado", price: 3500 };
+  const catalog = state.servicesCatalog || [];
+  const firstCat = catalog.length > 0 ? catalog[0] : { name: "Estampado Frente A4/A3", price: 3500, cost: 800 };
   activeOrderItemsForm.push({
+    serviceId: firstCat.id || "serv_1",
     name: firstCat.name,
     qty: 1,
     price: firstCat.price,
+    cost: firstCat.cost || 0,
     subtotal: firstCat.price
   });
   renderServiceOrderFormItems();
@@ -15358,13 +15384,15 @@ function renderServiceOrderFormItems() {
   const catalog = state.servicesCatalog || [];
 
   tbody.innerHTML = activeOrderItemsForm.map((it, idx) => {
+    const isCustom = !catalog.some(c => c.id === it.serviceId || c.name === it.name);
     return `
       <tr>
         <td>
-          <input type="text" class="form-input" style="padding: 4px 8px; font-size: 0.85rem;" value="${it.name}" list="services-catalog-datalist" onchange="onOrderFormItemNameChange(${idx}, this.value)">
-          <datalist id="services-catalog-datalist">
-            ${catalog.map(c => `<option value="${c.name}">$${c.price}</option>`).join("")}
-          </datalist>
+          <select class="form-input" style="padding: 4px 8px; font-size: 0.85rem;" onchange="onOrderFormItemSelectChange(${idx}, this.value)">
+            ${catalog.map(c => `<option value="${c.id}" ${(it.serviceId === c.id || it.name === c.name) ? 'selected' : ''}>${c.name} ($${c.price})</option>`).join("")}
+            <option value="CUSTOM" ${isCustom ? 'selected' : ''}>-- Otro / Personalizado --</option>
+          </select>
+          ${isCustom ? `<input type="text" class="form-input" style="margin-top: 4px; padding: 4px 8px; font-size: 0.8rem;" value="${it.name}" placeholder="Nombre personalizado..." oninput="onOrderFormItemNameChange(${idx}, this.value)">` : ''}
         </td>
         <td style="text-align: center;">
           <input type="number" class="form-input" style="padding: 4px 8px; text-align: center; font-size: 0.85rem;" value="${it.qty}" min="1" oninput="onOrderFormItemQtyChange(${idx}, this.value)">
@@ -15376,37 +15404,58 @@ function renderServiceOrderFormItems() {
           $${Math.round(it.qty * it.price).toLocaleString('es-AR')}
         </td>
         <td style="text-align: center;">
-          <button class="btn" style="background: none; border: none; color: var(--accent-red); cursor: pointer;" onclick="removeServiceItemFromOrderForm(${idx})">🗑️</button>
+          <button type="button" class="btn" style="background: none; border: none; color: var(--accent-red); cursor: pointer;" onclick="removeServiceItemFromOrderForm(${idx})">🗑️</button>
         </td>
       </tr>
     `;
   }).join("");
 }
 
-function onOrderFormItemNameChange(idx, val) {
-  activeOrderItemsForm[idx].name = val;
-  const match = (state.servicesCatalog || []).find(c => c.name.toLowerCase() === val.toLowerCase());
-  if (match) {
-    activeOrderItemsForm[idx].price = match.price;
-    activeOrderItemsForm[idx].subtotal = activeOrderItemsForm[idx].qty * match.price;
+function onOrderFormItemSelectChange(idx, selectedValue) {
+  if (!activeOrderItemsForm[idx]) return;
+
+  if (selectedValue === "CUSTOM") {
+    activeOrderItemsForm[idx].serviceId = "CUSTOM";
+    activeOrderItemsForm[idx].name = "Servicio Personalizado";
     renderServiceOrderFormItems();
+  } else {
+    const match = (state.servicesCatalog || []).find(c => c.id === selectedValue || c.name === selectedValue);
+    if (match) {
+      activeOrderItemsForm[idx].serviceId = match.id;
+      activeOrderItemsForm[idx].name = match.name;
+      activeOrderItemsForm[idx].price = match.price;
+      activeOrderItemsForm[idx].cost = match.cost || 0;
+      activeOrderItemsForm[idx].subtotal = activeOrderItemsForm[idx].qty * match.price;
+      renderServiceOrderFormItems();
+    }
+  }
+  calculateServiceOrderTotals();
+}
+
+function onOrderFormItemNameChange(idx, val) {
+  if (activeOrderItemsForm[idx]) {
+    activeOrderItemsForm[idx].name = val;
   }
   calculateServiceOrderTotals();
 }
 
 function onOrderFormItemQtyChange(idx, val) {
   const qty = Math.max(1, parseInt(val) || 1);
-  activeOrderItemsForm[idx].qty = qty;
-  activeOrderItemsForm[idx].subtotal = qty * activeOrderItemsForm[idx].price;
-  renderServiceOrderFormItems();
+  if (activeOrderItemsForm[idx]) {
+    activeOrderItemsForm[idx].qty = qty;
+    activeOrderItemsForm[idx].subtotal = qty * activeOrderItemsForm[idx].price;
+    renderServiceOrderFormItems();
+  }
   calculateServiceOrderTotals();
 }
 
 function onOrderFormItemPriceChange(idx, val) {
   const price = Math.max(0, parseLocalFloat(val));
-  activeOrderItemsForm[idx].price = price;
-  activeOrderItemsForm[idx].subtotal = activeOrderItemsForm[idx].qty * price;
-  renderServiceOrderFormItems();
+  if (activeOrderItemsForm[idx]) {
+    activeOrderItemsForm[idx].price = price;
+    activeOrderItemsForm[idx].subtotal = activeOrderItemsForm[idx].qty * price;
+    renderServiceOrderFormItems();
+  }
   calculateServiceOrderTotals();
 }
 
@@ -15438,13 +15487,11 @@ async function saveServiceOrderFromModal() {
   const clientNameInput = document.getElementById("service-order-client-name");
   const clientPhoneInput = document.getElementById("service-order-client-phone");
   const deliveryDateInput = document.getElementById("service-order-delivery-date");
-  const garmentsInput = document.getElementById("service-order-garments");
   const notesInput = document.getElementById("service-order-notes");
   const discountInput = document.getElementById("service-order-discount");
   const depositInput = document.getElementById("service-order-deposit");
 
   const clientName = clientNameInput ? clientNameInput.value.trim() : "";
-  const garments = garmentsInput ? garmentsInput.value.trim() : "";
   const deliveryDate = deliveryDateInput ? deliveryDateInput.value.trim() : "";
 
   if (!clientName) {
@@ -15453,9 +15500,9 @@ async function saveServiceOrderFromModal() {
     return;
   }
 
-  if (!garments) {
-    showToast("El campo 'Prendas Recibidas del Cliente' es obligatorio", true);
-    if (garmentsInput) garmentsInput.focus();
+  const validGarments = activeGarmentsForm.filter(g => g.name.trim() !== "" && g.qty > 0);
+  if (validGarments.length === 0) {
+    showToast("Ingresá al menos 1 prenda recibida del cliente (Producto y Unidades)", true);
     return;
   }
 
@@ -15470,7 +15517,9 @@ async function saveServiceOrderFromModal() {
     return;
   }
 
+  const garmentsStr = validGarments.map(g => `${g.qty} u. ${g.name.trim()}`).join(", ");
   const subtotal = activeOrderItemsForm.reduce((sum, it) => sum + (it.qty * it.price), 0);
+  const totalCost = activeOrderItemsForm.reduce((sum, it) => sum + (it.qty * (it.cost || 0)), 0);
   const discountPercent = discountInput ? parseLocalFloat(discountInput.value) : 0;
   const deposit = depositInput ? parseLocalFloat(depositInput.value) : 0;
   const discountAmount = subtotal * (discountPercent / 100);
@@ -15485,7 +15534,6 @@ async function saveServiceOrderFromModal() {
     const existing = (state.serviceOrders || []).find(o => o.id === existingId);
     if (existing) existingStatus = existing.status;
   } else {
-    // Generate next OS-XXX code
     const count = (state.serviceOrders || []).length + 1;
     existingId = `OS-${String(count).padStart(3, '0')}`;
   }
@@ -15495,10 +15543,13 @@ async function saveServiceOrderFromModal() {
     clientName: clientName,
     clientPhone: clientPhoneInput ? clientPhoneInput.value.trim() : "",
     deliveryDate: deliveryDate,
-    garments: garments,
+    garments: garmentsStr,
+    garmentItems: validGarments,
     items: activeOrderItemsForm,
     notes: notesInput ? notesInput.value.trim() : "",
     subtotal: subtotal,
+    totalCost: totalCost,
+    profit: total - totalCost,
     discountPercent: discountPercent,
     deposit: deposit,
     total: total,
@@ -15513,25 +15564,6 @@ async function saveServiceOrderFromModal() {
     state.serviceOrders[idx] = orderData;
   } else {
     state.serviceOrders.unshift(orderData);
-  }
-
-  // Descontar insumos consumidos si fueron asignados
-  if (pendingInsumoDeductions.length > 0) {
-    pendingInsumoDeductions.forEach(ded => {
-      const catList = state.extras[ded.category];
-      if (catList) {
-        const item = catList.find(x => x.id === ded.id);
-        if (item) {
-          item.stock = Math.max(0, (item.stock || 0) - ded.qty);
-        }
-      }
-    });
-    try {
-      await apiRequest("/api/extras", "POST", state.extras);
-    } catch (e) {
-      console.warn("Could not save updated insumo stock:", e);
-    }
-    pendingInsumoDeductions = [];
   }
 
   try {
@@ -15549,6 +15581,9 @@ async function updateServiceOrderStatus(orderId, newStatus) {
   if (!existing) return;
 
   existing.status = newStatus;
+  if (newStatus === "Cobrado") {
+    existing.balance = 0;
+  }
 
   try {
     await apiRequest("/api/services/orders", "POST", state.serviceOrders);
@@ -15765,7 +15800,10 @@ window.chargeServiceOrderToCash = chargeServiceOrderToCash;
 window.chargeServiceOrderFromModal = chargeServiceOrderFromModal;
 window.downloadServiceOrderPDF = downloadServiceOrderPDF;
 window.downloadServiceOrderPDFFromModal = downloadServiceOrderPDFFromModal;
-window.addInsumoToServiceOrder = addInsumoToServiceOrder;
-window.populateInsumoSelectDropdown = populateInsumoSelectDropdown;
+window.addGarmentRowToOrderForm = addGarmentRowToOrderForm;
+window.removeGarmentRowFromOrderForm = removeGarmentRowFromOrderForm;
+window.onGarmentNameChange = onGarmentNameChange;
+window.onGarmentQtyChange = onGarmentQtyChange;
+window.onOrderFormItemSelectChange = onOrderFormItemSelectChange;
 
 
