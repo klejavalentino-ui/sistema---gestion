@@ -4160,8 +4160,8 @@
   </div>
 
   <!-- MODAL: ORDEN DE TRABAJO DE TALLER -->
-  <div id="service-order-modal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 820px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color);">
+  <div id="service-order-modal" class="modal-backdrop">
+    <div class="modal-content" style="max-width: 820px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 18px;">
         <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
           🛠️ <span id="service-order-modal-title">Nueva Orden de Trabajo</span>
@@ -4218,10 +4218,25 @@
         </div>
       </div>
 
-      <!-- FILA 4: NOTAS E INSUMOS -->
-      <div class="form-group" style="margin-bottom: 16px;">
-        <label>Notas del Taller / Insumos Consumidos</label>
-        <input type="text" id="service-order-notes" class="form-input" placeholder="Ej: Usó shablón A3, tinta Plastisol Blanca 200g, Bordado hilo dorado">
+      <!-- FILA 4: VINCULACIÓN CON INSUMOS -->
+      <div style="margin-bottom: 16px; background: var(--bg-input); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label style="font-weight: 800; color: var(--accent-blue); margin: 0; font-size: 0.85rem;">
+            ⚙️ Insumos Consumidos del Taller (Vinculado a Insumos)
+          </label>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 100px 140px; gap: 8px; margin-bottom: 8px;">
+          <select id="service-order-insumo-select" class="form-input" style="font-size: 0.85rem;">
+            <option value="">-- Seleccionar Insumo del Stock --</option>
+          </select>
+          <input type="number" id="service-order-insumo-qty" class="form-input" placeholder="Cant." min="1" value="1" style="font-size: 0.85rem;">
+          <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 4px 8px;" onclick="addInsumoToServiceOrder()">
+            + Asignar Insumo
+          </button>
+        </div>
+        <div class="form-group" style="margin: 0;">
+          <input type="text" id="service-order-notes" class="form-input" placeholder="Notas e insumos asignados a este trabajo..." style="font-size: 0.85rem;">
+        </div>
       </div>
 
       <!-- RESUMEN FINANCIERO -->
@@ -4264,8 +4279,8 @@
   </div>
 
   <!-- MODAL: CATÁLOGO DE SERVICIOS -->
-  <div id="service-catalog-modal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 650px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color);">
+  <div id="service-catalog-modal" class="modal-backdrop">
+    <div class="modal-content" style="max-width: 650px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 18px;">
         <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-white); margin: 0;">
           ⚙️ Catálogo de Servicios de Taller

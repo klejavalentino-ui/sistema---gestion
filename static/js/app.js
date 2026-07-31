@@ -15187,8 +15187,61 @@ async function deleteCatalogServiceItem(idx) {
   }
 }
 
+let pendingInsumoDeductions = [];
+
+function populateInsumoSelectDropdown() {
+  const select = document.getElementById("service-order-insumo-select");
+  if (!select) return;
+
+  select.innerHTML = `<option value="">-- Seleccionar Insumo del Stock --</option>`;
+  const extras = state.extras || {};
+  Object.keys(extras).forEach(catKey => {
+    if (["sku", "name", "cost", "stock", "id"].includes(catKey)) return;
+    const items = extras[catKey] || [];
+    items.forEach(it => {
+      if (it && it.name) {
+        const option = document.createElement("option");
+        option.value = JSON.stringify({ category: catKey, id: it.id, name: it.name });
+        option.innerText = `[${catKey}] ${it.name} (Stock: ${it.stock || 0})`;
+        select.appendChild(option);
+      }
+    });
+  });
+}
+
+function addInsumoToServiceOrder() {
+  const select = document.getElementById("service-order-insumo-select");
+  const qtyInput = document.getElementById("service-order-insumo-qty");
+  const notesInput = document.getElementById("service-order-notes");
+
+  if (!select || !select.value) {
+    showToast("Seleccioná un insumo de la lista", true);
+    return;
+  }
+
+  const qty = parseInt(qtyInput ? qtyInput.value : 1) || 1;
+  const data = JSON.parse(select.value);
+
+  const textToAdd = `• Insumo: ${qty} u. de ${data.name}`;
+  if (notesInput) {
+    notesInput.value = notesInput.value ? `${notesInput.value} | ${textToAdd}` : textToAdd;
+  }
+
+  pendingInsumoDeductions.push({
+    category: data.category,
+    id: data.id,
+    qty: qty,
+    name: data.name
+  });
+
+  showToast(`Insumo asignado: ${qty} u. de ${data.name}`);
+}
+
 // --- MODAL Y GESTIÓN DE ÓRDENES DE TRABAJO ---
 function openServiceOrderModal(orderId = null) {
+  pendingInsumoDeductions = [];
+  populateInsumoSelectDropdown();
+
   const modalTitle = document.getElementById("service-order-modal-title");
   const orderIdInput = document.getElementById("service-order-id");
   const clientNameInput = document.getElementById("service-order-client-name");
@@ -15413,6 +15466,25 @@ async function saveServiceOrderFromModal() {
     state.serviceOrders[idx] = orderData;
   } else {
     state.serviceOrders.unshift(orderData);
+  }
+
+  // Descontar insumos consumidos si fueron asignados
+  if (pendingInsumoDeductions.length > 0) {
+    pendingInsumoDeductions.forEach(ded => {
+      const catList = state.extras[ded.category];
+      if (catList) {
+        const item = catList.find(x => x.id === ded.id);
+        if (item) {
+          item.stock = Math.max(0, (item.stock || 0) - ded.qty);
+        }
+      }
+    });
+    try {
+      await apiRequest("/api/extras", "POST", state.extras);
+    } catch (e) {
+      console.warn("Could not save updated insumo stock:", e);
+    }
+    pendingInsumoDeductions = [];
   }
 
   try {
@@ -15649,5 +15721,7 @@ window.chargeServiceOrderToCash = chargeServiceOrderToCash;
 window.chargeServiceOrderFromModal = chargeServiceOrderFromModal;
 window.downloadServiceOrderPDF = downloadServiceOrderPDF;
 window.downloadServiceOrderPDFFromModal = downloadServiceOrderPDFFromModal;
+window.addInsumoToServiceOrder = addInsumoToServiceOrder;
+window.populateInsumoSelectDropdown = populateInsumoSelectDropdown;
 
 
