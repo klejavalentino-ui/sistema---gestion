@@ -15851,7 +15851,7 @@ async function downloadServiceOrderPDF(orderId) {
     .split("\n")
     .map(line => line.trim())
     .filter(line => line.length > 0)
-    .map(line => `<div style="font-weight: bold; margin-bottom: 2px;">${line}</div>`)
+    .map(line => `<div style="color: #64748b; font-weight: normal; margin-bottom: 2px;">${line}</div>`)
     .join("");
 
   const bizName = state.businessName || state.userProfile?.businessName || "Datamargen";
@@ -15928,27 +15928,27 @@ async function downloadServiceOrderPDF(orderId) {
 
     <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #cbd5e1; padding-top: 18px;">
       <div style="max-width: 350px; font-size: 10.5px; color: #0f172a; line-height: 1.4;">
-        <strong style="font-size: 11px; display: block; margin-bottom: 4px; font-weight: bold;">Condiciones del Servicio:</strong>
+        <strong style="font-size: 11px; display: block; margin-bottom: 4px; font-weight: bold; color: #0f172a;">Condiciones del Servicio:</strong>
         ${conditionsHtml}
       </div>
 
-      <div style="text-align: right; min-width: 220px;">
-        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+      <div style="text-align: right; min-width: 260px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 6px;">
           <span>Subtotal:</span>
           <span>$${Math.round(order.subtotal || order.total).toLocaleString('es-AR')}</span>
         </div>
         ${order.discountPercent > 0 ? `
-        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ef4444; margin-bottom: 4px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ef4444; margin-bottom: 6px;">
           <span>Descuento (${order.discountPercent}%):</span>
           <span>-$${Math.round((order.subtotal || order.total) * (order.discountPercent/100)).toLocaleString('es-AR')}</span>
         </div>` : ''}
         ${order.deposit > 0 ? `
-        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #2563eb; margin-bottom: 4px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #2563eb; margin-bottom: 6px;">
           <span>Seña / Anticipo:</span>
           <span>-$${Math.round(order.deposit).toLocaleString('es-AR')}</span>
         </div>` : ''}
-        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0f172a; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 4px;">
-          <span>${order.balance > 0 ? 'SALDO A PAGAR:' : 'TOTAL:'}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; font-size: 16px; font-weight: 900; color: #0f172a; border-top: 2px solid #0f172a; padding-top: 10px; margin-top: 10px;">
+          <span style="letter-spacing: 0.5px;">${order.balance > 0 ? 'SALDO A PAGAR:' : 'TOTAL:'}</span>
           <span style="color: #10b981;">$${Math.round(order.balance > 0 ? order.balance : order.total).toLocaleString('es-AR')}</span>
         </div>
       </div>
