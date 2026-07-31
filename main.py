@@ -1512,8 +1512,71 @@ def save_extras():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/services/catalog", methods=["GET"])
+def get_services_catalog():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        doc = firebase_config.get_document("services", f"{prefix}catalog", token)
+        if doc and "items" in doc:
+            return jsonify(doc["items"])
+        return jsonify([])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-@app.route("/api/export-inventory-excel", methods=["POST"])
+@app.route("/api/services/catalog", methods=["POST"])
+def save_services_catalog():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        items = request.json if isinstance(request.json, list) else []
+        payload = {"id": f"{prefix}catalog", "items": items}
+        firebase_config.set_document("services", f"{prefix}catalog", payload, token)
+        return jsonify(items)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/services/orders", methods=["GET"])
+def get_service_orders():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        doc = firebase_config.get_document("services", f"{prefix}orders", token)
+        if doc and "orders" in doc:
+            return jsonify(doc["orders"])
+        return jsonify([])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/services/orders", methods=["POST"])
+def save_service_orders():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        orders = request.json if isinstance(request.json, list) else []
+        payload = {"id": f"{prefix}orders", "orders": orders}
+        firebase_config.set_document("services", f"{prefix}orders", payload, token)
+        return jsonify(orders)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def export_inventory_excel_route():
     token = get_auth_token()
     if not token:

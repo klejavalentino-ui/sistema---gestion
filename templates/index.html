@@ -237,6 +237,9 @@
         <li class="menu-item" data-tab="quotes">
           <a href="#" class="menu-link"><i>📋</i> Presupuestos</a>
         </li>
+        <li class="menu-item" data-tab="services">
+          <a href="#" class="menu-link"><i>🛠️</i> Taller</a>
+        </li>
         <li class="menu-item" data-tab="returns">
           <a href="#" class="menu-link"><i>🔄</i> Devoluciones</a>
         </li>
@@ -1966,6 +1969,95 @@
                 <div style="font-size: 1.8rem; font-weight: 900; color: var(--accent-emerald);" id="quote-total-display">$0</div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: TALLER Y SERVICIOS -->
+      <section id="services-section" class="tab-content">
+        <div class="idx-header">
+          <div class="idx-header-info">
+            <h2>Gestión de Taller y Servicios</h2>
+            <p>Controlá recepciones de prendas de clientes, ordenes de trabajo de estampado, bordado, DTF, estado de producción y liquidación en caja.</p>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn btn-secondary" onclick="openServiceCatalogModal()" title="Configurar catálogo de servicios y precios base">
+              ⚙️ Catálogo de Servicios
+            </button>
+            <button class="btn btn-primary" onclick="openServiceOrderModal()" style="background: #2563eb; color: #ffffff;">
+              ➕ Nueva Orden de Trabajo
+            </button>
+          </div>
+        </div>
+
+        <!-- TARJETAS DE ESTADÍSTICAS -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+          <div class="idx-card" style="padding: 16px; display: flex; align-items: center; gap: 14px;">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(37, 99, 235, 0.15); color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+              🎨
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">En Producción</div>
+              <div style="font-size: 1.4rem; font-weight: 900; color: var(--text-white);" id="services-stat-active">0</div>
+            </div>
+          </div>
+
+          <div class="idx-card" style="padding: 16px; display: flex; align-items: center; gap: 14px;">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+              📦
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Listas p/ Entregar</div>
+              <div style="font-size: 1.4rem; font-weight: 900; color: var(--accent-amber);" id="services-stat-ready">0</div>
+            </div>
+          </div>
+
+          <div class="idx-card" style="padding: 16px; display: flex; align-items: center; gap: 14px;">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(16, 185, 129, 0.15); color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+              💰
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Total Recaudado</div>
+              <div style="font-size: 1.4rem; font-weight: 900; color: var(--accent-emerald);" id="services-stat-total">$0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTROS Y BÚSQUEDA -->
+        <div class="idx-card" style="margin-bottom: 20px;">
+          <div style="display: flex; gap: 14px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 10px; flex: 1; min-width: 280px;">
+              <input type="text" id="services-search-input" class="form-input" placeholder="Buscar por cliente, N° de orden u observaciones..." oninput="renderServicesUI()">
+              <select id="services-status-filter" class="form-input" style="width: 200px;" onchange="renderServicesUI()">
+                <option value="ALL">Todos los Estados</option>
+                <option value="Pendiente">📥 Pendientes</option>
+                <option value="En Producción">🎨 En Producción</option>
+                <option value="Listo para Entregar">📦 Listas p/ Entregar</option>
+                <option value="Entregado">✅ Entregadas y Cobradas</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLA DE ÓRDENES DE TRABAJO -->
+        <div class="idx-card">
+          <div style="overflow-x: auto;">
+            <table class="idx-table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 10%;">Código</th>
+                  <th style="width: 18%;">Cliente / Negocio</th>
+                  <th style="width: 22%;">Prendas Recibidas</th>
+                  <th style="width: 22%;">Servicios Solicitados</th>
+                  <th style="width: 13%; text-align: right;">Total / Saldo</th>
+                  <th style="width: 10%; text-align: center;">Estado</th>
+                  <th style="width: 15%; text-align: center;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="services-orders-tbody">
+                <!-- Renderizado dinámico -->
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -4063,6 +4155,152 @@
           </button>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ORDEN DE TRABAJO DE TALLER -->
+  <div id="service-order-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 820px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 18px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
+          🛠️ <span id="service-order-modal-title">Nueva Orden de Trabajo</span>
+        </h3>
+        <button class="btn-close" onclick="closeServiceOrderModal()">&times;</button>
+      </div>
+
+      <input type="hidden" id="service-order-id" value="">
+
+      <!-- FILA 1: DATOS CLIENTE Y FECHA -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 160px; gap: 12px; margin-bottom: 16px;">
+        <div class="form-group" style="margin: 0;">
+          <label>Cliente / Negocio <span style="color: var(--accent-red);">*</span></label>
+          <input type="text" id="service-order-client-name" class="form-input" placeholder="Ej: Deportes Central / Juan Pérez">
+        </div>
+        <div class="form-group" style="margin: 0;">
+          <label>Teléfono / Contacto</label>
+          <input type="text" id="service-order-client-phone" class="form-input" placeholder="Ej: 291-4567890">
+        </div>
+        <div class="form-group" style="margin: 0;">
+          <label>Fecha Entrega</label>
+          <input type="date" id="service-order-delivery-date" class="form-input">
+        </div>
+      </div>
+
+      <!-- FILA 2: PRENDAS RECIBIDAS DEL CLIENTE -->
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label style="color: var(--accent-emerald); font-weight: 700;">👕 Prendas Recibidas del Cliente (Sin costo de prenda física)</label>
+        <textarea id="service-order-garments" class="form-input" rows="2" placeholder="Ej: 50 Buzos Canguro Negros (20 L, 30 XL), 30 Remeras Blancas (M)"></textarea>
+      </div>
+
+      <!-- FILA 3: SERVICIOS A APLICAR -->
+      <div style="margin-bottom: 16px; background: var(--bg-input); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <label style="font-weight: 800; color: var(--text-white); margin: 0;">🎨 Servicios de Transformación Solicitados</label>
+          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="addServiceItemToOrderForm()">+ Agregar Servicio</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="idx-table" style="width: 100%; margin: 0;">
+            <thead>
+              <tr>
+                <th>Servicio / Trabajo</th>
+                <th style="width: 100px; text-align: center;">Cantidad</th>
+                <th style="width: 130px; text-align: right;">Precio Unit. ($)</th>
+                <th style="width: 130px; text-align: right;">Subtotal</th>
+                <th style="width: 40px; text-align: center;"></th>
+              </tr>
+            </thead>
+            <tbody id="service-order-items-tbody">
+              <!-- Renderizado dinámico de filas de servicios -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- FILA 4: NOTAS E INSUMOS -->
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label>Notas del Taller / Insumos Consumidos</label>
+        <input type="text" id="service-order-notes" class="form-input" placeholder="Ej: Usó shablón A3, tinta Plastisol Blanca 200g, Bordado hilo dorado">
+      </div>
+
+      <!-- RESUMEN FINANCIERO -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; background: rgba(37, 99, 235, 0.08); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 20px;">
+        <div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Subtotal</div>
+          <div style="font-size: 1.1rem; font-weight: 800; color: var(--text-white);" id="service-order-subtotal-display">$0</div>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 2px;">Descuento (%)</label>
+          <input type="number" id="service-order-discount" class="form-input" style="padding: 4px 8px; font-size: 0.9rem;" value="0" min="0" max="100" oninput="calculateServiceOrderTotals()">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 2px;">Seña / Anticipo ($)</label>
+          <input type="number" id="service-order-deposit" class="form-input" style="padding: 4px 8px; font-size: 0.9rem;" value="0" min="0" oninput="calculateServiceOrderTotals()">
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700;">TOTAL / SALDO PENDIENTE</div>
+          <div style="font-size: 1.2rem; font-weight: 900; color: var(--accent-emerald);" id="service-order-total-display">$0</div>
+          <div style="font-size: 0.75rem; color: var(--accent-amber);" id="service-order-balance-display">Saldo: $0</div>
+        </div>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN -->
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn btn-secondary" onclick="closeServiceOrderModal()">Cancelar</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary" id="btn-print-service-order" style="display: none;" onclick="downloadServiceOrderPDFFromModal()">
+            📄 Remito PDF
+          </button>
+          <button class="btn btn-emerald" id="btn-charge-service-order" style="display: none;" onclick="chargeServiceOrderFromModal()">
+            💰 Cobrar en Caja
+          </button>
+          <button class="btn btn-primary" onclick="saveServiceOrderFromModal()">
+            💾 Guardar Orden
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CATÁLOGO DE SERVICIOS -->
+  <div id="service-catalog-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 650px; border-radius: 14px; background: var(--bg-card); padding: 24px; border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 18px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-white); margin: 0;">
+          ⚙️ Catálogo de Servicios de Taller
+        </h3>
+        <button class="btn-close" onclick="closeServiceCatalogModal()">&times;</button>
+      </div>
+
+      <!-- FORMULARIO AGREGAR SERVICIO -->
+      <div style="background: var(--bg-input); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 18px;">
+        <div style="font-size: 0.85rem; font-weight: 800; color: var(--text-white); margin-bottom: 10px;">➕ Nuevo Servicio / Precio Predeterminado</div>
+        <div style="display: grid; grid-template-columns: 1fr 140px; gap: 10px; margin-bottom: 10px;">
+          <div class="form-group" style="margin: 0;">
+            <input type="text" id="cat-service-name" class="form-input" placeholder="Nombre (Ej: Estampado Espalda A3)">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <input type="number" id="cat-service-price" class="form-input" placeholder="Precio ($)">
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width: 100%; font-size: 0.85rem;" onclick="addCatalogServiceItem()">+ Guardar al Catálogo</button>
+      </div>
+
+      <!-- LISTA DE SERVICIOS EXISTENTES -->
+      <div style="overflow-y: auto; max-height: 300px;">
+        <table class="idx-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th>Nombre del Servicio</th>
+              <th style="width: 130px; text-align: right;">Precio Base</th>
+              <th style="width: 80px; text-align: center;">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="service-catalog-tbody">
+            <!-- Renderizado dinámico -->
+          </tbody>
+        </table>
       </div>
     </div>
   </div>

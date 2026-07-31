@@ -9207,6 +9207,7 @@ function switchTab(tabId) {
   if (tabId === "business") loadBusinessData();
   if (tabId === "returns") renderReturns();
   if (tabId === "quotes") renderQuotesUI();
+  if (tabId === "services") loadServicesData();
   if (tabId === "zecat") renderZecatUI();
   if (tabId === "production") renderProductionUI();
 }
@@ -11673,6 +11674,7 @@ const APP_SECTIONS = [
   { id: "panel", name: "Panel Principal" },
   { id: "sales", name: "Ventas" },
   { id: "quotes", name: "Presupuestos" },
+  { id: "services", name: "Taller" },
   { id: "returns", name: "Devoluciones" },
   { id: "inventory", name: "Inventario" },
   { id: "suppliers", name: "Compras" },
@@ -14978,4 +14980,674 @@ async function deleteProductionOrder(orderId) {
   }
 }
 window.deleteProductionOrder = deleteProductionOrder;
+
+
+// ==========================================
+// --- LÓGICA DE MÓDULO TALLER Y SERVICIOS ---
+// ==========================================
+
+let activeOrderItemsForm = [];
+
+async function loadServicesData() {
+  try {
+    const catalogRes = await apiRequest("/api/services/catalog", "GET");
+    if (Array.isArray(catalogRes) && catalogRes.length > 0) {
+      state.servicesCatalog = catalogRes;
+    } else if (!state.servicesCatalog || state.servicesCatalog.length === 0) {
+      state.servicesCatalog = [
+        { id: "serv_1", name: "Estampado Frente A4/A3", price: 3500 },
+        { id: "serv_2", name: "Estampado Espalda Grande", price: 4000 },
+        { id: "serv_3", name: "Bordado Pecho (Logo)", price: 2800 },
+        { id: "serv_4", name: "Bajada de Shablón / Matriz", price: 8000 },
+        { id: "serv_5", name: "DTF Pliego A3", price: 5000 }
+      ];
+    }
+  } catch (e) {
+    if (!state.servicesCatalog || state.servicesCatalog.length === 0) {
+      state.servicesCatalog = [
+        { id: "serv_1", name: "Estampado Frente A4/A3", price: 3500 },
+        { id: "serv_2", name: "Estampado Espalda Grande", price: 4000 },
+        { id: "serv_3", name: "Bordado Pecho (Logo)", price: 2800 },
+        { id: "serv_4", name: "Bajada de Shablón / Matriz", price: 8000 },
+        { id: "serv_5", name: "DTF Pliego A3", price: 5000 }
+      ];
+    }
+  }
+
+  try {
+    const ordersRes = await apiRequest("/api/services/orders", "GET");
+    if (Array.isArray(ordersRes)) {
+      state.serviceOrders = ordersRes;
+    }
+  } catch (e) {
+    console.warn("Could not fetch service orders:", e);
+  }
+
+  renderServicesUI();
+}
+
+function renderServicesUI() {
+  const tbody = document.getElementById("services-orders-tbody");
+  if (!tbody) return;
+
+  const searchInput = document.getElementById("services-search-input");
+  const filterSelect = document.getElementById("services-status-filter");
+  
+  const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
+  const filterStatus = filterSelect ? filterSelect.value : "ALL";
+
+  const orders = state.serviceOrders || [];
+
+  // Update Statistics Cards
+  const inProdCount = orders.filter(o => o.status === "En Producción" || o.status === "Pendiente").length;
+  const readyCount = orders.filter(o => o.status === "Listo para Entregar").length;
+  const totalEarned = orders.reduce((sum, o) => sum + (o.deposit || 0) + (o.status === "Entregado" ? (o.balance || 0) : 0), 0);
+
+  const statActiveEl = document.getElementById("services-stat-active");
+  const statReadyEl = document.getElementById("services-stat-ready");
+  const statTotalEl = document.getElementById("services-stat-total");
+
+  if (statActiveEl) statActiveEl.innerText = inProdCount;
+  if (statReadyEl) statReadyEl.innerText = readyCount;
+  if (statTotalEl) statTotalEl.innerText = `$${Math.round(totalEarned).toLocaleString('es-AR')}`;
+
+  // Filter Orders
+  const filteredOrders = orders.filter(o => {
+    const matchesStatus = (filterStatus === "ALL") || (o.status === filterStatus);
+    const textStr = `${o.id} ${o.clientName} ${o.garments} ${o.notes}`.toLowerCase();
+    const matchesQuery = !query || textStr.includes(query);
+    return matchesStatus && matchesQuery;
+  });
+
+  if (filteredOrders.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px 10px;">
+          No hay órdenes de trabajo registradas${query || filterStatus !== 'ALL' ? ' con los filtros aplicados' : ''}. Hacé clic en <strong>"+ Nueva Orden de Trabajo"</strong> para agregar.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = filteredOrders.map(o => {
+    const servicesSummary = (o.items || []).map(it => `${it.qty}x ${it.name}`).join(", ") || "-";
+
+    return `
+      <tr style="border-bottom: 1px solid var(--border-color);">
+        <td style="font-family: monospace; font-weight: 800; color: var(--accent-blue); padding: 12px;">${o.id}</td>
+        <td style="font-weight: 700; color: var(--text-white); padding: 12px;">
+          ${o.clientName}
+          ${o.clientPhone ? `<div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">📞 ${o.clientPhone}</div>` : ''}
+        </td>
+        <td style="font-size: 0.85rem; color: var(--text-white); padding: 12px; white-space: pre-wrap;">${o.garments || '-'}</td>
+        <td style="font-size: 0.85rem; color: var(--text-muted); padding: 12px;">${servicesSummary}</td>
+        <td style="text-align: right; padding: 12px;">
+          <div style="font-weight: 800; color: var(--accent-emerald);">$${Math.round(o.total).toLocaleString('es-AR')}</div>
+          ${o.deposit > 0 ? `<div style="font-size: 0.75rem; color: var(--text-muted);">Seña: $${Math.round(o.deposit).toLocaleString('es-AR')}</div>` : ''}
+          ${o.balance > 0 ? `<div style="font-size: 0.75rem; color: var(--accent-amber); font-weight: 700;">Saldo: $${Math.round(o.balance).toLocaleString('es-AR')}</div>` : `<div style="font-size: 0.75rem; color: var(--accent-emerald);">Pagado</div>`}
+        </td>
+        <td style="text-align: center; padding: 12px;">
+          <select onchange="updateServiceOrderStatus('${o.id}', this.value)" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 6px; background: var(--bg-input); color: var(--text-white); border: 1px solid var(--border-color); cursor: pointer;">
+            <option value="Pendiente" ${o.status === 'Pendiente' ? 'selected' : ''}>📥 Pendiente</option>
+            <option value="En Producción" ${o.status === 'En Producción' ? 'selected' : ''}>🎨 En Producción</option>
+            <option value="Listo para Entregar" ${o.status === 'Listo para Entregar' ? 'selected' : ''}>📦 Listo p/ Entregar</option>
+            <option value="Entregado" ${o.status === 'Entregado' ? 'selected' : ''}>✅ Entregado</option>
+          </select>
+        </td>
+        <td style="text-align: center; padding: 12px;">
+          <div style="display: flex; gap: 6px; justify-content: center;">
+            <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-blue); font-size: 1rem;" onclick="openServiceOrderModal('${o.id}')" title="Ver / Editar Orden">✏️</button>
+            <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-purple); font-size: 1rem;" onclick="downloadServiceOrderPDF('${o.id}')" title="Imprimir Remito PDF">📄</button>
+            ${o.balance > 0 ? `<button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-emerald); font-size: 1rem;" onclick="chargeServiceOrderToCash('${o.id}')" title="Cobrar Saldo en Caja">💰</button>` : ''}
+            <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-red); font-size: 1rem;" onclick="deleteServiceOrder('${o.id}')" title="Eliminar Orden">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+// --- MODAL Y GESTIÓN DE CATÁLOGO DE SERVICIOS ---
+function openServiceCatalogModal() {
+  renderServiceCatalogModalList();
+  const modal = document.getElementById("service-catalog-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeServiceCatalogModal() {
+  const modal = document.getElementById("service-catalog-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function renderServiceCatalogModalList() {
+  const tbody = document.getElementById("service-catalog-tbody");
+  if (!tbody) return;
+
+  const catalog = state.servicesCatalog || [];
+  if (catalog.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 16px;">No hay servicios guardados en el catálogo.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = catalog.map((s, idx) => `
+    <tr>
+      <td style="font-weight: 700; color: var(--text-white);">${s.name}</td>
+      <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$${Math.round(s.price).toLocaleString('es-AR')}</td>
+      <td style="text-align: center;">
+        <button class="btn" style="background: none; border: none; color: var(--accent-red); font-size: 0.9rem; cursor: pointer;" onclick="deleteCatalogServiceItem(${idx})">🗑️</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function addCatalogServiceItem() {
+  const nameInput = document.getElementById("cat-service-name");
+  const priceInput = document.getElementById("cat-service-price");
+
+  const name = nameInput ? nameInput.value.trim() : "";
+  const price = priceInput ? parseLocalFloat(priceInput.value) : 0;
+
+  if (!name) {
+    showToast("Ingresá el nombre del servicio", true);
+    return;
+  }
+
+  const newItem = {
+    id: "serv_" + Date.now(),
+    name: name,
+    price: price
+  };
+
+  if (!state.servicesCatalog) state.servicesCatalog = [];
+  state.servicesCatalog.push(newItem);
+
+  nameInput.value = "";
+  priceInput.value = "";
+
+  try {
+    await apiRequest("/api/services/catalog", "POST", state.servicesCatalog);
+    showToast("Servicio guardado en el catálogo");
+    renderServiceCatalogModalList();
+  } catch (e) {
+    showToast("Error al guardar catálogo: " + e.message, true);
+  }
+}
+
+async function deleteCatalogServiceItem(idx) {
+  if (confirm("¿Eliminar este servicio del catálogo?")) {
+    state.servicesCatalog.splice(idx, 1);
+    try {
+      await apiRequest("/api/services/catalog", "POST", state.servicesCatalog);
+      showToast("Servicio eliminado del catálogo");
+      renderServiceCatalogModalList();
+    } catch (e) {
+      showToast("Error al actualizar catálogo: " + e.message, true);
+    }
+  }
+}
+
+// --- MODAL Y GESTIÓN DE ÓRDENES DE TRABAJO ---
+function openServiceOrderModal(orderId = null) {
+  const modalTitle = document.getElementById("service-order-modal-title");
+  const orderIdInput = document.getElementById("service-order-id");
+  const clientNameInput = document.getElementById("service-order-client-name");
+  const clientPhoneInput = document.getElementById("service-order-client-phone");
+  const deliveryDateInput = document.getElementById("service-order-delivery-date");
+  const garmentsInput = document.getElementById("service-order-garments");
+  const notesInput = document.getElementById("service-order-notes");
+  const discountInput = document.getElementById("service-order-discount");
+  const depositInput = document.getElementById("service-order-deposit");
+  
+  const btnPrint = document.getElementById("btn-print-service-order");
+  const btnCharge = document.getElementById("btn-charge-service-order");
+
+  if (orderId) {
+    const existing = (state.serviceOrders || []).find(o => o.id === orderId);
+    if (!existing) return;
+
+    if (modalTitle) modalTitle.innerText = `Editar Orden de Trabajo (${existing.id})`;
+    if (orderIdInput) orderIdInput.value = existing.id;
+    if (clientNameInput) clientNameInput.value = existing.clientName || "";
+    if (clientPhoneInput) clientPhoneInput.value = existing.clientPhone || "";
+    if (deliveryDateInput) deliveryDateInput.value = existing.deliveryDate || "";
+    if (garmentsInput) garmentsInput.value = existing.garments || "";
+    if (notesInput) notesInput.value = existing.notes || "";
+    if (discountInput) discountInput.value = existing.discountPercent || 0;
+    if (depositInput) depositInput.value = existing.deposit || 0;
+
+    activeOrderItemsForm = JSON.parse(JSON.stringify(existing.items || []));
+    if (btnPrint) btnPrint.style.display = "inline-flex";
+    if (btnCharge) btnCharge.style.display = existing.balance > 0 ? "inline-flex" : "none";
+  } else {
+    if (modalTitle) modalTitle.innerText = "Nueva Orden de Trabajo";
+    if (orderIdInput) orderIdInput.value = "";
+    if (clientNameInput) clientNameInput.value = "";
+    if (clientPhoneInput) clientPhoneInput.value = "";
+    if (deliveryDateInput) deliveryDateInput.value = new Date().toISOString().split('T')[0];
+    if (garmentsInput) garmentsInput.value = "";
+    if (notesInput) notesInput.value = "";
+    if (discountInput) discountInput.value = "0";
+    if (depositInput) depositInput.value = "0";
+
+    activeOrderItemsForm = [];
+    addServiceItemToOrderForm(); // Add 1 blank row by default
+
+    if (btnPrint) btnPrint.style.display = "none";
+    if (btnCharge) btnCharge.style.display = "none";
+  }
+
+  renderServiceOrderFormItems();
+  calculateServiceOrderTotals();
+
+  const modal = document.getElementById("service-order-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeServiceOrderModal() {
+  const modal = document.getElementById("service-order-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function addServiceItemToOrderForm() {
+  const firstCat = (state.servicesCatalog && state.servicesCatalog.length > 0) ? state.servicesCatalog[0] : { name: "Estampado", price: 3500 };
+  activeOrderItemsForm.push({
+    name: firstCat.name,
+    qty: 1,
+    price: firstCat.price,
+    subtotal: firstCat.price
+  });
+  renderServiceOrderFormItems();
+  calculateServiceOrderTotals();
+}
+
+function removeServiceItemFromOrderForm(idx) {
+  activeOrderItemsForm.splice(idx, 1);
+  renderServiceOrderFormItems();
+  calculateServiceOrderTotals();
+}
+
+function renderServiceOrderFormItems() {
+  const tbody = document.getElementById("service-order-items-tbody");
+  if (!tbody) return;
+
+  const catalog = state.servicesCatalog || [];
+
+  tbody.innerHTML = activeOrderItemsForm.map((it, idx) => {
+    return `
+      <tr>
+        <td>
+          <input type="text" class="form-input" style="padding: 4px 8px; font-size: 0.85rem;" value="${it.name}" list="services-catalog-datalist" onchange="onOrderFormItemNameChange(${idx}, this.value)">
+          <datalist id="services-catalog-datalist">
+            ${catalog.map(c => `<option value="${c.name}">$${c.price}</option>`).join("")}
+          </datalist>
+        </td>
+        <td style="text-align: center;">
+          <input type="number" class="form-input" style="padding: 4px 8px; text-align: center; font-size: 0.85rem;" value="${it.qty}" min="1" oninput="onOrderFormItemQtyChange(${idx}, this.value)">
+        </td>
+        <td style="text-align: right;">
+          <input type="number" class="form-input" style="padding: 4px 8px; text-align: right; font-size: 0.85rem;" value="${it.price}" min="0" oninput="onOrderFormItemPriceChange(${idx}, this.value)">
+        </td>
+        <td style="text-align: right; font-weight: 800; color: var(--accent-emerald); font-size: 0.9rem;">
+          $${Math.round(it.qty * it.price).toLocaleString('es-AR')}
+        </td>
+        <td style="text-align: center;">
+          <button class="btn" style="background: none; border: none; color: var(--accent-red); cursor: pointer;" onclick="removeServiceItemFromOrderForm(${idx})">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function onOrderFormItemNameChange(idx, val) {
+  activeOrderItemsForm[idx].name = val;
+  const match = (state.servicesCatalog || []).find(c => c.name.toLowerCase() === val.toLowerCase());
+  if (match) {
+    activeOrderItemsForm[idx].price = match.price;
+    activeOrderItemsForm[idx].subtotal = activeOrderItemsForm[idx].qty * match.price;
+    renderServiceOrderFormItems();
+  }
+  calculateServiceOrderTotals();
+}
+
+function onOrderFormItemQtyChange(idx, val) {
+  const qty = Math.max(1, parseInt(val) || 1);
+  activeOrderItemsForm[idx].qty = qty;
+  activeOrderItemsForm[idx].subtotal = qty * activeOrderItemsForm[idx].price;
+  renderServiceOrderFormItems();
+  calculateServiceOrderTotals();
+}
+
+function onOrderFormItemPriceChange(idx, val) {
+  const price = Math.max(0, parseLocalFloat(val));
+  activeOrderItemsForm[idx].price = price;
+  activeOrderItemsForm[idx].subtotal = activeOrderItemsForm[idx].qty * price;
+  renderServiceOrderFormItems();
+  calculateServiceOrderTotals();
+}
+
+function calculateServiceOrderTotals() {
+  const subtotal = activeOrderItemsForm.reduce((sum, it) => sum + (it.qty * it.price), 0);
+  const discountInput = document.getElementById("service-order-discount");
+  const depositInput = document.getElementById("service-order-deposit");
+
+  const discountPercent = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  const deposit = depositInput ? parseLocalFloat(depositInput.value) : 0;
+
+  const discountAmount = subtotal * (discountPercent / 100);
+  let total = Math.max(0, subtotal - discountAmount);
+  total = Math.round(total / 100) * 100;
+
+  const balance = Math.max(0, total - deposit);
+
+  const subtotalEl = document.getElementById("service-order-subtotal-display");
+  const totalEl = document.getElementById("service-order-total-display");
+  const balanceEl = document.getElementById("service-order-balance-display");
+
+  if (subtotalEl) subtotalEl.innerText = `$${Math.round(subtotal).toLocaleString('es-AR')}`;
+  if (totalEl) totalEl.innerText = `$${Math.round(total).toLocaleString('es-AR')}`;
+  if (balanceEl) balanceEl.innerText = deposit > 0 ? `Saldo Pendiente: $${Math.round(balance).toLocaleString('es-AR')}` : `Total A Pagar: $${Math.round(total).toLocaleString('es-AR')}`;
+}
+
+async function saveServiceOrderFromModal() {
+  const orderIdInput = document.getElementById("service-order-id");
+  const clientNameInput = document.getElementById("service-order-client-name");
+  const clientPhoneInput = document.getElementById("service-order-client-phone");
+  const deliveryDateInput = document.getElementById("service-order-delivery-date");
+  const garmentsInput = document.getElementById("service-order-garments");
+  const notesInput = document.getElementById("service-order-notes");
+  const discountInput = document.getElementById("service-order-discount");
+  const depositInput = document.getElementById("service-order-deposit");
+
+  const clientName = clientNameInput ? clientNameInput.value.trim() : "";
+  if (!clientName) {
+    showToast("Ingresá el nombre del cliente o negocio", true);
+    return;
+  }
+
+  if (activeOrderItemsForm.length === 0) {
+    showToast("Agregá al menos 1 servicio a la orden", true);
+    return;
+  }
+
+  const subtotal = activeOrderItemsForm.reduce((sum, it) => sum + (it.qty * it.price), 0);
+  const discountPercent = discountInput ? parseLocalFloat(discountInput.value) : 0;
+  const deposit = depositInput ? parseLocalFloat(depositInput.value) : 0;
+  const discountAmount = subtotal * (discountPercent / 100);
+  let total = Math.max(0, subtotal - discountAmount);
+  total = Math.round(total / 100) * 100;
+  const balance = Math.max(0, total - deposit);
+
+  let existingId = orderIdInput ? orderIdInput.value : "";
+  let existingStatus = "Pendiente";
+
+  if (existingId) {
+    const existing = (state.serviceOrders || []).find(o => o.id === existingId);
+    if (existing) existingStatus = existing.status;
+  } else {
+    // Generate next OS-XXX code
+    const count = (state.serviceOrders || []).length + 1;
+    existingId = `OS-${String(count).padStart(3, '0')}`;
+  }
+
+  const orderData = {
+    id: existingId,
+    clientName: clientName,
+    clientPhone: clientPhoneInput ? clientPhoneInput.value.trim() : "",
+    deliveryDate: deliveryDateInput ? deliveryDateInput.value : "",
+    garments: garmentsInput ? garmentsInput.value.trim() : "",
+    items: activeOrderItemsForm,
+    notes: notesInput ? notesInput.value.trim() : "",
+    subtotal: subtotal,
+    discountPercent: discountPercent,
+    deposit: deposit,
+    total: total,
+    balance: balance,
+    status: existingStatus,
+    createdAt: new Date().toLocaleDateString('es-AR')
+  };
+
+  if (!state.serviceOrders) state.serviceOrders = [];
+  const idx = state.serviceOrders.findIndex(o => o.id === existingId);
+  if (idx >= 0) {
+    state.serviceOrders[idx] = orderData;
+  } else {
+    state.serviceOrders.unshift(orderData);
+  }
+
+  try {
+    await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+    showToast(`Orden de Trabajo ${existingId} guardada con éxito`);
+    closeServiceOrderModal();
+    renderServicesUI();
+  } catch (e) {
+    showToast("Error al guardar la orden: " + e.message, true);
+  }
+}
+
+async function updateServiceOrderStatus(orderId, newStatus) {
+  const existing = (state.serviceOrders || []).find(o => o.id === orderId);
+  if (!existing) return;
+
+  existing.status = newStatus;
+  if (newStatus === "Entregado") {
+    existing.balance = 0; // Fully paid upon delivery
+  }
+
+  try {
+    await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+    showToast(`Estado de ${orderId} actualizado a ${newStatus}`);
+    renderServicesUI();
+  } catch (e) {
+    showToast("Error al actualizar estado: " + e.message, true);
+  }
+}
+
+async function deleteServiceOrder(orderId) {
+  if (confirm(`¿Eliminar la orden de trabajo ${orderId}?`)) {
+    state.serviceOrders = (state.serviceOrders || []).filter(o => o.id !== orderId);
+    try {
+      await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+      showToast(`Orden ${orderId} eliminada`);
+      renderServicesUI();
+    } catch (e) {
+      showToast("Error al eliminar orden: " + e.message, true);
+    }
+  }
+}
+
+async function chargeServiceOrderToCash(orderId) {
+  const order = (state.serviceOrders || []).find(o => o.id === orderId);
+  if (!order) return;
+
+  const chargeAmount = order.balance > 0 ? order.balance : order.total;
+  if (confirm(`¿Registrar cobro de $${Math.round(chargeAmount).toLocaleString('es-AR')} para la orden ${order.id} (${order.clientName}) en Caja/Ventas?`)) {
+    const salePayload = {
+      id: "serv_sale_" + Date.now(),
+      client_name: order.clientName,
+      items: (order.items || []).map(it => ({
+        sku: `SERV-${order.id}`,
+        name: `[Taller] ${it.name} (Orden ${order.id})`,
+        price: it.price,
+        qty: it.qty,
+        subtotal: it.subtotal
+      })),
+      subtotal: chargeAmount,
+      discount: 0,
+      total: chargeAmount,
+      payment_method: "Efectivo",
+      date: new Date().toLocaleDateString('es-AR'),
+      timestamp: Date.now()
+    };
+
+    try {
+      await apiRequest("/api/sales", "POST", salePayload);
+      order.balance = 0;
+      order.status = "Entregado";
+      await apiRequest("/api/services/orders", "POST", state.serviceOrders);
+      showToast(`¡Venta de servicio ${order.id} cobrada y registrada en Caja con éxito!`);
+      renderServicesUI();
+    } catch (e) {
+      showToast("Error al registrar cobro: " + e.message, true);
+    }
+  }
+}
+
+function chargeServiceOrderFromModal() {
+  const orderId = document.getElementById("service-order-id").value;
+  if (orderId) chargeServiceOrderToCash(orderId);
+}
+
+function downloadServiceOrderPDFFromModal() {
+  const orderId = document.getElementById("service-order-id").value;
+  if (orderId) downloadServiceOrderPDF(orderId);
+}
+
+async function downloadServiceOrderPDF(orderId) {
+  const order = (state.serviceOrders || []).find(o => o.id === orderId);
+  if (!order) return;
+
+  const bizName = state.businessName || state.userProfile?.businessName || "Datamargen";
+  const dateStr = order.createdAt || new Date().toLocaleDateString('es-AR');
+
+  const pdfContainer = document.createElement("div");
+  pdfContainer.style.padding = "35px 40px";
+  pdfContainer.style.fontFamily = "'Segoe UI', Helvetica, Arial, sans-serif";
+  pdfContainer.style.color = "#0f172a";
+  pdfContainer.style.backgroundColor = "#ffffff";
+  pdfContainer.style.boxSizing = "border-box";
+
+  pdfContainer.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
+      <div>
+        <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
+        <div style="font-size: 11px; color: #64748b;">REMITO Y ORDEN DE TRABAJO DE TALLER</div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 18px; font-weight: 900; color: #2563eb; letter-spacing: 1px;">ORDEN ${order.id}</div>
+        <div style="font-size: 11px; color: #475569; margin-top: 4px;"><strong>Fecha:</strong> ${dateStr}</div>
+        ${order.deliveryDate ? `<div style="font-size: 11px; color: #0f172a;"><strong>Entrega Prometida:</strong> ${order.deliveryDate}</div>` : ''}
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 22px;">
+      <div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Cliente / Negocio</div>
+        <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px;">${order.clientName}</div>
+        ${order.clientPhone ? `<div style="font-size: 11px; color: #475569; margin-top: 2px;">Contacto: ${order.clientPhone}</div>` : ''}
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Estado del Trabajo</div>
+        <div style="font-size: 13px; font-weight: 800; color: #2563eb; margin-top: 2px;">${order.status || 'Pendiente'}</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 22px; padding: 12px 16px; background: #f1f5f9; border-left: 4px solid #10b981; border-radius: 6px;">
+      <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #0f172a; margin-bottom: 4px;">👕 PRENDAS RECIBIDAS DEL CLIENTE (SIN COSTO DE PRENDA FÍSICA):</div>
+      <div style="font-size: 12px; color: #1e293b; font-weight: 600; white-space: pre-wrap; line-height: 1.4;">${order.garments || 'Sin especificar'}</div>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px;">
+      <thead>
+        <tr style="background-color: #0f172a; color: #ffffff;">
+          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">Servicio / Transformación</th>
+          <th style="padding: 9px 12px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase;">Cant.</th>
+          <th style="padding: 9px 12px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase;">Precio Unit.</th>
+          <th style="padding: 9px 12px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(order.items || []).map((it, idx) => `
+          <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="padding: 9px 12px; font-size: 12px; font-weight: 700; color: #0f172a;">${it.name}</td>
+            <td style="padding: 9px 12px; font-size: 12px; text-align: center; font-weight: 700; color: #0f172a;">${it.qty}</td>
+            <td style="padding: 9px 12px; font-size: 12px; text-align: right; color: #334155;">$${Math.round(it.price).toLocaleString('es-AR')}</td>
+            <td style="padding: 9px 12px; font-size: 12px; text-align: right; font-weight: 800; color: #0f172a;">$${Math.round(it.qty * it.price).toLocaleString('es-AR')}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+
+    ${order.notes ? `
+    <div style="margin-bottom: 22px; padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;">
+      <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 4px;">NOTAS DEL TALLER / INSUMOS:</div>
+      <div style="font-size: 11.5px; color: #334155;">${order.notes}</div>
+    </div>` : ''}
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #cbd5e1; padding-top: 18px;">
+      <div style="max-width: 350px; font-size: 10.5px; color: #64748b; line-height: 1.4;">
+        <strong>Condiciones del Servicio:</strong><br>
+        • La empresa no se responsabiliza por fallas previas en las prendas del cliente.<br>
+        • Comprobante válido como orden de trabajo y remito de entrega.<br>
+      </div>
+
+      <div style="text-align: right; min-width: 220px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+          <span>Subtotal:</span>
+          <span>$${Math.round(order.subtotal || order.total).toLocaleString('es-AR')}</span>
+        </div>
+        ${order.discountPercent > 0 ? `
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ef4444; margin-bottom: 4px;">
+          <span>Descuento (${order.discountPercent}%):</span>
+          <span>-$${Math.round((order.subtotal || order.total) * (order.discountPercent/100)).toLocaleString('es-AR')}</span>
+        </div>` : ''}
+        ${order.deposit > 0 ? `
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #2563eb; margin-bottom: 4px;">
+          <span>Seña / Anticipo:</span>
+          <span>-$${Math.round(order.deposit).toLocaleString('es-AR')}</span>
+        </div>` : ''}
+        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0f172a; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 4px;">
+          <span>${order.balance > 0 ? 'SALDO A PAGAR:' : 'TOTAL:'}</span>
+          <span style="color: #10b981;">$${Math.round(order.balance > 0 ? order.balance : order.total).toLocaleString('es-AR')}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+      Documento emitido por Datamargen ERP • www.datamargen.com
+    </div>
+  `;
+
+  if (window.html2pdf) {
+    const opt = {
+      margin:       [8, 8, 8, 8],
+      filename:     `Orden_Trabajo_${order.id}_${(order.clientName || 'Cliente').replace(/\s+/g, '_')}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    try {
+      showToast("Generando Remito PDF...");
+      await html2pdf().set(opt).from(pdfContainer).save();
+    } catch (e) {
+      console.error("Error html2pdf", e);
+      printFallbackWindow(pdfContainer.outerHTML);
+    }
+  } else {
+    printFallbackWindow(pdfContainer.outerHTML);
+  }
+}
+
+window.loadServicesData = loadServicesData;
+window.renderServicesUI = renderServicesUI;
+window.openServiceCatalogModal = openServiceCatalogModal;
+window.closeServiceCatalogModal = closeServiceCatalogModal;
+window.addCatalogServiceItem = addCatalogServiceItem;
+window.deleteCatalogServiceItem = deleteCatalogServiceItem;
+window.openServiceOrderModal = openServiceOrderModal;
+window.closeServiceOrderModal = closeServiceOrderModal;
+window.addServiceItemToOrderForm = addServiceItemToOrderForm;
+window.removeServiceItemFromOrderForm = removeServiceItemFromOrderForm;
+window.onOrderFormItemNameChange = onOrderFormItemNameChange;
+window.onOrderFormItemQtyChange = onOrderFormItemQtyChange;
+window.onOrderFormItemPriceChange = onOrderFormItemPriceChange;
+window.calculateServiceOrderTotals = calculateServiceOrderTotals;
+window.saveServiceOrderFromModal = saveServiceOrderFromModal;
+window.updateServiceOrderStatus = updateServiceOrderStatus;
+window.deleteServiceOrder = deleteServiceOrder;
+window.chargeServiceOrderToCash = chargeServiceOrderToCash;
+window.chargeServiceOrderFromModal = chargeServiceOrderFromModal;
+window.downloadServiceOrderPDF = downloadServiceOrderPDF;
+window.downloadServiceOrderPDFFromModal = downloadServiceOrderPDFFromModal;
+
 
