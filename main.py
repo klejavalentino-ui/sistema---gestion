@@ -1577,6 +1577,46 @@ def save_service_orders():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/services/settings", methods=["GET"])
+def get_services_settings():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        doc = firebase_config.get_document("services", f"{prefix}settings", token)
+        if doc:
+            return jsonify(doc)
+        default_settings = {
+            "remitoConditions": "• La empresa no se responsabiliza por fallas previas en las prendas del cliente.\n• Comprobante válido como orden de trabajo y remito de entrega."
+        }
+        return jsonify(default_settings)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/services/settings", methods=["POST"])
+def save_services_settings():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+    try:
+        data = request.json or {}
+        payload = {
+            "id": f"{prefix}settings",
+            "remitoConditions": str(data.get("remitoConditions", ""))
+        }
+        firebase_config.set_document("services", f"{prefix}settings", payload, token)
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 def export_inventory_excel_route():
     token = get_auth_token()
     if not token:

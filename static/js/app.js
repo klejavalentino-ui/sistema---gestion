@@ -15837,6 +15837,23 @@ async function downloadServiceOrderPDF(orderId) {
   const order = (state.serviceOrders || []).find(o => o.id === orderId);
   if (!order) return;
 
+  let conditionsText = "• La empresa no se responsabiliza por fallas previas en las prendas del cliente.\n• Comprobante válido como orden de trabajo y remito de entrega.";
+  try {
+    const settings = await apiRequest("/api/services/settings", "GET");
+    if (settings && settings.remitoConditions) {
+      conditionsText = settings.remitoConditions;
+    }
+  } catch (e) {
+    console.error("Error loading remito settings for PDF:", e);
+  }
+
+  const conditionsHtml = conditionsText
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => `<div style="font-weight: bold; margin-bottom: 2px;">${line}</div>`)
+    .join("");
+
   const bizName = state.businessName || state.userProfile?.businessName || "Datamargen";
   const dateStr = order.createdAt || new Date().toLocaleDateString('es-AR');
 
@@ -15862,7 +15879,7 @@ async function downloadServiceOrderPDF(orderId) {
 
     <div style="display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 22px;">
       <div>
-        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Cliente / Negocio</div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Negocio</div>
         <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px;">${order.clientName}</div>
         ${order.clientPhone ? `<div style="font-size: 11px; color: #475569; margin-top: 2px;">Contacto: ${order.clientPhone}</div>` : ''}
       </div>
@@ -15873,8 +15890,13 @@ async function downloadServiceOrderPDF(orderId) {
     </div>
 
     <div style="margin-bottom: 22px; padding: 12px 16px; background: #f1f5f9; border-left: 4px solid #10b981; border-radius: 6px;">
-      <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #0f172a; margin-bottom: 4px;">👕 PRENDAS RECIBIDAS DEL CLIENTE (SIN COSTO DE PRENDA FÍSICA):</div>
-      <div style="font-size: 12px; color: #1e293b; font-weight: 600; white-space: pre-wrap; line-height: 1.4;">${order.garments || 'Sin especificar'}</div>
+      <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #0f172a; margin-bottom: 4px;">👕 PRENDAS RECIBIDAS POR EL NEGOCIO:</div>
+      <div style="font-size: 12px; color: #1e293b; font-weight: 600; line-height: 1.4;">
+        ${(Array.isArray(order.garmentItems) && order.garmentItems.length > 0)
+          ? order.garmentItems.map(g => `<div style="margin-bottom: 2px;">• ${g.qty} u. ${g.name}</div>`).join("")
+          : (order.garments || "").split(", ").map(p => p.trim() ? `<div style="margin-bottom: 2px;">• ${p}</div>` : "").join("")
+        }
+      </div>
     </div>
 
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px;">
@@ -15905,10 +15927,9 @@ async function downloadServiceOrderPDF(orderId) {
     </div>` : ''}
 
     <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #cbd5e1; padding-top: 18px;">
-      <div style="max-width: 350px; font-size: 10.5px; color: #64748b; line-height: 1.4;">
-        <strong>Condiciones del Servicio:</strong><br>
-        • La empresa no se responsabiliza por fallas previas en las prendas del cliente.<br>
-        • Comprobante válido como orden de trabajo y remito de entrega.<br>
+      <div style="max-width: 350px; font-size: 10.5px; color: #0f172a; line-height: 1.4;">
+        <strong style="font-size: 11px; display: block; margin-bottom: 4px; font-weight: bold;">Condiciones del Servicio:</strong>
+        ${conditionsHtml}
       </div>
 
       <div style="text-align: right; min-width: 220px;">
@@ -15958,6 +15979,40 @@ async function downloadServiceOrderPDF(orderId) {
   }
 }
 
+async function openRemitoConfigModal() {
+  try {
+    const settings = await apiRequest("/api/services/settings", "GET");
+    const textarea = document.getElementById("remito-config-conditions");
+    if (textarea && settings) {
+      textarea.value = settings.remitoConditions || "";
+    }
+  } catch (e) {
+    console.error("Error loading remito config:", e);
+  }
+  const modal = document.getElementById("remito-config-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeRemitoConfigModal() {
+  const modal = document.getElementById("remito-config-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function saveRemitoConfig() {
+  const textarea = document.getElementById("remito-config-conditions");
+  const conditions = textarea ? textarea.value : "";
+  try {
+    await apiRequest("/api/services/settings", "POST", { remitoConditions: conditions });
+    showToast("Configuración de remito guardada con éxito");
+    closeRemitoConfigModal();
+  } catch (e) {
+    showToast("Error al guardar configuración: " + e.message, true);
+  }
+}
+
+window.openRemitoConfigModal = openRemitoConfigModal;
+window.closeRemitoConfigModal = closeRemitoConfigModal;
+window.saveRemitoConfig = saveRemitoConfig;
 window.loadServicesData = loadServicesData;
 window.renderServicesUI = renderServicesUI;
 window.openServiceCatalogModal = openServiceCatalogModal;
