@@ -8120,7 +8120,7 @@ function renderFixedCosts() {
 
 const GASTOS_CATEGORIES = ['Estructura', 'Personal', 'Impositiva', 'Dirección', 'Marketing Fijo', 'Servicios'];
 const GASTOS_SUBCATEGORIES = {
-  Estructura: ['Alquiler', 'Luz', 'Internet', 'Expensas', 'Mantenimiento', 'Gas', 'Otros'],
+  Estructura: ['Alquiler', 'Luz', 'Internet', 'Expensas', 'Mantenimiento', 'Gas', 'Agua', 'Articulos de Oficina', 'Otros'],
   Personal: ['Sueldo Empleado'],
   Impositiva: ['ARCA', 'Municipal', 'Otros'],
   Dirección: ['Sueldo del Dueño'],
