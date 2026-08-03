@@ -11612,6 +11612,11 @@ function isAdminSectionAllowed(secId) {
     const zecatAllowedEmails = ["jomoindumentaria@gmail.com"];
     return (state.userProfile?.zecatEnabled === true) || zecatAllowedEmails.includes(adminEmail);
   }
+  if (secId === "production") {
+    const hasOrders = (state.products || []).some(p => p && p.sku && p.sku.startsWith("productionorder_"));
+    const hasBaseCategories = state.userProfile?.productionBaseCategories && state.userProfile.productionBaseCategories.length > 0;
+    return (state.userProfile?.productionEnabled === true) || hasOrders || hasBaseCategories || isAdminAllowedEmail;
+  }
   return true;
 }
 
@@ -14288,9 +14293,10 @@ function getCategories() {
 window.getCategories = getCategories;
 
 function getUserLocations() {
-  return (state.userProfile?.locations && state.userProfile.locations.length > 0)
-    ? state.userProfile.locations
-    : ["Depósito Casa", "Web"];
+  if (state.userProfile?.locations && Array.isArray(state.userProfile.locations) && state.userProfile.locations.length > 0) {
+    return state.userProfile.locations;
+  }
+  return ["Local Principal"];
 }
 window.getUserLocations = getUserLocations;
 
@@ -14574,11 +14580,12 @@ function openProductionModal(preselectOriginKey = null) {
   const locationSelect = document.getElementById("prod-location-select");
   if (!originSelect || !targetSelect) return;
 
-  // Llenar selector de ubicaciones
+  const userLocs = getUserLocations();
+
+  // Llenar selector de ubicaciones usando exactamente las de Configuración
   if (locationSelect) {
-    const locs = getUserLocations();
     locationSelect.innerHTML = "";
-    locs.forEach(loc => {
+    userLocs.forEach(loc => {
       const opt = document.createElement("option");
       opt.value = loc;
       opt.innerText = loc;
@@ -14586,6 +14593,7 @@ function openProductionModal(preselectOriginKey = null) {
     });
   }
 
+  const selectedLoc = locationSelect ? (locationSelect.value || userLocs[0]) : userLocs[0];
   const { baseCategories, targetCategories } = getProductionCategoriesConfig();
 
   const actualProducts = (state.products || []).filter(p => {
@@ -14622,13 +14630,23 @@ function openProductionModal(preselectOriginKey = null) {
       };
     }
     groupedMap[groupKey].variants.push(p);
-    const sVal = p.stock_local !== undefined ? p.stock_local : p.stock;
-    groupedMap[groupKey].totalStock += (parseInt(sVal) || 0);
+
+    // Calcular stock preciso para la ubicación seleccionada
+    let vStock = 0;
+    if (p.locationsStock && typeof p.locationsStock === "object" && Object.keys(p.locationsStock).length > 0) {
+      const matchedKey = Object.keys(p.locationsStock).find(k => k.toLowerCase().trim() === selectedLoc.toLowerCase().trim());
+      if (matchedKey !== undefined) {
+        vStock = (parseInt(p.locationsStock[matchedKey]) || 0);
+      }
+    } else {
+      vStock = (parseInt(p.stock_local !== undefined ? p.stock_local : p.stock) || 0);
+    }
+    groupedMap[groupKey].totalStock += vStock;
   });
 
   const list = Object.values(groupedMap);
 
-  originSelect.innerHTML = `<option value="">Seleccione prenda base (origen)...</option>`;
+  originSelect.innerHTML = `<option value="">Seleccione prenda base...</option>`;
   targetSelect.innerHTML = `<option value="">Seleccione prenda final local (destino)...</option>`;
 
   list.forEach(g => {
@@ -14704,10 +14722,13 @@ function onProductionOriginChange() {
 
   let locStockSum = 0;
   originVars.forEach(v => {
-    if (v.locationsStock && v.locationsStock[selectedLocation] !== undefined) {
-      locStockSum += (parseInt(v.locationsStock[selectedLocation]) || 0);
+    if (v.locationsStock && typeof v.locationsStock === "object" && Object.keys(v.locationsStock).length > 0) {
+      const matchedKey = Object.keys(v.locationsStock).find(k => k.toLowerCase().trim() === selectedLocation.toLowerCase().trim());
+      if (matchedKey !== undefined) {
+        locStockSum += (parseInt(v.locationsStock[matchedKey]) || 0);
+      }
     } else {
-      locStockSum += (parseInt(v.stock) || 0);
+      locStockSum += (parseInt(v.stock_local !== undefined ? v.stock_local : v.stock) || 0);
     }
   });
 
@@ -14748,19 +14769,23 @@ function renderProductionSizesBreakdown() {
     const matchingVar = originVars.find(v => (v.size || "").toLowerCase().trim() === sz.toLowerCase().trim());
     let szStock = 0;
     if (matchingVar) {
-      if (matchingVar.locationsStock && matchingVar.locationsStock[selectedLocation] !== undefined) {
-        szStock = parseInt(matchingVar.locationsStock[selectedLocation]) || 0;
+      if (matchingVar.locationsStock && typeof matchingVar.locationsStock === "object" && Object.keys(matchingVar.locationsStock).length > 0) {
+        const matchedKey = Object.keys(matchingVar.locationsStock).find(k => k.toLowerCase().trim() === selectedLocation.toLowerCase().trim());
+        if (matchedKey !== undefined) {
+          szStock = parseInt(matchingVar.locationsStock[matchedKey]) || 0;
+        }
       } else {
-        szStock = parseInt(matchingVar.stock) || 0;
+        szStock = parseInt(matchingVar.stock_local !== undefined ? matchingVar.stock_local : matchingVar.stock) || 0;
       }
     }
 
+    const isAvailable = szStock > 0;
     const div = document.createElement("div");
-    div.style.cssText = "display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 6px; border: 1px solid var(--border-color);";
+    div.style.cssText = `display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 6px; border: 1px solid var(--border-color); ${!isAvailable ? 'opacity: 0.5;' : ''}`;
     div.innerHTML = `
       <label style="font-size: 0.68rem; color: var(--text-white); font-weight: 700; text-transform: uppercase;">${sz}</label>
-      <span style="font-size: 0.65rem; color: ${szStock > 0 ? 'var(--accent-emerald)' : '#f87171'}; margin-bottom: 4px; font-weight: 600;">Disp: ${szStock} u.</span>
-      <input type="number" id="prod-size-input-${sz}" class="form-input prod-size-breakdown-input" style="font-size: 0.78rem; padding: 4px 6px; text-align: center; width: 100%;" placeholder="0" min="0" data-size="${sz}" data-avail="${szStock}" oninput="updateProductionTotalQtyFromSizes()">
+      <span style="font-size: 0.65rem; color: ${isAvailable ? 'var(--accent-emerald)' : '#f87171'}; margin-bottom: 4px; font-weight: 600;">Disp: ${szStock} u.</span>
+      <input type="number" id="prod-size-input-${sz}" class="form-input prod-size-breakdown-input" style="font-size: 0.78rem; padding: 4px 6px; text-align: center; width: 100%; ${!isAvailable ? 'background: rgba(0,0,0,0.25); cursor: not-allowed; opacity: 0.6;' : ''}" placeholder="0" min="0" max="${szStock}" data-size="${sz}" data-avail="${szStock}" ${!isAvailable ? 'disabled value="0"' : ''} oninput="updateProductionTotalQtyFromSizes()">
     `;
     grid.appendChild(div);
   });
