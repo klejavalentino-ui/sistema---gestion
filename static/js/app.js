@@ -3951,13 +3951,21 @@ function getInvoiceTicketInnerHTML(sale) {
     const cuit = arca.cuit || "00-00000000-0";
     const pos = arca.pos || "0002";
     const condicionEmisor = (arca.condicion_iva || "monotributo").toUpperCase();
-    const businessName = arca.razon_social || arca.businessName || state.businessName || (state.userEmail === "matiascuchettidiaz@gmail.com" ? "MAZO" : "Empresa / Monotributista");
+
+    const userEmail = (state.email || state.userEmail || "").toLowerCase();
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+
+    const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
+      ? arca.razon_social 
+      : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "Empresa / Monotributista"));
     
-    let rawAddress = arca.domicilio || arca.address || (state.userEmail === "matiascuchettidiaz@gmail.com" ? "Hipólito Yrigoyen 631" : "Hipólito Yrigoyen 631");
+    let rawAddress = (arca.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") 
+      ? arca.domicilio_comercial 
+      : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "Hipólito Yrigoyen 631"));
     const addressStr = rawAddress.toLowerCase().includes("domicilio comercial") ? rawAddress : `Domicilio Comercial: ${rawAddress}`;
     
     const iibb = arca.iibb || cuit;
-    const incioAct = arca.inicio_actividades || "01/01/2020";
+    const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
     const nroFactura = sale.arca_invoice_id || "";
     const cae = sale.arca_cae || "";
     const caeDue = sale.arca_cae_due || "";
@@ -10344,6 +10352,7 @@ async function renderIntegrationsStatus() {
     const cuitInput = document.getElementById("arca-cuit");
     const razonInput = document.getElementById("arca-razon-social");
     const domicilioInput = document.getElementById("arca-domicilio");
+    const startDateInput = document.getElementById("arca-start-date");
     const condicionSelect = document.getElementById("arca-condicion-iva");
     const posInput = document.getElementById("arca-pos");
     const categoriaSelect = document.getElementById("arca-categoria-monotributo");
@@ -10353,10 +10362,11 @@ async function renderIntegrationsStatus() {
     const arcaCertFile = document.getElementById("arca-cert-file");
     const arcaKeyFile = document.getElementById("arca-key-file");
     
-    const userEmail = (state.email || "").toLowerCase();
+    const userEmail = (state.email || state.userEmail || "").toLowerCase();
     const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
-    const defaultRazon = isMatias ? "Mazo" : "";
-    const defaultDomicilio = isMatias ? "Hipólito Yrigoyen 631" : "";
+    const defaultRazon = isMatias ? "CUCHETTI DIAZ MATIAS" : "";
+    const defaultDomicilio = isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "";
+    const defaultStartDate = isMatias ? "01/10/2024" : "";
     
     // Establecer fecha por defecto a hoy en el input del formulario de facturación
     const dateInput = document.getElementById("arca-invoice-date");
@@ -10381,12 +10391,16 @@ async function renderIntegrationsStatus() {
         cuitInput.disabled = true;
       }
       if (razonInput) {
-        razonInput.value = arca.razon_social || defaultRazon;
+        razonInput.value = (arca.razon_social && arca.razon_social !== "Mazo") ? arca.razon_social : defaultRazon;
         razonInput.disabled = true;
       }
       if (domicilioInput) {
-        domicilioInput.value = arca.domicilio_comercial || defaultDomicilio;
+        domicilioInput.value = (arca.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") ? arca.domicilio_comercial : defaultDomicilio;
         domicilioInput.disabled = true;
+      }
+      if (startDateInput) {
+        startDateInput.value = arca.inicio_actividades || arca.start_date || defaultStartDate;
+        startDateInput.disabled = true;
       }
       if (condicionSelect) {
         condicionSelect.value = arca.condicion_iva || "monotributo";
@@ -10433,12 +10447,16 @@ async function renderIntegrationsStatus() {
       }
       if (cuitInput) cuitInput.disabled = false;
       if (razonInput) {
-        razonInput.value = arca?.razon_social || defaultRazon;
+        razonInput.value = (arca?.razon_social && arca.razon_social !== "Mazo") ? arca.razon_social : defaultRazon;
         razonInput.disabled = false;
       }
       if (domicilioInput) {
-        domicilioInput.value = arca?.domicilio_comercial || defaultDomicilio;
+        domicilioInput.value = (arca?.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") ? arca.domicilio_comercial : defaultDomicilio;
         domicilioInput.disabled = false;
+      }
+      if (startDateInput) {
+        startDateInput.value = arca?.inicio_actividades || arca?.start_date || defaultStartDate;
+        startDateInput.disabled = false;
       }
       if (condicionSelect) condicionSelect.disabled = false;
       if (categoriaSelect) categoriaSelect.disabled = false;
@@ -10980,6 +10998,7 @@ async function saveArcaConfig(event) {
   const cuit = document.getElementById("arca-cuit").value.replace(/\D/g, "");
   const razonSocial = document.getElementById("arca-razon-social")?.value.trim() || "";
   const domicilioComercial = document.getElementById("arca-domicilio")?.value.trim() || "";
+  const startDate = document.getElementById("arca-start-date")?.value.trim() || "";
   const condicion = document.getElementById("arca-condicion-iva").value;
   const pos = document.getElementById("arca-pos").value;
   const categoria = document.getElementById("arca-categoria-monotributo").value;
@@ -11015,6 +11034,8 @@ async function saveArcaConfig(event) {
       cuit: cuit,
       razon_social: razonSocial,
       domicilio_comercial: domicilioComercial,
+      inicio_actividades: startDate,
+      start_date: startDate,
       condicion_iva: condicion,
       categoria_monotributo: categoria,
       pos: pos,
