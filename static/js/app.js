@@ -3955,6 +3955,7 @@ function getInvoiceTicketInnerHTML(sale) {
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
     const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
 
+    const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "Empresa"));
     const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
       ? arca.razon_social 
       : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "Empresa / Monotributista"));
@@ -4030,7 +4031,8 @@ function getInvoiceTicketInnerHTML(sale) {
           <p style="font-size: 24px; font-weight: bold; margin: 0; line-height: 1;">${voucherLetter}</p>
           <p style="font-size: 9px; margin: 0;">COD. ${voucherCode}</p>
         </div>
-        <h2 style="margin: 4px 0; font-size: 15px; font-weight: bold; text-transform: uppercase;">${businessName}</h2>
+        <h2 style="margin: 4px 0; font-size: 15px; font-weight: bold; text-transform: uppercase;">${tradeName}</h2>
+        <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">Razón Social: ${businessName}</p>
         <p style="margin: 2px 0; font-size: 10px;">${addressStr}</p>
         <p style="margin: 2px 0; font-size: 10px;">CUIT: ${cuit}</p>
         <p style="margin: 2px 0; font-size: 10px;">IIBB: ${iibb}</p>
@@ -10350,6 +10352,7 @@ async function renderIntegrationsStatus() {
     const arca = integrations?.arca;
     const arcaBadge = document.getElementById("arca-status-badge");
     const cuitInput = document.getElementById("arca-cuit");
+    const fantasiaInput = document.getElementById("arca-nombre-fantasia");
     const razonInput = document.getElementById("arca-razon-social");
     const domicilioInput = document.getElementById("arca-domicilio");
     const startDateInput = document.getElementById("arca-start-date");
@@ -10364,6 +10367,7 @@ async function renderIntegrationsStatus() {
     
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
     const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const defaultFantasia = isMatias ? "MAZO." : "";
     const defaultRazon = isMatias ? "CUCHETTI DIAZ MATIAS" : "";
     const defaultDomicilio = isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "";
     const defaultStartDate = isMatias ? "01/10/2024" : "";
@@ -10389,6 +10393,10 @@ async function renderIntegrationsStatus() {
       if (cuitInput) {
         cuitInput.value = arca.cuit || "";
         cuitInput.disabled = true;
+      }
+      if (fantasiaInput) {
+        fantasiaInput.value = arca.nombre_fantasia || arca.nombreFantasia || defaultFantasia;
+        fantasiaInput.disabled = true;
       }
       if (razonInput) {
         razonInput.value = (arca.razon_social && arca.razon_social !== "Mazo") ? arca.razon_social : defaultRazon;
@@ -10446,6 +10454,10 @@ async function renderIntegrationsStatus() {
         arcaBadge.style.background = "var(--bg-dark)";
       }
       if (cuitInput) cuitInput.disabled = false;
+      if (fantasiaInput) {
+        fantasiaInput.value = arca?.nombre_fantasia || arca?.nombreFantasia || defaultFantasia;
+        fantasiaInput.disabled = false;
+      }
       if (razonInput) {
         razonInput.value = (arca?.razon_social && arca.razon_social !== "Mazo") ? arca.razon_social : defaultRazon;
         razonInput.disabled = false;
@@ -10996,6 +11008,7 @@ window.updateArcaCategoryOnAFIPChange = updateArcaCategoryOnAFIPChange;
 async function saveArcaConfig(event) {
   event.preventDefault();
   const cuit = document.getElementById("arca-cuit").value.replace(/\D/g, "");
+  const nombreFantasia = document.getElementById("arca-nombre-fantasia")?.value.trim() || "";
   const razonSocial = document.getElementById("arca-razon-social")?.value.trim() || "";
   const domicilioComercial = document.getElementById("arca-domicilio")?.value.trim() || "";
   const startDate = document.getElementById("arca-start-date")?.value.trim() || "";
@@ -11032,6 +11045,8 @@ async function saveArcaConfig(event) {
     showToast("Guardando configuración fiscal de ARCA...");
     const payload = {
       cuit: cuit,
+      nombre_fantasia: nombreFantasia,
+      nombreFantasia: nombreFantasia,
       razon_social: razonSocial,
       domicilio_comercial: domicilioComercial,
       inicio_actividades: startDate,
