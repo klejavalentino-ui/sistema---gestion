@@ -5012,6 +5012,10 @@ function renderSecurityStockGrid() {
 
 // Product Modal (Add/Edit)
 function openCreateProductModal() {
+  // Populate categories first so we can query the selected category
+  populateProductFormCategories("");
+  const currentCat = document.getElementById("prod-category")?.value || "";
+
   renderSecurityStockGrid();
   document.getElementById("modal-product-title").innerText = "Nuevo Producto";
   document.getElementById("prod-sku").value = "";
@@ -5038,7 +5042,7 @@ function openCreateProductModal() {
   document.getElementById("prod-te-textil").value = "";
   
   // Limpiar stocks de seguridad de talles
-  getConfiguredSizes().forEach(sz => {
+  getConfiguredSizes(currentCat).forEach(sz => {
     const ssEl = document.getElementById(`ss-${sz}`);
     if (ssEl) {
       ssEl.value = "";
@@ -5058,7 +5062,7 @@ function openCreateProductModal() {
 
   configuredUserLocs.forEach(loc => {
     const initSizes = {};
-    getConfiguredSizes().forEach(sz => initSizes[sz] = 0);
+    getConfiguredSizes(currentCat).forEach(sz => initSizes[sz] = 0);
     tempLocationStock[loc] = initSizes;
   });
   renderProductLocationRows();
@@ -5087,9 +5091,6 @@ function openCreateProductModal() {
       explanationExample.innerHTML = "<strong>Ejemplo (Textil):</strong> Si del talle <strong>L</strong> vendes más que del talle <strong>XS</strong>, puedes definir un stock de seguridad mayor para el <strong>L</strong> (ej. 15 prendas) y uno menor para el <strong>XS</strong> (ej. 3 prendas).";
     }
   }
-
-  // Rellenar categorías
-  populateProductFormCategories("");
   
   // Rellenar adicionales selectors (vacío para nuevo producto)
   populateExtrasSelectors({});
@@ -5196,6 +5197,9 @@ function openEditProductModal(sku) {
     });
   });
   
+  // Populate product category BEFORE rendering so categorySizes are resolved correctly
+  populateProductFormCategories(p.category);
+
   renderSecurityStockGrid();
   renderProductLocationRows();
 
@@ -5251,8 +5255,6 @@ function openEditProductModal(sku) {
       explanationExample.innerHTML = "<strong>Ejemplo (Textil):</strong> Si del talle <strong>L</strong> vendes más que del talle <strong>XS</strong>, puedes definir un stock de seguridad mayor para el <strong>L</strong> (ej. 15 prendas) y uno menor para el <strong>XS</strong> (ej. 3 prendas).";
     }
   }
-
-  populateProductFormCategories(p.category);
   
   // Rellenar adicionales selectors con la configuración del producto (con fallback compatible)
   const selectedExtras = p.extras || {
