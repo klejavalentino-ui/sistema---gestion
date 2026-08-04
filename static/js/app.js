@@ -4797,7 +4797,9 @@ function getEditModalProductSizes() {
     if (tempLocationStock[loc] && typeof tempLocationStock[loc] === 'object') {
       Object.keys(tempLocationStock[loc]).forEach(sz => {
         if (sz.toLowerCase() === "único" || sz.toLowerCase() === "unico") {
-          hasUnico = true;
+          if ((tempLocationStock[loc][sz] || 0) > 0) {
+            hasUnico = true;
+          }
         } else {
           if ((tempLocationStock[loc][sz] || 0) > 0) {
             existingSizes.add(sz);
