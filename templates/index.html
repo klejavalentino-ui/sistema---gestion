@@ -2398,14 +2398,6 @@
                 </select>
               </div>
               <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
-                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Condición Ante IVA</label>
-                <select id="business-settings-iva" class="form-select">
-                  <option value="monotributista">Monotributista</option>
-                  <option value="responsable_inscripto">Responsable Inscripto</option>
-                  <option value="exento">Exento</option>
-                </select>
-              </div>
-              <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
                 <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Logo de la Empresa (PNG, JPG, JPEG)</label>
                 <div style="display: flex; align-items: center; gap: 14px; margin-top: 6px;">
                   <input type="file" id="business-settings-logo-input" accept="image/png, image/jpeg, image/jpg" class="form-input" style="padding: 6px; font-size: 0.8rem; flex-grow: 1;" onchange="handleLogoUpload(this)">
@@ -2422,6 +2414,14 @@
                 <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Variantes de Talle (Separados por coma)</label>
                 <input type="text" id="business-settings-sizes" class="form-input" placeholder="Ej: XS, S, M, L, XL, XXL, Único">
                 <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">Solo aplicable para el modelo de Indumentaria.</p>
+              </div>
+              <div class="form-group" id="business-settings-fullsize-cats-container" style="margin-bottom: 0; grid-column: span 2;">
+                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Categorías con Variantes de Talle Completa</label>
+                <div id="business-settings-fullsize-cats-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; padding: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; max-height: 160px; overflow-y: auto;">
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">
+                  Seleccioná las categorías que utilizan la lista de talles completa de arriba (ej: Remeras, Buzos, Jeans). Las demás categorías (ej: Gorros, Accesorios) sólo mostrarán la variante "Único" en Inventario.
+                </p>
               </div>
             </div>
 

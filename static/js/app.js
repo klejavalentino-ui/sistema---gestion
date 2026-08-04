@@ -125,7 +125,20 @@ function getVariantStockForLocation(p, locationName) {
 }
 window.getVariantStockForLocation = getVariantStockForLocation;
 
-function getConfiguredSizes() {
+function getConfiguredSizes(category = null) {
+  const isTextil = state.businessType === "textil" || (state.userProfile?.businessModel === "Indumentaria");
+  if (!isTextil) {
+    return ["Único"];
+  }
+
+  if (category && state.userProfile?.fullSizeCategories && Array.isArray(state.userProfile.fullSizeCategories)) {
+    const fullCats = state.userProfile.fullSizeCategories;
+    const isFull = fullCats.some(c => c.toLowerCase().trim() === String(category).toLowerCase().trim());
+    if (!isFull) {
+      return ["Único"];
+    }
+  }
+
   const raw = (state.userProfile && state.userProfile.sizeVariants) || state.sizeVariants;
   if (Array.isArray(raw) && raw.length > 0) {
     return raw.map(s => String(s).trim()).filter(Boolean);
@@ -133,7 +146,7 @@ function getConfiguredSizes() {
   if (typeof raw === "string" && raw.trim().length > 0) {
     return raw.split(",").map(s => s.trim()).filter(Boolean);
   }
-  return ["XS", "S", "M", "L", "XL", "XXL"];
+  return ["XS", "S", "M", "L", "XL", "XXL", "Único"];
 }
 
 // Returns a numeric suffix for SKU based on size position: XS→1, S→2, M→3, etc. Único→U
@@ -4756,13 +4769,19 @@ function populateInventoryCategorySelect(filterCat) {
 }
 
 function getEditModalProductSizes() {
-  const configuredSizes = getConfiguredSizes().slice();
+  const currentCat = document.getElementById("prod-category")?.value || "";
+  const configuredSizes = getConfiguredSizes(currentCat).slice();
   let hasUnico = false;
+  const existingSizes = new Set();
   Object.keys(tempLocationStock).forEach(loc => {
     if (tempLocationStock[loc] && typeof tempLocationStock[loc] === 'object') {
       Object.keys(tempLocationStock[loc]).forEach(sz => {
         if (sz.toLowerCase() === "único" || sz.toLowerCase() === "unico") {
           hasUnico = true;
+        } else {
+          if ((tempLocationStock[loc][sz] || 0) > 0) {
+            existingSizes.add(sz);
+          }
         }
       });
     }
@@ -4770,6 +4789,11 @@ function getEditModalProductSizes() {
   if (hasUnico && !configuredSizes.some(cs => cs.toLowerCase() === "único" || cs.toLowerCase() === "unico")) {
     configuredSizes.push("Único");
   }
+  existingSizes.forEach(sz => {
+    if (!configuredSizes.some(cs => cs.toLowerCase().trim() === sz.toLowerCase().trim())) {
+      configuredSizes.push(sz);
+    }
+  });
   return configuredSizes;
 }
 
@@ -5229,6 +5253,7 @@ function closeProductModal() {
 
 function populateProductFormCategories(selected) {
   const select = document.getElementById("prod-category");
+  if (!select) return;
   select.innerHTML = "";
   state.categories.forEach(c => {
     const opt = document.createElement("option");
@@ -5239,6 +5264,10 @@ function populateProductFormCategories(selected) {
   if (selected && state.categories.includes(selected)) {
     select.value = selected;
   }
+  select.onchange = function() {
+    renderSecurityStockGrid();
+    renderProductLocationRows();
+  };
 }
 
 function populateExtrasSelectors(selectedExtras = {}) {
@@ -11768,17 +11797,52 @@ async function loadBusinessData() {
     // Configuración de Talles
     const sizeVariantsInput = document.getElementById("business-settings-sizes");
     const sizeVariantsContainer = document.getElementById("business-settings-sizes-container");
+    const fullsizeContainer = document.getElementById("business-settings-fullsize-cats-container");
+    const fullsizeList = document.getElementById("business-settings-fullsize-cats-list");
+
     if (sizeVariantsInput && sizeVariantsContainer) {
       const savedSizes = state.userProfile.sizeVariants || ["XS", "S", "M", "L", "XL", "XXL", "Único"];
       sizeVariantsInput.value = savedSizes.join(", ");
       
       const updateSizesVisibility = () => {
         const model = document.getElementById("business-settings-model").value;
-        sizeVariantsContainer.style.display = model === "Indumentaria" ? "block" : "none";
+        const isIndumentaria = model === "Indumentaria";
+        sizeVariantsContainer.style.display = isIndumentaria ? "block" : "none";
+        if (fullsizeContainer) fullsizeContainer.style.display = isIndumentaria ? "block" : "none";
       };
       
       document.getElementById("business-settings-model").addEventListener("change", updateSizesVisibility);
       updateSizesVisibility();
+    }
+
+    if (fullsizeList) {
+      fullsizeList.innerHTML = "";
+      const savedFullCats = state.userProfile.fullSizeCategories;
+      const allCats = state.categories || [];
+      
+      if (allCats.length === 0) {
+        fullsizeList.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-gray);">No hay categorías creadas aún.</span>';
+      } else {
+        allCats.forEach(cat => {
+          let isChecked = true;
+          if (Array.isArray(savedFullCats)) {
+            isChecked = savedFullCats.some(c => c.toLowerCase().trim() === cat.toLowerCase().trim());
+          } else {
+            const cLower = cat.toLowerCase();
+            if (cLower.includes("gorro") || cLower.includes("gorra") || cLower.includes("sombrero") || cLower.includes("accesorio") || cLower.includes("bolso") || cLower.includes("mochila") || cLower.includes("bazar") || cLower.includes("cartera")) {
+              isChecked = false;
+            }
+          }
+          
+          const label = document.createElement("label");
+          label.style.cssText = "display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; color: var(--text-white); cursor: pointer;";
+          label.innerHTML = `
+            <input type="checkbox" class="fullsize-cat-checkbox" value="${cat}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--accent-emerald);">
+            <span>${cat}</span>
+          `;
+          fullsizeList.appendChild(label);
+        });
+      }
     }
     
     // Dibujar filas dinámicas en las subpestañas
@@ -11853,15 +11917,19 @@ async function saveBusinessSettings() {
       logoValue = state.tempLogoBase64;
     }
 
+    const fullCatCheckboxes = document.querySelectorAll(".fullsize-cat-checkbox:checked");
+    const selectedFullCats = Array.from(fullCatCheckboxes).map(cb => cb.value);
+
     const data = {
       businessName: name,
       businessModel: model,
       businessType: type,
-      ivaCondition: document.getElementById("business-settings-iva").value,
+      ivaCondition: document.getElementById("business-settings-iva") ? document.getElementById("business-settings-iva").value : (state.userProfile?.ivaCondition || "monotributista"),
       logoBase64: logoValue,
       sizeVariants: document.getElementById("business-settings-sizes") 
                       ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 
                       : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
+      fullSizeCategories: selectedFullCats,
       bizCheckboxes: {}
     };
 
