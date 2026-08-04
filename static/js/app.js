@@ -4788,9 +4788,68 @@ function populateInventoryCategorySelect(filterCat) {
   }
 }
 
+function renderProductModalSizesSelector(category) {
+  const container = document.getElementById("product-modal-sizes-selector-container");
+  const list = document.getElementById("product-modal-sizes-list");
+  if (!container || !list) return;
+
+  const isComercio = state.businessType === "comercio";
+  if (isComercio) {
+    container.style.display = "none";
+    return;
+  }
+
+  container.style.display = "block";
+  list.innerHTML = "";
+
+  const catSizes = getConfiguredSizes(category);
+
+  catSizes.forEach(sz => {
+    const isActive = (state.tempActiveProductSizes || []).some(s => s.toLowerCase().trim() === sz.toLowerCase().trim());
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `product-size-pill ${isActive ? 'active' : ''}`;
+    btn.dataset.size = sz;
+
+    const activeStyle = "background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.4);";
+    const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color);";
+
+    btn.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (isActive ? activeStyle : inactiveStyle);
+    btn.innerText = sz;
+
+    btn.onclick = () => {
+      btn.classList.toggle("active");
+      const nowActive = btn.classList.contains("active");
+      btn.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (nowActive ? activeStyle : inactiveStyle);
+
+      if (!state.tempActiveProductSizes) {
+        state.tempActiveProductSizes = [];
+      }
+      if (nowActive) {
+        if (!state.tempActiveProductSizes.some(s => s.toLowerCase().trim() === sz.toLowerCase().trim())) {
+          state.tempActiveProductSizes.push(sz);
+        }
+      } else {
+        state.tempActiveProductSizes = state.tempActiveProductSizes.filter(s => s.toLowerCase().trim() !== sz.toLowerCase().trim());
+      }
+
+      renderSecurityStockGrid();
+      renderProductLocationRows();
+    };
+
+    list.appendChild(btn);
+  });
+}
+window.renderProductModalSizesSelector = renderProductModalSizesSelector;
+
 function getEditModalProductSizes() {
   const currentCat = document.getElementById("prod-category")?.value || "";
-  const configuredSizes = getConfiguredSizes(currentCat).slice();
+  let configuredSizes = getConfiguredSizes(currentCat).slice();
+  
+  if (Array.isArray(state.tempActiveProductSizes)) {
+    configuredSizes = state.tempActiveProductSizes.slice();
+  }
+
   let hasUnico = false;
   const existingSizes = new Set();
   Object.keys(tempLocationStock).forEach(loc => {
@@ -5018,6 +5077,10 @@ function openCreateProductModal() {
   populateProductFormCategories("");
   const currentCat = document.getElementById("prod-category")?.value || "";
 
+  // Initialize active product-specific sizes from category config
+  state.tempActiveProductSizes = getConfiguredSizes(currentCat);
+  renderProductModalSizesSelector(currentCat);
+
   renderSecurityStockGrid();
   document.getElementById("modal-product-title").innerText = "Nuevo Producto";
   document.getElementById("prod-sku").value = "";
@@ -5199,6 +5262,13 @@ function openEditProductModal(sku) {
     });
   });
   
+  // Initialize active product-specific sizes from existing variants or category defaults
+  state.tempActiveProductSizes = variants.map(v => v.size).filter(Boolean);
+  if (state.tempActiveProductSizes.length === 0) {
+    state.tempActiveProductSizes = getConfiguredSizes(p.category);
+  }
+  renderProductModalSizesSelector(p.category);
+
   // Populate product category BEFORE rendering so categorySizes are resolved correctly
   populateProductFormCategories(p.category);
 
@@ -5289,6 +5359,9 @@ function populateProductFormCategories(selected) {
     select.value = selected;
   }
   select.onchange = function() {
+    const newCat = select.value;
+    state.tempActiveProductSizes = getConfiguredSizes(newCat);
+    renderProductModalSizesSelector(newCat);
     renderSecurityStockGrid();
     renderProductLocationRows();
   };
@@ -5490,6 +5563,29 @@ async function saveProductForm(e) {
     const oldGroupKey = document.getElementById("product-modal").dataset.oldGroupKey;
     const cleanBaseSku = baseSku.trim().toUpperCase();
     const cleanColorStr = (color && color.toLowerCase() !== "único" && color.toLowerCase() !== "unico") ? color.replace(/[\/\s()]/g, "_").toUpperCase() : "";
+
+    // Delete variants that were deselected/disabled by the user
+    if (!isComercio && Array.isArray(state.tempActiveProductSizes)) {
+      const activeSizes = getEditModalProductSizes();
+      const rawVariants = state.products.filter(prod => {
+        if (!prod) return false;
+        const s = prod.sku || prod.id || "";
+        if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
+          return false;
+        }
+        return getProductGroupKey(prod) === oldGroupKey;
+      });
+
+      const deactivatedVariants = rawVariants.filter(v => {
+        return !activeSizes.some(sz => (sz || "").toLowerCase().trim() === (v.size || "").toLowerCase().trim());
+      });
+
+      deactivatedVariants.forEach(v => {
+        if (v.sku) {
+          apiRequest(`/api/products/${v.sku}`, "DELETE").catch(err => console.log("Cleaned up deactivated variant:", err));
+        }
+      });
+    }
 
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const matchingVariants = state.products.filter(v => {
