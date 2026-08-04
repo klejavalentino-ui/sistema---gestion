@@ -11772,7 +11772,11 @@ async function loadBusinessData() {
     const curProj = (state.projects || []).find(p => p.id === state.currentProjectId);
     document.getElementById("business-settings-name").value = state.currentProjectName || curProj?.name || state.userProfile.businessName || "";
     document.getElementById("business-settings-model").value = curProj?.businessModel || state.userProfile.businessModel || "Indumentaria";
-    document.getElementById("business-settings-iva").value = state.userProfile.ivaCondition || "monotributista";
+    
+    const ivaEl = document.getElementById("business-settings-iva");
+    if (ivaEl) {
+      ivaEl.value = state.userProfile.ivaCondition || "monotributista";
+    }
     
     // Mapear Logo
     const logoBase64 = state.userProfile.logoBase64;
@@ -11800,8 +11804,15 @@ async function loadBusinessData() {
     const fullsizeContainer = document.getElementById("business-settings-fullsize-cats-container");
     const fullsizeList = document.getElementById("business-settings-fullsize-cats-list");
 
+    const userEmail = (state.email || state.userEmail || "").toLowerCase();
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const defaultMatiasSizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Único", "Talle 1 (S/M)", "Talle 2 (M/L)", "Talle 2 (L/XL)", "Talle 3 (L/XL)", "Talle 4 (XL)"];
+
     if (sizeVariantsInput && sizeVariantsContainer) {
-      const savedSizes = state.userProfile.sizeVariants || ["XS", "S", "M", "L", "XL", "XXL", "Único"];
+      let savedSizes = state.userProfile.sizeVariants;
+      if (!savedSizes || savedSizes.length === 0) {
+        savedSizes = isMatias ? defaultMatiasSizes : ["XS", "S", "M", "L", "XL", "XXL", "Único"];
+      }
       sizeVariantsInput.value = savedSizes.join(", ");
       
       const updateSizesVisibility = () => {
