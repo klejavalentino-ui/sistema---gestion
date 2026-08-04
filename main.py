@@ -5268,7 +5268,7 @@ def update_business_settings():
             "ivaCondition", "businessModel", "locations", "salesChannels", "priceLists",
             "printSettings", "bizCheckboxes", "paymentMethods", "sizeVariants",
             "quoteConfig", "productionBaseCategories", "productionTargetCategories",
-            "zecatConfig", "zecatEnabled", "logoBase64", "fullSizeCategories"
+            "zecatConfig", "zecatEnabled", "logoBase64", "fullSizeCategories", "categorySizes"
         ]
         for key in keys_to_update:
             if key in data:

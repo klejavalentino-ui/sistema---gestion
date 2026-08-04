@@ -131,23 +131,43 @@ function getConfiguredSizes(category = null) {
     return ["Único"];
   }
 
-  if (category && state.userProfile?.fullSizeCategories && Array.isArray(state.userProfile.fullSizeCategories)) {
-    const fullCats = state.userProfile.fullSizeCategories;
-    const isFull = fullCats.some(c => c.toLowerCase().trim() === String(category).toLowerCase().trim());
-    if (!isFull) {
-      return ["Único"];
+  const globalSizes = (() => {
+    const raw = (state.userProfile && state.userProfile.sizeVariants) || state.sizeVariants;
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.map(s => String(s).trim()).filter(Boolean);
+    }
+    if (typeof raw === "string" && raw.trim().length > 0) {
+      return raw.split(",").map(s => s.trim()).filter(Boolean);
+    }
+    return ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Único"];
+  })();
+
+  if (category) {
+    const catSizesMap = state.userProfile?.categorySizes || {};
+    const matchedKey = Object.keys(catSizesMap).find(k => k.toLowerCase().trim() === String(category).toLowerCase().trim());
+    if (matchedKey && Array.isArray(catSizesMap[matchedKey]) && catSizesMap[matchedKey].length > 0) {
+      return catSizesMap[matchedKey].map(s => String(s).trim()).filter(Boolean);
+    }
+
+    // Backward compatibility with older fullSizeCategories checkbox-list
+    if (state.userProfile?.fullSizeCategories && Array.isArray(state.userProfile.fullSizeCategories)) {
+      const fullCats = state.userProfile.fullSizeCategories;
+      const isFull = fullCats.some(c => c.toLowerCase().trim() === String(category).toLowerCase().trim());
+      if (!isFull) {
+        return ["Único"];
+      }
+    } else {
+      // Default fallback by name if nothing is configured yet
+      const cLower = String(category).toLowerCase();
+      if (cLower.includes("gorro") || cLower.includes("gorra") || cLower.includes("sombrero") || cLower.includes("accesorio") || cLower.includes("bolso") || cLower.includes("mochila") || cLower.includes("bazar") || cLower.includes("cartera")) {
+        return ["Único"];
+      }
     }
   }
 
-  const raw = (state.userProfile && state.userProfile.sizeVariants) || state.sizeVariants;
-  if (Array.isArray(raw) && raw.length > 0) {
-    return raw.map(s => String(s).trim()).filter(Boolean);
-  }
-  if (typeof raw === "string" && raw.trim().length > 0) {
-    return raw.split(",").map(s => s.trim()).filter(Boolean);
-  }
-  return ["XS", "S", "M", "L", "XL", "XXL", "Único"];
+  return globalSizes;
 }
+
 
 // Returns a numeric suffix for SKU based on size position: XS→1, S→2, M→3, etc. Único→U
 function getSizeSkuSuffix(size) {
@@ -11828,30 +11848,70 @@ async function loadBusinessData() {
 
     if (fullsizeList) {
       fullsizeList.innerHTML = "";
-      const savedFullCats = state.userProfile.fullSizeCategories;
+      const savedCategorySizes = state.userProfile.categorySizes || {};
       const allCats = state.categories || [];
+      const globalSizes = getConfiguredSizes();
       
+      const model = document.getElementById("business-settings-model").value;
+      if (fullsizeContainer) {
+        fullsizeContainer.style.display = model === "Indumentaria" ? "block" : "none";
+      }
+
       if (allCats.length === 0) {
         fullsizeList.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-gray);">No hay categorías creadas aún.</span>';
       } else {
         allCats.forEach(cat => {
-          let isChecked = true;
-          if (Array.isArray(savedFullCats)) {
-            isChecked = savedFullCats.some(c => c.toLowerCase().trim() === cat.toLowerCase().trim());
+          let activeSizes = [];
+          const matchedKey = Object.keys(savedCategorySizes).find(k => k.toLowerCase().trim() === cat.toLowerCase().trim());
+          if (matchedKey && Array.isArray(savedCategorySizes[matchedKey])) {
+            activeSizes = savedCategorySizes[matchedKey];
           } else {
+            // Default heuristic filters if not configured
             const cLower = cat.toLowerCase();
             if (cLower.includes("gorro") || cLower.includes("gorra") || cLower.includes("sombrero") || cLower.includes("accesorio") || cLower.includes("bolso") || cLower.includes("mochila") || cLower.includes("bazar") || cLower.includes("cartera")) {
-              isChecked = false;
+              activeSizes = ["Único"];
+            } else {
+              activeSizes = globalSizes.slice();
             }
           }
+
+          const row = document.createElement("div");
+          row.style.cssText = "display: flex; flex-direction: column; gap: 8px; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.03);";
           
-          const label = document.createElement("label");
-          label.style.cssText = "display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; color: var(--text-white); cursor: pointer;";
-          label.innerHTML = `
-            <input type="checkbox" class="fullsize-cat-checkbox" value="${cat}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--accent-emerald);">
-            <span>${cat}</span>
-          `;
-          fullsizeList.appendChild(label);
+          const titleDiv = document.createElement("div");
+          titleDiv.style.cssText = "font-size: 0.85rem; font-weight: bold; color: var(--text-white); margin-bottom: 4px;";
+          titleDiv.innerText = cat;
+          row.appendChild(titleDiv);
+
+          const pillsDiv = document.createElement("div");
+          pillsDiv.className = "category-size-pills-container";
+          pillsDiv.dataset.category = cat;
+          pillsDiv.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px;";
+
+          globalSizes.forEach(sz => {
+            const isActive = activeSizes.some(s => s.toLowerCase().trim() === sz.toLowerCase().trim());
+            const badge = document.createElement("button");
+            badge.type = "button";
+            badge.className = `size-pill-btn ${isActive ? 'active' : ''}`;
+            badge.dataset.size = sz;
+            
+            const activeStyle = "background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.4);";
+            const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color);";
+            
+            badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (isActive ? activeStyle : inactiveStyle);
+            badge.innerText = sz;
+
+            badge.onclick = () => {
+              badge.classList.toggle("active");
+              const nowActive = badge.classList.contains("active");
+              badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (nowActive ? activeStyle : inactiveStyle);
+            };
+
+            pillsDiv.appendChild(badge);
+          });
+
+          row.appendChild(pillsDiv);
+          fullsizeList.appendChild(row);
         });
       }
     }
@@ -11928,8 +11988,14 @@ async function saveBusinessSettings() {
       logoValue = state.tempLogoBase64;
     }
 
-    const fullCatCheckboxes = document.querySelectorAll(".fullsize-cat-checkbox:checked");
-    const selectedFullCats = Array.from(fullCatCheckboxes).map(cb => cb.value);
+    const categorySizes = {};
+    const pillContainers = document.querySelectorAll(".category-size-pills-container");
+    pillContainers.forEach(container => {
+      const cat = container.dataset.category;
+      const activePills = container.querySelectorAll(".size-pill-btn.active");
+      const sizes = Array.from(activePills).map(pill => pill.dataset.size);
+      categorySizes[cat] = sizes;
+    });
 
     const data = {
       businessName: name,
@@ -11940,7 +12006,7 @@ async function saveBusinessSettings() {
       sizeVariants: document.getElementById("business-settings-sizes") 
                       ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 
                       : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
-      fullSizeCategories: selectedFullCats,
+      categorySizes: categorySizes,
       bizCheckboxes: {}
     };
 
