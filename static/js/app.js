@@ -11787,6 +11787,96 @@ const APP_SECTIONS = [
   { id: "business", name: "Configuración" }
 ];
 
+function renderCategorySizePills() {
+  const fullsizeList = document.getElementById("business-settings-fullsize-cats-list");
+  if (!fullsizeList) return;
+
+  // Preserve toggled state while redrawing
+  const currentSelections = {};
+  const pillContainers = document.querySelectorAll(".category-size-pills-container");
+  pillContainers.forEach(container => {
+    const cat = container.dataset.category;
+    const activePills = container.querySelectorAll(".size-pill-btn.active");
+    currentSelections[cat] = Array.from(activePills).map(pill => pill.dataset.size);
+  });
+
+  fullsizeList.innerHTML = "";
+  const savedCategorySizes = state.userProfile.categorySizes || {};
+  const allCats = state.categories || [];
+  
+  // Read size variants directly from the input field
+  const sizeVariantsInput = document.getElementById("business-settings-sizes");
+  let globalSizes = [];
+  if (sizeVariantsInput && sizeVariantsInput.value.trim().length > 0) {
+    globalSizes = sizeVariantsInput.value.split(",").map(s => s.trim()).filter(Boolean);
+  } else {
+    globalSizes = getConfiguredSizes();
+  }
+
+  if (allCats.length === 0) {
+    fullsizeList.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-gray);">No hay categorías creadas aún.</span>';
+  } else {
+    allCats.forEach(cat => {
+      let activeSizes = [];
+      if (currentSelections[cat] !== undefined) {
+        activeSizes = currentSelections[cat];
+      } else {
+        const matchedKey = Object.keys(savedCategorySizes).find(k => k.toLowerCase().trim() === cat.toLowerCase().trim());
+        if (matchedKey && Array.isArray(savedCategorySizes[matchedKey])) {
+          activeSizes = savedCategorySizes[matchedKey];
+        } else {
+          // Default heuristic filters
+          const cLower = cat.toLowerCase();
+          if (cLower.includes("gorro") || cLower.includes("gorra") || cLower.includes("sombrero") || cLower.includes("accesorio") || cLower.includes("bolso") || cLower.includes("mochila") || cLower.includes("bazar") || cLower.includes("cartera")) {
+            activeSizes = ["Único"];
+          } else {
+            activeSizes = globalSizes.slice();
+          }
+        }
+      }
+
+      const row = document.createElement("div");
+      row.style.cssText = "display: flex; flex-direction: column; gap: 8px; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.03);";
+      
+      const titleDiv = document.createElement("div");
+      titleDiv.style.cssText = "font-size: 0.85rem; font-weight: bold; color: var(--text-white); margin-bottom: 4px;";
+      titleDiv.innerText = cat;
+      row.appendChild(titleDiv);
+
+      const pillsDiv = document.createElement("div");
+      pillsDiv.className = "category-size-pills-container";
+      pillsDiv.dataset.category = cat;
+      pillsDiv.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px;";
+
+      globalSizes.forEach(sz => {
+        const isActive = activeSizes.some(s => s.toLowerCase().trim() === sz.toLowerCase().trim());
+        const badge = document.createElement("button");
+        badge.type = "button";
+        badge.className = `size-pill-btn ${isActive ? 'active' : ''}`;
+        badge.dataset.size = sz;
+        
+        const activeStyle = "background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.4);";
+        const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color);";
+        
+        badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (isActive ? activeStyle : inactiveStyle);
+        badge.innerText = sz;
+
+        badge.onclick = () => {
+          badge.classList.toggle("active");
+          const nowActive = badge.classList.contains("active");
+          badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (nowActive ? activeStyle : inactiveStyle);
+        };
+
+        pillsDiv.appendChild(badge);
+      });
+
+      row.appendChild(pillsDiv);
+      fullsizeList.appendChild(row);
+    });
+  }
+}
+window.renderCategorySizePills = renderCategorySizePills;
+
 async function loadBusinessData() {
   if (state.userProfile) {
     const curProj = (state.projects || []).find(p => p.id === state.currentProjectId);
@@ -11844,77 +11934,13 @@ async function loadBusinessData() {
       
       document.getElementById("business-settings-model").addEventListener("change", updateSizesVisibility);
       updateSizesVisibility();
+
+      sizeVariantsInput.oninput = function() {
+        renderCategorySizePills();
+      };
     }
 
-    if (fullsizeList) {
-      fullsizeList.innerHTML = "";
-      const savedCategorySizes = state.userProfile.categorySizes || {};
-      const allCats = state.categories || [];
-      const globalSizes = getConfiguredSizes();
-      
-      const model = document.getElementById("business-settings-model").value;
-      if (fullsizeContainer) {
-        fullsizeContainer.style.display = model === "Indumentaria" ? "block" : "none";
-      }
-
-      if (allCats.length === 0) {
-        fullsizeList.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-gray);">No hay categorías creadas aún.</span>';
-      } else {
-        allCats.forEach(cat => {
-          let activeSizes = [];
-          const matchedKey = Object.keys(savedCategorySizes).find(k => k.toLowerCase().trim() === cat.toLowerCase().trim());
-          if (matchedKey && Array.isArray(savedCategorySizes[matchedKey])) {
-            activeSizes = savedCategorySizes[matchedKey];
-          } else {
-            // Default heuristic filters if not configured
-            const cLower = cat.toLowerCase();
-            if (cLower.includes("gorro") || cLower.includes("gorra") || cLower.includes("sombrero") || cLower.includes("accesorio") || cLower.includes("bolso") || cLower.includes("mochila") || cLower.includes("bazar") || cLower.includes("cartera")) {
-              activeSizes = ["Único"];
-            } else {
-              activeSizes = globalSizes.slice();
-            }
-          }
-
-          const row = document.createElement("div");
-          row.style.cssText = "display: flex; flex-direction: column; gap: 8px; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.03);";
-          
-          const titleDiv = document.createElement("div");
-          titleDiv.style.cssText = "font-size: 0.85rem; font-weight: bold; color: var(--text-white); margin-bottom: 4px;";
-          titleDiv.innerText = cat;
-          row.appendChild(titleDiv);
-
-          const pillsDiv = document.createElement("div");
-          pillsDiv.className = "category-size-pills-container";
-          pillsDiv.dataset.category = cat;
-          pillsDiv.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px;";
-
-          globalSizes.forEach(sz => {
-            const isActive = activeSizes.some(s => s.toLowerCase().trim() === sz.toLowerCase().trim());
-            const badge = document.createElement("button");
-            badge.type = "button";
-            badge.className = `size-pill-btn ${isActive ? 'active' : ''}`;
-            badge.dataset.size = sz;
-            
-            const activeStyle = "background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.4);";
-            const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color);";
-            
-            badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (isActive ? activeStyle : inactiveStyle);
-            badge.innerText = sz;
-
-            badge.onclick = () => {
-              badge.classList.toggle("active");
-              const nowActive = badge.classList.contains("active");
-              badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (nowActive ? activeStyle : inactiveStyle);
-            };
-
-            pillsDiv.appendChild(badge);
-          });
-
-          row.appendChild(pillsDiv);
-          fullsizeList.appendChild(row);
-        });
-      }
-    }
+    renderCategorySizePills();
     
     // Dibujar filas dinámicas en las subpestañas
     renderDynamicSettingsRows();
