@@ -13518,16 +13518,24 @@ async function shipTiendanubeOrder(saleId, status, selectElId = null) {
 
         if (availInLoc < qtyRequired) {
           const prodTitle = getProductNameWithColor(matchedProd) || prodInfo.name || "Producto";
-          const sizeInfo = itemSize ? ` (${itemSize})` : "";
-          stockErrors.push(`• ${prodTitle}${sizeInfo}: Stock disponible en '${location}': ${availInLoc} u. | Requeridos: ${qtyRequired} u.`);
+          const sizeInfo = itemSize ? ` (Talle ${itemSize})` : "";
+          if (availInLoc <= 0) {
+            stockErrors.push(`• Faltante de stock: El producto '${prodTitle}'${sizeInfo} tiene stock 0 u. en '${location}'.`);
+          } else {
+            stockErrors.push(`• Faltante de stock: El producto '${prodTitle}'${sizeInfo} en '${location}' tiene ${availInLoc} u., pero se requieren ${qtyRequired} u.`);
+          }
         }
+      } else {
+        const prodTitle = prodInfo.name || it.name || "Producto";
+        const sizeInfo = itemSize ? ` (Talle ${itemSize})` : "";
+        stockErrors.push(`• Faltante de stock: No se encontró la variante del producto '${prodTitle}'${sizeInfo} cargada en '${location}'.`);
       }
     });
 
     if (stockErrors.length > 0) {
-      const errorText = `⚠️ FALTANTE DE STOCK EN '${location.toUpperCase()}':\nNo se puede despachar la venta porque no hay stock suficiente:\n\n${stockErrors.join("\n")}`;
+      const errorText = `⚠️ FALTANTE DE STOCK EN '${location.toUpperCase()}':\nNo se puede despachar la venta por falta de stock:\n\n${stockErrors.join("\n")}`;
       alert(errorText);
-      showToast(`Faltante de stock en '${location}'. No se pudo despachar el pedido.`, true);
+      showToast(stockErrors[0].replace("• ", ""), true);
       return; // Bloquear despacho
     }
   }

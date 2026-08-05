@@ -107,6 +107,17 @@ def safe_int(val, default=0):
     except (ValueError, TypeError):
         return default
 
+def get_clean_base_sku(sku, base_sku=""):
+    if base_sku and str(base_sku).strip():
+        return str(base_sku).strip()
+    if not sku:
+        return ""
+    sku_str = str(sku).strip()
+    parts = sku_str.split("-")
+    if len(parts) > 1 and parts[-1].upper() in ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "1", "2", "3", "4", "5", "U", "ÚNICO", "UNICO"]:
+        return "-".join(parts[:-1])
+    return sku_str
+
 app = Flask(__name__)
 app.secret_key = "mazo_clothing_secret_key_secure_idx"
 
@@ -4055,14 +4066,23 @@ def ship_tiendanube_order_route():
 
                     if current_avail < qty:
                         p_title = prod.get("name") or prod_info.get("name") or "Producto"
-                        size_txt = f" ({it.get('size')})" if it.get("size") else ""
-                        stock_errors.append(f"{p_title}{size_txt}: Stock disponible en '{ubicacion}' es {current_avail} u., pero se requieren {qty} u.")
+                        size_val = it.get("size") or prod.get("size")
+                        size_txt = f" (Talle {size_val})" if size_val else ""
+                        if current_avail <= 0:
+                            stock_errors.append(f"Faltante de stock: El producto '{p_title}'{size_txt} tiene stock 0 u. en la sucursal '{ubicacion}'.")
+                        else:
+                            stock_errors.append(f"Faltante de stock: El producto '{p_title}'{size_txt} en la sucursal '{ubicacion}' tiene {current_avail} u., pero se requieren {qty} u.")
                     else:
                         updates_list.append((prod, loc_key_to_use, current_avail, qty))
+                else:
+                    p_title = prod_info.get("name") or it.get("name") or "Producto"
+                    size_val = it.get("size")
+                    size_txt = f" (Talle {size_val})" if size_val else ""
+                    stock_errors.append(f"Faltante de stock: El producto '{p_title}'{size_txt} no posee variante cargada con stock en '{ubicacion}'.")
 
             if stock_errors:
                 return jsonify({
-                    "error": f"Faltante de stock en '{ubicacion}'. No se puede despachar la venta.",
+                    "error": " / ".join(stock_errors),
                     "details": stock_errors
                 }), 400
 
