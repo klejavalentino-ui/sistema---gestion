@@ -118,6 +118,80 @@ def get_clean_base_sku(sku, base_sku=""):
         return "-".join(parts[:-1])
     return sku_str
 
+def clean_name_and_extract_size(raw_name, raw_size=""):
+    name = (raw_name or "").strip()
+    size = (raw_size or "").strip()
+    
+    if "(" in name and name.endswith(")"):
+        m = re.search(r'\s*\((Talle\s+[^)]+|[A-Z0-9\s/]+)\)\s*$', name, re.IGNORECASE)
+        if m:
+            extracted_sz = m.group(1).strip()
+            if not size or size.lower() in ["único", "unico", "u", "none", ""]:
+                size = extracted_sz
+            name = name[:m.start()].strip()
+            
+    return name, size
+
+def normalize_size_key(sz):
+    if not sz:
+        return ""
+    s = str(sz).strip().lower()
+    s = s.replace("talle", "").replace(" ", "").replace("(", "").replace(")", "").replace("-", "").replace("/", "")
+    if s in ["u", "unico", "único"]:
+        return "unico"
+    return s
+
+def find_best_matching_product(user_prods, item_sku, raw_item_name, raw_item_size, item_color="", target_location=""):
+    clean_name, extracted_size = clean_name_and_extract_size(raw_item_name, raw_item_size)
+    item_base_sku = get_clean_base_sku(item_sku).lower() if item_sku else ""
+    norm_target_size = normalize_size_key(extracted_size)
+
+    candidates = []
+
+    for p in user_prods:
+        p_sku = (p.get("sku") or "").strip().lower()
+        p_id = (p.get("id") or "").strip().lower()
+        p_base = get_clean_base_sku(p_sku, p.get("baseSku")).lower()
+        p_name = (p.get("name") or "").strip().lower()
+        p_clean_name, p_extracted_size = clean_name_and_extract_size(p_name, p.get("size"))
+        
+        name_match = (
+            (item_sku and (p_sku == item_sku.lower() or p_id == item_sku.lower())) or
+            (item_base_sku and p_base and item_base_sku == p_base) or
+            (clean_name and p_clean_name and (clean_name.lower() in p_clean_name.lower() or p_clean_name.lower() in clean_name.lower())) or
+            (raw_item_name and p_name and raw_item_name.lower() in p_name.lower())
+        )
+
+        if not name_match:
+            continue
+
+        p_size_norm = normalize_size_key(p.get("size") or p_extracted_size)
+        size_exact_match = bool(norm_target_size and p_size_norm and norm_target_size == p_size_norm)
+
+        loc_stock = p.get("locationsStock")
+        if isinstance(loc_stock, dict) and target_location:
+            loc_key = next((k for k in loc_stock.keys() if k.strip().lower() == target_location.strip().lower()), None)
+            avail = safe_int(loc_stock[loc_key]) if loc_key else 0
+        else:
+            avail = safe_int(p.get("stock_local", p.get("stock", 0)))
+
+        score = 0
+        if size_exact_match:
+            score += 100
+        elif not norm_target_size or norm_target_size == "unico":
+            score += 10
+
+        if avail > 0:
+            score += 50
+
+        candidates.append((score, avail, p))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return candidates[0][2]
+
 app = Flask(__name__)
 app.secret_key = "mazo_clothing_secret_key_secure_idx"
 
@@ -4041,15 +4115,8 @@ def ship_tiendanube_order_route():
                 if qty <= 0:
                     continue
 
-                # Find product in user_prods
-                prod = None
-                if sku:
-                    prod = next((p for p in user_prods if p.get("sku") == sku or p.get("id") == sku), None)
-                if not prod:
-                    prod = next((p for p in user_prods if 
-                        (get_clean_base_sku(p.get("sku"), p.get("baseSku")).lower() == item_base or p.get("name", "").lower() == item_name) and
-                        (not item_size or (p.get("size") or "").strip().lower() == item_size)
-                    ), None)
+                # Find product in user_prods using best variant matching
+                prod = find_best_matching_product(user_prods, sku, item_name, item_size, item_color, ubicacion)
 
                 if prod:
                     loc_stock = prod.get("locationsStock")

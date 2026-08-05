@@ -13451,6 +13451,90 @@ function setTiendanubeShippingFilter(filter) {
 }
 window.setTiendanubeShippingFilter = setTiendanubeShippingFilter;
 
+function cleanNameAndExtractSize(rawName, rawSize) {
+  let name = (rawName || "").trim();
+  let size = (rawSize || "").trim();
+
+  if (name.includes("(") && name.endsWith(")")) {
+    const lastOpen = name.lastIndexOf("(");
+    const lastClose = name.lastIndexOf(")");
+    if (lastOpen !== -1 && lastClose > lastOpen) {
+      const extracted = name.substring(lastOpen + 1, lastClose).trim();
+      const lowerExt = extracted.toLowerCase();
+      if (!size || lowerExt === "único" || lowerExt === "unico" || lowerExt === "u" || lowerExt === "none") {
+        size = extracted;
+      }
+      name = name.substring(0, lastOpen).trim();
+    }
+  }
+  return { cleanName: name, extractedSize: size };
+}
+
+function normalizeSizeKeyJS(sz) {
+  if (!sz) return "";
+  let s = String(sz).trim().toLowerCase();
+  s = s.replace(/talle/g, "").replace(/\s+/g, "").replace(/[\(\)\-\/]/g, "");
+  if (s === "u" || s === "unico" || s === "único") return "unico";
+  return s;
+}
+
+function findBestMatchingProductJS(productsList, itemSku, rawItemName, rawItemSize, targetLocation) {
+  const { cleanName, extractedSize } = cleanNameAndExtractSize(rawItemName, rawItemSize);
+  const itemBaseSku = getCleanBaseSku(itemSku, "").toLowerCase();
+  const normTargetSize = normalizeSizeKeyJS(extractedSize);
+
+  const candidates = [];
+
+  (productsList || []).forEach(p => {
+    const pSku = (p.sku || "").trim().toLowerCase();
+    const pId = (p.id || "").trim().toLowerCase();
+    const pBase = getCleanBaseSku(pSku, p.baseSku).toLowerCase();
+    const pName = (p.name || "").trim().toLowerCase();
+    const { cleanName: pCleanName, extractedSize: pExtractedSize } = cleanNameAndExtractSize(pName, p.size);
+
+    const nameMatch = (
+      (itemSku && (pSku === itemSku.toLowerCase() || pId === itemSku.toLowerCase())) ||
+      (itemBaseSku && pBase && itemBaseSku === pBase) ||
+      (cleanName && pCleanName && (cleanName.toLowerCase().includes(pCleanName.toLowerCase()) || pCleanName.toLowerCase().includes(cleanName.toLowerCase()))) ||
+      (rawItemName && pName && rawItemName.toLowerCase().includes(pName.toLowerCase()))
+    );
+
+    if (!nameMatch) return;
+
+    const pSizeNorm = normalizeSizeKeyJS(p.size || pExtractedSize);
+    const sizeExactMatch = Boolean(normTargetSize && pSizeNorm && normTargetSize === pSizeNorm);
+
+    let avail = 0;
+    if (p.locationsStock && typeof p.locationsStock === "object" && targetLocation) {
+      const matchedLocKey = Object.keys(p.locationsStock).find(k => k.trim().toLowerCase() === targetLocation.trim().toLowerCase());
+      if (matchedLocKey !== undefined) {
+        avail = parseInt(p.locationsStock[matchedLocKey]) || 0;
+      } else {
+        avail = parseInt(p.stock_local !== undefined ? p.stock_local : p.stock) || 0;
+      }
+    } else {
+      avail = parseInt(p.stock_local !== undefined ? p.stock_local : p.stock) || 0;
+    }
+
+    let score = 0;
+    if (sizeExactMatch) score += 100;
+    else if (!normTargetSize || normTargetSize === "unico") score += 10;
+
+    if (avail > 0) score += 50;
+
+    candidates.push({ score, avail, product: p });
+  });
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.avail - a.avail;
+  });
+
+  return candidates[0].product;
+}
+
 async function shipTiendanubeOrder(saleId, status, selectElId = null) {
   let location = null;
   if (selectElId) {
@@ -13482,26 +13566,8 @@ async function shipTiendanubeOrder(saleId, status, selectElId = null) {
       const itemSku = prodInfo.sku || "";
       const itemBaseSku = getCleanBaseSku(itemSku, prodInfo.baseSku || "").toLowerCase();
 
-      // Buscar la variante correspondiente en state.products
-      let matchedProd = null;
-      if (itemSku) {
-        matchedProd = state.products.find(p => p.sku === itemSku);
-      }
-      if (!matchedProd) {
-        matchedProd = state.products.find(p => {
-          const pBase = getCleanBaseSku(p.sku, p.baseSku).toLowerCase();
-          const pSize = (p.size || "").trim().toLowerCase();
-          const pColor = (p.color || "").trim().toLowerCase();
-          const pName = (p.name || "").trim().toLowerCase();
-          const itemName = (prodInfo.name || "").trim().toLowerCase();
-
-          const matchesBaseOrName = (pBase && pBase === itemBaseSku) || (pName && (pName === itemName || getProductNameWithColor(p).toLowerCase() === itemName));
-          const matchesSize = !itemSize || pSize === itemSize.toLowerCase() || (pSize === "único" && itemSize.toLowerCase() === "u") || (pSize === "u" && itemSize.toLowerCase() === "único");
-          const matchesColor = !itemColor || !pColor || pColor === itemColor.toLowerCase();
-
-          return matchesBaseOrName && matchesSize && matchesColor;
-        });
-      }
+      // Buscar la variante correspondiente en state.products usando ranking por talle y stock de ubicación
+      const matchedProd = findBestMatchingProductJS(state.products, itemSku, prodInfo.name || it.name || "", itemSize, location);
 
       if (matchedProd) {
         let availInLoc = 0;
