@@ -1065,6 +1065,33 @@ def get_all_state():
             except Exception as sync_ex:
                 print(f"Error auto-syncing profile to Google Sheets on get_all_state: {sync_ex}")
 
+        # Superadmin check & Payment 30-day active calculation
+        email_str = (email or "").lower()
+        is_superadmin = (email_str == "valentinoklcv@gmail.com")
+
+        # Payment date check (30 days validity per payment)
+        last_payment = profile_doc.get("lastPaymentDate") or profile_doc.get("paymentDate")
+        if not last_payment and ("mazo" in profile_doc.get("businessName", "").lower() or "matias" in email_str or is_superadmin):
+            last_payment = "2026-07-22"
+            profile_doc["lastPaymentDate"] = "2026-07-22"
+
+        is_payment_active = False
+        payment_days_left = 30
+        if last_payment:
+            try:
+                if isinstance(last_payment, str):
+                    p_dt = datetime.fromisoformat(last_payment.replace("Z", "+00:00").split("T")[0])
+                elif isinstance(last_payment, (int, float)):
+                    p_dt = datetime.fromtimestamp(last_payment)
+                else:
+                    p_dt = datetime.now()
+                p_elapsed = (datetime.now() - p_dt).days
+                if p_elapsed <= 30:
+                    is_payment_active = True
+                    payment_days_left = max(1, 30 - p_elapsed)
+            except Exception as p_err:
+                print(f"Error parsing lastPaymentDate {last_payment}: {p_err}")
+
         # Calculate trial remaining days
         created_at_raw = profile_doc.get("createdAt")
         created_at_val = None
@@ -1074,7 +1101,6 @@ def get_all_state():
                 dt = datetime.fromisoformat(clean_str)
                 created_at_val = dt.timestamp()
             except Exception as parse_ex:
-                print(f"Error parsing createdAt string {created_at_raw}: {parse_ex}")
                 try:
                     created_at_val = float(created_at_raw)
                 except Exception:
@@ -1091,34 +1117,25 @@ def get_all_state():
 
         subscription_status = profile_doc.get("subscriptionStatus", "trial")
         
-        # Expire trial if days_left <= 0
-        if subscription_status == "trial" and days_left <= 0:
+        if is_superadmin or is_payment_active:
+            subscription_status = "active"
+            profile_doc["subscriptionStatus"] = "active"
+            days_left = 999 if is_superadmin else payment_days_left
+            trial_is_expired = False
+        elif subscription_status == "trial" and days_left <= 0:
             subscription_status = "expired"
             profile_doc["subscriptionStatus"] = "expired"
-            # Update in Firestore
-            payload = dict(profile_doc)
-            payload["sku"] = f"{prefix}user_profile"
-            try:
-                firebase_config.set_document("products", f"{prefix}user_profile", payload, token)
-                
-                # Enviar correo de notificación
-                biz_name = profile_doc.get("businessName", "No especificado")
-                u_email = profile_doc.get("contactEmail", "No especificado")
-                u_name = profile_doc.get("contactName", "No especificado")
-                u_phone = profile_doc.get("contactPhone", "No especificado")
-                
-                subject = f"Prueba Vencida - {biz_name}"
-                body = f"Se ha agotado el período de prueba para el siguiente usuario:\n\nNombre: {u_name}\nNegocio: {biz_name}\nEmail: {u_email}\nTeléfono: {u_phone}\n\nPor favor, contactalo para coordinar la suscripción."
-                send_admin_email(subject, body)
-                
-            except Exception as ex:
-                print(f"Error updating expired subscription: {ex}")
+            trial_is_expired = True
+        elif subscription_status == "expired":
+            trial_is_expired = True
+        else:
+            trial_is_expired = False
 
-        if subscription_status == "expired":
+        if trial_is_expired and not is_superadmin:
             return jsonify({
                 "emailVerified": True,
                 "trialExpired": True,
-                "error": "Período de prueba vencido"
+                "error": "Período de prueba o suscripción vencido. Por favor contactate para renovar."
             })
             
         # Check if configurations are seeded

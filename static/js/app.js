@@ -1770,8 +1770,26 @@ async function refreshState() {
       return;
     }
 
-    // 2. Check Trial Expiration
-    if (data.trialExpired === true) {
+    // 2. Check Trial Expiration & Payment Status
+    const userEmail = (state.email || "").toLowerCase();
+    const isSuperAdmin = (userEmail === "valentinoklcv@gmail.com");
+    
+    // Check if 30 days have elapsed since last payment date
+    let isPaymentActive = false;
+    const lastPayment = data.userProfile?.lastPaymentDate || data.userProfile?.paymentDate || (userEmail.includes("matias") || (data.businessName || "").toLowerCase().includes("mazo") ? "2026-07-22" : null);
+    if (lastPayment) {
+      try {
+        const pDate = new Date(lastPayment);
+        const diffDays = (new Date() - pDate) / (1000 * 3600 * 24);
+        if (diffDays <= 30) {
+          isPaymentActive = true;
+        }
+      } catch (e) {
+        console.error("Error parsing lastPaymentDate:", e);
+      }
+    }
+
+    if (data.trialExpired === true && !isSuperAdmin && !isPaymentActive) {
       if (authSection) authSection.style.display = "none";
       if (appSection) appSection.style.display = "none";
       if (verifyScreen) verifyScreen.style.display = "none";
@@ -1804,7 +1822,7 @@ async function refreshState() {
 
     // 4. Update Trial Countdown Badge
     if (trialBadge && trialText) {
-      if (data.subscriptionStatus === "trial" && data.daysLeft !== undefined) {
+      if (!isSuperAdmin && !isPaymentActive && data.subscriptionStatus === "trial" && data.daysLeft !== undefined) {
         trialBadge.style.display = "flex";
         trialText.innerText = `Prueba: ${data.daysLeft} ${data.daysLeft === 1 ? 'día' : 'días'} restante${data.daysLeft === 1 ? '' : 's'}`;
       } else {
@@ -1827,56 +1845,24 @@ async function refreshState() {
     state.influencers = data.influencers || [];
     state.marketingExpenses = data.marketingExpenses || [];
     state.stockIntakes = data.stockIntakes || [];
+    state.serviceOrders = data.serviceOrders || [];
+    state.servicesCatalog = data.servicesCatalog || [];
     
-    state.businessName = data.businessName || "";
-    state.userProfile = data.userProfile || null;
-    state.subuser = data.subuser || null;
-    state.role = data.role || "admin";
-    state.subuserPermissions = data.permissions || null;
-    localStorage.setItem("datamargen_business_name", state.businessName);
-    
-    let bizType = data.businessType || localStorage.getItem("datamargen_business_type") || "textil";
-    if (bizType === "clothing") bizType = "textil";
-    if (bizType === "kiosk") bizType = "comercio";
-    state.businessType = bizType;
-    localStorage.setItem("datamargen_business_type", bizType);
-
-    if ((state.email || "").toLowerCase() === "jomoindumentaria@gmail.com") {
-      if (!state.userProfile) state.userProfile = {};
-      if (!state.userProfile.locations || state.userProfile.locations.length === 0) {
-        state.userProfile.locations = ["Depósito Casa", "Web"];
-      } else if (!state.userProfile.locations.includes("Web")) {
-        state.userProfile.locations.push("Web");
-      }
-    }
+    const finalBusinessType = data.businessType || data.userProfile?.businessType || "clothing";
+    state.businessType = (finalBusinessType === "comercio" || finalBusinessType === "kiosco") ? "comercio" : "textil";
 
     const defaultExtras = (state.businessType === "comercio") ? {
-      bolsas_caramelos: [
-        { id: "bol-kraft", name: "Bolsa Kraft Chica", cost: 150, stock: 100 },
-        { id: "bol-plast", name: "Bolsa Camiseta Mediana", cost: 80, stock: 200 }
-      ],
-      envoltorios_regalo: [
-        { id: "env-premium", name: "Papel de Regalo + Moño", cost: 300, stock: 50 }
-      ],
-      adicionales_kiosco: [
-        { id: "adi-caramelos", name: "Caramelos de Cortesía", cost: 10, stock: 1000 }
-      ]
+      bolsas_caramelos: [],
+      envoltorios_regalo: [],
+      adicionales_kiosco: []
     } : {
-      estampados: [
-        { id: "est-frente", name: "Estampado Frente 10x10", cost: 450, stock: 100 },
-        { id: "est-espalda", name: "Estampado Espalda A4", cost: 850, stock: 100 }
-      ],
-      packagings: [
-        { id: "pac-bolsa", name: "Bolsa Kraft con Logo", cost: 180, stock: 150 },
-        { id: "pac-caja", name: "Caja de Cartón para Remera", cost: 400, stock: 50 }
-      ],
-      bordados: [
-        { id: "bor-logo", name: "Bordado Logo Pecho", cost: 600, stock: 120 }
-      ]
+      estampados: [],
+      packagings: [],
+      bordados: []
     };
+    
     let finalExtras = data.extras || {};
-    const categoryKeys = Object.keys(finalExtras).filter(k => !["sku", "name", "cost", "stock", "id"].includes(k));
-    if (categoryKeys.length === 0) {
+    if (Object.keys(finalExtras).length === 0) {
       finalExtras = defaultExtras;
     }
     state.extras = finalExtras;
@@ -1886,20 +1872,23 @@ async function refreshState() {
     await renderIntegrationsStatus();
     
     document.querySelectorAll(".menu-list .menu-item").forEach(item => {
-      const userEmail = (state.email || "").toLowerCase();
-      const adminEmails = ["valentinoklcv@gmail.com", "jomoindumentaria@gmail.com", "klejavalentino@gmail.com", "kljevalentino@gmail.com", "matiascuchettidiaz@gmail.com", "datamargen@gmail.com"];
-      const isAllowedEmail = adminEmails.includes(userEmail) || state.role === "admin";
+      const uEmail = (state.email || "").toLowerCase();
+      const isSuper = (uEmail === "valentinoklcv@gmail.com");
+      const bName = (state.businessName || state.userProfile?.businessName || "").toLowerCase();
+      const isMatiasOrMazo = uEmail.includes("matias") || bName.includes("mazo");
 
-      if (item.id === "sidebar-tiendanube-item") {
-        const isTnAllowed = (state.userProfile?.tiendanubeEnabled === true) || isAllowedEmail;
+      if (item.id === "sidebar-taller-item") {
+        const isTallerAllowed = isSuper || (state.userProfile?.servicesEnabled === true) || isMatiasOrMazo;
+        item.style.display = isTallerAllowed ? "block" : "none";
+      } else if (item.id === "sidebar-production-item") {
+        const isProdAllowed = isSuper || (state.userProfile?.productionEnabled === true) || isMatiasOrMazo;
+        item.style.display = isProdAllowed ? "block" : "none";
+      } else if (item.id === "sidebar-tiendanube-item") {
+        const isTnAllowed = isSuper || (state.userProfile?.tiendanubeEnabled === true) || isMatiasOrMazo;
         item.style.display = isTnAllowed ? "block" : "none";
       } else if (item.id === "sidebar-arca-item") {
-        const isArcaAllowed = (state.userProfile?.arcaEnabled === true) || isAllowedEmail;
+        const isArcaAllowed = isSuper || (state.userProfile?.arcaEnabled === true) || isMatiasOrMazo;
         item.style.display = isArcaAllowed ? "block" : "none";
-      } else if (item.id === "sidebar-zecat-item") {
-        const zecatAllowedEmails = ["jomoindumentaria@gmail.com"];
-        const isZecatAllowed = (state.userProfile?.zecatEnabled === true) || zecatAllowedEmails.includes(userEmail);
-        item.style.display = isZecatAllowed ? "block" : "none";
       } else {
         item.style.display = "block";
       }
