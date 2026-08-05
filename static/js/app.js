@@ -15911,6 +15911,7 @@ function renderServicesUI() {
           <div style="display: flex; gap: 6px; justify-content: center;">
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-blue); font-size: 1rem;" onclick="openServiceOrderModal('${o.id}')" title="Ver / Editar Orden">✏️</button>
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-purple); font-size: 1rem;" onclick="downloadServiceOrderPDF('${o.id}')" title="Imprimir Remito PDF">📄</button>
+            <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-blue); font-size: 1rem;" onclick="emitServiceOrderFacturaC('${o.id}')" title="Emitir / Descargar Factura C A4">🧾</button>
             ${(o.balance > 0 && o.status !== "Cobrado") ? `<button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-emerald); font-size: 1rem;" onclick="chargeServiceOrderToCash('${o.id}')" title="Cobrar Saldo en Caja">💰</button>` : ''}
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-red); font-size: 1rem;" onclick="deleteServiceOrder('${o.id}')" title="Eliminar Orden">🗑️</button>
           </div>
@@ -16179,6 +16180,7 @@ function openServiceOrderModal(orderId = null) {
   const depositInput = document.getElementById("service-order-deposit");
   
   const btnPrint = document.getElementById("btn-print-service-order");
+  const btnFactura = document.getElementById("btn-factura-service-order");
   const btnCharge = document.getElementById("btn-charge-service-order");
 
   if (orderId) {
@@ -16203,6 +16205,7 @@ function openServiceOrderModal(orderId = null) {
 
     activeOrderItemsForm = JSON.parse(JSON.stringify(existing.items || []));
     if (btnPrint) btnPrint.style.display = "inline-flex";
+    if (btnFactura) btnFactura.style.display = "inline-flex";
     if (btnCharge) btnCharge.style.display = (existing.balance > 0 && existing.status !== "Cobrado") ? "inline-flex" : "none";
   } else {
     if (modalTitle) modalTitle.innerText = "Nueva Orden de Trabajo";
@@ -16218,6 +16221,7 @@ function openServiceOrderModal(orderId = null) {
     addServiceItemToOrderForm();
 
     if (btnPrint) btnPrint.style.display = "none";
+    if (btnFactura) btnFactura.style.display = "none";
     if (btnCharge) btnCharge.style.display = "none";
   }
 
@@ -16579,15 +16583,27 @@ async function deleteServiceOrder(orderId) {
   }
 }
 
-async function chargeServiceOrderToCash(orderId) {
+async function emitServiceOrderFacturaC(orderId) {
   const order = (state.serviceOrders || []).find(o => o.id === orderId);
   if (!order) return;
 
-  const chargeAmount = order.balance > 0 ? order.balance : order.total;
-  if (confirm(`¿Registrar cobro de $${Math.round(chargeAmount).toLocaleString('es-AR')} para la orden ${order.id} (${order.clientName}) en Caja/Ventas?`)) {
+  const clientAccount = (state.currentAccounts || []).filter(a => a.type === "cliente").find(a => a.entityName.toLowerCase() === (order.clientName || "").toLowerCase());
+  
+  const clientName = clientAccount?.entityName || clientAccount?.razonSocial || order.clientName || "Consumidor Final";
+  const clientCuit = clientAccount?.cuit || "";
+  const clientCondicionIva = clientAccount?.condicionIva || "CONSUMIDOR FINAL";
+  const clientAddress = clientAccount?.address || "";
+
+  let targetSale = state.sales.find(s => s.id === `serv_sale_${order.id}` || (s.items && s.items.some(it => (it.sku || "").includes(order.id))));
+
+  if (!targetSale) {
+    const chargeAmount = order.total || 0;
     const salePayload = {
-      id: "serv_sale_" + Date.now(),
-      client_name: order.clientName,
+      id: "serv_sale_" + order.id,
+      client_name: clientName,
+      client_cuit: clientCuit,
+      client_condicion_iva: clientCondicionIva,
+      client_address: clientAddress,
       items: (order.items || []).map(it => ({
         sku: `SERV-${order.id}`,
         name: `[Taller] ${it.name} (Orden ${order.id})`,
@@ -16598,22 +16614,101 @@ async function chargeServiceOrderToCash(orderId) {
       subtotal: chargeAmount,
       discount: 0,
       total: chargeAmount,
-      payment_method: "Efectivo",
-      date: new Date().toLocaleDateString('es-AR'),
+      method: "Efectivo",
+      date: new Date().toISOString()
+    };
+    try {
+      const created = await apiRequest("/api/sales", "POST", salePayload);
+      targetSale = created || salePayload;
+      if (!state.sales.some(s => s.id === targetSale.id)) {
+        state.sales.unshift(targetSale);
+      }
+    } catch (e) {
+      targetSale = salePayload;
+    }
+  } else {
+    targetSale.client_name = clientName;
+    targetSale.client_cuit = clientCuit;
+    targetSale.client_condicion_iva = clientCondicionIva;
+    targetSale.client_address = clientAddress;
+  }
+
+  try {
+    const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: targetSale.id });
+    if (res && res.invoice_number) {
+      targetSale.arca_invoice_id = res.invoice_number;
+      targetSale.arca_cae = res.cae;
+      targetSale.arca_cae_due = res.cae_due;
+      showToast(`¡Factura C ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
+    }
+  } catch (err) {
+    console.log("Nota / Modo emision AFIP:", err);
+  }
+
+  downloadFacturaCA4PDF(targetSale);
+}
+window.emitServiceOrderFacturaC = emitServiceOrderFacturaC;
+
+function emitServiceOrderFacturaCFromModal() {
+  const orderId = document.getElementById("service-order-id").value;
+  if (orderId) emitServiceOrderFacturaC(orderId);
+}
+window.emitServiceOrderFacturaCFromModal = emitServiceOrderFacturaCFromModal;
+
+async function chargeServiceOrderToCash(orderId) {
+  const order = (state.serviceOrders || []).find(o => o.id === orderId);
+  if (!order) return;
+
+  const chargeAmount = order.balance > 0 ? order.balance : order.total;
+
+  const clientAccount = (state.currentAccounts || []).filter(a => a.type === "cliente").find(a => a.entityName.toLowerCase() === (order.clientName || "").toLowerCase());
+  
+  const clientName = clientAccount?.entityName || clientAccount?.razonSocial || order.clientName || "Consumidor Final";
+  const clientCuit = clientAccount?.cuit || "";
+  const clientCondicionIva = clientAccount?.condicionIva || "CONSUMIDOR FINAL";
+  const clientAddress = clientAccount?.address || "";
+
+  if (confirm(`¿Registrar cobro de $${Math.round(chargeAmount).toLocaleString('es-AR')} para la orden ${order.id} (${clientName}) en Caja/Ventas?`)) {
+    const salePayload = {
+      id: "serv_sale_" + order.id,
+      client_name: clientName,
+      client_cuit: clientCuit,
+      client_condicion_iva: clientCondicionIva,
+      client_address: clientAddress,
+      items: (order.items || []).map(it => ({
+        sku: `SERV-${order.id}`,
+        name: `[Taller] ${it.name} (Orden ${order.id})`,
+        price: it.price,
+        qty: it.qty,
+        subtotal: it.subtotal
+      })),
+      subtotal: chargeAmount,
+      discount: 0,
+      total: chargeAmount,
+      method: "Efectivo",
+      date: new Date().toISOString(),
       timestamp: Date.now()
     };
 
     try {
-      await apiRequest("/api/sales", "POST", salePayload);
+      const registeredSale = await apiRequest("/api/sales", "POST", salePayload);
       order.balance = 0;
       order.status = "Cobrado";
       await apiRequest("/api/services/orders", "POST", state.serviceOrders);
       
-      // Sync with Cobranzas (Cuentas Corrientes) to register fully paid status
       await syncServiceOrderWithCurrentAccount(order);
-      
+
+      const targetSale = registeredSale || salePayload;
+      if (!state.sales.some(s => s.id === targetSale.id)) {
+        state.sales.unshift(targetSale);
+      }
+
       showToast(`¡Venta de servicio ${order.id} cobrada y registrada en Caja con éxito!`);
       renderServicesUI();
+
+      if (confirm(`¿Deseas emitir y descargar la Factura C A4 para el cliente ${clientName}?`)) {
+        await emitServiceOrderFacturaC(order.id);
+      }
     } catch (e) {
       showToast("Error al registrar cobro: " + e.message, true);
     }
