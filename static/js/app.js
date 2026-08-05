@@ -6725,10 +6725,21 @@ function toggleIntakeFormType() {
   recalculateIntakeCosts();
 }
 
-function renderIntakeTallesGrid() {
+function getIntakeProductActiveSizes() {
+  const sku = document.getElementById("intake-product-sku")?.value;
+  if (sku) {
+    const p = state.products.find(prod => prod.sku === sku);
+    if (p) {
+      return getConfiguredSizes(p.category, getProductGroupKey(p));
+    }
+  }
+  return getConfiguredSizes();
+}
+
+function renderIntakeTallesGrid(category = null, productKey = null) {
   const container = document.getElementById("intake-talles-grid-container");
   if (!container) return;
-  const sizes = getConfiguredSizes();
+  const sizes = getConfiguredSizes(category, productKey);
   container.innerHTML = sizes.map(sz => `
     <div style="width: 60px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;">
       <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-gray); display: block; margin-bottom: 4px;">${sz}</span>
@@ -6739,7 +6750,7 @@ function renderIntakeTallesGrid() {
 }
 
 function clearIntakePreviews() {
-  getConfiguredSizes().forEach(key => {
+  getIntakeProductActiveSizes().forEach(key => {
     const el = document.getElementById(`intake-stock-${key}`);
     if (el) {
       el.style.display = "none";
@@ -6766,6 +6777,7 @@ function handleProductSearchInput() {
     resultsDiv.style.display = "none";
     document.getElementById("intake-product-sku").value = "";
     clearIntakePreviews();
+    renderIntakeTallesGrid();
     return;
   }
   
@@ -6850,6 +6862,8 @@ function selectIntakeProduct(sku) {
   
   // Rellenar stock actual por talles de todas las variantes del mismo producto (mismo groupKey)
   const targetGroupKey = getProductGroupKey(p);
+  renderIntakeTallesGrid(p.category, targetGroupKey);
+
   const variants = state.products.filter(prod => {
     if (!prod) return false;
     return getProductGroupKey(prod) === targetGroupKey;
@@ -6864,7 +6878,7 @@ function selectIntakeProduct(sku) {
       elSimple.style.display = "inline-block";
     }
   } else {
-    getConfiguredSizes().forEach(sz => {
+    getConfiguredSizes(p.category, targetGroupKey).forEach(sz => {
       const variant = variants.find(v => (v.size || "").toLowerCase().trim() === sz.toLowerCase().trim());
       const stock = variant ? getProductLocationStockSum(variant) : 0;
       const el = document.getElementById(`intake-stock-${sz}`);
@@ -6932,9 +6946,12 @@ function getIntakeTotalCostAndQuantity() {
     if (state.businessType === "comercio") {
       totalQuantity = parseInt(document.getElementById("intake-qty-simple").value) || 0;
     } else {
-      const sizes = getConfiguredSizes();
+      const sizes = getIntakeProductActiveSizes();
       sizes.forEach(sz => {
-        totalQuantity += parseInt(document.getElementById(`intake-qty-${sz}`).value) || 0;
+        const el = document.getElementById(`intake-qty-${sz}`);
+        if (el) {
+          totalQuantity += parseInt(el.value) || 0;
+        }
       });
     }
   } else {
@@ -7253,8 +7270,11 @@ async function handleStockIntakeSubmit(e) {
     sizesInput = { 'Único': qty };
   } else {
     sizesInput = {};
-    getConfiguredSizes().forEach(sz => {
-      sizesInput[sz] = parseInt(document.getElementById(`intake-qty-${sz}`).value) || 0;
+    getIntakeProductActiveSizes().forEach(sz => {
+      const el = document.getElementById(`intake-qty-${sz}`);
+      if (el) {
+        sizesInput[sz] = parseInt(el.value) || 0;
+      }
     });
   }
   
