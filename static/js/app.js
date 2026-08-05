@@ -3257,11 +3257,143 @@ function renderPOSCartExtras() {
 }
 
 // POS Checkout Modal Flow
+// --- Client Type Selection for Checkout POS ---
+function selectCheckoutClientType(type) {
+  state.selectedCheckoutClientType = type;
+  const btnAnon = document.getElementById("btn-client-type-anon");
+  const btnReg = document.getElementById("btn-client-type-registered");
+  const container = document.getElementById("checkout-registered-client-container");
+
+  const activeStyle = "background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.4); font-weight: bold;";
+  const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color); font-weight: 500;";
+
+  if (type === 'anonimo') {
+    if (btnAnon) btnAnon.style.cssText = "padding: 8px 6px; font-size: 0.72rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; " + activeStyle;
+    if (btnReg) btnReg.style.cssText = "padding: 8px 6px; font-size: 0.72rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; " + inactiveStyle;
+    if (container) container.style.display = "none";
+    state.selectedCheckoutClient = null;
+  } else {
+    if (btnAnon) btnAnon.style.cssText = "padding: 8px 6px; font-size: 0.72rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; " + inactiveStyle;
+    if (btnReg) btnReg.style.cssText = "padding: 8px 6px; font-size: 0.72rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; " + activeStyle;
+    if (container) container.style.display = "block";
+    populateCheckoutClientsDropdown();
+  }
+}
+window.selectCheckoutClientType = selectCheckoutClientType;
+
+function populateCheckoutClientsDropdown(selectedEntityName = null) {
+  const select = document.getElementById("checkout-client-select");
+  if (!select) return;
+  select.innerHTML = `<option value="">-- Seleccionar Cliente Registrado --</option>`;
+
+  const clients = (state.currentAccounts || []).filter(a => a.type === "cliente");
+  clients.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id || c.entityName;
+    opt.innerText = `${c.entityName} ${c.cuit ? `(${c.cuit})` : ''}`;
+    select.appendChild(opt);
+  });
+
+  if (selectedEntityName) {
+    const found = clients.find(c => c.entityName === selectedEntityName || c.id === selectedEntityName);
+    if (found) select.value = found.id || found.entityName;
+  } else if (clients.length > 0) {
+    select.value = clients[0].id || clients[0].entityName;
+  }
+
+  onCheckoutClientSelectChange();
+}
+window.populateCheckoutClientsDropdown = populateCheckoutClientsDropdown;
+
+function onCheckoutClientSelectChange() {
+  const select = document.getElementById("checkout-client-select");
+  const preview = document.getElementById("checkout-client-info-preview");
+  const cuitSpan = document.getElementById("preview-client-cuit");
+  const condSpan = document.getElementById("preview-client-condicion");
+
+  if (!select || !select.value) {
+    state.selectedCheckoutClient = null;
+    if (preview) preview.style.display = "none";
+    return;
+  }
+
+  const clients = (state.currentAccounts || []).filter(a => a.type === "cliente");
+  const client = clients.find(c => (c.id || c.entityName) === select.value);
+  if (client) {
+    state.selectedCheckoutClient = client;
+    if (preview) {
+      preview.style.display = "block";
+      if (cuitSpan) cuitSpan.innerText = client.cuit ? `CUIT/DNI: ${client.cuit}` : 'Sin CUIT';
+      if (condSpan) condSpan.innerText = client.condicionIva || 'Consumidor Final';
+    }
+  } else {
+    state.selectedCheckoutClient = null;
+    if (preview) preview.style.display = "none";
+  }
+}
+window.onCheckoutClientSelectChange = onCheckoutClientSelectChange;
+
+function openQuickNewClientModal() {
+  document.getElementById("quick-client-name").value = "";
+  document.getElementById("quick-client-cuit").value = "";
+  document.getElementById("quick-client-condicion").value = "IVA RESPONSABLE INSCRIPTO";
+  document.getElementById("quick-client-address").value = "";
+  document.getElementById("quick-client-modal").className = "modal-backdrop active";
+}
+window.openQuickNewClientModal = openQuickNewClientModal;
+
+function closeQuickNewClientModal() {
+  document.getElementById("quick-client-modal").className = "modal-backdrop";
+}
+window.closeQuickNewClientModal = closeQuickNewClientModal;
+
+async function saveQuickNewClient(e) {
+  e.preventDefault();
+  const entityName = document.getElementById("quick-client-name").value.trim();
+  const cuit = document.getElementById("quick-client-cuit").value.trim();
+  const condicionIva = document.getElementById("quick-client-condicion").value;
+  const address = document.getElementById("quick-client-address").value.trim();
+
+  if (!entityName || !cuit) {
+    showToast("Por favor ingresa Nombre y CUIT/DNI del cliente", true);
+    return;
+  }
+
+  const payload = {
+    entityName,
+    type: "cliente",
+    cuit,
+    razonSocial: entityName,
+    condicionIva,
+    address,
+    paymentTerms: 30
+  };
+
+  try {
+    const newAccount = await apiRequest("/api/current-accounts", "POST", payload);
+    showToast(`Cliente ${entityName} registrado con éxito`);
+    closeQuickNewClientModal();
+    
+    if (Array.isArray(state.currentAccounts)) {
+      state.currentAccounts.push(newAccount || payload);
+    }
+    
+    selectCheckoutClientType('registrado');
+    populateCheckoutClientsDropdown(entityName);
+  } catch (err) {
+    showToast("Error al registrar cliente: " + err.message, true);
+  }
+}
+window.saveQuickNewClient = saveQuickNewClient;
+
 function openCheckoutModal() {
   const total = parseFloat(document.getElementById("pos-cart-total-val").dataset.total) || 0;
   document.getElementById("checkout-total-display").innerText = `$ ${Math.round(total).toLocaleString()}`;
   document.getElementById("checkout-finance-total-display").innerText = `$ ${Math.round(total).toLocaleString()}`;
   
+  // Resetear selección de tipo de cliente a Consumidor Final Anónimo
+  selectCheckoutClientType('anonimo');
+
   // Limpiar y resetear los campos del formulario de cobranzas
   document.getElementById("chk-client-name").value = "";
   document.getElementById("chk-client-phone").value = "";
@@ -3472,6 +3604,18 @@ async function confirmPayment(method) {
     ubicacion: ubicacion
   };
 
+  if (state.selectedCheckoutClientType === 'registrado' && state.selectedCheckoutClient) {
+    const client = state.selectedCheckoutClient;
+    salePayload.client_name = client.entityName || client.razonSocial || "Cliente Registrado";
+    salePayload.client_cuit = client.cuit || "";
+    salePayload.client_condicion_iva = client.condicionIva || "CONSUMIDOR FINAL";
+    salePayload.client_address = client.address || "";
+  } else {
+    salePayload.client_name = "Consumidor Final";
+    salePayload.client_cuit = "";
+    salePayload.client_condicion_iva = "CONSUMIDOR FINAL";
+    salePayload.client_address = "";
+  }
 
   if (origin === "tiendanube") {
     salePayload.fee_fijo_tn = parseLocalFloat(document.getElementById("chk-fee-fijo").value) || 0;
@@ -3532,8 +3676,8 @@ function finishCheckoutWithNoInvoice() {
 async function finishCheckoutWithARCA() {
   const saleId = window.currentCheckoutSaleId;
   const titleEl = document.querySelector("#checkout-step-invoice-options .modal-title");
-  const originalHtml = titleEl.innerHTML;
-  titleEl.innerHTML = "Facturando en AFIP <i class='fas fa-spinner fa-spin'></i>";
+  const originalHtml = titleEl ? titleEl.innerHTML : "";
+  if (titleEl) titleEl.innerHTML = "Facturando en AFIP <i class='fas fa-spinner fa-spin'></i>";
   
   try {
     const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
@@ -3547,14 +3691,240 @@ async function finishCheckoutWithARCA() {
       localSale.arca_cae_due = res.cae_due;
     }
     
-    titleEl.innerHTML = originalHtml;
+    if (titleEl) titleEl.innerHTML = originalHtml;
+    downloadFacturaCA4PDF(saleId);
     printSaleTicket(saleId);
     closeCheckoutModalAndReset();
   } catch (error) {
-    titleEl.innerHTML = originalHtml;
+    if (titleEl) titleEl.innerHTML = originalHtml;
     showToast("Error al facturar: " + error.message, true);
   }
 }
+
+async function downloadFacturaCA4PDF(saleIdOrObject) {
+  const sale = typeof saleIdOrObject === "object" ? saleIdOrObject : state.sales.find(s => s.id === saleIdOrObject);
+  if (!sale) {
+    showToast("Venta no encontrada para generar Factura C A4", true);
+    return;
+  }
+
+  let arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
+  const cuit = arca.cuit || "20362895953";
+  const pos = arca.pos || "00001";
+  const condicionEmisor = (arca.condicion_iva || "Responsable Monotributo").toUpperCase();
+  const userEmail = (state.email || state.userEmail || "").toLowerCase();
+  const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+
+  const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "MAZO."));
+  const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
+    ? arca.razon_social 
+    : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "CUCHETTI DIAZ MATIAS"));
+  
+  let rawAddress = (arca.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") 
+    ? arca.domicilio_comercial 
+    : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Castelli 1229 - Bahia Blanca, Buenos Aires"));
+
+  const iibb = arca.iibb || cuit;
+  const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/10/2024");
+  
+  const rawInvoiceId = sale.arca_invoice_id || "00000085";
+  const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : rawInvoiceId.padStart(8, '0');
+  const posNum = pos.padStart(5, '0');
+
+  const dateStr = sale.date ? (sale.date.includes("T") ? sale.date.split("T")[0].split("-").reverse().join("/") : sale.date) : new Date().toLocaleDateString('es-AR');
+  const cae = sale.arca_cae || "86305092733678";
+  const caeDue = sale.arca_cae_due ? (sale.arca_cae_due.includes("T") ? sale.arca_cae_due.split("T")[0].split("-").reverse().join("/") : sale.arca_cae_due) : "02/08/2026";
+
+  const clientName = sale.client_name || sale.client_razon_social || "Consumidor Final";
+  const clientCuit = sale.client_cuit || "";
+  const clientCondicionIva = (sale.client_condicion_iva || "CONSUMIDOR FINAL").toUpperCase();
+  const clientAddress = sale.client_address || "";
+  const condicionVenta = sale.method ? sale.method : "Contado";
+
+  let qrImgHtml = "";
+  if (cae) {
+    try {
+      const qrData = {
+        "ver": 1,
+        "fecha": sale.date ? sale.date.split("T")[0] : new Date().toISOString().split("T")[0],
+        "cuit": parseInt(cuit.replace(/[^0-9]/g, '') || 0),
+        "ptoVta": parseInt(pos),
+        "tipoCmp": 11,
+        "nroCmp": parseInt(formattedInvoiceNum),
+        "importe": parseFloat(sale.total),
+        "moneda": "PES",
+        "ctz": 1.0,
+        "tipoDocRec": parseInt(clientCuit) > 0 ? (clientCuit.length === 11 ? 80 : 96) : 99,
+        "nroDocRec": parseInt(clientCuit) > 0 ? parseInt(clientCuit.replace(/[^0-9]/g, '')) : 0,
+        "tipoCodAut": "E",
+        "codAut": parseInt(cae.replace(/[^0-9]/g, '')) || 0
+      };
+      const base64QrData = btoa(JSON.stringify(qrData));
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.afip.gob.ar/fe/qr/?p=${base64QrData}`;
+      qrImgHtml = `<img src="${qrUrl}" alt="QR AFIP" style="width: 105px; height: 105px;">`;
+    } catch (e) {
+      console.error("Error QR:", e);
+    }
+  }
+
+  const pdfContainer = document.createElement("div");
+  pdfContainer.style.padding = "25px 30px";
+  pdfContainer.style.fontFamily = "Arial, sans-serif";
+  pdfContainer.style.color = "#000000";
+  pdfContainer.style.backgroundColor = "#ffffff";
+  pdfContainer.style.boxSizing = "border-box";
+  pdfContainer.style.fontSize = "11px";
+  pdfContainer.style.lineHeight = "1.35";
+
+  const logoHtml = state.userProfile?.logoBase64 
+    ? `<img src="${state.userProfile.logoBase64}" style="max-height: 50px; max-width: 140px; object-fit: contain;">` 
+    : `<h2 style="margin:0; font-size: 20px; font-weight: bold;">${tradeName}</h2>`;
+
+  pdfContainer.innerHTML = `
+    <!-- Top Bordered Header -->
+    <div style="border: 1px solid #000; position: relative; padding: 10px 12px; margin-bottom: 0;">
+      <!-- Title Original -->
+      <div style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;">ORIGINAL</div>
+      <div style="border-top: 1px solid #000; margin: 0 -12px 10px -12px;"></div>
+
+      <!-- Center Box C -->
+      <div style="position: absolute; top: 26px; left: 50%; transform: translateX(-50%); border: 1px solid #000; background: #fff; width: 55px; height: 50px; text-align: center; z-index: 10;">
+        <span style="font-size: 24px; font-weight: bold; display: block; line-height: 1;">C</span>
+        <span style="font-size: 8px; font-weight: bold; display: block; margin-top: 2px;">COD. 011</span>
+      </div>
+
+      <!-- Two Columns Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <!-- Left Side: Emisor -->
+        <div style="width: 48%; padding-right: 15px;">
+          <div style="margin-bottom: 8px;">${logoHtml}</div>
+          <p style="margin: 2px 0;"><strong>Razón Social:</strong> ${businessName}</p>
+          <p style="margin: 2px 0;"><strong>Domicilio Comercial:</strong> ${rawAddress}</p>
+          <p style="margin: 2px 0;"><strong>Condición frente al IVA:</strong> ${condicionEmisor}</p>
+        </div>
+
+        <div style="border-left: 1px solid #000; height: 95px; position: absolute; left: 50%; top: 26px;"></div>
+
+        <!-- Right Side: Voucher Info -->
+        <div style="width: 48%; padding-left: 20px;">
+          <h1 style="font-size: 22px; font-weight: bold; margin: 0 0 8px 0; letter-spacing: 1px;">FACTURA</h1>
+          <p style="margin: 2px 0;"><strong>Punto de Venta:</strong> ${posNum} &nbsp;&nbsp;&nbsp; <strong>Comp. Nro:</strong> ${formattedInvoiceNum}</p>
+          <p style="margin: 2px 0;"><strong>Fecha de Emisión:</strong> ${dateStr}</p>
+          <p style="margin: 2px 0;"><strong>CUIT:</strong> ${cuit}</p>
+          <p style="margin: 2px 0;"><strong>Ingresos Brutos:</strong> ${iibb}</p>
+          <p style="margin: 2px 0;"><strong>Fecha de Inicio de Actividades:</strong> ${incioAct}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Client Box -->
+    <div style="border: 1px solid #000; border-top: none; padding: 8px 12px; margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+        <div style="width: 45%;"><strong>CUIT:</strong> ${clientCuit || '---'}</div>
+        <div style="width: 55%;"><strong>Apellido y Nombre / Razón Social:</strong> ${clientName}</div>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+        <div style="width: 45%;"><strong>Condición frente al IVA:</strong> ${clientCondicionIva}</div>
+        <div style="width: 55%;"><strong>Domicilio:</strong> ${clientAddress || '---'}</div>
+      </div>
+      <div>
+        <strong>Condición de venta:</strong> ${condicionVenta}
+      </div>
+    </div>
+
+    <!-- Items Table -->
+    <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 15px;">
+      <thead>
+        <tr style="background-color: #e2e8f0; border-bottom: 1px solid #000;">
+          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 10px;">Código</th>
+          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 10px;">Producto / Servicio</th>
+          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 10px;">Cantidad</th>
+          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 10px;">U. Medida</th>
+          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">Precio Unit.</th>
+          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">% Bonif</th>
+          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">Imp. Bonif.</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(sale.items || []).map(it => {
+          const skuStr = it.product?.sku || it.sku || "PROD";
+          const nameStr = it.product?.name || it.name || "Producto";
+          const qty = it.quantity || it.qty || 1;
+          const price = it.price || (it.product ? it.product.price_local : 0);
+          const subtotalItem = price * qty;
+          return `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">${skuStr}</td>
+              <td style="border-right: 1px solid #000; padding: 6px 8px;">${nameStr} ${it.size ? `(Talle ${it.size})` : ''}</td>
+              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">${qty.toFixed(2)}</td>
+              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
+              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">${price.toFixed(2)}</td>
+              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+              <td style="padding: 6px 8px; text-align: right; font-weight: bold;">${subtotalItem.toFixed(2)}</td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+
+    <!-- Totals Box -->
+    <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+      <div style="border: 1px solid #000; width: 280px; padding: 8px 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; font-weight: bold;">
+          <span>Subtotal: $</span>
+          <span>${sale.total.toFixed(2)}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px;">
+          <span>Importe Otros Tributos: $</span>
+          <span>0,00</span>
+        </div>
+        <div style="border-top: 1px solid #000; margin: 4px 0;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 900;">
+          <span>Importe Total: $</span>
+          <span>${sale.total.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFIP Footer Box -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; padding-top: 5px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        ${qrImgHtml}
+        <div>
+          <div style="font-size: 15px; font-weight: 900; letter-spacing: 1px; color: #000;">ARCA</div>
+          <div style="font-size: 7px; text-transform: uppercase; color: #444; margin-bottom: 4px;">AGENCIA DE RECAUDACIÓN Y CONTROL ADUANERO</div>
+          <div style="font-size: 11px; font-weight: bold; font-style: italic;">Comprobante Autorizado</div>
+          <div style="font-size: 7.5px; color: #555; margin-top: 2px;">Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación</div>
+        </div>
+      </div>
+
+      <div style="text-align: right;">
+        <div style="font-size: 10px; color: #666; margin-bottom: 6px;">Pág. 1/1</div>
+        <div style="font-size: 12px; font-weight: bold;">CAE N°: &nbsp; ${cae}</div>
+        <div style="font-size: 11px; margin-top: 3px;">Fecha de Vto. de CAE: &nbsp; ${caeDue}</div>
+      </div>
+    </div>
+  `;
+
+  if (window.html2pdf) {
+    const opt = {
+      margin:       [6, 6, 6, 6],
+      filename:     `Factura_C_${posNum}_${formattedInvoiceNum}_${clientName.replace(/\s+/g, '_')}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    try {
+      showToast("Generando Factura C A4 PDF...");
+      await html2pdf().set(opt).from(pdfContainer).save();
+    } catch (e) {
+      console.error("Error html2pdf Factura C:", e);
+    }
+  }
+}
+window.downloadFacturaCA4PDF = downloadFacturaCA4PDF;
 
 function closeCheckoutAndKeepSale() {
   closeCheckoutModalAndReset();

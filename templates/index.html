@@ -2823,9 +2823,38 @@
           <span class="modal-close-btn" onclick="closeCheckoutModal()">✕</span>
         </div>
         
-        <div class="idx-card" style="background: var(--bg-input); padding: 16px; text-align: center; margin-bottom: 20px;">
+        <div class="idx-card" style="background: var(--bg-input); padding: 16px; text-align: center; margin-bottom: 16px;">
           <p style="font-size: 0.75rem; color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Total a Cobrar</p>
           <p id="checkout-total-display" style="font-size: 1.8rem; font-weight: 900; color: var(--text-white); margin-top: 4px;">$ 0</p>
+        </div>
+
+        <!-- Selector de Tipo de Cliente (Pre-Cobro) -->
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label class="form-label" style="color: var(--text-gray-light); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 8px; display: block;">Tipo de Cliente</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button type="button" id="btn-client-type-anon" class="btn btn-secondary active" style="padding: 8px 6px; font-size: 0.72rem; font-weight: 700; border-radius: 8px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="selectCheckoutClientType('anonimo')">
+              👤 Consumidor Final
+            </button>
+            <button type="button" id="btn-client-type-registered" class="btn btn-secondary" style="padding: 8px 6px; font-size: 0.72rem; font-weight: 700; border-radius: 8px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="selectCheckoutClientType('registrado')">
+              🏢 Cliente Registrado
+            </button>
+          </div>
+        </div>
+
+        <!-- Selector de Cliente Registrado -->
+        <div id="checkout-registered-client-container" style="display: none; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+          <label class="form-label" style="font-size: 0.7rem; color: var(--text-gray-light); font-weight: 700; text-transform: uppercase; margin-bottom: 6px; display: block;">Seleccionar Cliente (Cobranzas)</label>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <select id="checkout-client-select" class="form-select" style="flex-grow: 1; font-size: 0.8rem; padding: 6px 10px;" onchange="onCheckoutClientSelectChange()">
+              <!-- Dynamically populated -->
+            </select>
+            <button type="button" class="btn btn-emerald" style="padding: 6px 12px; font-size: 0.9rem; font-weight: bold; flex-shrink: 0;" onclick="openQuickNewClientModal()" title="Registrar Nuevo Cliente">
+              +
+            </button>
+          </div>
+          <div id="checkout-client-info-preview" style="margin-top: 8px; font-size: 0.7rem; color: var(--text-gray); border-top: 1px dashed var(--border-color); padding-top: 6px; display: none;">
+            <span id="preview-client-cuit"></span> &bull; <span id="preview-client-condicion"></span>
+          </div>
         </div>
 
         <!-- Contenedor de Costos Financieros Tiendanube -->
@@ -2926,10 +2955,10 @@
         </div>
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
           <button class="btn btn-secondary" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="finishCheckoutWithNoInvoice()">
-            <i class="fas fa-receipt"></i> Emitir ticket X (no válido)
+            <i class="fas fa-receipt"></i> Ticket X (no válido como factura)
           </button>
           <button class="btn btn-emerald" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="finishCheckoutWithARCA()">
-            <i class="fas fa-file-invoice-dollar"></i> ARCA
+            <i class="fas fa-file-invoice-dollar"></i> Factura C
           </button>
           <button class="btn btn-secondary" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; background: transparent; border: 1px solid var(--text-gray); display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-gray-light);" onclick="closeCheckoutAndKeepSale()">
             <i class="fas fa-times"></i> Cerrar Ventana
@@ -2952,6 +2981,43 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL QUICK NEW CLIENT (Registrar Cliente desde POS) -->
+  <div id="quick-client-modal" class="modal-backdrop">
+    <div class="modal-content max-w-sm" style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
+      <div class="modal-header" style="border: none; padding: 0 0 12px 0;">
+        <h3 class="modal-title" style="font-size: 1rem;">Registrar Cliente</h3>
+        <span class="modal-close-btn" onclick="closeQuickNewClientModal()">✕</span>
+      </div>
+      <form id="quick-client-form" onsubmit="saveQuickNewClient(event)">
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label class="form-label" style="font-size: 0.75rem;">Nombre / Razón Social *</label>
+          <input type="text" id="quick-client-name" class="form-input" placeholder="Ej. Ropa Laboral S.R.L." required>
+        </div>
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label class="form-label" style="font-size: 0.75rem;">CUIT / DNI *</label>
+          <input type="text" id="quick-client-cuit" class="form-input" placeholder="Ej. 30-71877360-8" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label class="form-label" style="font-size: 0.75rem;">Condición IVA *</label>
+          <select id="quick-client-condicion" class="form-select">
+            <option value="IVA RESPONSABLE INSCRIPTO">IVA Responsable Inscripto</option>
+            <option value="RESPONSABLE MONOTRIBUTO">Responsable Monotributo</option>
+            <option value="CONSUMIDOR FINAL">Consumidor Final</option>
+            <option value="IVA EXENTO">IVA Exento</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" style="font-size: 0.75rem;">Domicilio Comercial / Fiscal</label>
+          <input type="text" id="quick-client-address" class="form-input" placeholder="Ej. Estomba 239 - Bahía Blanca">
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.8rem;" onclick="closeQuickNewClientModal()">Cancelar</button>
+          <button type="submit" class="btn btn-emerald" style="padding: 8px 14px; font-size: 0.8rem; font-weight: bold;">Guardar Cliente</button>
+        </div>
+      </form>
     </div>
   </div>
 
