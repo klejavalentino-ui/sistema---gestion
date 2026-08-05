@@ -3949,11 +3949,18 @@ function getInvoiceTicketInnerHTML(sale) {
 
   if (!isFiscal) {
     return `
-      <div style="text-align: center; margin-bottom: 10px;">
-        <div style="font-size: 10px; border: 1px solid #000; padding: 4px; margin: 5px 0; display: inline-block; font-weight: bold;">DOCUMENTO NO VALIDO COMO FACTURA</div>
-        <h2 style="margin: 5px 0; font-size: 16px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
-        <p style="margin: 2px 0; font-size: 10px;">Fecha: ${dateStr} - ${timeStr}</p>
-        <p style="margin: 2px 0; font-size: 10px; font-family: monospace;">TICKET N°: ${sale.id}</p>
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; text-align: left;">
+        ${state.userProfile?.logoBase64 ? `
+          <div style="margin-right: 15px; margin-top: 5px; flex-shrink: 0;">
+            <img src="${state.userProfile.logoBase64}" style="max-height: 55px; max-width: 85px; object-fit: contain;">
+          </div>
+        ` : ''}
+        <div style="flex-grow: 1; text-align: ${state.userProfile?.logoBase64 ? 'right' : 'center'};">
+          <div style="font-size: 9px; border: 1px solid #000; padding: 2px 4px; display: inline-block; font-weight: bold; margin-bottom: 4px;">DOCUMENTO NO VALIDO COMO FACTURA</div>
+          <h2 style="margin: 2px 0; font-size: 14px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
+          <p style="margin: 2px 0; font-size: 9px;">Fecha: ${dateStr} - ${timeStr}</p>
+          <p style="margin: 2px 0; font-size: 9px; font-family: monospace;">TICKET N°: ${sale.id}</p>
+        </div>
       </div>
       <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
       <table style="width: 100%; border-collapse: collapse; margin: 8px 0;">
@@ -4059,18 +4066,25 @@ function getInvoiceTicketInnerHTML(sale) {
     }
 
     return `
-      <div style="text-align: center; margin-bottom: 5px;">
-        <div style="border: 1px solid #000; padding: 4px; text-align: center; margin: 5px auto; width: 60px;">
-          <p style="font-size: 24px; font-weight: bold; margin: 0; line-height: 1;">${voucherLetter}</p>
-          <p style="font-size: 9px; margin: 0;">COD. ${voucherCode}</p>
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px;">
+        ${state.userProfile?.logoBase64 ? `
+          <div style="margin-right: 15px; margin-top: 5px; flex-shrink: 0;">
+            <img src="${state.userProfile.logoBase64}" style="max-height: 55px; max-width: 85px; object-fit: contain;">
+          </div>
+        ` : ''}
+        <div style="flex-grow: 1; text-align: ${state.userProfile?.logoBase64 ? 'right' : 'center'}; font-size: 10px;">
+          <div style="border: 1px solid #000; padding: 2px; text-align: center; margin: ${state.userProfile?.logoBase64 ? '0 0 5px auto' : '0 auto 5px'}; width: 45px; font-size: 10px;">
+            <p style="font-size: 18px; font-weight: bold; margin: 0; line-height: 1;">${voucherLetter}</p>
+            <p style="font-size: 8px; margin: 0;">COD. ${voucherCode}</p>
+          </div>
+          <h2 style="margin: 2px 0; font-size: 13px; font-weight: bold; text-transform: uppercase;">${tradeName}</h2>
+          <p style="margin: 1px 0; font-size: 9px; font-weight: bold;">Razón Social: ${businessName}</p>
+          <p style="margin: 1px 0; font-size: 9px;">${addressStr}</p>
+          <p style="margin: 1px 0; font-size: 9px;">CUIT: ${cuit}</p>
+          <p style="margin: 1px 0; font-size: 9px;">IIBB: ${iibb}</p>
+          <p style="margin: 1px 0; font-size: 9px;">Inicio Actividades: ${incioAct}</p>
+          <p style="margin: 1px 0; font-size: 9px; font-weight: bold;">${condicionEmisor}</p>
         </div>
-        <h2 style="margin: 4px 0; font-size: 15px; font-weight: bold; text-transform: uppercase;">${tradeName}</h2>
-        <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">Razón Social: ${businessName}</p>
-        <p style="margin: 2px 0; font-size: 10px;">${addressStr}</p>
-        <p style="margin: 2px 0; font-size: 10px;">CUIT: ${cuit}</p>
-        <p style="margin: 2px 0; font-size: 10px;">IIBB: ${iibb}</p>
-        <p style="margin: 2px 0; font-size: 10px;">Inicio Actividades: ${incioAct}</p>
-        <p style="margin: 2px 0; font-size: 10px; font-weight: bold;">${condicionEmisor}</p>
       </div>
       <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
       <div style="text-align: center; margin: 5px 0;">
@@ -4105,16 +4119,10 @@ function getInvoiceTicketInnerHTML(sale) {
       </div>
       <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
       ${exchangeTicketHtml}
-      <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-        <div style="width: 100px; text-align: left;">
-          ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 40px; max-width: 100px; object-fit: contain;">` : ''}
-        </div>
-        <div style="text-align: center; flex-grow: 1;">
-          ${qrImgHtml}
-          <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
-          <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
-        </div>
-        <div style="width: 100px;"></div>
+      <div style="margin-top: 15px; text-align: center;">
+        ${qrImgHtml}
+        <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
+        <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
       </div>
     `;
   }
@@ -14271,9 +14279,12 @@ async function downloadQuotePDF() {
   pdfContainer.style.boxSizing = "border-box";
 
   pdfContainer.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
-      <div>
-        <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
+      <div style="display: flex; align-items: center; gap: 15px;">
+        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 55px; max-width: 150px; object-fit: contain;">` : ''}
+        <div>
+          <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
+        </div>
       </div>
       <div style="text-align: right;">
         <div style="font-size: 16px; font-weight: 900; color: #2563eb; letter-spacing: 1px;">PRESUPUESTO</div>
@@ -14354,13 +14365,9 @@ async function downloadQuotePDF() {
     </div>
 
     <div style="margin-top: 35px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-      <div style="width: 150px; text-align: left;">
-        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 40px; max-width: 150px; object-fit: contain;">` : ''}
-      </div>
       <div style="font-size: 10px; color: #94a3b8; text-align: center; flex-grow: 1;">
         Documento emitido por Datamargen ERP • www.datamargen.com
       </div>
-      <div style="width: 150px;"></div>
     </div>
   `;
 
@@ -16283,10 +16290,13 @@ async function downloadServiceOrderPDF(orderId) {
   pdfContainer.style.boxSizing = "border-box";
 
   pdfContainer.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
-      <div>
-        <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
-        <div style="font-size: 11px; color: #64748b;">REMITO Y ORDEN DE TRABAJO DE TALLER</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
+      <div style="display: flex; align-items: center; gap: 15px;">
+        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 55px; max-width: 150px; object-fit: contain;">` : ''}
+        <div>
+          <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
+          <div style="font-size: 11px; color: #64748b;">REMITO Y ORDEN DE TRABAJO DE TALLER</div>
+        </div>
       </div>
       <div style="text-align: right;">
         <div style="font-size: 18px; font-weight: 900; color: #2563eb; letter-spacing: 1px;">ORDEN ${order.id}</div>
@@ -16375,13 +16385,9 @@ async function downloadServiceOrderPDF(orderId) {
     </div>
 
     <div style="margin-top: 35px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-      <div style="width: 150px; text-align: left;">
-        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 40px; max-width: 150px; object-fit: contain;">` : ''}
-      </div>
       <div style="font-size: 10px; color: #94a3b8; text-align: center; flex-grow: 1;">
         Documento emitido por Datamargen ERP • www.datamargen.com
       </div>
-      <div style="width: 150px;"></div>
     </div>
   `;
 
