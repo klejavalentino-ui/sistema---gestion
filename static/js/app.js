@@ -5060,7 +5060,7 @@ function renderInventory() {
     const colorClass = isCritical ? '#f87171' : '#10b981';
     
     // Ordenar los talles según las variantes configuradas en el negocio
-    const configuredSizes = getConfiguredSizes();
+    const configuredSizes = getConfiguredSizes(g.category, g.groupKey);
 
     const allProductSizes = new Set();
     g.variants.forEach(v => {
@@ -5237,24 +5237,20 @@ window.renderProductModalSizesSelector = renderProductModalSizesSelector;
 
 function getEditModalProductSizes() {
   const currentCat = document.getElementById("prod-category")?.value || "";
-  let configuredSizes = getConfiguredSizes(currentCat).slice();
+  const oldGroupKey = document.getElementById("product-modal")?.dataset?.oldGroupKey || "";
+  let configuredSizes = getConfiguredSizes(currentCat, oldGroupKey).slice();
   
   if (Array.isArray(state.tempActiveProductSizes)) {
     configuredSizes = state.tempActiveProductSizes.slice();
   }
 
   let hasUnico = false;
-  const existingSizes = new Set();
   Object.keys(tempLocationStock).forEach(loc => {
     if (tempLocationStock[loc] && typeof tempLocationStock[loc] === 'object') {
       Object.keys(tempLocationStock[loc]).forEach(sz => {
         if (sz.toLowerCase() === "único" || sz.toLowerCase() === "unico") {
           if ((tempLocationStock[loc][sz] || 0) > 0) {
             hasUnico = true;
-          }
-        } else {
-          if ((tempLocationStock[loc][sz] || 0) > 0) {
-            existingSizes.add(sz);
           }
         }
       });
@@ -5263,11 +5259,7 @@ function getEditModalProductSizes() {
   if (hasUnico && !configuredSizes.some(cs => cs.toLowerCase() === "único" || cs.toLowerCase() === "unico")) {
     configuredSizes.push("Único");
   }
-  existingSizes.forEach(sz => {
-    if (!configuredSizes.some(cs => cs.toLowerCase().trim() === sz.toLowerCase().trim())) {
-      configuredSizes.push(sz);
-    }
-  });
+
   return configuredSizes;
 }
 
@@ -5655,11 +5647,8 @@ function openEditProductModal(sku) {
     });
   });
   
-  // Initialize active product-specific sizes from existing variants or category defaults
-  state.tempActiveProductSizes = variants.map(v => v.size).filter(Boolean);
-  if (state.tempActiveProductSizes.length === 0) {
-    state.tempActiveProductSizes = getConfiguredSizes(p.category);
-  }
+  // Initialize active product-specific sizes from configured sizes for this product/category
+  state.tempActiveProductSizes = getConfiguredSizes(p.category, targetGroupKey);
   renderProductModalSizesSelector(p.category);
 
   // Requirement 1: Hide Talles Habilitados selector when editing existing product from Inventario actions column
