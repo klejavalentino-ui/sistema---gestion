@@ -123,13 +123,20 @@ def clean_name_and_extract_size(raw_name, raw_size=""):
     name = (raw_name or "").strip()
     size = (raw_size or "").strip()
     
+    extracted_from_name = ""
     if "(" in name and name.endswith(")"):
-        m = re.search(r'\s*\((Talle\s+[^)]+|[A-Z0-9\s/]+)\)\s*$', name, re.IGNORECASE)
-        if m:
-            extracted_sz = m.group(1).strip()
-            if not size or size.lower() in ["único", "unico", "u", "none", ""]:
-                size = extracted_sz
-            name = name[:m.start()].strip()
+        first_open = name.find("(")
+        last_close = name.rfind(")")
+        if first_open != -1 and last_close > first_open:
+            inside = name[first_open+1:last_close].strip()
+            inside_lower = inside.lower()
+            if "talle" in inside_lower or any(s in inside_lower for s in ["xs", "s", "m", "l", "xl", "xxl", "xxxl", "1", "2", "3", "4", "5", "u"]):
+                extracted_from_name = inside
+                name = name[:first_open].strip()
+
+    if extracted_from_name:
+        if not size or size.lower() in ["único", "unico", "u", "none", ""]:
+            size = extracted_from_name
             
     return name, size
 
@@ -160,14 +167,14 @@ def find_best_matching_product(user_prods, item_sku, raw_item_name, raw_item_siz
             (item_sku and (p_sku == item_sku.lower() or p_id == item_sku.lower())) or
             (item_base_sku and p_base and item_base_sku == p_base) or
             (clean_name and p_clean_name and (clean_name.lower() in p_clean_name.lower() or p_clean_name.lower() in clean_name.lower())) or
-            (raw_item_name and p_name and raw_item_name.lower() in p_name.lower())
+            (raw_item_name and p_name and (raw_item_name.lower() in p_name.lower() or p_name.lower() in raw_item_name.lower()))
         )
 
         if not name_match:
             continue
 
         p_size_norm = normalize_size_key(p.get("size") or p_extracted_size)
-        size_exact_match = bool(norm_target_size and p_size_norm and norm_target_size == p_size_norm)
+        size_exact_match = bool(norm_target_size and p_size_norm and (norm_target_size == p_size_norm or norm_target_size in p_size_norm or p_size_norm in norm_target_size))
 
         loc_stock = p.get("locationsStock")
         if isinstance(loc_stock, dict) and target_location:
@@ -179,6 +186,9 @@ def find_best_matching_product(user_prods, item_sku, raw_item_name, raw_item_siz
         score = 0
         if size_exact_match:
             score += 100
+        elif norm_target_size and p_size_norm and p_size_norm != "unico":
+            # Penalize non-matching specific size variants
+            score -= 50
         elif not norm_target_size or norm_target_size == "unico":
             score += 10
 
@@ -3890,10 +3900,12 @@ def sync_tiendanube_orders_route():
                     prod_data["cost"] = 0.0
                     prod_data["margin"] = 0.0
                 
-                # Parse variant size and color from variant_name
+                # Parse variant size and color from variant_name and item name
                 variant_name = str(item.get("variant_name") or "").strip()
-                size = "Único"
+                item_title = str(item.get("name") or "").strip()
+                size = ""
                 color = ""
+
                 if variant_name:
                     if "/" in variant_name:
                         parts = [p.strip() for p in variant_name.split("/")]
@@ -3901,16 +3913,20 @@ def sync_tiendanube_orders_route():
                             p_lower = p.lower()
                             if p_lower in ["s", "m", "l", "xl", "xxl", "xxxl", "3xl", "xs"] or any(t in p_lower for t in ["talle", "size", "talla"]):
                                 size = p
-                            elif p_lower.startswith("talle") or p.isdigit() or len(p) <= 2:
+                            elif p_lower.startswith("talle") or p.isdigit() or len(p) <= 3:
                                 size = p
                             else:
                                 color = p
                     else:
-                        vn_lower = variant_name.lower()
-                        if vn_lower in ["s", "m", "l", "xl", "xxl", "xxxl", "3xl", "xs"] or any(t in vn_lower for t in ["talle", "size", "talla"]) or variant_name.isdigit() or len(variant_name) <= 2:
-                            size = variant_name
-                        else:
-                            color = variant_name
+                        size = variant_name
+
+                if not size or size.lower() in ["único", "unico", "u", "none"]:
+                    _, ext_sz = clean_name_and_extract_size(item_title, "")
+                    if ext_sz:
+                        size = ext_sz
+
+                if not size:
+                    size = "Único"
                             
                 if color and not prod_data["color"]:
                     prod_data["color"] = color

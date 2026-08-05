@@ -13455,18 +13455,26 @@ function cleanNameAndExtractSize(rawName, rawSize) {
   let name = (rawName || "").trim();
   let size = (rawSize || "").trim();
 
+  let extractedFromName = "";
   if (name.includes("(") && name.endsWith(")")) {
-    const lastOpen = name.lastIndexOf("(");
+    const firstOpen = name.indexOf("(");
     const lastClose = name.lastIndexOf(")");
-    if (lastOpen !== -1 && lastClose > lastOpen) {
-      const extracted = name.substring(lastOpen + 1, lastClose).trim();
-      const lowerExt = extracted.toLowerCase();
-      if (!size || lowerExt === "único" || lowerExt === "unico" || lowerExt === "u" || lowerExt === "none") {
-        size = extracted;
+    if (firstOpen !== -1 && lastClose > firstOpen) {
+      const inside = name.substring(firstOpen + 1, lastClose).trim();
+      const insideLower = inside.toLowerCase();
+      if (insideLower.includes("talle") || ["xs", "s", "m", "l", "xl", "xxl", "xxxl", "1", "2", "3", "4", "5", "u"].some(s => insideLower.includes(s))) {
+        extractedFromName = inside;
+        name = name.substring(0, firstOpen).trim();
       }
-      name = name.substring(0, lastOpen).trim();
     }
   }
+
+  if (extractedFromName) {
+    if (!size || size.toLowerCase() === "único" || size.toLowerCase() === "unico" || size.toLowerCase() === "u" || size.toLowerCase() === "none") {
+      size = extractedFromName;
+    }
+  }
+
   return { cleanName: name, extractedSize: size };
 }
 
@@ -13496,13 +13504,13 @@ function findBestMatchingProductJS(productsList, itemSku, rawItemName, rawItemSi
       (itemSku && (pSku === itemSku.toLowerCase() || pId === itemSku.toLowerCase())) ||
       (itemBaseSku && pBase && itemBaseSku === pBase) ||
       (cleanName && pCleanName && (cleanName.toLowerCase().includes(pCleanName.toLowerCase()) || pCleanName.toLowerCase().includes(cleanName.toLowerCase()))) ||
-      (rawItemName && pName && rawItemName.toLowerCase().includes(pName.toLowerCase()))
+      (rawItemName && pName && (rawItemName.toLowerCase().includes(pName.toLowerCase()) || pName.toLowerCase().includes(rawItemName.toLowerCase())))
     );
 
     if (!nameMatch) return;
 
     const pSizeNorm = normalizeSizeKeyJS(p.size || pExtractedSize);
-    const sizeExactMatch = Boolean(normTargetSize && pSizeNorm && normTargetSize === pSizeNorm);
+    const sizeExactMatch = Boolean(normTargetSize && pSizeNorm && (normTargetSize === pSizeNorm || normTargetSize.includes(pSizeNorm) || pSizeNorm.includes(normTargetSize)));
 
     let avail = 0;
     if (p.locationsStock && typeof p.locationsStock === "object" && targetLocation) {
@@ -13518,6 +13526,7 @@ function findBestMatchingProductJS(productsList, itemSku, rawItemName, rawItemSi
 
     let score = 0;
     if (sizeExactMatch) score += 100;
+    else if (normTargetSize && pSizeNorm && pSizeNorm !== "unico") score -= 50;
     else if (!normTargetSize || normTargetSize === "unico") score += 10;
 
     if (avail > 0) score += 50;
