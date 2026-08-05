@@ -13431,10 +13431,6 @@ async function savePaymentMethod() {
   }
 }
 window.savePaymentMethod = savePaymentMethod;
-    showToast('Error: ' + e.message, true);
-  }
-}
-window.savePaymentMethod = savePaymentMethod;
 
 async function deletePaymentMethod(id) {
   if (!confirm('¿Seguro que querés eliminar este medio de pago?')) return;
