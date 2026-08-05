@@ -2607,7 +2607,7 @@
                 <thead>
                   <tr style="border-bottom: 1px solid var(--border-color);">
                     <th style="padding: 12px 8px; color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Nombre</th>
-                    <th style="padding: 12px 8px; color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Tipo</th>
+                    <th style="padding: 12px 8px; color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Descripción Breve</th>
                     <th style="padding: 12px 8px; color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Comisión %</th>
                     <th style="padding: 12px 8px; color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Retención %</th>
                     <th style="padding: 12px 8px; color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Ajuste</th>
@@ -2695,22 +2695,16 @@
       <input type="hidden" id="modal-pm-id">
       
       <div class="form-group" style="margin-bottom: 16px;">
-        <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Nombre</label>
-        <input type="text" id="modal-pm-name" class="form-input" placeholder="Ej: Mercado Pago, Efectivo...">
+        <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Nombre *</label>
+        <input type="text" id="modal-pm-name" class="form-input" placeholder="Ej: Contado, Mercado Pago, Transferencia Banco Galicia...">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Descripción Breve (Opcional)</label>
+        <input type="text" id="modal-pm-description" class="form-input" placeholder="Ej: Alias: mazo.mp / CBU: 0000... / 10% de recargo en 3 cuotas">
       </div>
       
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-        <div class="form-group" style="margin: 0;">
-          <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Tipo</label>
-          <select id="modal-pm-type" class="form-select">
-            <option value="Efectivo">Efectivo</option>
-            <option value="Débito">Débito</option>
-            <option value="Crédito">Crédito</option>
-            <option value="QR/Billetera">QR/Billetera</option>
-            <option value="Transferencia">Transferencia</option>
-          </select>
-        </div>
-        
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
         <div class="form-group" style="margin: 0;">
           <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Comisión %</label>
           <input type="number" id="modal-pm-comission" class="form-input" placeholder="0" min="0" step="0.01">

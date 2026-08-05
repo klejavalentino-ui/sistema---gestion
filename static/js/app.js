@@ -3420,43 +3420,59 @@ function openCheckoutModal() {
   if (pmContainer) {
     pmContainer.innerHTML = "";
     const defaultMethods = [
-      {name: "Efectivo", type: "Efectivo"}, 
-      {name: "Débito", type: "Débito"}, 
-      {name: "Crédito", type: "Crédito"}, 
-      {name: "Transferencia", type: "Transferencia"},
-      {name: "QR/Billetera", type: "QR/Billetera"}
+      {name: "Efectivo", description: "Pago contado en efectivo"}, 
+      {name: "Débito", description: "Tarjeta de débito"}, 
+      {name: "Crédito", description: "Tarjeta de crédito"}, 
+      {name: "Transferencia", description: "Transferencia bancaria / CBU"},
+      {name: "QR/Billetera", description: "Mercado Pago / Billeteras virtuales"}
     ];
     const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
     
     methods.forEach(pm => {
       const btn = document.createElement("button");
       btn.className = "btn btn-secondary";
-      btn.style.padding = "12px";
-      btn.style.fontSize = "0.85rem";
-      btn.style.justifyContent = "flex-start";
-      btn.style.textAlign = "left";
-      btn.style.width = "100%";
+      btn.style.cssText = "padding: 12px 14px; font-size: 0.85rem; width: 100%; display: flex; align-items: center; justify-content: space-between; text-align: left; border-radius: 10px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); cursor: pointer; transition: all 0.2s;";
       btn.onclick = () => confirmPayment(pm.name);
       
       let icon = "💳";
-      if (pm.type === "Efectivo") icon = "💵";
-      else if (pm.type === "Transferencia") icon = "📱";
-      else if (pm.type === "QR/Billetera") icon = "📲";
-      
-      btn.innerHTML = `<span style="font-size: 1.2rem; margin-right: 12px;">${icon}</span> <strong>${pm.name}</strong>`;
+      const nameLower = (pm.name || "").toLowerCase();
+      if (nameLower.includes("efectivo") || nameLower.includes("contado")) icon = "💵";
+      else if (nameLower.includes("débito") || nameLower.includes("debito")) icon = "💳";
+      else if (nameLower.includes("crédito") || nameLower.includes("credito")) icon = "💳";
+      else if (nameLower.includes("transfer")) icon = "🏦";
+      else if (nameLower.includes("qr") || nameLower.includes("mercado") || nameLower.includes("billetera")) icon = "📱";
+
+      btn.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.2rem;">${icon}</span>
+          <div>
+            <div style="font-weight: 800; color: var(--text-white); font-size: 0.9rem;">${pm.name}</div>
+            ${pm.description ? `<div style="font-size: 0.72rem; color: var(--text-gray); margin-top: 1px;">${pm.description}</div>` : ''}
+          </div>
+        </div>
+        ${(pm.adjustment && pm.adjustment !== 'Sin ajuste') ? `
+          <span style="font-size: 0.7rem; font-weight: bold; background: rgba(255,255,255,0.08); padding: 3px 6px; border-radius: 4px; color: var(--text-gray-light);">
+            ${pm.adjustment}
+          </span>
+        ` : ''}
+      `;
       pmContainer.appendChild(btn);
     });
     
-    // Añadir botón de Cobranzas siempre al final
+    // Añadir botón de Cobranzas al final
     const btnCobranza = document.createElement("button");
     btnCobranza.className = "btn btn-secondary";
-    btnCobranza.style.padding = "12px";
-    btnCobranza.style.fontSize = "0.85rem";
-    btnCobranza.style.justifyContent = "flex-start";
-    btnCobranza.style.textAlign = "left";
-    btnCobranza.style.width = "100%";
+    btnCobranza.style.cssText = "padding: 12px 14px; font-size: 0.85rem; width: 100%; display: flex; align-items: center; justify-content: space-between; text-align: left; border-radius: 10px; border: 1px solid rgba(229, 56, 59, 0.3); background: rgba(229, 56, 59, 0.05); cursor: pointer; margin-top: 4px;";
     btnCobranza.onclick = () => confirmPayment("Financiado");
-    btnCobranza.innerHTML = `<span style="font-size: 1.2rem; margin-right: 12px;">📉</span> <strong>Cobranzas</strong>`;
+    btnCobranza.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.2rem;">📉</span>
+        <div>
+          <div style="font-weight: 800; color: var(--accent-red); font-size: 0.9rem;">Cobranzas</div>
+          <div style="font-size: 0.72rem; color: var(--text-gray); margin-top: 1px;">Cuenta Corriente / Fiado</div>
+        </div>
+      </div>
+    `;
     pmContainer.appendChild(btnCobranza);
   }
 
@@ -13302,16 +13318,17 @@ function toggleTheme() {
 window.toggleTheme = toggleTheme;
 
 // --- MEDIOS DE PAGO ---
+// --- MEDIOS DE PAGO ---
 function renderPaymentMethods() {
   const tbody = document.getElementById('payment-methods-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
   const defaultMethods = [
-    {id: "pm_1", name: "Efectivo", type: "Efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_2", name: "Débito", type: "Débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_3", name: "Crédito", type: "Crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_4", name: "Transferencia", type: "Transferencia", comission: "0", retention: "0", adjustment: "Sin ajuste"},
-    {id: "pm_5", name: "QR/Billetera", type: "QR/Billetera", comission: "0", retention: "0", adjustment: "Sin ajuste"}
+    {id: "pm_1", name: "Efectivo", description: "Pago contado en efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_2", name: "Débito", description: "Tarjeta de débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_3", name: "Crédito", description: "Tarjeta de crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_4", name: "Transferencia", description: "Transferencia bancaria / CBU", comission: "0", retention: "0", adjustment: "Sin ajuste"},
+    {id: "pm_5", name: "QR/Billetera", description: "Mercado Pago / Billeteras virtuales", comission: "0", retention: "0", adjustment: "Sin ajuste"}
   ];
   const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
   
@@ -13325,7 +13342,7 @@ function renderPaymentMethods() {
     tr.style.borderBottom = '1px solid var(--border-color)';
     tr.innerHTML = `
       <td style="padding: 12px 8px; color: var(--text-white); font-weight: 500;">${pm.name}</td>
-      <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.type}</td>
+      <td style="padding: 12px 8px; color: var(--text-gray-light); font-size: 0.8rem;">${pm.description || '---'}</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.comission || '0'}%</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.retention || '0'}%</td>
       <td style="padding: 12px 8px; color: var(--text-gray-light);">${pm.adjustment || 'Sin ajuste'}</td>
@@ -13341,18 +13358,19 @@ window.renderPaymentMethods = renderPaymentMethods;
 
 function openPaymentMethodModal(id = null) {
   const defaultMethods = [
-    {id: "pm_1", name: "Efectivo", type: "Efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_2", name: "Débito", type: "Débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_3", name: "Crédito", type: "Crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_4", name: "Transferencia", type: "Transferencia", comission: "0", retention: "0", adjustment: "Sin ajuste"},
-    {id: "pm_5", name: "QR/Billetera", type: "QR/Billetera", comission: "0", retention: "0", adjustment: "Sin ajuste"}
+    {id: "pm_1", name: "Efectivo", description: "Pago contado en efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_2", name: "Débito", description: "Tarjeta de débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_3", name: "Crédito", description: "Tarjeta de crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_4", name: "Transferencia", description: "Transferencia bancaria / CBU", comission: "0", retention: "0", adjustment: "Sin ajuste"},
+    {id: "pm_5", name: "QR/Billetera", description: "Mercado Pago / Billeteras virtuales", comission: "0", retention: "0", adjustment: "Sin ajuste"}
   ];
   const methods = state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods;
   const pm = id ? methods.find(p => p.id === id) : null;
   
   document.getElementById('modal-pm-id').value = pm ? pm.id : '';
   document.getElementById('modal-pm-name').value = pm ? pm.name : '';
-  document.getElementById('modal-pm-type').value = pm ? pm.type : 'Efectivo';
+  const descEl = document.getElementById('modal-pm-description');
+  if (descEl) descEl.value = pm ? (pm.description || '') : '';
   document.getElementById('modal-pm-comission').value = pm ? (pm.comission || '0') : '0';
   document.getElementById('modal-pm-retention').value = pm ? (pm.retention || '0') : '0';
   document.getElementById('modal-pm-adjustment').value = pm ? (pm.adjustment || 'Sin ajuste') : 'Sin ajuste';
@@ -13370,7 +13388,8 @@ window.closePaymentMethodModal = closePaymentMethodModal;
 async function savePaymentMethod() {
   const id = document.getElementById('modal-pm-id').value;
   const name = document.getElementById('modal-pm-name').value;
-  const type = document.getElementById('modal-pm-type').value;
+  const descEl = document.getElementById('modal-pm-description');
+  const description = descEl ? descEl.value.trim() : '';
   const comission = document.getElementById('modal-pm-comission').value || '0';
   const retention = document.getElementById('modal-pm-retention').value || '0';
   const adjustment = document.getElementById('modal-pm-adjustment').value;
@@ -13381,23 +13400,23 @@ async function savePaymentMethod() {
   }
   
   const defaultMethods = [
-    {id: "pm_1", name: "Efectivo", type: "Efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_2", name: "Débito", type: "Débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_3", name: "Crédito", type: "Crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
-    {id: "pm_4", name: "Transferencia", type: "Transferencia", comission: "0", retention: "0", adjustment: "Sin ajuste"},
-    {id: "pm_5", name: "QR/Billetera", type: "QR/Billetera", comission: "0", retention: "0", adjustment: "Sin ajuste"}
+    {id: "pm_1", name: "Efectivo", description: "Pago contado en efectivo", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_2", name: "Débito", description: "Tarjeta de débito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_3", name: "Crédito", description: "Tarjeta de crédito", comission: "0", retention: "0", adjustment: "Sin ajuste"}, 
+    {id: "pm_4", name: "Transferencia", description: "Transferencia bancaria / CBU", comission: "0", retention: "0", adjustment: "Sin ajuste"},
+    {id: "pm_5", name: "QR/Billetera", description: "Mercado Pago / Billeteras virtuales", comission: "0", retention: "0", adjustment: "Sin ajuste"}
   ];
   let methods = [...(state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0 ? state.userProfile.paymentMethods : defaultMethods)];
   
   if (id) {
     const idx = methods.findIndex(p => p.id === id);
     if (idx !== -1) {
-      methods[idx] = { id, name, type, comission, retention, adjustment };
+      methods[idx] = { id, name, description, comission, retention, adjustment };
     }
   } else {
     methods.push({
       id: 'pm_' + Date.now(),
-      name, type, comission, retention, adjustment
+      name, description, comission, retention, adjustment
     });
   }
   
@@ -13408,6 +13427,10 @@ async function savePaymentMethod() {
     closePaymentMethodModal();
     showToast('Medio de pago guardado correctamente');
   } catch (e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+window.savePaymentMethod = savePaymentMethod;
     showToast('Error: ' + e.message, true);
   }
 }
