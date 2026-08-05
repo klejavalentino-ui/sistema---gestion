@@ -2465,10 +2465,13 @@ function renderPanelStockCritico() {
   
   const salesByProduct = {};
   recentSales.forEach(sale => {
-    if (sale.items) {
+    if (sale && sale.items && Array.isArray(sale.items)) {
       sale.items.forEach(item => {
-        const pSku = item.product.sku;
-        salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        if (!item) return;
+        const pSku = item.product?.sku || item.sku || item.product?.id || item.id || "";
+        if (pSku) {
+          salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        }
       });
     }
   });
@@ -2603,10 +2606,13 @@ function exportPanelToExcel() {
   const recentSales = state.sales.filter(s => new Date(s.date) >= thirtyDaysAgo);
   const salesByProduct = {};
   recentSales.forEach(sale => {
-    if (sale.items) {
+    if (sale && sale.items && Array.isArray(sale.items)) {
       sale.items.forEach(item => {
-        const pSku = item.product.sku;
-        salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        if (!item) return;
+        const pSku = item.product?.sku || item.sku || item.product?.id || item.id || "";
+        if (pSku) {
+          salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+        }
       });
     }
   });
@@ -4099,7 +4105,7 @@ function openSalesHistoryModal() {
     const sortedSales = [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date));
     
     sortedSales.forEach(sale => {
-      const itemsText = sale.items ? sale.items.map(item => `${item.quantity} un x ${item.product.name} (${item.size})`).join("<br>") : "";
+      const itemsText = sale.items ? sale.items.map(item => `${item.quantity || 1} un x ${item.product?.name || item.name || 'Producto'} (${item.size || 'Único'})`).join("<br>") : "";
       const dateStr = new Date(sale.date).toLocaleDateString('es-AR') + " " + new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       
       let extrasText = "";
@@ -9878,10 +9884,13 @@ function updateNotifications() {
     
     const salesByProduct = {};
     recentSales.forEach(sale => {
-      if (sale.items) {
+      if (sale && sale.items && Array.isArray(sale.items)) {
         sale.items.forEach(item => {
-          const pSku = item.product.sku;
-          salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+          if (!item) return;
+          const pSku = item.product?.sku || item.sku || item.product?.id || item.id || "";
+          if (pSku) {
+            salesByProduct[pSku] = (salesByProduct[pSku] || 0) + (parseInt(item.quantity) || 0);
+          }
         });
       }
     });
