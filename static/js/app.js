@@ -3949,17 +3949,17 @@ function getInvoiceTicketInnerHTML(sale) {
 
   if (!isFiscal) {
     return `
-      <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; text-align: left;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; text-align: left;">
         ${state.userProfile?.logoBase64 ? `
-          <div style="margin-right: 15px; margin-top: 5px; flex-shrink: 0;">
-            <img src="${state.userProfile.logoBase64}" style="max-height: 55px; max-width: 85px; object-fit: contain;">
+          <div style="margin-right: 20px; flex-shrink: 0;">
+            <img src="${state.userProfile.logoBase64}" style="max-height: 60px; max-width: 100px; object-fit: contain;">
           </div>
         ` : ''}
-        <div style="flex-grow: 1; text-align: ${state.userProfile?.logoBase64 ? 'right' : 'center'};">
-          <div style="font-size: 9px; border: 1px solid #000; padding: 2px 4px; display: inline-block; font-weight: bold; margin-bottom: 4px;">DOCUMENTO NO VALIDO COMO FACTURA</div>
-          <h2 style="margin: 2px 0; font-size: 14px; text-transform: uppercase;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
-          <p style="margin: 2px 0; font-size: 9px;">Fecha: ${dateStr} - ${timeStr}</p>
-          <p style="margin: 2px 0; font-size: 9px; font-family: monospace;">TICKET N°: ${sale.id}</p>
+        <div style="flex-grow: 1; line-height: 1.4; text-align: ${state.userProfile?.logoBase64 ? 'left' : 'center'};">
+          <div style="font-size: 8px; border: 1px solid #000; padding: 2px 4px; display: inline-block; font-weight: bold; margin-bottom: 4px;">DOCUMENTO NO VALIDO COMO FACTURA</div>
+          <h2 style="margin: 0 0 2px 0; font-size: 14px; text-transform: uppercase; font-weight: bold;">${state.businessName || (state.businessType === "textil" ? "MAZO TEXTIL" : "MAZO COMERCIO")}</h2>
+          <p style="margin: 1px 0; font-size: 9px;">Fecha: ${dateStr} - ${timeStr}</p>
+          <p style="margin: 1px 0; font-size: 9px; font-family: monospace; font-weight: bold;">TICKET N°: ${sale.id}</p>
         </div>
       </div>
       <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
@@ -4066,24 +4066,26 @@ function getInvoiceTicketInnerHTML(sale) {
     }
 
     return `
-      <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
         ${state.userProfile?.logoBase64 ? `
-          <div style="margin-right: 15px; margin-top: 5px; flex-shrink: 0;">
+          <div style="width: 85px; flex-shrink: 0; text-align: left; display: flex; align-items: center; justify-content: flex-start;">
             <img src="${state.userProfile.logoBase64}" style="max-height: 55px; max-width: 85px; object-fit: contain;">
           </div>
-        ` : ''}
-        <div style="flex-grow: 1; text-align: ${state.userProfile?.logoBase64 ? 'right' : 'center'}; font-size: 10px;">
-          <div style="border: 1px solid #000; padding: 2px; text-align: center; margin: ${state.userProfile?.logoBase64 ? '0 0 5px auto' : '0 auto 5px'}; width: 45px; font-size: 10px;">
-            <p style="font-size: 18px; font-weight: bold; margin: 0; line-height: 1;">${voucherLetter}</p>
-            <p style="font-size: 8px; margin: 0;">COD. ${voucherCode}</p>
-          </div>
-          <h2 style="margin: 2px 0; font-size: 13px; font-weight: bold; text-transform: uppercase;">${tradeName}</h2>
+        ` : `<div style="width: 45px; flex-shrink: 0;"></div>`}
+        <div style="flex-grow: 1; text-align: center; font-size: 10px; padding: 0 5px; line-height: 1.35;">
+          <h2 style="margin: 0 0 3px 0; font-size: 14px; font-weight: bold; text-transform: uppercase;">${tradeName}</h2>
           <p style="margin: 1px 0; font-size: 9px; font-weight: bold;">Razón Social: ${businessName}</p>
           <p style="margin: 1px 0; font-size: 9px;">${addressStr}</p>
           <p style="margin: 1px 0; font-size: 9px;">CUIT: ${cuit}</p>
           <p style="margin: 1px 0; font-size: 9px;">IIBB: ${iibb}</p>
           <p style="margin: 1px 0; font-size: 9px;">Inicio Actividades: ${incioAct}</p>
           <p style="margin: 1px 0; font-size: 9px; font-weight: bold;">${condicionEmisor}</p>
+        </div>
+        <div style="width: ${state.userProfile?.logoBase64 ? '85px' : '45px'}; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end;">
+          <div style="border: 1px solid #000; padding: 2px; text-align: center; width: 45px; font-size: 10px; box-sizing: border-box;">
+            <p style="font-size: 18px; font-weight: bold; margin: 0; line-height: 1;">${voucherLetter}</p>
+            <p style="font-size: 8px; margin: 0;">COD. ${voucherCode}</p>
+          </div>
         </div>
       </div>
       <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
