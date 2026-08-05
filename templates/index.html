@@ -2725,6 +2725,35 @@
         <button class="btn btn-secondary" onclick="closePaymentMethodModal()">Cancelar</button>
         <button class="btn btn-primary" onclick="savePaymentMethod()">Guardar</button>
       </div>
+  </div>
+
+  <!-- MODAL SELECCION MEDIO DE PAGO FACTURA C TALLER -->
+  <div id="modal-taller-factura-method" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 10000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
+    <div class="modal-card" style="width: 100%; max-width: 440px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0; color: var(--text-white); font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+          🧾 Condición de Venta / Medio de Pago
+        </h3>
+        <button style="background: none; border: none; color: var(--text-gray); font-size: 1.5rem; cursor: pointer;" onclick="closeTallerFacturaMethodModal()">×</button>
+      </div>
+      
+      <p style="font-size: 0.8rem; color: var(--text-gray); margin-bottom: 16px; line-height: 1.4;">
+        Seleccioná el medio de pago que figurará como <strong>Condición de venta</strong> en la Factura C de ARCA.
+      </p>
+
+      <input type="hidden" id="taller-factura-order-id">
+      
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label class="form-label" style="color: var(--text-gray); font-size: 0.75rem; text-transform: uppercase;">Medio de Pago *</label>
+        <select id="taller-factura-payment-method-select" class="form-select" style="width: 100%; font-size: 0.9rem; padding: 8px 12px;">
+          <!-- Cargado dinámicamente según Configuración de Medios de Pago -->
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button" class="btn btn-secondary" onclick="closeTallerFacturaMethodModal()">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="confirmEmitTallerFacturaC()">Emitir Factura C</button>
+      </div>
     </div>
   </div>
 

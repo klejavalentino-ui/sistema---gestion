@@ -3868,14 +3868,16 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
       <tbody>
         ${(sale.items || []).map(it => {
           const skuStr = it.product?.sku || it.sku || "PROD";
-          const nameStr = it.product?.name || it.name || "Producto";
+          const rawName = it.product?.name || it.name || "Producto";
+          const nameStr = cleanFacturaItemName(rawName);
           const qty = it.quantity || it.qty || 1;
           const price = it.price || (it.product ? it.product.price_local : 0);
           const subtotalItem = price * qty;
+          const sizeStr = (it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") ? ` (Talle ${it.size})` : "";
           return `
             <tr style="border-bottom: 1px solid #e2e8f0;">
               <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">${skuStr}</td>
-              <td style="border-right: 1px solid #000; padding: 6px 8px;">${nameStr} ${it.size ? `(Talle ${it.size})` : ''}</td>
+              <td style="border-right: 1px solid #000; padding: 6px 8px;">${nameStr}${sizeStr}</td>
               <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">${qty.toFixed(2)}</td>
               <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
               <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">${price.toFixed(2)}</td>
@@ -16149,7 +16151,7 @@ function renderServicesUI() {
           <div style="display: flex; gap: 6px; justify-content: center;">
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-blue); font-size: 1rem;" onclick="openServiceOrderModal('${o.id}')" title="Ver / Editar Orden">✏️</button>
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-purple); font-size: 1rem;" onclick="downloadServiceOrderPDF('${o.id}')" title="Imprimir Remito PDF">📄</button>
-            <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-blue); font-size: 1rem;" onclick="emitServiceOrderFacturaC('${o.id}')" title="Emitir / Descargar Factura C A4">🧾</button>
+            <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-blue); font-size: 1rem;" onclick="openTallerFacturaMethodModal('${o.id}')" title="Emitir / Descargar Factura C A4">🧾</button>
             ${(o.balance > 0 && o.status !== "Cobrado") ? `<button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-emerald); font-size: 1rem;" onclick="chargeServiceOrderToCash('${o.id}')" title="Cobrar Saldo en Caja">💰</button>` : ''}
             <button class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--accent-red); font-size: 1rem;" onclick="deleteServiceOrder('${o.id}')" title="Eliminar Orden">🗑️</button>
           </div>
@@ -16821,7 +16823,62 @@ async function deleteServiceOrder(orderId) {
   }
 }
 
-async function emitServiceOrderFacturaC(orderId) {
+function cleanFacturaItemName(nameStr) {
+  if (!nameStr) return "";
+  let clean = String(nameStr).trim();
+  clean = clean.replace(/\[[^\]]*\]/g, "").trim();
+  clean = clean.replace(/\s*\([Oo]rden\s*[^)]*\)/g, "").trim();
+  return clean;
+}
+window.cleanFacturaItemName = cleanFacturaItemName;
+
+function openTallerFacturaMethodModal(orderId) {
+  const order = (state.serviceOrders || []).find(o => o.id === orderId);
+  if (!order) return;
+
+  const modal = document.getElementById("modal-taller-factura-method");
+  const select = document.getElementById("taller-factura-payment-method-select");
+  if (!modal || !select) {
+    emitServiceOrderFacturaC(orderId);
+    return;
+  }
+
+  document.getElementById("taller-factura-order-id").value = orderId;
+
+  const defaultMethods = [
+    { name: "Efectivo", active: true },
+    { name: "Transferencia", active: true },
+    { name: "Tarjeta de Débito", active: true },
+    { name: "Tarjeta de Crédito", active: true },
+    { name: "Mercado Pago", active: true }
+  ];
+  const methodsList = (state.userProfile?.paymentMethods && state.userProfile.paymentMethods.length > 0)
+    ? state.userProfile.paymentMethods
+    : defaultMethods;
+  const activeMethods = methodsList.filter(m => m.active !== false).map(m => m.name);
+
+  select.innerHTML = activeMethods.map(m => `<option value="${m}">${m}</option>`).join("");
+  modal.style.display = "flex";
+}
+window.openTallerFacturaMethodModal = openTallerFacturaMethodModal;
+
+function closeTallerFacturaMethodModal() {
+  const modal = document.getElementById("modal-taller-factura-method");
+  if (modal) modal.style.display = "none";
+}
+window.closeTallerFacturaMethodModal = closeTallerFacturaMethodModal;
+
+async function confirmEmitTallerFacturaC() {
+  const orderId = document.getElementById("taller-factura-order-id")?.value;
+  const selectedMethod = document.getElementById("taller-factura-payment-method-select")?.value || "Efectivo";
+  closeTallerFacturaMethodModal();
+  if (orderId) {
+    await emitServiceOrderFacturaC(orderId, selectedMethod);
+  }
+}
+window.confirmEmitTallerFacturaC = confirmEmitTallerFacturaC;
+
+async function emitServiceOrderFacturaC(orderId, selectedMethod = "Efectivo") {
   const order = (state.serviceOrders || []).find(o => o.id === orderId);
   if (!order) return;
 
@@ -16844,7 +16901,7 @@ async function emitServiceOrderFacturaC(orderId) {
       client_address: clientAddress,
       items: (order.items || []).map(it => ({
         sku: `SERV-${order.id}`,
-        name: `[Taller] ${it.name} (Orden ${order.id})`,
+        name: cleanFacturaItemName(it.name),
         price: it.price,
         qty: it.qty,
         subtotal: it.subtotal
@@ -16852,7 +16909,7 @@ async function emitServiceOrderFacturaC(orderId) {
       subtotal: chargeAmount,
       discount: 0,
       total: chargeAmount,
-      method: "Efectivo",
+      method: selectedMethod,
       date: new Date().toISOString()
     };
     try {
@@ -16869,6 +16926,12 @@ async function emitServiceOrderFacturaC(orderId) {
     targetSale.client_cuit = clientCuit;
     targetSale.client_condicion_iva = clientCondicionIva;
     targetSale.client_address = clientAddress;
+    targetSale.method = selectedMethod;
+    if (targetSale.items) {
+      targetSale.items.forEach(it => {
+        it.name = cleanFacturaItemName(it.name);
+      });
+    }
   }
 
   try {
@@ -16889,7 +16952,7 @@ window.emitServiceOrderFacturaC = emitServiceOrderFacturaC;
 
 function emitServiceOrderFacturaCFromModal() {
   const orderId = document.getElementById("service-order-id").value;
-  if (orderId) emitServiceOrderFacturaC(orderId);
+  if (orderId) openTallerFacturaMethodModal(orderId);
 }
 window.emitServiceOrderFacturaCFromModal = emitServiceOrderFacturaCFromModal;
 
@@ -16915,7 +16978,7 @@ async function chargeServiceOrderToCash(orderId) {
       client_address: clientAddress,
       items: (order.items || []).map(it => ({
         sku: `SERV-${order.id}`,
-        name: `[Taller] ${it.name} (Orden ${order.id})`,
+        name: cleanFacturaItemName(it.name),
         price: it.price,
         qty: it.qty,
         subtotal: it.subtotal
@@ -16945,7 +17008,7 @@ async function chargeServiceOrderToCash(orderId) {
       renderServicesUI();
 
       if (confirm(`¿Deseas emitir y descargar la Factura C A4 para el cliente ${clientName}?`)) {
-        await emitServiceOrderFacturaC(order.id);
+        openTallerFacturaMethodModal(order.id);
       }
     } catch (e) {
       showToast("Error al registrar cobro: " + e.message, true);
