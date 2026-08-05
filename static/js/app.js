@@ -125,7 +125,7 @@ function getVariantStockForLocation(p, locationName) {
 }
 window.getVariantStockForLocation = getVariantStockForLocation;
 
-function getConfiguredSizes(category = null) {
+function getConfiguredSizes(category = null, productKey = null) {
   const isTextil = state.businessType === "textil" || (state.userProfile?.businessModel === "Indumentaria");
   if (!isTextil) {
     return ["Único"];
@@ -141,6 +141,14 @@ function getConfiguredSizes(category = null) {
     }
     return ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Único"];
   })();
+
+  if (productKey) {
+    const prodSizesMap = state.userProfile?.productSizes || {};
+    const matchedPKey = Object.keys(prodSizesMap).find(k => k.toLowerCase().trim() === String(productKey).toLowerCase().trim());
+    if (matchedPKey && Array.isArray(prodSizesMap[matchedPKey]) && prodSizesMap[matchedPKey].length > 0) {
+      return prodSizesMap[matchedPKey].map(s => String(s).trim()).filter(Boolean);
+    }
+  }
 
   if (category) {
     const catSizesMap = state.userProfile?.categorySizes || {};
@@ -5653,6 +5661,12 @@ function openEditProductModal(sku) {
     state.tempActiveProductSizes = getConfiguredSizes(p.category);
   }
   renderProductModalSizesSelector(p.category);
+
+  // Requirement 1: Hide Talles Habilitados selector when editing existing product from Inventario actions column
+  const sizesSelectorContainer = document.getElementById("product-modal-sizes-selector-container");
+  if (sizesSelectorContainer) {
+    sizesSelectorContainer.style.display = "none";
+  }
 
   // Populate product category BEFORE rendering so categorySizes are resolved correctly
   populateProductFormCategories(p.category);
@@ -12276,17 +12290,27 @@ function renderCategorySizePills() {
   const fullsizeList = document.getElementById("business-settings-fullsize-cats-list");
   if (!fullsizeList) return;
 
-  // Preserve toggled state while redrawing
-  const currentSelections = {};
+  // Preserve toggled category selections while redrawing
+  const currentCategorySelections = {};
   const pillContainers = document.querySelectorAll(".category-size-pills-container");
   pillContainers.forEach(container => {
     const cat = container.dataset.category;
     const activePills = container.querySelectorAll(".size-pill-btn.active");
-    currentSelections[cat] = Array.from(activePills).map(pill => pill.dataset.size);
+    currentCategorySelections[cat] = Array.from(activePills).map(pill => pill.dataset.size);
+  });
+
+  // Preserve toggled product selections while redrawing
+  const currentProductSelections = {};
+  const prodPillContainers = document.querySelectorAll(".product-size-pills-container");
+  prodPillContainers.forEach(container => {
+    const pKey = container.dataset.productKey;
+    const activePills = container.querySelectorAll(".size-pill-btn.active");
+    currentProductSelections[pKey] = Array.from(activePills).map(pill => pill.dataset.size);
   });
 
   fullsizeList.innerHTML = "";
-  const savedCategorySizes = state.userProfile.categorySizes || {};
+  const savedCategorySizes = state.userProfile?.categorySizes || {};
+  const savedProductSizes = state.userProfile?.productSizes || {};
   const allCats = state.categories || [];
   
   // Read size variants directly from the input field
@@ -12300,65 +12324,160 @@ function renderCategorySizePills() {
 
   if (allCats.length === 0) {
     fullsizeList.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-gray);">No hay categorías creadas aún.</span>';
-  } else {
-    allCats.forEach(cat => {
-      let activeSizes = [];
-      if (currentSelections[cat] !== undefined) {
-        activeSizes = currentSelections[cat];
+    return;
+  }
+
+  allCats.forEach(cat => {
+    let activeCatSizes = [];
+    if (currentCategorySelections[cat] !== undefined) {
+      activeCatSizes = currentCategorySelections[cat];
+    } else {
+      const matchedKey = Object.keys(savedCategorySizes).find(k => k.toLowerCase().trim() === cat.toLowerCase().trim());
+      if (matchedKey && Array.isArray(savedCategorySizes[matchedKey])) {
+        activeCatSizes = savedCategorySizes[matchedKey];
       } else {
-        const matchedKey = Object.keys(savedCategorySizes).find(k => k.toLowerCase().trim() === cat.toLowerCase().trim());
-        if (matchedKey && Array.isArray(savedCategorySizes[matchedKey])) {
-          activeSizes = savedCategorySizes[matchedKey];
+        const cLower = cat.toLowerCase();
+        if (cLower.includes("gorro") || cLower.includes("gorra") || cLower.includes("sombrero") || cLower.includes("accesorio") || cLower.includes("bolso") || cLower.includes("mochila") || cLower.includes("bazar") || cLower.includes("cartera")) {
+          activeCatSizes = ["Único"];
         } else {
-          // Default heuristic filters
-          const cLower = cat.toLowerCase();
-          if (cLower.includes("gorro") || cLower.includes("gorra") || cLower.includes("sombrero") || cLower.includes("accesorio") || cLower.includes("bolso") || cLower.includes("mochila") || cLower.includes("bazar") || cLower.includes("cartera")) {
-            activeSizes = ["Único"];
-          } else {
-            activeSizes = globalSizes.slice();
-          }
+          activeCatSizes = globalSizes.slice();
         }
       }
+    }
 
-      const row = document.createElement("div");
-      row.style.cssText = "display: flex; flex-direction: column; gap: 8px; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.03);";
+    const catCard = document.createElement("div");
+    catCard.style.cssText = "display: flex; flex-direction: column; gap: 10px; padding: 14px 12px; background: rgba(255,255,255,0.015); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px;";
+    
+    // Category Header & Category Pills
+    const titleDiv = document.createElement("div");
+    titleDiv.style.cssText = "font-size: 0.9rem; font-weight: 800; color: var(--text-white); display: flex; align-items: center; justify-content: space-between;";
+    titleDiv.innerHTML = `<span>📁 ${cat}</span><span style="font-size: 0.7rem; font-weight: normal; color: var(--text-gray);">Talles por Categoría</span>`;
+    catCard.appendChild(titleDiv);
+
+    const catPillsDiv = document.createElement("div");
+    catPillsDiv.className = "category-size-pills-container";
+    catPillsDiv.dataset.category = cat;
+    catPillsDiv.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px;";
+
+    globalSizes.forEach(sz => {
+      const isActive = activeCatSizes.some(s => s.toLowerCase().trim() === sz.toLowerCase().trim());
+      const badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = `size-pill-btn ${isActive ? 'active' : ''}`;
+      badge.dataset.size = sz;
       
-      const titleDiv = document.createElement("div");
-      titleDiv.style.cssText = "font-size: 0.85rem; font-weight: bold; color: var(--text-white); margin-bottom: 4px;";
-      titleDiv.innerText = cat;
-      row.appendChild(titleDiv);
+      const activeStyle = "background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.4);";
+      const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color);";
+      
+      badge.style.cssText = "padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (isActive ? activeStyle : inactiveStyle);
+      badge.innerText = sz;
 
-      const pillsDiv = document.createElement("div");
-      pillsDiv.className = "category-size-pills-container";
-      pillsDiv.dataset.category = cat;
-      pillsDiv.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px;";
+      badge.onclick = () => {
+        badge.classList.toggle("active");
+        const nowActive = badge.classList.contains("active");
+        badge.style.cssText = "padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (nowActive ? activeStyle : inactiveStyle);
+      };
 
-      globalSizes.forEach(sz => {
-        const isActive = activeSizes.some(s => s.toLowerCase().trim() === sz.toLowerCase().trim());
-        const badge = document.createElement("button");
-        badge.type = "button";
-        badge.className = `size-pill-btn ${isActive ? 'active' : ''}`;
-        badge.dataset.size = sz;
-        
-        const activeStyle = "background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.4);";
-        const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color);";
-        
-        badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (isActive ? activeStyle : inactiveStyle);
-        badge.innerText = sz;
+      catPillsDiv.appendChild(badge);
+    });
 
-        badge.onclick = () => {
-          badge.classList.toggle("active");
-          const nowActive = badge.classList.contains("active");
-          badge.style.cssText = "padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (nowActive ? activeStyle : inactiveStyle);
-        };
+    catCard.appendChild(catPillsDiv);
 
-        pillsDiv.appendChild(badge);
+    // Products under this Category
+    const catProductsMap = new Map();
+    (state.products || []).forEach(p => {
+      if (!p) return;
+      const s = p.sku || p.id || "";
+      if (s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
+        return;
+      }
+      const pCat = (p.category || "").trim();
+      if (pCat.toLowerCase() === cat.toLowerCase()) {
+        const gKey = getProductGroupKey(p);
+        if (!catProductsMap.has(gKey)) {
+          catProductsMap.set(gKey, {
+            groupKey: gKey,
+            name: getProductNameWithColor(p) || p.name || "Producto",
+            variants: [p]
+          });
+        } else {
+          catProductsMap.get(gKey).variants.push(p);
+        }
+      }
+    });
+    const catProducts = Array.from(catProductsMap.values());
+
+    if (catProducts.length > 0) {
+      const prodSubHeader = document.createElement("div");
+      prodSubHeader.style.cssText = "font-size: 0.75rem; font-weight: 700; color: var(--accent-blue); margin-top: 6px; margin-bottom: 2px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.06);";
+      prodSubHeader.innerText = "ESPECIFICAR TALLES POR PRODUCTO:";
+      catCard.appendChild(prodSubHeader);
+
+      const prodsListDiv = document.createElement("div");
+      prodsListDiv.style.cssText = "display: flex; flex-direction: column; gap: 8px; margin-left: 10px;";
+
+      catProducts.forEach(prodItem => {
+        let activeProdSizes = [];
+        if (currentProductSelections[prodItem.groupKey] !== undefined) {
+          activeProdSizes = currentProductSelections[prodItem.groupKey];
+        } else {
+          const matchedPKey = Object.keys(savedProductSizes).find(k => k.toLowerCase().trim() === prodItem.groupKey.toLowerCase().trim());
+          if (matchedPKey && Array.isArray(savedProductSizes[matchedPKey]) && savedProductSizes[matchedPKey].length > 0) {
+            activeProdSizes = savedProductSizes[matchedPKey];
+          } else {
+            const existingSizes = prodItem.variants.map(v => v.size).filter(Boolean);
+            if (existingSizes.length > 0) {
+              activeProdSizes = existingSizes;
+            } else {
+              activeProdSizes = activeCatSizes.slice();
+            }
+          }
+        }
+
+        const prodRow = document.createElement("div");
+        prodRow.style.cssText = "display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.04); border-radius: 8px;";
+
+        const pNameDiv = document.createElement("div");
+        pNameDiv.style.cssText = "font-size: 0.8rem; font-weight: 700; color: var(--text-white);";
+        pNameDiv.innerText = `👕 ${prodItem.name}`;
+        prodRow.appendChild(pNameDiv);
+
+        const prodPillsDiv = document.createElement("div");
+        prodPillsDiv.className = "product-size-pills-container";
+        prodPillsDiv.dataset.productKey = prodItem.groupKey;
+        prodPillsDiv.style.cssText = "display: flex; flex-wrap: wrap; gap: 4px;";
+
+        globalSizes.forEach(sz => {
+          const isActive = activeProdSizes.some(s => s.toLowerCase().trim() === sz.toLowerCase().trim());
+          const badge = document.createElement("button");
+          badge.type = "button";
+          badge.className = `size-pill-btn ${isActive ? 'active' : ''}`;
+          badge.dataset.size = sz;
+
+          const activeStyle = "background: rgba(16,185,129,0.18); color: #34d399; border: 1px solid rgba(16,185,129,0.5);";
+          const inactiveStyle = "background: rgba(255,255,255,0.02); color: var(--text-gray); border: 1px solid var(--border-color);";
+
+          badge.style.cssText = "padding: 3px 8px; border-radius: 5px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (isActive ? activeStyle : inactiveStyle);
+          badge.innerText = sz;
+
+          badge.onclick = () => {
+            badge.classList.toggle("active");
+            const nowActive = badge.classList.contains("active");
+            badge.style.cssText = "padding: 3px 8px; border-radius: 5px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none; " + (nowActive ? activeStyle : inactiveStyle);
+          };
+
+          prodPillsDiv.appendChild(badge);
+        });
+
+        prodRow.appendChild(prodPillsDiv);
+        prodsListDiv.appendChild(prodRow);
       });
 
-      row.appendChild(pillsDiv);
-      fullsizeList.appendChild(row);
-    });
-  }
+      catCard.appendChild(prodsListDiv);
+    }
+
+    fullsizeList.appendChild(catCard);
+  });
 }
 window.renderCategorySizePills = renderCategorySizePills;
 
@@ -12508,6 +12627,15 @@ async function saveBusinessSettings() {
       categorySizes[cat] = sizes;
     });
 
+    const productSizes = {};
+    const prodPillContainers = document.querySelectorAll(".product-size-pills-container");
+    prodPillContainers.forEach(container => {
+      const pKey = container.dataset.productKey;
+      const activePills = container.querySelectorAll(".size-pill-btn.active");
+      const sizes = Array.from(activePills).map(pill => pill.dataset.size);
+      productSizes[pKey] = sizes;
+    });
+
     const data = {
       businessName: name,
       businessModel: model,
@@ -12518,6 +12646,7 @@ async function saveBusinessSettings() {
                       ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 
                       : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
       categorySizes: categorySizes,
+      productSizes: productSizes,
       bizCheckboxes: {}
     };
 
