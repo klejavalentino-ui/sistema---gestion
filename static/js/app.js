@@ -2066,16 +2066,19 @@ function renderPanel() {
   
   const now = new Date();
 
-  // Canal de venta configurado para Taller (predeterminado: Personalizado)
-  let tallerChannelConfig = "Personalizado";
-
   // Consolidar ventas registradas + órdenes de taller en estado "Cobrado" que no tengan venta duplicada
   const combinedSales = [...(state.sales || [])];
   
+  let tallerChannelConfig = state.tallerSalesChannel || "Personalizado";
+
   (state.serviceOrders || []).forEach(o => {
     if (o.status === "Cobrado") {
-      const exists = combinedSales.some(s => s.id === `serv_sale_${o.id}` || (s.items && s.items.some(it => (it.sku || "").includes(o.id))));
-      if (!exists) {
+      const existingSale = combinedSales.find(s => s.id === `serv_sale_${o.id}` || (s.items && s.items.some(it => (it.sku || "").includes(o.id))));
+      if (existingSale) {
+        if (!existingSale.canal_venta && !existingSale.canalVenta && !existingSale.channel) {
+          existingSale.canal_venta = tallerChannelConfig;
+        }
+      } else {
         combinedSales.push({
           id: `serv_sale_${o.id}`,
           client_name: o.clientName || "Consumidor Final",
@@ -5176,6 +5179,9 @@ function renderInventory() {
     const priceLocalText = `$ ${Math.round(priceLocal).toLocaleString()}`;
     const priceTiendanubeText = priceTiendanube > 0 ? `$ ${Math.round(priceTiendanube).toLocaleString()}` : "-";
 
+    const exactMarkupPct = cost > 0 ? parseFloat(((priceLocal - cost) / cost * 100).toFixed(2)) : (margin || 0);
+    const formattedInventoryMarkup = (exactMarkupPct % 1 === 0) ? `${Math.round(exactMarkupPct)}%` : `${exactMarkupPct}%`;
+
     tr.innerHTML = `
       <td style="font-weight: 700;">
         <div style="font-size: 0.85rem; color: var(--text-white);">${g.name || ""}</div>
@@ -5199,7 +5205,7 @@ function renderInventory() {
       </td>
       <td style="text-align: right; color: var(--text-gray-light);">
         <span style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
-          ${margin}%
+          ${formattedInventoryMarkup}
         </span>
       </td>
       <td>
@@ -16120,6 +16126,13 @@ async function loadServicesData() {
     console.warn("Could not fetch service orders:", e);
   }
 
+  try {
+    const sSettings = await apiRequest("/api/services/settings", "GET");
+    if (sSettings && sSettings.salesChannel) {
+      state.tallerSalesChannel = sSettings.salesChannel;
+    }
+  } catch (e) {}
+
   renderServicesUI();
 }
 
@@ -16265,13 +16278,14 @@ function renderServiceCatalogModalList() {
 
   tbody.innerHTML = catalog.map((s, idx) => {
     const cost = s.cost || 0;
-    const marginPct = s.price > 0 ? Math.round(((s.price - cost) / s.price) * 100) : 0;
+    const markupPct = cost > 0 ? ((s.price - cost) / cost * 100).toFixed(2) : (s.price > 0 ? "100.00" : "0.00");
+    const formattedMarkup = parseFloat(markupPct) % 1 === 0 ? Math.round(parseFloat(markupPct)) + "%" : markupPct + "%";
     return `
       <tr>
         <td style="font-weight: 700; color: var(--text-white);">${s.name}</td>
         <td style="text-align: right; font-weight: 700; color: var(--accent-emerald);">$${Math.round(s.price).toLocaleString('es-AR')}</td>
         <td style="text-align: right; font-weight: 700; color: var(--accent-red);">$${Math.round(cost).toLocaleString('es-AR')}</td>
-        <td style="text-align: right; font-weight: 800; color: var(--accent-blue);">${marginPct}%</td>
+        <td style="text-align: right; font-weight: 800; color: var(--accent-blue);">${formattedMarkup}</td>
         <td style="text-align: center;">
           <div style="display: flex; gap: 6px; justify-content: center;">
             <button class="btn" style="background: none; border: none; color: var(--accent-blue); font-size: 0.95rem; cursor: pointer;" onclick="editCatalogServiceItem(${idx})" title="Editar Servicio">✏️</button>
@@ -16296,12 +16310,13 @@ function editCatalogServiceItem(idx) {
   const titleEl = document.getElementById("cat-service-form-title");
   const btnSave = document.getElementById("btn-save-cat-service");
 
-  const marginPct = item.price > 0 ? Math.round(((item.price - (item.cost || 0)) / item.price) * 100) : 0;
+  const cost = item.cost || 0;
+  const markupVal = cost > 0 ? parseFloat(((item.price - cost) / cost * 100).toFixed(2)) : 0;
 
   if (nameInput) nameInput.value = item.name;
   if (priceInput) priceInput.value = item.price;
   if (costInput) costInput.value = item.cost || 0;
-  if (marginInput) marginInput.value = marginPct;
+  if (marginInput) marginInput.value = markupVal;
   if (titleEl) titleEl.innerText = "✏️ Editar Servicio del Catálogo";
   if (btnSave) {
     btnSave.innerText = "💾 Guardar Cambios";
@@ -16319,19 +16334,19 @@ function calculateCatalogServiceFields(triggerField) {
 
   const price = parseLocalFloat(priceInput.value) || 0;
   const cost = parseLocalFloat(costInput.value) || 0;
-  const marginPct = parseLocalFloat(marginInput.value) || 0;
+  const markupPct = parseLocalFloat(marginInput.value) || 0;
 
   if (triggerField === 'price' || triggerField === 'cost') {
-    if (price > 0) {
-      marginInput.value = Math.round(((price - cost) / price) * 100);
+    if (cost > 0) {
+      marginInput.value = parseFloat(((price - cost) / cost * 100).toFixed(2));
     } else {
       marginInput.value = 0;
     }
   } else if (triggerField === 'margin') {
-    if (price > 0) {
-      costInput.value = Math.max(0, Math.round(price * (1 - marginPct / 100)));
-    } else if (cost > 0) {
-      priceInput.value = marginPct < 100 ? Math.round(cost / (1 - marginPct / 100)) : cost;
+    if (cost > 0) {
+      priceInput.value = Math.round(cost * (1 + markupPct / 100));
+    } else if (price > 0 && markupPct > 0) {
+      costInput.value = Math.round(price / (1 + markupPct / 100));
     }
   }
 }
