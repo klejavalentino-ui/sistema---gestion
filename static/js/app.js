@@ -16813,9 +16813,60 @@ async function updateServiceOrderStatus(orderId, newStatus) {
     
     // Sync with Cobranzas (Cuentas Corrientes)
     await syncServiceOrderWithCurrentAccount(existing);
+
+    // Si pasa a Cobrado, registrar o actualizar automáticamente la venta con el canal de venta de Taller
+    if (newStatus === "Cobrado") {
+      let tallerChannel = "Personalizado";
+      try {
+        const sSettings = await apiRequest("/api/services/settings", "GET");
+        if (sSettings && sSettings.salesChannel) {
+          tallerChannel = sSettings.salesChannel;
+        }
+      } catch (e) {}
+
+      const chargeAmount = existing.total || 0;
+      let targetSale = state.sales.find(s => s.id === `serv_sale_${existing.id}` || (s.items && s.items.some(it => (it.sku || "").includes(existing.id))));
+      
+      if (!targetSale) {
+        const salePayload = {
+          id: "serv_sale_" + existing.id,
+          client_name: existing.clientName || "Consumidor Final",
+          items: (existing.items || []).map(it => ({
+            sku: `SERV-${existing.id}`,
+            name: typeof cleanFacturaItemName === 'function' ? cleanFacturaItemName(it.name) : it.name,
+            price: it.price,
+            qty: it.qty,
+            subtotal: it.subtotal
+          })),
+          subtotal: chargeAmount,
+          discount: 0,
+          total: chargeAmount,
+          method: "Efectivo",
+          origen: "local",
+          canal_venta: tallerChannel,
+          date: new Date().toISOString(),
+          timestamp: Date.now()
+        };
+        try {
+          const registeredSale = await apiRequest("/api/sales", "POST", salePayload);
+          const finalSale = registeredSale || salePayload;
+          if (!state.sales.some(s => s.id === finalSale.id)) {
+            state.sales.unshift(finalSale);
+          }
+        } catch (err) {
+          console.error("Error registrando venta de taller:", err);
+        }
+      } else {
+        targetSale.canal_venta = tallerChannel;
+        try {
+          await apiRequest("/api/sales", "POST", targetSale);
+        } catch (err) {}
+      }
+    }
     
     showToast(`Estado de ${orderId} actualizado a ${newStatus}`);
     renderServicesUI();
+    if (typeof renderDashboardUI === "function") renderDashboardUI();
   } catch (e) {
     showToast("Error al actualizar estado: " + e.message, true);
   }
