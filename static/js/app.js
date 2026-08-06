@@ -4140,9 +4140,13 @@ function openSalesHistoryModal() {
       if (sale.method.startsWith("Cta. corriente")) badgeClass = "badge-blue";
       else if (sale.method === "Canje" || sale.method === "custom") badgeClass = "badge-gray";
       
+      const channelLabel = sale.origen === "tiendanube" 
+        ? "Tienda Nube" 
+        : (sale.canal_venta || (state.userProfile?.salesChannels && state.userProfile.salesChannels[0]) || "Local Principal");
+        
       const originBadge = (sale.origen === "tiendanube") 
-        ? `<span class="badge" style="margin-left: 4px; background: #8b5cf6; color: var(--text-white); padding: 2px 6px; font-size: 0.65rem;">Tienda Nube</span>` 
-        : `<span class="badge" style="margin-left: 4px; background: rgba(255,255,255,0.1); color: #ccc; padding: 2px 6px; font-size: 0.65rem;">Local</span>`;
+        ? `<span class="badge" style="margin-left: 4px; background: #8b5cf6; color: var(--text-white); padding: 2px 6px; font-size: 0.65rem;">${channelLabel}</span>` 
+        : `<span class="badge" style="margin-left: 4px; background: rgba(255,255,255,0.1); color: #ccc; padding: 2px 6px; font-size: 0.65rem;">${channelLabel}</span>`;
         
       el.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; ${sale.status === 'cancelled' ? 'opacity: 0.6;' : ''}">
@@ -4336,6 +4340,10 @@ function getInvoiceTicketInnerHTML(sale) {
     `;
   }
 
+  const customFooterText = (state.userProfile?.printSettings?.footerText !== undefined && state.userProfile?.printSettings?.footerText !== "") 
+    ? state.userProfile.printSettings.footerText 
+    : "¡Gracias por su compra!";
+
   const isFiscal = !!sale.arca_invoice_id;
 
   if (!isFiscal) {
@@ -4372,9 +4380,11 @@ function getInvoiceTicketInnerHTML(sale) {
       </div>
       <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
       ${exchangeTicketHtml}
+      ${customFooterText ? `
       <div style="margin-top: 15px; font-size: 10px; text-align: center;">
-        <p style="margin: 5px 0;">¡Gracias por su compra!</p>
+        <p style="margin: 5px 0;">${customFooterText}</p>
       </div>
+      ` : ''}
     `;
   } else {
     // Factura Oficial (A, B o C)
@@ -4516,6 +4526,7 @@ function getInvoiceTicketInnerHTML(sale) {
         ${qrImgHtml}
         <p style="margin: 3px 0; font-size: 10px; font-weight: bold;">CAE N°: ${cae}</p>
         <p style="margin: 3px 0; font-size: 10px;">Vto. CAE: ${caeDue}</p>
+        ${customFooterText ? `<p style="margin: 6px 0 0 0; font-size: 10px;">${customFooterText}</p>` : ''}
       </div>
     `;
   }
@@ -12572,9 +12583,8 @@ async function loadBusinessData() {
 
     // Mapear Configuración de Impresión
     const print = state.userProfile.printSettings || {};
-    document.getElementById("print-settings-auto").checked = print.autoPrint ?? false;
-    document.getElementById("print-settings-size").value = print.paperSize || "80mm";
-    document.getElementById("print-settings-footer").value = print.footerText || "";
+    const footerInput = document.getElementById("print-settings-footer");
+    if (footerInput) footerInput.value = print.footerText || "";
   }
   await loadBusinessUsers();
 }
@@ -13421,13 +13431,24 @@ window.saveChannelsSettings = saveChannelsSettings;
 
 async function savePrintSettings() {
   const printSettings = {
-    autoPrint: document.getElementById("print-settings-auto").checked,
-    paperSize: document.getElementById("print-settings-size").value,
     footerText: document.getElementById("print-settings-footer").value
   };
+
+  let logoValue = state.userProfile.logoBase64 || null;
+  if (state.removeLogoFlag) {
+    logoValue = null;
+  } else if (state.tempLogoBase64) {
+    logoValue = state.tempLogoBase64;
+  }
+
   try {
-    const res = await apiRequest("/api/business/settings", "PUT", { printSettings });
+    const res = await apiRequest("/api/business/settings", "PUT", { 
+      printSettings,
+      logoBase64: logoValue
+    });
     state.userProfile = res.userProfile;
+    state.tempLogoBase64 = null;
+    state.removeLogoFlag = false;
     showToast("Ajustes de impresión guardados con éxito.");
   } catch (e) {
     showToast("Error: " + e.message, true);
@@ -16891,6 +16912,14 @@ async function emitServiceOrderFacturaC(orderId, selectedMethod = "Efectivo") {
 
   let targetSale = state.sales.find(s => s.id === `serv_sale_${order.id}` || (s.items && s.items.some(it => (it.sku || "").includes(order.id))));
 
+  let tallerChannel = "Personalizado";
+  try {
+    const sSettings = await apiRequest("/api/services/settings", "GET");
+    if (sSettings && sSettings.salesChannel) {
+      tallerChannel = sSettings.salesChannel;
+    }
+  } catch (e) {}
+
   if (!targetSale) {
     const chargeAmount = order.total || 0;
     const salePayload = {
@@ -16910,6 +16939,8 @@ async function emitServiceOrderFacturaC(orderId, selectedMethod = "Efectivo") {
       discount: 0,
       total: chargeAmount,
       method: selectedMethod,
+      origen: "local",
+      canal_venta: tallerChannel,
       date: new Date().toISOString()
     };
     try {
@@ -16927,6 +16958,7 @@ async function emitServiceOrderFacturaC(orderId, selectedMethod = "Efectivo") {
     targetSale.client_condicion_iva = clientCondicionIva;
     targetSale.client_address = clientAddress;
     targetSale.method = selectedMethod;
+    targetSale.canal_venta = tallerChannel;
     if (targetSale.items) {
       targetSale.items.forEach(it => {
         it.name = cleanFacturaItemName(it.name);
@@ -16968,6 +17000,14 @@ async function chargeServiceOrderToCash(orderId) {
   const clientCuit = clientAccount?.cuit || "";
   const clientCondicionIva = clientAccount?.condicionIva || "CONSUMIDOR FINAL";
   const clientAddress = clientAccount?.address || "";
+
+  let tallerChannel = "Personalizado";
+  try {
+    const sSettings = await apiRequest("/api/services/settings", "GET");
+    if (sSettings && sSettings.salesChannel) {
+      tallerChannel = sSettings.salesChannel;
+    }
+  } catch (e) {}
 
   if (confirm(`¿Registrar cobro de $${Math.round(chargeAmount).toLocaleString('es-AR')} para la orden ${order.id} (${clientName}) en Caja/Ventas?`)) {
     const salePayload = {
@@ -17180,6 +17220,18 @@ async function downloadServiceOrderPDF(orderId) {
 }
 
 async function openRemitoConfigModal() {
+  const channelSelect = document.getElementById("remito-config-channel");
+  if (channelSelect) {
+    channelSelect.innerHTML = "";
+    const channels = state.userProfile?.salesChannels || ["Local Principal"];
+    channels.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.innerText = c;
+      channelSelect.appendChild(opt);
+    });
+  }
+
   try {
     const settings = await apiRequest("/api/services/settings", "GET");
     const textarea = document.getElementById("remito-config-conditions");
@@ -17187,6 +17239,9 @@ async function openRemitoConfigModal() {
       textarea.value = (settings.remitoConditions !== undefined && settings.remitoConditions !== null)
         ? settings.remitoConditions
         : "La empresa no se responsabiliza por fallas previas en las prendas del cliente.\nComprobante válido como orden de trabajo y remito de entrega.";
+    }
+    if (channelSelect && settings && settings.salesChannel) {
+      channelSelect.value = settings.salesChannel;
     }
   } catch (e) {
     console.error("Error loading remito config:", e);
@@ -17202,10 +17257,15 @@ function closeRemitoConfigModal() {
 
 async function saveRemitoConfig() {
   const textarea = document.getElementById("remito-config-conditions");
+  const channelSelect = document.getElementById("remito-config-channel");
   const conditions = textarea ? textarea.value : "";
+  const salesChannel = channelSelect ? channelSelect.value : "";
   try {
-    await apiRequest("/api/services/settings", "POST", { remitoConditions: conditions });
-    showToast("Configuración de remito guardada con éxito");
+    await apiRequest("/api/services/settings", "POST", { 
+      remitoConditions: conditions,
+      salesChannel: salesChannel
+    });
+    showToast("Configuración del taller guardada con éxito");
     closeRemitoConfigModal();
   } catch (e) {
     showToast("Error al guardar configuración: " + e.message, true);

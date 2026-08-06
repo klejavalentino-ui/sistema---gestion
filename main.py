@@ -1753,7 +1753,8 @@ def save_services_settings():
         data = request.json or {}
         payload = {
             "id": f"{prefix}settings",
-            "remitoConditions": str(data.get("remitoConditions", ""))
+            "remitoConditions": str(data.get("remitoConditions", "")),
+            "salesChannel": str(data.get("salesChannel", ""))
         }
         firebase_config.set_document("services", f"{prefix}settings", payload, token)
         return jsonify(payload)

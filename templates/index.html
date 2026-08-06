@@ -1988,8 +1988,8 @@
             <button class="btn btn-secondary" onclick="openServiceCatalogModal()" title="Configurar catálogo de servicios y precios base">
               ⚙️ Catálogo de Servicios
             </button>
-            <button class="btn btn-secondary" onclick="openRemitoConfigModal()" title="Configurar las condiciones y cláusulas del remito de entrega">
-              ⚙️ Configuración de Remito
+            <button class="btn btn-secondary" onclick="openRemitoConfigModal()" title="Configurar canal de venta y condiciones del remito de taller">
+              ⚙️ Configuración de Taller
             </button>
             <button class="btn btn-primary" onclick="openServiceOrderModal()" style="background: #2563eb; color: #ffffff;">
               ➕ Nueva Orden de Trabajo
@@ -2393,19 +2393,6 @@
                   <option value="Estética">Estética</option>
                 </select>
               </div>
-              <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
-                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Logo de la Empresa (PNG, JPG, JPEG)</label>
-                <div style="display: flex; align-items: center; gap: 14px; margin-top: 6px;">
-                  <input type="file" id="business-settings-logo-input" accept="image/png, image/jpeg, image/jpg" class="form-input" style="padding: 6px; font-size: 0.8rem; flex-grow: 1;" onchange="handleLogoUpload(this)">
-                  <div id="business-settings-logo-preview-container" style="display: none; align-items: center; justify-content: center; width: 60px; height: 60px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; padding: 4px;">
-                    <img id="business-settings-logo-preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
-                  </div>
-                  <button type="button" id="business-settings-logo-remove-btn" class="btn" style="display: none; padding: 6px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-size: 0.75rem; font-weight: bold;" onclick="removeBusinessLogo()">Quitar</button>
-                </div>
-                <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">
-                  El logo se incluirá automáticamente abajo a la izquierda en todas las facturas, presupuestos, remitos, notas de crédito y notas de débito emitidas por el sistema.
-                </p>
-              </div>
               <div class="form-group" id="business-settings-sizes-container" style="margin-bottom: 0; grid-column: span 2;">
                 <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Variantes de Talle (Separados por coma)</label>
                 <input type="text" id="business-settings-sizes" class="form-input" placeholder="Ej: XS, S, M, L, XL, XXL, Único">
@@ -2489,23 +2476,26 @@
               🖨️ Ajustes de Impresión
             </h3>
             <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
-              <label style="display: flex; align-items: center; gap: 10px; color: var(--text-dark); cursor: pointer; font-size: 0.85rem;">
-                <input type="checkbox" id="print-settings-auto" style="accent-color: var(--accent-blue); width: 18px; height: 18px;">
-                <span>Activar impresión de ticket automática al finalizar venta</span>
-              </label>
-              
-              <div class="form-group" style="margin-bottom: 0; max-width: 300px;">
-                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Tamaño de Hoja</label>
-                <select id="print-settings-size" class="form-select">
-                  <option value="A4">A4 (Reporte / Factura estándar)</option>
-                  <option value="80mm">Ticket Térmico (80mm)</option>
-                  <option value="58mm">Ticket Térmico (58mm)</option>
-                </select>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Logo de la Empresa (PNG, JPG, JPEG)</label>
+                <div style="display: flex; align-items: center; gap: 14px; margin-top: 6px;">
+                  <input type="file" id="business-settings-logo-input" accept="image/png, image/jpeg, image/jpg" class="form-input" style="padding: 6px; font-size: 0.8rem; flex-grow: 1;" onchange="handleLogoUpload(this)">
+                  <div id="business-settings-logo-preview-container" style="display: none; align-items: center; justify-content: center; width: 60px; height: 60px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; padding: 4px;">
+                    <img id="business-settings-logo-preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                  </div>
+                  <button type="button" id="business-settings-logo-remove-btn" class="btn" style="display: none; padding: 6px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-size: 0.75rem; font-weight: bold;" onclick="removeBusinessLogo()">Quitar</button>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">
+                  El logo se incluirá automáticamente en la cabecera de los tickets y comprobantes impresos.
+                </p>
               </div>
 
               <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Pie de Página del Ticket</label>
-                <input type="text" id="print-settings-footer" class="form-input" placeholder="¡Gracias por su compra!">
+                <input type="text" id="print-settings-footer" class="form-input" placeholder="Ej: ¡Gracias por su compra! / No se aceptan devoluciones sin ticket">
+                <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">
+                  Este texto se imprimirá al final de cada ticket emitido.
+                </p>
               </div>
             </div>
 
@@ -4488,6 +4478,16 @@
           ⚙️ Configuración de Remito de Taller
         </h3>
         <button class="btn-close" onclick="closeRemitoConfigModal()">&times;</button>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 18px;">
+        <label class="form-label" style="font-weight: 700; color: var(--text-white); margin-bottom: 6px; display: block;">
+          🛒 Canal de Venta del Taller:
+        </label>
+        <div style="font-size: 0.72rem; color: var(--text-gray); margin-bottom: 6px;">Seleccioná el canal de venta por defecto al cobrar o liquidar órdenes de taller.</div>
+        <select id="remito-config-channel" class="form-select" style="font-size: 0.85rem; width: 100%;">
+          <!-- Inyectado por JS según la configuración -->
+        </select>
       </div>
 
       <div class="form-group" style="margin-bottom: 18px;">
