@@ -2178,14 +2178,21 @@ function renderPanel() {
 
   filteredSales.forEach(sale => {
     const origin = (sale.origen || sale.origin || "").toLowerCase();
-    let channel = sale.channel || fallbackChannel;
-    
+    const rawChannel = (sale.canal_venta || sale.canalVenta || sale.channel || "").trim();
+    let channel = fallbackChannel;
+
     if (origin === "tiendanube") {
       const tnChannel = configuredChannels.find(c => c.toLowerCase().includes("tienda"));
       channel = tnChannel ? tnChannel : fallbackChannel;
-    } else {
-      if (!channelStats[channel]) {
-        channel = fallbackChannel;
+    } else if (rawChannel) {
+      const matched = configuredChannels.find(c => c.toLowerCase() === rawChannel.toLowerCase());
+      if (matched) {
+        channel = matched;
+      } else {
+        channel = rawChannel;
+        if (!channelStats[channel]) {
+          channelStats[channel] = { revenue: 0, units: 0, cost: 0, fees: 0, revenueNet: 0 };
+        }
       }
     }
 
