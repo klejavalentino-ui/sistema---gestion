@@ -7859,7 +7859,13 @@ function renderCollections() {
   container.innerHTML = "";
 
   const searchVal = (document.getElementById("collections-search")?.value || "").toLowerCase();
-  const clientes = state.currentAccounts.filter(a => a.type === "cliente" && a.entityName.toLowerCase().includes(searchVal));
+  let clientes = state.currentAccounts.filter(a => a.type === "cliente" && a.entityName.toLowerCase().includes(searchVal));
+
+  // Calcular balances y ordenar por mayor deuda
+  clientes.forEach(acc => {
+    acc._balance = acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0;
+  });
+  clientes.sort((a, b) => b._balance - a._balance);
 
   // Calcular métricas globales
   let globalTotal = 0;
@@ -7868,7 +7874,7 @@ function renderCollections() {
   let totalOverdue = 0;
 
   clientes.forEach(acc => {
-    const balance = acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0;
+    const balance = acc._balance;
     globalTotal += Math.max(0, balance);
 
     const metrics = calculateAccountMetrics(acc);
