@@ -8041,6 +8041,8 @@ function openAccountModal(type) {
   document.getElementById("account-type-input").value = type;
   document.getElementById("account-id-input").value = "";
   document.getElementById("modal-account-title").innerText = type === "proveedor" ? "Registrar Cta. Proveedor" : "Registrar Cta. Cliente";
+  const submitBtn = document.getElementById("modal-account-submit-btn");
+  if (submitBtn) submitBtn.innerText = "Registrar Cuenta";
   document.getElementById("acc-entity-name").value = "";
   if (document.getElementById("acc-cuit")) document.getElementById("acc-cuit").value = "";
   if (document.getElementById("acc-razon-social")) document.getElementById("acc-razon-social").value = "";
@@ -8070,7 +8072,13 @@ async function saveAccountForm(e) {
   const paymentTerms = termsVal !== "" ? parseInt(termsVal, 10) : 30;
 
   const payload = { entityName, type, phone, address, paymentTerms, cuit, razonSocial, condicionIva };
-  if (accId) payload.id = accId;
+  if (accId) {
+    payload.id = accId;
+    const existingAcc = state.currentAccounts.find(a => a.id === accId);
+    if (existingAcc && existingAcc.transactions) {
+      payload.transactions = existingAcc.transactions;
+    }
+  }
 
   try {
     await apiRequest("/api/current-accounts", "POST", payload);
@@ -8088,7 +8096,9 @@ function editAccount(accId) {
   document.getElementById("account-type-input").value = acc.type;
   document.getElementById("account-id-input").value = acc.id;
   document.getElementById("modal-account-title").innerText = acc.type === "proveedor" ? "Editar Cta. Proveedor" : "Editar Cta. Cliente";
-  document.getElementById("acc-entity-name").value = acc.entityName;
+  const submitBtn = document.getElementById("modal-account-submit-btn");
+  if (submitBtn) submitBtn.innerText = "Guardar Cuenta";
+  document.getElementById("acc-entity-name").value = acc.entityName || "";
   if (document.getElementById("acc-cuit")) document.getElementById("acc-cuit").value = acc.cuit || "";
   if (document.getElementById("acc-razon-social")) document.getElementById("acc-razon-social").value = acc.razonSocial || "";
   if (document.getElementById("acc-condicion-iva")) document.getElementById("acc-condicion-iva").value = acc.condicionIva || "CONSUMIDOR FINAL";
