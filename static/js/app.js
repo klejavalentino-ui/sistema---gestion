@@ -7808,6 +7808,8 @@ function renderSupplierAccounts() {
         <div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-white);">${acc.entityName}</h3>
+            <button class="btn-action" style="border: none; background: transparent; padding: 2px; color: var(--text-gray); cursor: pointer;" onclick="editAccount('${acc.id}')">✏️</button>
+            <button class="btn-action btn-delete" style="border: none; background: transparent; padding: 2px; color: var(--text-gray); cursor: pointer;" onclick="deleteAccount('${acc.id}')">🗑️</button>
           </div>
           <div style="font-size: 0.75rem; color: var(--text-gray); margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap;">
             <span>📞 ${acc.phone || "-"}</span>
