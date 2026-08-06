@@ -2065,9 +2065,40 @@ function renderPanel() {
   state.panelMonth = monthSelect.value;
   
   const now = new Date();
+
+  // Canal de venta configurado para Taller (predeterminado: Personalizado)
+  let tallerChannelConfig = "Personalizado";
+
+  // Consolidar ventas registradas + órdenes de taller en estado "Cobrado" que no tengan venta duplicada
+  const combinedSales = [...(state.sales || [])];
   
+  (state.serviceOrders || []).forEach(o => {
+    if (o.status === "Cobrado") {
+      const exists = combinedSales.some(s => s.id === `serv_sale_${o.id}` || (s.items && s.items.some(it => (it.sku || "").includes(o.id))));
+      if (!exists) {
+        combinedSales.push({
+          id: `serv_sale_${o.id}`,
+          client_name: o.clientName || "Consumidor Final",
+          total: o.total || 0,
+          subtotal: o.subtotal || o.total || 0,
+          method: "Efectivo",
+          origen: "local",
+          canal_venta: tallerChannelConfig,
+          items: o.items ? o.items.map(it => ({
+            sku: `SERV-${o.id}`,
+            name: it.name,
+            price: it.price,
+            quantity: it.qty,
+            subtotal: it.subtotal
+          })) : [],
+          date: o.deliveryDate ? new Date(o.deliveryDate).toISOString() : new Date().toISOString()
+        });
+      }
+    }
+  });
+
   // Filtrar ventas del periodo
-  const filteredSales = state.sales.filter(sale => {
+  const filteredSales = combinedSales.filter(sale => {
     const saleDate = new Date(sale.date);
     if (state.panelPeriod === "hoy") {
       return saleDate.toDateString() === now.toDateString();
