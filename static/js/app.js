@@ -3703,6 +3703,34 @@ async function confirmPayment(method) {
     // Guardar ID para los siguientes pasos
     window.currentCheckoutSaleId = saleId;
 
+    // Renderizar inputs de descripciones personalizadas si corresponde (MAZO / Cliente Registrado)
+    const customDescContainer = document.getElementById("checkout-custom-descriptions-container");
+    const customDescInputsDiv = document.getElementById("checkout-custom-descriptions-inputs");
+    const userEmail = (state.email || state.userEmail || "").toLowerCase();
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+
+    if (customDescContainer && customDescInputsDiv) {
+      if (isMatias && registeredSale && registeredSale.items && registeredSale.items.length > 0) {
+        customDescContainer.style.display = "block";
+        customDescInputsDiv.innerHTML = registeredSale.items.map((it, idx) => {
+          const defaultName = cleanFacturaItemName(it.product?.name || it.name || "Producto");
+          const sizeStr = (it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") ? ` (Talle ${it.size})` : "";
+          const fullLabel = `${it.quantity || it.qty || 1} un x ${defaultName}${sizeStr}`;
+          return `
+            <div>
+              <label style="font-size: 0.68rem; color: var(--text-white); font-weight: 700; display: block; margin-bottom: 2px;">
+                ${fullLabel}
+              </label>
+              <input type="text" id="chk-custom-desc-item-${idx}" class="form-input" style="padding: 5px 8px; font-size: 0.75rem; width: 100%; height: auto;" value="${defaultName}${sizeStr}" placeholder="Ej: 50 Gorras Gabardina Negra con Estampado DTF / Bordado 3D">
+            </div>
+          `;
+        }).join("");
+      } else {
+        customDescContainer.style.display = "none";
+        customDescInputsDiv.innerHTML = "";
+      }
+    }
+
     // Avanzar al step de opciones de facturación
     document.getElementById("checkout-step-method").style.display = "none";
     document.getElementById("checkout-step-invoice-options").style.display = "block";
@@ -3740,11 +3768,20 @@ async function finishCheckoutWithARCA() {
   if (titleEl) titleEl.innerHTML = "Facturando en AFIP <i class='fas fa-spinner fa-spin'></i>";
   
   try {
+    const localSale = state.sales.find(s => s.id === saleId);
+    if (localSale && localSale.items && Array.isArray(localSale.items)) {
+      localSale.items.forEach((it, idx) => {
+        const customInput = document.getElementById(`chk-custom-desc-item-${idx}`);
+        if (customInput && customInput.value.trim() !== "") {
+          it.custom_name = customInput.value.trim();
+        }
+      });
+    }
+
     const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
     showToast(`¡Factura ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
     
     // Actualizar localmente antes de imprimir
-    const localSale = state.sales.find(s => s.id === saleId);
     if (localSale) {
       localSale.arca_invoice_id = res.invoice_number;
       localSale.arca_cae = res.cae;
@@ -3909,12 +3946,12 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
       <tbody>
         ${(sale.items || []).map(it => {
           const skuStr = it.product?.sku || it.sku || "PROD";
-          const rawName = it.product?.name || it.name || "Producto";
-          const nameStr = cleanFacturaItemName(rawName);
+          const rawName = it.custom_name || it.product?.name || it.name || "Producto";
+          const nameStr = it.custom_name ? it.custom_name : cleanFacturaItemName(rawName);
           const qty = it.quantity || it.qty || 1;
           const price = it.price || (it.product ? it.product.price_local : 0);
           const subtotalItem = price * qty;
-          const sizeStr = (it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") ? ` (Talle ${it.size})` : "";
+          const sizeStr = (!it.custom_name && it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") ? ` (Talle ${it.size})` : "";
           return `
             <tr style="border-bottom: 1px solid #e2e8f0;">
               <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">${skuStr}</td>
@@ -8063,30 +8100,32 @@ function closeAccountModal() {
 async function saveAccountForm(e) {
   e.preventDefault();
   const type = document.getElementById("account-type-input").value;
-  const accId = document.getElementById("account-id-input").value;
-  const entityName = document.getElementById("acc-entity-name").value;
+  const accId = document.getElementById("account-id-input").value.trim();
+  const entityName = document.getElementById("acc-entity-name").value.trim();
   const cuit = document.getElementById("acc-cuit") ? document.getElementById("acc-cuit").value.trim() : "";
   const razonSocial = document.getElementById("acc-razon-social") ? document.getElementById("acc-razon-social").value.trim() : "";
   const condicionIva = document.getElementById("acc-condicion-iva") ? document.getElementById("acc-condicion-iva").value : "CONSUMIDOR FINAL";
-  const phone = document.getElementById("acc-phone").value;
-  const address = document.getElementById("acc-address").value;
+  const phone = document.getElementById("acc-phone").value.trim();
+  const address = document.getElementById("acc-address").value.trim();
   const termsVal = document.getElementById("acc-payment-terms").value.trim();
   const paymentTerms = termsVal !== "" ? parseInt(termsVal, 10) : 30;
 
   const payload = { entityName, type, phone, address, paymentTerms, cuit, razonSocial, condicionIva };
+  
   if (accId) {
     payload.id = accId;
-    const existingAcc = state.currentAccounts.find(a => a.id === accId);
-    if (existingAcc && existingAcc.transactions) {
-      payload.transactions = existingAcc.transactions;
+    const existingAcc = state.currentAccounts.find(a => String(a.id) === String(accId));
+    if (existingAcc) {
+      payload.transactions = existingAcc.transactions || [];
+      if (existingAcc.sku) payload.sku = existingAcc.sku;
     }
   }
 
   try {
-    await apiRequest("/api/current-accounts", "POST", payload);
+    const res = await apiRequest("/api/current-accounts", "POST", payload);
     showToast(accId ? "Cuenta corriente actualizada" : "Cuenta corriente registrada");
     closeAccountModal();
-    refreshState();
+    await refreshState();
   } catch (error) {
     showToast(error.message, true);
   }

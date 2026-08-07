@@ -2958,16 +2958,30 @@
 
       <!-- Step: Invoice Options -->
       <div id="checkout-step-invoice-options" style="display: none;" class="p-6">
-        <div class="modal-header" style="border: none; padding: 0 0 20px 0;">
+        <div class="modal-header" style="border: none; padding: 0 0 15px 0;">
           <h3 class="modal-title">Emisión de Comprobante</h3>
           <span class="modal-close-btn" onclick="closeCheckoutModal()">✕</span>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+
+        <!-- Custom descriptions section for MAZO registered clients -->
+        <div id="checkout-custom-descriptions-container" style="display: none; margin-bottom: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+          <label style="font-size: 0.72rem; color: var(--accent-emerald); font-weight: 800; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <i class="fas fa-edit"></i> Personalizar Descripciones en Factura C A4
+          </label>
+          <div style="font-size: 0.7rem; color: var(--text-gray); margin-bottom: 10px;">
+            Aclará detalles adicionales por producto (ej: técnica de estampado, bordado, DTF, especificaciones):
+          </div>
+          <div id="checkout-custom-descriptions-inputs" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; padding-right: 4px;">
+            <!-- Dynamic item inputs injected by JS -->
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 5px;">
           <button class="btn btn-secondary" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="finishCheckoutWithNoInvoice()">
             <i class="fas fa-receipt"></i> Ticket X (no válido como factura)
           </button>
           <button class="btn btn-emerald" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="finishCheckoutWithARCA()">
-            <i class="fas fa-file-invoice-dollar"></i> Factura C
+            <i class="fas fa-file-invoice-dollar"></i> Factura C (A4)
           </button>
           <button class="btn btn-secondary" style="padding: 14px; font-size: 0.9rem; font-weight: bold; width: 100%; background: transparent; border: 1px solid var(--text-gray); display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-gray-light);" onclick="closeCheckoutAndKeepSale()">
             <i class="fas fa-times"></i> Cerrar Ventana
