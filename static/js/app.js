@@ -3678,11 +3678,13 @@ async function confirmPayment(method) {
   if (state.selectedCheckoutClientType === 'registrado' && state.selectedCheckoutClient) {
     const client = state.selectedCheckoutClient;
     salePayload.client_name = client.entityName || client.razonSocial || "Cliente Registrado";
+    salePayload.client_razon_social = client.razonSocial || client.entityName || "";
     salePayload.client_cuit = client.cuit || "";
     salePayload.client_condicion_iva = client.condicionIva || "CONSUMIDOR FINAL";
     salePayload.client_address = client.address || "";
   } else {
     salePayload.client_name = "Consumidor Final";
+    salePayload.client_razon_social = "";
     salePayload.client_cuit = "";
     salePayload.client_condicion_iva = "CONSUMIDOR FINAL";
     salePayload.client_address = "";
@@ -3769,7 +3771,13 @@ function autoFillClientInfo() {
 }
 
 function finishCheckoutWithNoInvoice() {
-  printSaleTicket(window.currentCheckoutSaleId);
+  const saleId = window.currentCheckoutSaleId;
+  const localSale = (state.sales || []).find(s => s.id === saleId);
+  if (localSale && (localSale.client_cuit || (localSale.client_name && localSale.client_name !== "Consumidor Final"))) {
+    downloadFacturaCA4PDF(saleId);
+  } else {
+    printSaleTicket(saleId);
+  }
   closeCheckoutModalAndReset();
 }
 
@@ -3802,7 +3810,6 @@ async function finishCheckoutWithARCA() {
     
     if (titleEl) titleEl.innerHTML = originalHtml;
     downloadFacturaCA4PDF(saleId);
-    printSaleTicket(saleId);
     closeCheckoutModalAndReset();
   } catch (error) {
     if (titleEl) titleEl.innerHTML = originalHtml;
@@ -4315,6 +4322,13 @@ async function emitInvoiceFromSale(saleId) {
     showToast("Generando factura electrónica en AFIP...");
     const res = await apiRequest("/api/invoices/emit", "POST", { sale_id: saleId });
     showToast(`¡Factura ${res.invoice_number} emitida con éxito! CAE: ${res.cae}`);
+    const localSale = (state.sales || []).find(s => s.id === saleId);
+    if (localSale) {
+      localSale.arca_invoice_id = res.invoice_number;
+      localSale.arca_cae = res.cae;
+      localSale.arca_cae_due = res.cae_due;
+    }
+    downloadFacturaCA4PDF(saleId);
     await refreshState();
     openSalesHistoryModal(); // Refresh modal
     if (typeof renderExternalMonthlyBillingList === 'function') renderExternalMonthlyBillingList();

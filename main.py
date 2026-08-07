@@ -3051,7 +3051,12 @@ def create_sale():
             "extras": data.get("extras", {}),
             "origen": origen,
             "canal_venta": data.get("canal_venta", "Local Principal"),
-            "ubicacion": ubicacion
+            "ubicacion": ubicacion,
+            "client_name": data.get("client_name", "Consumidor Final"),
+            "client_cuit": data.get("client_cuit", ""),
+            "client_condicion_iva": data.get("client_condicion_iva", "CONSUMIDOR FINAL"),
+            "client_address": data.get("client_address", ""),
+            "client_razon_social": data.get("client_razon_social", "")
         }
 
         # Calcular ganancias netas si el origen es Tiendanube
