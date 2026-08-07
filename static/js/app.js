@@ -2890,8 +2890,10 @@ function handlePOSProductClick(bp) {
 
 function openSizeSelectionModal(bp, variants) {
   state.selectedProductForSize = bp;
+  state.selectedProductVariants = variants;
+  
   document.getElementById("size-modal-product-name").innerText = bp.name;
-  document.getElementById("size-modal-product-color").innerText = bp.color;
+  document.getElementById("size-modal-product-color").innerText = `${bp.category || ''} | ${bp.color || 'Único'}`;
   
   const grid = document.getElementById("size-modal-options-grid");
   grid.innerHTML = "";
@@ -2899,7 +2901,7 @@ function openSizeSelectionModal(bp, variants) {
   const locationSelect = document.getElementById("pos-cart-location-select");
   const selectedLocation = locationSelect ? locationSelect.value : "";
 
-  // Regla estricta: Filtrar variantes con stock > 0 y evitar duplicados de talle
+  // Regla estricta: Filtrar variantes únicas por talle que tengan stock > 0
   const uniqueSizeMap = {};
   variants.forEach(v => {
     const rawSize = (v.size || "Único").trim();
@@ -2920,62 +2922,175 @@ function openSizeSelectionModal(bp, variants) {
     return;
   }
 
-  finalVariants.forEach(v => {
-    const btn = document.createElement("button");
-    btn.className = "btn btn-secondary";
-    btn.style.padding = "12px";
-    btn.style.fontWeight = "800";
-    btn.innerText = v.size || "Único";
-    btn.onclick = () => {
-      addVariantToCart(v);
-      closeSizeModal();
-    };
-    grid.appendChild(btn);
+  // Renderizar cada variante de talle con control de cantidad (- [qty] +)
+  finalVariants.forEach((v, idx) => {
+    const vStock = getVariantStockForLocation(v, selectedLocation);
+    const row = document.createElement("div");
+    row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px;";
+    
+    // Si hay un solo talle disponible, por defecto 1 unidad
+    const defaultQty = (finalVariants.length === 1 && idx === 0) ? 1 : 0;
+
+    row.innerHTML = `
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 800; font-size: 0.92rem; color: var(--text-white);">${v.size || "Único"}</span>
+        <span style="font-size: 0.72rem; color: var(--accent-emerald);">Stock: ${vStock} u.</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button type="button" class="pos-qty-btn" style="width: 28px; height: 28px; font-size: 0.9rem;" onclick="adjustSizeModalVariantQty('${v.sku}', -1, ${vStock})">-</button>
+        <input type="number" id="size-variant-qty-${v.sku}" class="form-input size-variant-qty-input" data-sku="${v.sku}" data-max="${vStock}" value="${defaultQty}" min="0" max="${vStock}" style="width: 52px; text-align: center; font-size: 0.85rem; padding: 4px 6px; height: 28px; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: var(--text-white);" oninput="updateSizeModalSummary()">
+        <button type="button" class="pos-qty-btn" style="width: 28px; height: 28px; font-size: 0.9rem;" onclick="adjustSizeModalVariantQty('${v.sku}', 1, ${vStock})">+</button>
+      </div>
+    `;
+    grid.appendChild(row);
   });
 
+  // Renderizar la sección de insumos / adicionales para este producto
+  renderSizeModalInsumos(bp);
+  updateSizeModalSummary();
+
   document.getElementById("size-modal").className = "modal-backdrop active";
+}
+
+function renderSizeModalInsumos(bp) {
+  const container = document.getElementById("size-modal-insumos-grid");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const extrasObj = state.extras || {};
+  const categories = state.businessType === "comercio" 
+    ? ["bolsas_caramelos", "envoltorios_regalo", "adicionales_kiosco"]
+    : ["estampados", "packagings", "bordados"];
+
+  const titles = {
+    estampados: "👕 Estampado",
+    packagings: "📦 Packaging",
+    bordados: "🧵 Bordado",
+    bolsas_caramelos: "🛍️ Bolsas / Golosinas",
+    envoltorios_regalo: "🎁 Regalo",
+    adicionales_kiosco: "🍬 Adicional Kiosco"
+  };
+
+  let hasInsumos = false;
+  categories.forEach(catKey => {
+    const list = extrasObj[catKey] || [];
+    if (list.length === 0) return;
+    hasInsumos = true;
+
+    const div = document.createElement("div");
+    div.style.cssText = "display: flex; flex-direction: column; gap: 4px;";
+    
+    let optionsHtml = `<option value="0">-- Sin ${titles[catKey] || catKey} --</option>`;
+    list.forEach(ex => {
+      optionsHtml += `<option value="${ex.id}">${ex.name} (+$${Math.round(ex.cost).toLocaleString()})</option>`;
+    });
+
+    div.innerHTML = `
+      <label style="font-size: 0.72rem; color: var(--text-gray-light); font-weight: 600;">${titles[catKey] || catKey}</label>
+      <select id="size-modal-extra-select-${catKey}" class="form-select size-modal-extra-select" style="font-size: 0.8rem; padding: 5px 8px; height: auto;">
+        ${optionsHtml}
+      </select>
+    `;
+    container.appendChild(div);
+  });
+
+  const insumosBox = document.getElementById("size-modal-insumos-container");
+  if (insumosBox) {
+    insumosBox.style.display = hasInsumos ? "block" : "none";
+  }
+}
+
+function adjustSizeModalVariantQty(sku, delta, maxStock) {
+  const input = document.getElementById(`size-variant-qty-${sku}`);
+  if (!input) return;
+  let val = parseInt(input.value) || 0;
+  val += delta;
+  val = Math.max(0, Math.min(val, maxStock));
+  input.value = val;
+  updateSizeModalSummary();
+}
+
+function updateSizeModalSummary() {
+  const inputs = document.querySelectorAll(".size-variant-qty-input");
+  let totalQty = 0;
+  inputs.forEach(inp => {
+    totalQty += (parseInt(inp.value) || 0);
+  });
+  const summaryEl = document.getElementById("size-modal-total-summary");
+  if (summaryEl) {
+    summaryEl.innerText = `${totalQty} prenda${totalQty === 1 ? '' : 's'} seleccionada${totalQty === 1 ? '' : 's'}`;
+  }
+}
+
+function confirmSizeModalSelection() {
+  const inputs = document.querySelectorAll(".size-variant-qty-input");
+  const selectedEntries = [];
+
+  inputs.forEach(inp => {
+    const qty = parseInt(inp.value) || 0;
+    if (qty > 0) {
+      const sku = inp.dataset.sku;
+      selectedEntries.push({ sku, qty });
+    }
+  });
+
+  if (selectedEntries.length === 0) {
+    showToast("Por favor selecciona la cantidad en al menos un talle.", true);
+    return;
+  }
+
+  // Capturar insumos seleccionados para este producto
+  const selectedExtras = {};
+  const categories = state.businessType === "comercio" 
+    ? ["bolsas_caramelos", "envoltorios_regalo", "adicionales_kiosco"]
+    : ["estampados", "packagings", "bordados"];
+
+  categories.forEach(catKey => {
+    const select = document.getElementById(`size-modal-extra-select-${catKey}`);
+    if (select && select.value && select.value !== "0") {
+      selectedExtras[catKey] = select.value;
+    }
+  });
+
+  // Agregar cada variante y cantidad al carrito
+  selectedEntries.forEach(entry => {
+    const variant = (state.selectedProductVariants || []).find(v => v.sku === entry.sku) || 
+                    state.products.find(p => p.sku === entry.sku);
+    if (!variant) return;
+
+    // Buscar si ya existe la misma variante con los mismos insumos en el carrito
+    const existingIndex = state.cart.findIndex(item => 
+      item.product.sku === variant.sku && 
+      JSON.stringify(item.extras || {}) === JSON.stringify(selectedExtras)
+    );
+
+    if (existingIndex > -1) {
+      state.cart[existingIndex].quantity += entry.qty;
+    } else {
+      state.cart.push({
+        product: variant,
+        size: variant.size || "Único",
+        quantity: entry.qty,
+        extras: { ...selectedExtras }
+      });
+    }
+  });
+
+  showToast(`¡${selectedEntries.length} talle(s) agregado(s) al carrito!`);
+  closeSizeModal();
+  renderPOSCart();
 }
 
 function closeSizeModal() {
   document.getElementById("size-modal").className = "modal-backdrop";
   state.selectedProductForSize = null;
+  state.selectedProductVariants = null;
 }
 
-function addVariantToCart(variant) {
-  const existingIndex = state.cart.findIndex(item => item.product.sku === variant.sku);
-  const locationSelect = document.getElementById("pos-cart-location-select");
-  const selectedLocation = locationSelect ? locationSelect.value : "";
-  const availableStock = getVariantStockForLocation(variant, selectedLocation);
-
-  if (existingIndex > -1) {
-    const currentQty = state.cart[existingIndex].quantity;
-    if (currentQty + 1 > availableStock) {
-      showToast(`Solo quedan ${availableStock} unidades disponibles en ${selectedLocation || "esta ubicación"}.`, true);
-      return;
-    }
-    state.cart[existingIndex].quantity += 1;
-  } else {
-    if (availableStock < 1) {
-      showToast(`No hay stock disponible en ${selectedLocation || "esta ubicación"}.`, true);
-      return;
-    }
-    state.cart.push({
-      product: variant,
-      size: variant.size,
-      quantity: 1
-    });
-  }
-  
-  showToast("Producto agregado");
-  renderPOSCart();
-}
-
-function updatePOSCartQty(sku, delta) {
-  const idx = state.cart.findIndex(item => item.product.sku === sku);
-  if (idx === -1) return;
-  
+function updatePOSCartQty(idx, delta) {
+  if (idx < 0 || idx >= state.cart.length) return;
   const item = state.cart[idx];
-  const newQty = item.quantity + delta;
+  const newQty = (parseInt(item.quantity) || 0) + delta;
   const locationSelect = document.getElementById("pos-cart-location-select");
   const selectedLocation = locationSelect ? locationSelect.value : "";
   const availableStock = getVariantStockForLocation(item.product, selectedLocation);
@@ -2992,50 +3107,33 @@ function updatePOSCartQty(sku, delta) {
   renderPOSCart();
 }
 
-function setPOSCartExactQty(sku, val) {
-  const idx = state.cart.findIndex(item => item.product.sku === sku);
-  if (idx === -1) return;
-  
+function setPOSCartExactQty(idx, val) {
+  if (idx < 0 || idx >= state.cart.length) return;
   const item = state.cart[idx];
   if (val === "") {
     item.quantity = ""; // Permitir limpiar temporalmente en el input
-    renderPOSCart(false); // Renderizar sin recalcular totales temporalmente
+    renderPOSCart(false);
     return;
   }
   
   let newQty = parseInt(val) || 1;
   newQty = Math.max(1, newQty);
-  const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
+  const locationSelect = document.getElementById("pos-cart-location-select");
+  const selectedLocation = locationSelect ? locationSelect.value : "";
+  const availableStock = getVariantStockForLocation(item.product, selectedLocation);
   
-  if (origin === "local") {
-    const stockLocalVal = item.product.stock_local !== undefined ? item.product.stock_local : item.product.stock;
-    if (newQty > stockLocalVal) {
-      showToast(`Solo quedan ${stockLocalVal} unidades en el stock local.`, true);
-      item.quantity = stockLocalVal;
-    } else {
-      item.quantity = newQty;
-    }
-  } else if (origin === "tiendanube") {
-    const stockTallerVal = item.product.stock_taller;
-    if (stockTallerVal !== "infinito" && stockTallerVal !== "" && stockTallerVal !== undefined) {
-      const tVal = parseInt(stockTallerVal) || 0;
-      if (newQty > tVal) {
-        showToast(`Solo quedan ${tVal} unidades en el taller.`, true);
-        item.quantity = tVal;
-      } else {
-        item.quantity = newQty;
-      }
-    } else {
-      item.quantity = newQty;
-    }
+  if (newQty > availableStock) {
+    showToast(`Solo quedan ${availableStock} unidades disponibles en ${selectedLocation || "esta ubicación"}.`, true);
+    item.quantity = availableStock;
   } else {
     item.quantity = newQty;
   }
   renderPOSCart();
 }
 
-function removePOSCartItem(sku) {
-  state.cart = state.cart.filter(item => item.product.sku !== sku);
+function removePOSCartItem(idx) {
+  if (idx < 0 || idx >= state.cart.length) return;
+  state.cart.splice(idx, 1);
   renderPOSCart();
 }
 
@@ -3111,10 +3209,18 @@ function renderPOSCart(recalc = true) {
   let total = 0;
   const origin = document.getElementById("pos-sale-origin") ? document.getElementById("pos-sale-origin").value : "local";
   
-  state.cart.forEach(item => {
+  state.cart.forEach((item, idx) => {
     // Calcular adicionales aplicables por unidad a este producto específico
     let itemExtraCost = 0;
-    if (state.businessType === "textil") {
+    const itemExtras = item.extras || {};
+    const itemExtraKeys = Object.keys(itemExtras).filter(k => itemExtras[k] && itemExtras[k] !== "0");
+
+    if (itemExtraKeys.length > 0) {
+      itemExtraKeys.forEach(catKey => {
+        const extraId = itemExtras[catKey];
+        itemExtraCost += getExtraCost(catKey, extraId);
+      });
+    } else if (state.businessType === "textil") {
       Object.keys(state.extras).forEach(catKey => {
         const p = item.product;
         const extrasObj = p.extras || {};
@@ -3123,7 +3229,6 @@ function renderPOSCart(recalc = true) {
         else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
         else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
 
-        // Solo sumar el costo del adicional si NO está incluido de forma estática en el inventario de este producto
         if (!hasStatic) {
           const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
           if (select) {
@@ -3134,6 +3239,22 @@ function renderPOSCart(recalc = true) {
           }
         }
       });
+    }
+
+    // Construir la vista de insumos asignados a este producto
+    let insumosBadgesHtml = "";
+    if (itemExtraKeys.length > 0) {
+      const badges = [];
+      itemExtraKeys.forEach(catKey => {
+        const extraId = itemExtras[catKey];
+        const extraName = getExtraName(catKey, extraId);
+        if (extraName) {
+          badges.push(`<span class="badge" style="background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); font-size: 0.62rem; margin-top: 2px; padding: 2px 5px; display: inline-block;">✨ ${extraName}</span>`);
+        }
+      });
+      if (badges.length > 0) {
+        insumosBadgesHtml = `<div style="margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px;">${badges.join('')}</div>`;
+      }
     }
 
     // Calcular precio unitario base según origen
@@ -3168,14 +3289,15 @@ function renderPOSCart(recalc = true) {
       <div class="pos-cart-item-info">
         <h4 class="pos-cart-item-name">${item.product.name}</h4>
         <p class="pos-cart-item-variant">${item.size} | ${item.product.color}</p>
+        ${insumosBadgesHtml}
         <p class="pos-cart-item-price">$ ${Math.round(price).toLocaleString()}</p>
       </div>
       <div class="pos-cart-item-actions">
-        <button class="pos-cart-item-delete" onclick="removePOSCartItem('${item.product.sku}')">✕</button>
+        <button class="pos-cart-item-delete" onclick="removePOSCartItem(${idx})">✕</button>
         <div class="pos-qty-control">
-          <button class="pos-qty-btn" onclick="updatePOSCartQty('${item.product.sku}', -1)">-</button>
-          <input type="number" class="pos-qty-input" value="${item.quantity}" onchange="setPOSCartExactQty('${item.product.sku}', this.value)" onblur="if(this.value==='') setPOSCartExactQty('${item.product.sku}', '1')">
-          <button class="pos-qty-btn" onclick="updatePOSCartQty('${item.product.sku}', 1)">+</button>
+          <button class="pos-qty-btn" onclick="updatePOSCartQty(${idx}, -1)">-</button>
+          <input type="number" class="pos-qty-input" value="${item.quantity}" onchange="setPOSCartExactQty(${idx}, this.value)" onblur="if(this.value==='') setPOSCartExactQty(${idx}, '1')">
+          <button class="pos-qty-btn" onclick="updatePOSCartQty(${idx}, 1)">+</button>
         </div>
         <span class="pos-qty-stock-alert">Stock: ${stockText}</span>
       </div>
@@ -7148,8 +7270,16 @@ function handleDebtSplitInput() {
 
 function getExtraCost(category, id) {
   if (id === "0" || !id) return 0;
-  const item = state.extras[category].find(x => x.id === id);
+  const list = state.extras && state.extras[category] ? state.extras[category] : [];
+  const item = list.find(x => x.id === id);
   return item ? parseFloat(item.cost) || 0 : 0;
+}
+
+function getExtraName(category, id) {
+  if (id === "0" || !id) return "";
+  const list = state.extras && state.extras[category] ? state.extras[category] : [];
+  const item = list.find(x => x.id === id);
+  return item ? item.name : "";
 }
 
 function populateIntakeSuppliers() {
