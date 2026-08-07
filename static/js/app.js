@@ -1883,7 +1883,7 @@ async function refreshState() {
       const uEmail = (state.email || "").toLowerCase();
       const isSuper = (uEmail === "valentinoklcv@gmail.com");
       const bName = (state.businessName || state.userProfile?.businessName || "").toLowerCase();
-      const isMatiasOrMazo = uEmail.includes("matias") || bName.includes("mazo");
+      const isMatiasOrMazo = uEmail.includes("matias") || uEmail.includes("valentinoklcv@gmail.com") || bName.includes("mazo");
 
       if (item.id === "sidebar-taller-item") {
         const isTallerAllowed = isSuper || (state.userProfile?.servicesEnabled === true) || isMatiasOrMazo;
@@ -3046,24 +3046,35 @@ function renderPOSCart(recalc = true) {
   const countBadge = document.getElementById("pos-cart-count-badge");
   const cobrarBtn = document.getElementById("pos-cobrar-btn");
   
-  // Populate configuration dropdowns if not populated yet
+  // Populate configuration dropdowns from userProfile settings
   const channelSelect = document.getElementById("pos-cart-channel-select");
-  if (channelSelect && channelSelect.children.length === 0) {
-    (state.userProfile.salesChannels || ["Local Principal"]).forEach(c => {
+  if (channelSelect) {
+    const currentVal = channelSelect.value;
+    channelSelect.innerHTML = "";
+    (state.userProfile?.salesChannels || ["Local Principal"]).forEach(c => {
       const opt = document.createElement("option");
       opt.value = c;
       opt.innerText = c;
       channelSelect.appendChild(opt);
     });
+    if (currentVal && Array.from(channelSelect.options).some(o => o.value === currentVal)) {
+      channelSelect.value = currentVal;
+    }
   }
+
   const locationSelect = document.getElementById("pos-cart-location-select");
-  if (locationSelect && locationSelect.children.length === 0) {
-    (state.userProfile.locations || ["Local Principal"]).forEach(l => {
+  if (locationSelect) {
+    const currentVal = locationSelect.value;
+    locationSelect.innerHTML = "";
+    (state.userProfile?.locations || ["Local Principal"]).forEach(l => {
       const opt = document.createElement("option");
       opt.value = l;
       opt.innerText = l;
       locationSelect.appendChild(opt);
     });
+    if (currentVal && Array.from(locationSelect.options).some(o => o.value === currentVal)) {
+      locationSelect.value = currentVal;
+    }
   }
   
   const totalItemsCount = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
@@ -3707,7 +3718,7 @@ async function confirmPayment(method) {
     const customDescContainer = document.getElementById("checkout-custom-descriptions-container");
     const customDescInputsDiv = document.getElementById("checkout-custom-descriptions-inputs");
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
 
     if (customDescContainer && customDescInputsDiv) {
       if (isMatias && registeredSale && registeredSale.items && registeredSale.items.length > 0) {
@@ -3810,7 +3821,7 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
   const pos = arca.pos || "00001";
   const condicionEmisor = (arca.condicion_iva || "Responsable Monotributo").toUpperCase();
   const userEmail = (state.email || state.userEmail || "").toLowerCase();
-  const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+  const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
 
   const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "MAZO."));
   const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
@@ -4472,7 +4483,7 @@ function getInvoiceTicketInnerHTML(sale) {
     const condicionEmisor = (arca.condicion_iva || "monotributo").toUpperCase();
 
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
 
     const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "Empresa"));
     const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
@@ -11057,7 +11068,7 @@ async function renderIntegrationsStatus() {
     const arcaKeyFile = document.getElementById("arca-key-file");
     
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
     const defaultFantasia = isMatias ? "MAZO." : "";
     const defaultRazon = isMatias ? "CUCHETTI DIAZ MATIAS" : "";
     const defaultDomicilio = isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "";
@@ -12662,7 +12673,7 @@ async function loadBusinessData() {
     const fullsizeList = document.getElementById("business-settings-fullsize-cats-list");
 
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
     const defaultMatiasSizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Único", "Talle 1 (S/M)", "Talle 2 (M/L)", "Talle 2 (L/XL)", "Talle 3 (L/XL)", "Talle 4 (XL)"];
 
     if (sizeVariantsInput && sizeVariantsContainer) {
