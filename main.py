@@ -4658,7 +4658,7 @@ def emit_invoice():
 
         # Datos del Cliente / Receptor
         client_cuit = str(sale.get("client_cuit", "")).strip()
-        client_name = str(sale.get("client_name", sale.get("client_razon_social", ""))).strip()
+        client_name = str(sale.get("client_razon_social") or sale.get("client_name") or "Consumidor Final").strip()
         client_condicion_iva = str(sale.get("client_condicion_iva", "CONSUMIDOR FINAL")).strip().upper()
         client_address = str(sale.get("client_address", "")).strip()
         client_cuit_clean = "".join(c for c in client_cuit if c.isdigit())

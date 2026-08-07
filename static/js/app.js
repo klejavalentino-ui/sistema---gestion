@@ -4623,24 +4623,20 @@ function getInvoiceTicketInnerHTML(sale) {
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
     const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
 
-    const tradeName = arca.nombre_fantasia || arca.nombreFantasia || state.businessName || (isMatias ? "MAZO." : "Empresa");
-    const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
-      ? arca.razon_social 
-      : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "Empresa / Monotributista"));
+    const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : state.businessName || "Empresa");
+    const businessName = arca.razon_social || arca.razonSocial || (isMatias ? "CUCHETTI DIAZ MATIAS" : state.businessName || "Empresa / Monotributista");
     
-    let rawAddress = (arca.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") 
-      ? arca.domicilio_comercial 
-      : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "Domicilio Comercial"));
+    let rawAddress = arca.domicilio_comercial || arca.domicilioComercial || arca.domicilio || arca.address || (isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "Domicilio Comercial");
     const addressStr = rawAddress.toLowerCase().includes("domicilio comercial") ? rawAddress : `Domicilio Comercial: ${rawAddress}`;
     
     const iibb = arca.iibb || cuit;
-    const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
+    const incioAct = arca.inicio_actividades || arca.inicioActividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
     const nroFactura = sale.arca_invoice_id || "";
     const cae = sale.arca_cae || "";
     const caeDue = sale.arca_cae_due || "";
 
     const clientCuit = sale.client_cuit ? sale.client_cuit.replace(/[^0-9]/g, '') : "";
-    const clientName = sale.client_name || sale.client_razon_social || "Consumidor Final";
+    const clientName = sale.client_razon_social || sale.client_name || "Consumidor Final";
     const clientCondicionIva = (sale.client_condicion_iva || "CONSUMIDOR FINAL").toUpperCase();
     const clientAddress = sale.client_address || "";
     const isAnonymous = !clientCuit || clientCuit === "0" || clientCuit === "20999999999";
