@@ -1883,7 +1883,7 @@ async function refreshState() {
       const uEmail = (state.email || "").toLowerCase();
       const isSuper = (uEmail === "valentinoklcv@gmail.com");
       const bName = (state.businessName || state.userProfile?.businessName || "").toLowerCase();
-      const isMatiasOrMazo = uEmail.includes("matias") || uEmail.includes("valentinoklcv@gmail.com") || bName.includes("mazo");
+      const isMatiasOrMazo = uEmail.includes("matias") || bName.includes("mazo");
 
       if (item.id === "sidebar-taller-item") {
         const isTallerAllowed = isSuper || (state.userProfile?.servicesEnabled === true) || isMatiasOrMazo;
@@ -3718,10 +3718,11 @@ async function confirmPayment(method) {
     const customDescContainer = document.getElementById("checkout-custom-descriptions-container");
     const customDescInputsDiv = document.getElementById("checkout-custom-descriptions-inputs");
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isSuperAdmin = userEmail === "valentinoklcv@gmail.com";
 
     if (customDescContainer && customDescInputsDiv) {
-      if (isMatias && registeredSale && registeredSale.items && registeredSale.items.length > 0) {
+      if ((isMatias || isSuperAdmin || state.selectedCheckoutClientType === 'registrado') && registeredSale && registeredSale.items && registeredSale.items.length > 0) {
         customDescContainer.style.display = "block";
         customDescInputsDiv.innerHTML = registeredSale.items.map((it, idx) => {
           const defaultName = cleanFacturaItemName(it.product?.name || it.name || "Producto");
@@ -3817,23 +3818,24 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
   }
 
   let arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
-  const cuit = arca.cuit || "20362895953";
+  const userEmail = (state.email || state.userEmail || "").toLowerCase();
+  const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+
+  const cuit = arca.cuit || (isMatias ? "20362895953" : "20-12345678-9");
   const pos = arca.pos || "00001";
   const condicionEmisor = (arca.condicion_iva || "Responsable Monotributo").toUpperCase();
-  const userEmail = (state.email || state.userEmail || "").toLowerCase();
-  const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
 
-  const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "MAZO."));
+  const tradeName = arca.nombre_fantasia || arca.nombreFantasia || state.businessName || (isMatias ? "MAZO." : "MI NEGOCIO");
   const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
     ? arca.razon_social 
-    : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "CUCHETTI DIAZ MATIAS"));
+    : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "EMPRESA FICTICIA S.A."));
   
   let rawAddress = (arca.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") 
     ? arca.domicilio_comercial 
-    : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Castelli 1229 - Bahia Blanca, Buenos Aires"));
+    : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Av. Principal 123 - CABA"));
 
   const iibb = arca.iibb || cuit;
-  const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/10/2024");
+  const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
   
   const rawInvoiceId = sale.arca_invoice_id || "00000085";
   const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : rawInvoiceId.padStart(8, '0');
@@ -4483,16 +4485,16 @@ function getInvoiceTicketInnerHTML(sale) {
     const condicionEmisor = (arca.condicion_iva || "monotributo").toUpperCase();
 
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
 
-    const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "Empresa"));
+    const tradeName = arca.nombre_fantasia || arca.nombreFantasia || state.businessName || (isMatias ? "MAZO." : "Empresa");
     const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
       ? arca.razon_social 
       : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "Empresa / Monotributista"));
     
     let rawAddress = (arca.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") 
       ? arca.domicilio_comercial 
-      : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "Hipólito Yrigoyen 631"));
+      : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "Domicilio Comercial"));
     const addressStr = rawAddress.toLowerCase().includes("domicilio comercial") ? rawAddress : `Domicilio Comercial: ${rawAddress}`;
     
     const iibb = arca.iibb || cuit;
@@ -11068,7 +11070,7 @@ async function renderIntegrationsStatus() {
     const arcaKeyFile = document.getElementById("arca-key-file");
     
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
     const defaultFantasia = isMatias ? "MAZO." : "";
     const defaultRazon = isMatias ? "CUCHETTI DIAZ MATIAS" : "";
     const defaultDomicilio = isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "";
@@ -12673,7 +12675,7 @@ async function loadBusinessData() {
     const fullsizeList = document.getElementById("business-settings-fullsize-cats-list");
 
     const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || userEmail.includes("valentinoklcv@gmail.com") || (state.businessName || "").toLowerCase().includes("mazo");
+    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
     const defaultMatiasSizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Único", "Talle 1 (S/M)", "Talle 2 (M/L)", "Talle 2 (L/XL)", "Talle 3 (L/XL)", "Talle 4 (XL)"];
 
     if (sizeVariantsInput && sizeVariantsContainer) {
