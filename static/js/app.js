@@ -8100,7 +8100,7 @@ function closeAccountModal() {
 async function saveAccountForm(e) {
   e.preventDefault();
   const type = document.getElementById("account-type-input").value;
-  const accId = document.getElementById("account-id-input").value.trim();
+  let accId = document.getElementById("account-id-input").value.trim();
   const entityName = document.getElementById("acc-entity-name").value.trim();
   const cuit = document.getElementById("acc-cuit") ? document.getElementById("acc-cuit").value.trim() : "";
   const razonSocial = document.getElementById("acc-razon-social") ? document.getElementById("acc-razon-social").value.trim() : "";
@@ -8110,11 +8110,22 @@ async function saveAccountForm(e) {
   const termsVal = document.getElementById("acc-payment-terms").value.trim();
   const paymentTerms = termsVal !== "" ? parseInt(termsVal, 10) : 30;
 
+  // REGLA ESTRICTA: Si no viene accId en el modal pero ya existe un cliente con el mismo nombre y tipo, reutilizamos su ID para no duplicar jamás
+  if (!accId && entityName) {
+    const matched = (state.currentAccounts || []).find(a => 
+      String(a.type).toLowerCase() === String(type).toLowerCase() && 
+      String(a.entityName || "").trim().toLowerCase() === entityName.toLowerCase()
+    );
+    if (matched) {
+      accId = matched.id;
+    }
+  }
+
   const payload = { entityName, type, phone, address, paymentTerms, cuit, razonSocial, condicionIva };
   
   if (accId) {
     payload.id = accId;
-    const existingAcc = state.currentAccounts.find(a => String(a.id) === String(accId));
+    const existingAcc = (state.currentAccounts || []).find(a => String(a.id) === String(accId));
     if (existingAcc) {
       payload.transactions = existingAcc.transactions || [];
       if (existingAcc.sku) payload.sku = existingAcc.sku;

@@ -2189,7 +2189,69 @@ def get_current_accounts():
         all_docs = firebase_config.list_documents("products", token)
         user_docs = filter_user_docs(all_docs, prefix)
         accounts = [d for d in user_docs if d.get("id", "").startswith("account_")]
-        return jsonify(accounts)
+        
+        # Deduplicar cuentas por (type, entityName)
+        grouped = {}
+        for acc in accounts:
+            raw_type = str(acc.get("type", "")).strip().lower()
+            raw_name = str(acc.get("entityName", "")).strip().lower()
+            key = (raw_type, raw_name)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(acc)
+
+        clean_accounts = []
+        for key, acc_list in grouped.items():
+            if len(acc_list) == 1:
+                clean_accounts.append(acc_list[0])
+            else:
+                # Elegir cuenta primaria (priorizar la que tenga más transacciones o más datos cargados)
+                primary = max(acc_list, key=lambda a: (
+                    len(a.get("transactions", [])),
+                    1 if (a.get("address") or a.get("phone") or a.get("cuit")) else 0,
+                    1 if not a.get("id", "").startswith("account_account_") else 0
+                ))
+                
+                # Consolidar transacciones y campos de datos
+                all_txs = []
+                seen_tx_ids = set()
+                for a in acc_list:
+                    for tx in a.get("transactions", []):
+                        tx_id = tx.get("id")
+                        if tx_id and tx_id not in seen_tx_ids:
+                            seen_tx_ids.add(tx_id)
+                            all_txs.append(tx)
+                        elif not tx_id:
+                            all_txs.append(tx)
+                primary["transactions"] = all_txs
+                
+                for a in acc_list:
+                    if a.get("id") == primary.get("id"):
+                        continue
+                    if not primary.get("phone") and a.get("phone"): primary["phone"] = a.get("phone")
+                    if not primary.get("address") and a.get("address"): primary["address"] = a.get("address")
+                    if not primary.get("cuit") and a.get("cuit"): primary["cuit"] = a.get("cuit")
+                    if not primary.get("razonSocial") and a.get("razonSocial"): primary["razonSocial"] = a.get("razonSocial")
+                    if not primary.get("condicionIva") and a.get("condicionIva"): primary["condicionIva"] = a.get("condicionIva")
+                    if not primary.get("paymentTerms") and a.get("paymentTerms"): primary["paymentTerms"] = a.get("paymentTerms")
+                    
+                    # Eliminar documento duplicado huérfano de Firestore
+                    try:
+                        firebase_config.delete_document("products", f"{prefix}{a['id']}", token)
+                    except Exception as ex:
+                        print(f"Error eliminando cuenta duplicada huérfana {a.get('id')}: {ex}")
+                        
+                # Actualizar cuenta primaria consolidada en Firestore
+                try:
+                    primary["sku"] = f"{prefix}{primary['id']}"
+                    primary["name"] = primary.get("entityName", "")
+                    firebase_config.set_document("products", f"{prefix}{primary['id']}", primary, token)
+                except Exception as ex:
+                    print(f"Error guardando cuenta primaria consolidada: {ex}")
+                    
+                clean_accounts.append(primary)
+
+        return jsonify(clean_accounts)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2203,20 +2265,41 @@ def save_current_account():
         return jsonify({"error": "Token inválido o expirado"}), 401
         
     data = request.json or {}
-    acc_id = data.get("id")
-    if not acc_id:
-        acc_id = f"acc-{int(time.time() * 1000)}"
-        data["id"] = acc_id
+    raw_id = data.get("id")
+    
+    if raw_id and str(raw_id).startswith(prefix):
+        raw_id = str(raw_id)[len(prefix):]
         
-    sku = f"account_{acc_id}"
-    data["sku"] = f"{prefix}{sku}"
+    if raw_id:
+        while str(raw_id).startswith("account_account_"):
+            raw_id = str(raw_id)[len("account_"):]
+        doc_key = str(raw_id) if str(raw_id).startswith("account_") else f"account_{raw_id}"
+    else:
+        # Regla estricta: si no hay ID, verificar si existe una cuenta con el mismo nombre y tipo
+        entity_name = str(data.get("entityName", "")).strip().lower()
+        acc_type = str(data.get("type", "")).strip().lower()
+        existing_doc_key = None
+        if entity_name:
+            all_docs = firebase_config.list_documents("products", token)
+            user_docs = filter_user_docs(all_docs, prefix)
+            for d in user_docs:
+                if d.get("id", "").startswith("account_") and str(d.get("type", "")).strip().lower() == acc_type and str(d.get("entityName", "")).strip().lower() == entity_name:
+                    existing_doc_key = d.get("id")
+                    break
+        if existing_doc_key:
+            doc_key = existing_doc_key
+        else:
+            doc_key = f"account_acc-{int(time.time() * 1000)}"
+
+    data["id"] = doc_key
+    data["sku"] = f"{prefix}{doc_key}"
     data["name"] = data.get("entityName", "")
     data["cost"] = 0.0
     data["stock"] = 0
     
-    if "transactions" not in data:
+    if "transactions" not in data or not isinstance(data["transactions"], list):
         try:
-            old_doc = firebase_config.get_document("products", f"{prefix}{sku}", token)
+            old_doc = firebase_config.get_document("products", f"{prefix}{doc_key}", token)
             if old_doc and "transactions" in old_doc:
                 data["transactions"] = old_doc["transactions"]
             else:
@@ -2225,11 +2308,12 @@ def save_current_account():
             data["transactions"] = []
         
     try:
-        res = firebase_config.set_document("products", f"{prefix}{sku}", data, token)
+        res = firebase_config.set_document("products", f"{prefix}{doc_key}", data, token)
         if res:
-            res["id"] = res["id"][len(prefix):]
-            if "sku" in res and res["sku"].startswith(prefix):
-                res["sku"] = res["sku"][len(prefix):]
+            if str(res.get("id", "")).startswith(prefix):
+                res["id"] = res["id"][len(prefix):]
+            if "sku" in res and str(res["sku"]).startswith(prefix):
+                res["sku"] = str(res["sku"])[len(prefix):]
         return jsonify(res)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
