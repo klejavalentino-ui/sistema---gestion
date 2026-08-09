@@ -430,10 +430,13 @@ async function handleLogin(e) {
     state.businessType = bizType;
     
     sessionStorage.setItem("datamargen_token", data.token);
+    localStorage.setItem("datamargen_token", data.token);
     if (data.refreshToken) {
       sessionStorage.setItem("datamargen_refresh_token", data.refreshToken);
+      localStorage.setItem("datamargen_refresh_token", data.refreshToken);
     }
     sessionStorage.setItem("datamargen_email", data.email);
+    localStorage.setItem("datamargen_email", data.email);
     localStorage.setItem("datamargen_business_type", bizType);
     
     showToast("¡Sesión iniciada!");
@@ -600,6 +603,9 @@ function handleLogout() {
   sessionStorage.removeItem("datamargen_token");
   sessionStorage.removeItem("datamargen_refresh_token");
   sessionStorage.removeItem("datamargen_email");
+  localStorage.removeItem("datamargen_token");
+  localStorage.removeItem("datamargen_refresh_token");
+  localStorage.removeItem("datamargen_email");
   showToast("Sesión cerrada");
   checkAuth();
 }
@@ -1662,7 +1668,7 @@ async function apiRequest(url, method = "GET", body = null) {
     data = {};
   }
   
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     try {
       if (!window.tokenRefreshPromise) {
         window.tokenRefreshPromise = refreshTokenFlow().finally(() => {

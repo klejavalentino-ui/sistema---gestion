@@ -29,10 +29,12 @@ def handle_error(e):
     err_str = str(e)
     if isinstance(e, requests.exceptions.HTTPError):
         status = e.response.status_code if e.response is not None else 500
-        if status in [401, 403]:
+        if status == 401:
             return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
+        elif status == 403:
+            return jsonify({"error": "No tiene permisos para realizar esta operación."}), 403
         return jsonify({"error": str(e)}), status
-    if "token" in err_str.lower() and ("expirad" in err_str.lower() or "inválid" in err_str.lower() or "no autorizad" in err_str.lower() or "permiso" in err_str.lower()):
+    if "token" in err_str.lower() and ("expirad" in err_str.lower() or "inválid" in err_str.lower() or "no autorizad" in err_str.lower()):
         return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
     return jsonify({"error": str(e)}), 500
 
