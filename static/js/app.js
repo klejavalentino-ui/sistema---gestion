@@ -3962,14 +3962,13 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
   const pos = arca.pos || "00001";
   const condicionEmisor = (arca.condicion_iva || "Responsable Monotributo").toUpperCase();
 
-  const tradeName = arca.nombre_fantasia || arca.nombreFantasia || state.businessName || (isMatias ? "MAZO." : "MI NEGOCIO");
-  const businessName = (arca.razon_social && arca.razon_social !== "Mazo") 
-    ? arca.razon_social 
-    : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "EMPRESA FICTICIA S.A."));
+  const isMazoCuit = cuit.includes("20362895953");
+  const isMatias = isMazoCuit || userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
+
+  const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "MI NEGOCIO"));
+  const businessName = arca.razon_social ? arca.razon_social : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "EMPRESA FICTICIA S.A."));
   
-  let rawAddress = (arca.domicilio_comercial && arca.domicilio_comercial !== "Hipólito Yrigoyen 631") 
-    ? arca.domicilio_comercial 
-    : (arca.domicilio || arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Av. Principal 123 - CABA"));
+  let rawAddress = arca.domicilio ? arca.domicilio : (arca.domicilio_comercial ? arca.domicilio_comercial : (arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Av. Principal 123 - CABA")));
 
   const iibb = arca.iibb || cuit;
   const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
@@ -3982,7 +3981,7 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
   const cae = sale.arca_cae || "86305092733678";
   const caeDue = sale.arca_cae_due ? (sale.arca_cae_due.includes("T") ? sale.arca_cae_due.split("T")[0].split("-").reverse().join("/") : sale.arca_cae_due) : "02/08/2026";
 
-  const clientName = sale.client_name || sale.client_razon_social || "Consumidor Final";
+  const clientName = sale.client_razon_social || sale.client_name || "Consumidor Final";
   const clientCuit = sale.client_cuit || "";
   const clientCondicionIva = (sale.client_condicion_iva || "CONSUMIDOR FINAL").toUpperCase();
   const clientAddress = sale.client_address || "";
