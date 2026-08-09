@@ -5770,16 +5770,15 @@ def api_arca_padron(cuit):
             return jsonify({"error": "Token inválido o expirado"}), 401
             
         import firebase_config
-        user_doc = firebase_config.get_document("products", f"{prefix}user_profile", token)
+        email = get_email_from_token(token)
+        user_doc = firebase_config.get_document("users", email, token)
 
         if not user_doc:
             return jsonify({"error": "Perfil de usuario no encontrado."}), 404
 
-        user_data = user_doc or {}
-        integrations = user_data.get("integrations") or {}
-        arca_config = integrations.get("arca") or {}
+        arca_config = user_doc.get("arca_config", {})
         
-        cert_content = arca_config.get("crt_content") or ""
+        cert_content = arca_config.get("cert_content") or ""
         key_content = arca_config.get("key_content") or ""
         
         if not cert_content or not key_content:
