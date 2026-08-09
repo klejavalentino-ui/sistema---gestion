@@ -5761,52 +5761,60 @@ def debug_auth_error():
 
 @app.route("/api/arca/padron/<cuit>", methods=["GET"])
 def api_arca_padron(cuit):
-    token = get_auth_token()
-    if not token:
-        return jsonify({"error": "No autorizado"}), 401
-    prefix = get_user_prefix(token)
-    if not prefix:
-        return jsonify({"error": "Token inválido o expirado"}), 401
-
-    db = get_db()
-    users_collection = db.collection("users")
-    user_doc_ref = users_collection.document(prefix)
-    user_doc = user_doc_ref.get()
-
-    if not user_doc.exists:
-        return jsonify({"error": "Usuario no encontrado."}), 404
-
-    user_data = user_doc.to_dict() or {}
-    integrations = user_data.get("integrations") or {}
-    arca_config = integrations.get("arca") or {}
-    
-    cert_content = arca_config.get("crt_content") or ""
-    key_content = arca_config.get("key_content") or ""
-    
-    if not cert_content or not key_content:
-        return jsonify({"error": "No hay credenciales AFIP/ARCA configuradas."}), 400
-        
-    cuit_emisor = arca_config.get("cuit", "")
-    if not cuit_emisor:
-        cuit_emisor = "".join(c for c in prefix if c.isdigit())
-        if not cuit_emisor:
-            cuit_emisor = "20000000001"
-            
-    is_sandbox_cert = not ("--BEGIN CERTIFICATE--" in cert_content and "AFIP" in cert_content)
-    if "afip.gov.ar" in cert_content.lower() and "homo" not in cert_content.lower():
-        is_sandbox_cert = False
-
     try:
-        from arca_service import WSAAClient, WSPadronClient
-        wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
-        token_afip, sign_afip = wsaa.get_token_and_sign("ws_sr_padron_a13")
+        token = get_auth_token()
+        if not token:
+            return jsonify({"error": "No autorizado"}), 401
+        prefix = get_user_prefix(token)
+        if not prefix:
+            return jsonify({"error": "Token inválido o expirado"}), 401
+            
+        db = get_db()
+        users_collection = db.collection("users")
+        user_doc_ref = users_collection.document(prefix)
+        user_doc = user_doc_ref.get()
+
+        if not user_doc.exists:
+            return jsonify({"error": "Usuario no encontrado."}), 404
+
+        user_data = user_doc.to_dict() or {}
+        integrations = user_data.get("integrations") or {}
+        arca_config = integrations.get("arca") or {}
         
-        padron_client = WSPadronClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
-        datos = padron_client.get_persona(cuit)
+        cert_content = arca_config.get("crt_content") or ""
+        key_content = arca_config.get("key_content") or ""
         
-        return jsonify(datos), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        if not cert_content or not key_content:
+            return jsonify({"error": "No hay credenciales AFIP/ARCA configuradas."}), 400
+            
+        cuit_emisor = arca_config.get("cuit", "")
+        if not cuit_emisor:
+            cuit_emisor = "".join(c for c in prefix if c.isdigit())
+            if not cuit_emisor:
+                cuit_emisor = "20000000001"
+                
+        is_sandbox_cert = not ("--BEGIN CERTIFICATE--" in cert_content and "AFIP" in cert_content)
+        if "afip.gov.ar" in cert_content.lower() and "homo" not in cert_content.lower():
+            is_sandbox_cert = False
+
+        try:
+            from arca_service import WSAAClient, WSPadronClient
+            wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
+            token_afip, sign_afip = wsaa.get_token_and_sign("ws_sr_padron_a13")
+            
+            padron_client = WSPadronClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
+            datos = padron_client.get_persona(cuit)
+            
+            return jsonify(datos), 200
+        except Exception as e:
+            import traceback
+            print(f"[AFIP API ERROR] {traceback.format_exc()}")
+            return jsonify({"error": f"Error del servicio AFIP: {str(e)}"}), 400
+    except Exception as general_err:
+        import traceback
+        trace_str = traceback.format_exc()
+        print(f"[PADRON CRITICAL ERROR] {trace_str}")
+        return jsonify({"error": f"Critical Backend Error: {str(general_err)}", "trace": trace_str}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
