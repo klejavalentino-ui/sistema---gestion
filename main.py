@@ -5769,6 +5769,7 @@ def api_arca_padron(cuit):
         if not prefix:
             return jsonify({"error": "Token inválido o expirado"}), 401
             
+        from firebase_admin import firestore
         db = firestore.client()
         users_collection = db.collection("users")
         user_doc_ref = users_collection.document(prefix)
