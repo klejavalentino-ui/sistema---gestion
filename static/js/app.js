@@ -8271,43 +8271,37 @@ async function fetchAfipPadronData() {
   }
 
   try {
-    const res = await apiFetch(`/api/arca/padron/${cuit}`);
-    const data = await res.json();
-    if (res.ok) {
-      if (data.razonSocial) {
-        const inputRs = document.getElementById("acc-razon-social");
-        if (inputRs) inputRs.value = data.razonSocial;
-      }
-      if (data.condicion_iva) {
-        const inputIva = document.getElementById("acc-condicion-iva");
-        if (inputIva) {
-          const expected = data.condicion_iva.toUpperCase();
-          for (let i = 0; i < inputIva.options.length; i++) {
-            if (inputIva.options[i].value.toUpperCase().includes(expected) || expected.includes(inputIva.options[i].value.toUpperCase())) {
-              inputIva.selectedIndex = i;
-              break;
-            }
+    const data = await apiRequest(`/api/arca/padron/${cuit}`);
+    if (data.razonSocial) {
+      const inputRs = document.getElementById("acc-razon-social");
+      if (inputRs) inputRs.value = data.razonSocial;
+    }
+    if (data.condicion_iva) {
+      const inputIva = document.getElementById("acc-condicion-iva");
+      if (inputIva) {
+        const expected = data.condicion_iva.toUpperCase();
+        for (let i = 0; i < inputIva.options.length; i++) {
+          if (inputIva.options[i].value.toUpperCase().includes(expected) || expected.includes(inputIva.options[i].value.toUpperCase())) {
+            inputIva.selectedIndex = i;
+            break;
           }
         }
       }
-      if (data.direccion) {
-        const inputDir = document.getElementById("acc-address");
-        if (inputDir) inputDir.value = data.direccion;
-      }
-      if (data.estadoClave && data.estadoClave.toUpperCase() !== "ACTIVO") {
-        Swal.fire({
-          icon: "warning",
-          title: "Estado AFIP: " + data.estadoClave,
-          text: "El contribuyente tiene inconsistencias o está inactivo en AFIP. Verifica los datos."
-        });
-      }
-    } else {
-      console.warn("Error AFIP:", data.error);
-      showToast(data.error || "No se pudo recuperar datos de AFIP", "error");
+    }
+    if (data.direccion) {
+      const inputDir = document.getElementById("acc-address");
+      if (inputDir) inputDir.value = data.direccion;
+    }
+    if (data.estadoClave && data.estadoClave.toUpperCase() !== "ACTIVO") {
+      Swal.fire({
+        icon: "warning",
+        title: "Estado AFIP: " + data.estadoClave,
+        text: "El contribuyente tiene inconsistencias o está inactivo en AFIP. Verifica los datos."
+      });
     }
   } catch (e) {
     console.error(e);
-    showToast("Error de conexión al consultar padrón", "error");
+    showToast(e.message || "Error de conexión al consultar padrón", "error");
   } finally {
     if (cuitInput.nextElementSibling) {
       cuitInput.nextElementSibling.innerHTML = '🔍';
