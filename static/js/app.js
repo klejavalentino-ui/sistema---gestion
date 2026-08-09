@@ -420,7 +420,13 @@ async function handleLogin(e) {
       body: JSON.stringify({ email, password })
     });
     
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      throw new Error("El servidor no respondió correctamente (" + res.status + "). Reintentá en unos segundos.");
+    }
+    
     if (!res.ok) throw new Error(data.error || "Error al iniciar sesión");
     
     state.token = data.token;
