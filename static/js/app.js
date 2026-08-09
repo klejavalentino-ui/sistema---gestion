@@ -1618,7 +1618,7 @@ async function updateBusinessType(type) {
 }
 
 async function refreshTokenFlow() {
-  const refreshToken = sessionStorage.getItem("datamargen_refresh_token");
+  const refreshToken = sessionStorage.getItem("datamargen_refresh_token") || localStorage.getItem("datamargen_refresh_token");
   if (!refreshToken) throw new Error("No refresh token");
   
   const res = await fetch("/api/auth/refresh", {
@@ -1630,8 +1630,10 @@ async function refreshTokenFlow() {
   const data = await res.json();
   state.token = data.token;
   sessionStorage.setItem("datamargen_token", data.token);
+  localStorage.setItem("datamargen_token", data.token);
   if (data.refreshToken) {
     sessionStorage.setItem("datamargen_refresh_token", data.refreshToken);
+    localStorage.setItem("datamargen_refresh_token", data.refreshToken);
   }
   return data.token;
 }
@@ -1660,7 +1662,7 @@ async function apiRequest(url, method = "GET", body = null) {
     data = {};
   }
   
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     try {
       if (!window.tokenRefreshPromise) {
         window.tokenRefreshPromise = refreshTokenFlow().finally(() => {

@@ -29,12 +29,10 @@ def handle_error(e):
     err_str = str(e)
     if isinstance(e, requests.exceptions.HTTPError):
         status = e.response.status_code if e.response is not None else 500
-        if status == 401:
+        if status in [401, 403]:
             return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
-        elif status == 403:
-            return jsonify({"error": "No tiene permisos para realizar esta operación."}), 403
         return jsonify({"error": str(e)}), status
-    if "token" in err_str.lower() and ("expirad" in err_str.lower() or "inválid" in err_str.lower() or "no autorizad" in err_str.lower()):
+    if "token" in err_str.lower() and ("expirad" in err_str.lower() or "inválid" in err_str.lower() or "no autorizad" in err_str.lower() or "permiso" in err_str.lower()):
         return jsonify({"error": "Sesión inválida o expirada. Por favor inicie sesión."}), 401
     return jsonify({"error": str(e)}), 500
 
@@ -1049,6 +1047,8 @@ def get_all_state():
         
     try:
         admin_uid = firebase_config.verify_id_token(token)
+        if not admin_uid:
+            return jsonify({"error": "Token inválido o expirado"}), 401
         real_uid = firebase_config.get_real_uid(admin_uid, token)
         
         my_role = "admin"
