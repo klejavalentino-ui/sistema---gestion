@@ -281,3 +281,98 @@ class WSFEClient:
         cae_due_node = root.find(".//CAEFchVto") or root.find(".//{http://ar.gov.afip.dif.FEV1/}CAEFchVto")
         
         return cae_node.text, cae_due_node.text
+
+
+class WSPadronClient:
+    def __init__(self, token, sign, cuit, sandbox=True):
+        self.token = token
+        self.sign = sign
+        self.cuit = "".join(c for c in str(cuit) if c.isdigit())
+        self.sandbox = sandbox
+        self.url = "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13" if sandbox else "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13"
+
+    def get_persona(self, cuit_to_query):
+        cuit_to_query = "".join(c for c in str(cuit_to_query) if c.isdigit())
+        
+        soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a13="http://a13.soap.ws.server.puc.sr/">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <a13:getPersona>
+         <token>{self.token}</token>
+         <sign>{self.sign}</sign>
+         <cuitRepresentada>{self.cuit}</cuitRepresentada>
+         <idPersona>{cuit_to_query}</idPersona>
+      </a13:getPersona>
+   </soapenv:Body>
+</soapenv:Envelope>"""
+
+        headers = {
+            "Content-Type": "text/xml; charset=utf-8",
+        }
+        
+        r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
+        r.raise_for_status()
+        
+        root = ET.fromstring(r.text)
+        
+        # Check for errors
+        fault = root.find(".//S:Fault") or root.find(".//{http://schemas.xmlsoap.org/soap/envelope/}Fault")
+        if fault is not None:
+            fault_string = fault.find("faultstring").text if fault.find("faultstring") is not None else "Error desconocido"
+            raise Exception(f"Error AFIP Padrón: {fault_string}")
+            
+        persona_return = root.find(".//return") or root.find(".//{http://a13.soap.ws.server.puc.sr/}return")
+        if persona_return is None:
+            raise Exception("No se encontraron datos para el CUIT ingresado.")
+            
+        datos = {}
+        
+        # Básicos
+        persona = persona_return.find("persona")
+        if persona is not None:
+            datos["razonSocial"] = persona.findtext("razonSocial", "")
+            if not datos["razonSocial"]:
+                nombre = persona.findtext("nombre", "")
+                apellido = persona.findtext("apellido", "")
+                if nombre or apellido:
+                    datos["razonSocial"] = f"{apellido} {nombre}".strip()
+            datos["estadoClave"] = persona.findtext("estadoClave", "INACTIVO")
+            
+        # Domicilio
+        domicilio = persona_return.find(".//domicilio")
+        if domicilio is not None:
+            calle = domicilio.findtext("calle", "")
+            numero = domicilio.findtext("numero", "")
+            localidad = domicilio.findtext("localidad", "")
+            cp = domicilio.findtext("codigoPostal", "")
+            prov = domicilio.findtext("descripcionProvincia", "")
+            
+            addr_parts = []
+            if calle: addr_parts.append(calle)
+            if numero: addr_parts.append(numero)
+            if localidad: addr_parts.append(localidad)
+            if prov: addr_parts.append(prov)
+            if cp: addr_parts.append(f"CP {cp}")
+            
+            datos["direccion"] = ", ".join(addr_parts)
+        else:
+            datos["direccion"] = ""
+            
+        # Impuestos para deducir condición IVA
+        impuestos_nodes = persona_return.findall(".//impuesto")
+        condicion_iva = "CONSUMIDOR FINAL"
+        for imp in impuestos_nodes:
+            id_impuesto = imp.findtext("idImpuesto")
+            if id_impuesto == "30":
+                condicion_iva = "IVA EXENTO"
+            elif id_impuesto == "32":
+                condicion_iva = "IVA SUJETO EXENTO"
+            elif id_impuesto == "10" or id_impuesto == "11":
+                condicion_iva = "RESPONSABLE INSCRIPTO"
+            elif id_impuesto == "20":
+                condicion_iva = "MONOTRIBUTO"
+                
+        datos["condicion_iva"] = condicion_iva
+        
+        return datos

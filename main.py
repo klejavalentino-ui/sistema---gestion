@@ -5759,5 +5759,50 @@ def debug_auth_error():
             return f.read(), 200, {'Content-Type': 'text/plain'}
     return "No log found", 200
 
+@app.route("/api/arca/padron/<cuit>", methods=["GET"])
+def api_arca_padron(cuit):
+    if "user" not in session:
+        return jsonify({"error": "No has iniciado sesión."}), 401
+
+    db = get_db()
+    users_collection = db.collection("users")
+    user_doc_ref = users_collection.document(session["user"]["email"])
+    user_doc = user_doc_ref.get()
+
+    if not user_doc.exists:
+        return jsonify({"error": "Usuario no encontrado."}), 404
+
+    user_data = user_doc.to_dict()
+    integrations = user_data.get("integrations", {})
+    arca_config = integrations.get("arca", {})
+    
+    cert_content = arca_config.get("crt_content", "")
+    key_content = arca_config.get("key_content", "")
+    
+    if not cert_content or not key_content:
+        return jsonify({"error": "No hay credenciales AFIP/ARCA configuradas."}), 400
+        
+    cuit_emisor = arca_config.get("cuit", "")
+    if not cuit_emisor:
+        cuit_emisor = "".join(c for c in session["user"]["email"] if c.isdigit())
+        if not cuit_emisor:
+            cuit_emisor = "20000000001"
+            
+    is_sandbox_cert = not ("--BEGIN CERTIFICATE--" in cert_content and "AFIP" in cert_content)
+    if "afip.gov.ar" in cert_content.lower() and "homo" not in cert_content.lower():
+        is_sandbox_cert = False
+
+    try:
+        from arca_service import WSAAClient, WSPadronClient
+        wsaa = WSAAClient(cert_content, key_content, sandbox=is_sandbox_cert)
+        token_afip, sign_afip = wsaa.get_token_and_sign("ws_sr_padron_a13")
+        
+        padron_client = WSPadronClient(token_afip, sign_afip, cuit_emisor, sandbox=is_sandbox_cert)
+        datos = padron_client.get_persona(cuit)
+        
+        return jsonify(datos), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

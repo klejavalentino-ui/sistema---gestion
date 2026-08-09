@@ -8258,6 +8258,64 @@ function closeAccountModal() {
   document.getElementById("account-modal").className = "modal-backdrop";
 }
 
+async function fetchAfipPadronData() {
+  const cuitInput = document.getElementById("acc-cuit");
+  if (!cuitInput) return;
+  const cuit = cuitInput.value.replace(/\D/g, "");
+  if (cuit.length !== 11) return;
+
+  const originalIcon = cuitInput.nextElementSibling ? cuitInput.nextElementSibling.innerHTML : "";
+  if (cuitInput.nextElementSibling) {
+    cuitInput.nextElementSibling.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite;"></div>';
+    cuitInput.nextElementSibling.disabled = true;
+  }
+
+  try {
+    const res = await fetch(`/api/arca/padron/${cuit}`);
+    const data = await res.json();
+    if (res.ok) {
+      if (data.razonSocial) {
+        const inputRs = document.getElementById("acc-razon-social");
+        if (inputRs) inputRs.value = data.razonSocial;
+      }
+      if (data.condicion_iva) {
+        const inputIva = document.getElementById("acc-condicion-iva");
+        if (inputIva) {
+          const expected = data.condicion_iva.toUpperCase();
+          for (let i = 0; i < inputIva.options.length; i++) {
+            if (inputIva.options[i].value.toUpperCase().includes(expected) || expected.includes(inputIva.options[i].value.toUpperCase())) {
+              inputIva.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
+      if (data.direccion) {
+        const inputDir = document.getElementById("acc-address");
+        if (inputDir) inputDir.value = data.direccion;
+      }
+      if (data.estadoClave && data.estadoClave.toUpperCase() !== "ACTIVO") {
+        Swal.fire({
+          icon: "warning",
+          title: "Estado AFIP: " + data.estadoClave,
+          text: "El contribuyente tiene inconsistencias o está inactivo en AFIP. Verifica los datos."
+        });
+      }
+    } else {
+      console.warn("Error AFIP:", data.error);
+      showToast(data.error || "No se pudo recuperar datos de AFIP", "error");
+    }
+  } catch (e) {
+    console.error(e);
+    showToast("Error de conexión al consultar padrón", "error");
+  } finally {
+    if (cuitInput.nextElementSibling) {
+      cuitInput.nextElementSibling.innerHTML = '🔍';
+      cuitInput.nextElementSibling.disabled = false;
+    }
+  }
+}
+
 async function saveAccountForm(e) {
   e.preventDefault();
   const type = document.getElementById("account-type-input").value;
