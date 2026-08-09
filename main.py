@@ -5761,12 +5761,16 @@ def debug_auth_error():
 
 @app.route("/api/arca/padron/<cuit>", methods=["GET"])
 def api_arca_padron(cuit):
-    if "user" not in session:
-        return jsonify({"error": "No has iniciado sesión."}), 401
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
 
     db = get_db()
     users_collection = db.collection("users")
-    user_doc_ref = users_collection.document(session["user"]["email"])
+    user_doc_ref = users_collection.document(prefix)
     user_doc = user_doc_ref.get()
 
     if not user_doc.exists:
@@ -5784,7 +5788,7 @@ def api_arca_padron(cuit):
         
     cuit_emisor = arca_config.get("cuit", "")
     if not cuit_emisor:
-        cuit_emisor = "".join(c for c in session["user"]["email"] if c.isdigit())
+        cuit_emisor = "".join(c for c in prefix if c.isdigit())
         if not cuit_emisor:
             cuit_emisor = "20000000001"
             

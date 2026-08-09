@@ -8271,7 +8271,7 @@ async function fetchAfipPadronData() {
   }
 
   try {
-    const res = await fetch(`/api/arca/padron/${cuit}`);
+    const res = await apiFetch(`/api/arca/padron/${cuit}`);
     const data = await res.json();
     if (res.ok) {
       if (data.razonSocial) {
