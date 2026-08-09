@@ -5783,6 +5783,18 @@ def api_arca_padron(cuit):
         key_content = arca_config.get("key_content") or ""
         
         if not cert_content or not key_content:
+            if prefix == "valentinoklcv@gmail.com":
+                # MOCK response para la cuenta de testing
+                mock_data = {
+                    "razonSocial": "EMPRESA DE PRUEBA S.R.L.",
+                    "condicion_iva": "Responsable Inscripto",
+                    "direccion": "AV. Falsa 123, CABA, C1000",
+                    "estadoClave": "ACTIVO",
+                    "cuit": cuit
+                }
+                import time
+                time.sleep(1) # Simular latencia de red
+                return jsonify(mock_data), 200
             return jsonify({"error": "No hay credenciales AFIP/ARCA configuradas."}), 400
             
         cuit_emisor = arca_config.get("cuit", "")
