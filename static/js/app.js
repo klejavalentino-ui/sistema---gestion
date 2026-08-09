@@ -3982,9 +3982,8 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
 
   let arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
   const userEmail = (state.email || state.userEmail || "").toLowerCase();
-  const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
 
-  const cuit = arca.cuit || (isMatias ? "20362895953" : "20-12345678-9");
+  const cuit = arca.cuit || "20362895953";
   const pos = arca.pos || "00001";
   const condicionEmisor = (arca.condicion_iva || "Responsable Monotributo").toUpperCase();
 
