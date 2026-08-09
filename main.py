@@ -394,7 +394,8 @@ def get_email_for_username(username):
         try:
             project_id = firebase_config.PROJECT_ID
             db_id = firebase_config.DATABASE_ID
-            url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/{db_id}/documents/username_mappings/{username}"
+            api_key = firebase_config.API_KEY
+            url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/{db_id}/documents/username_mappings/{username}?key={api_key}"
             r = requests.get(url, timeout=10)
             if r.status_code == 200:
                 doc_data = r.json()
@@ -459,11 +460,12 @@ def login():
     if not email or not password:
         return jsonify({"error": "Correo/Usuario y contraseña son requeridos"}), 400
         
-    # Verificar si es un username (no contiene arroba)
-    if "@" not in email:
+    if "@" in email:
+        email = email.lower()
+    else:
         mapped = get_email_for_username(email)
         if mapped:
-            email = mapped
+            email = mapped.lower()
         else:
             return jsonify({"error": "Nombre de usuario no encontrado. Inicie sesión con su CORREO ELECTRÓNICO (ej: mi@correo.com) por única vez para vincular su usuario automáticamente."}), 404
             
@@ -5770,13 +5772,7 @@ def api_arca_padron(cuit):
             return jsonify({"error": "Token inválido o expirado"}), 401
             
         import firebase_config
-        email = get_email_from_token(token)
-        user_doc = firebase_config.get_document("users", email, token)
-
-        if not user_doc:
-            return jsonify({"error": "Perfil de usuario no encontrado."}), 404
-
-        arca_config = user_doc.get("arca_config", {})
+        arca_config = firebase_config.get_document("integrations", "arca", token) or {}
         
         cert_content = arca_config.get("cert_content") or ""
         key_content = arca_config.get("key_content") or ""
