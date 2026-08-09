@@ -5776,12 +5776,12 @@ def api_arca_padron(cuit):
     if not user_doc.exists:
         return jsonify({"error": "Usuario no encontrado."}), 404
 
-    user_data = user_doc.to_dict()
-    integrations = user_data.get("integrations", {})
-    arca_config = integrations.get("arca", {})
+    user_data = user_doc.to_dict() or {}
+    integrations = user_data.get("integrations") or {}
+    arca_config = integrations.get("arca") or {}
     
-    cert_content = arca_config.get("crt_content", "")
-    key_content = arca_config.get("key_content", "")
+    cert_content = arca_config.get("crt_content") or ""
+    key_content = arca_config.get("key_content") or ""
     
     if not cert_content or not key_content:
         return jsonify({"error": "No hay credenciales AFIP/ARCA configuradas."}), 400
