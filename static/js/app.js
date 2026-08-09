@@ -205,7 +205,7 @@ let currentLocationTab = "";
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // --- Inicialización ---
-document.addEventListener("DOMContentLoaded", async () => {
+async function initAppOnLoad() {
   setupEventListeners();
   
   // Fetch Firebase config and initialize client SDK
@@ -213,14 +213,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     const res = await fetch("/api/firebase-config");
     if (res.ok) {
       const config = await res.json();
-      firebase.initializeApp(config);
+      if (window.firebase) {
+        firebase.initializeApp(config);
+      }
     }
   } catch (err) {
     console.error("Error al inicializar Firebase client SDK:", err);
   }
   
   checkAuth();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAppOnLoad);
+} else {
+  initAppOnLoad();
+}
 
 // --- Toast Notifications ---
 function showToast(message, isError = false) {
@@ -313,7 +321,12 @@ function translateError(msg) {
   if (upperMsg.includes("EMAIL_EXISTS")) {
     return "El correo electrónico ya está registrado.";
   }
-  if (upperMsg.includes("INVALID_LOGIN_CREDENTIALS") || upperMsg.includes("INVALID_PASSWORD") || upperMsg.includes("EMAIL_NOT_FOUND")) {
+  if (upperMsg.includes("INVALID_LOGIN_CREDENTIALS") || 
+      upperMsg.includes("INVALID_CREDENTIAL") || 
+      upperMsg.includes("INVALID_PASSWORD") || 
+      upperMsg.includes("EMAIL_NOT_FOUND") || 
+      upperMsg.includes("USER_NOT_FOUND") ||
+      upperMsg.includes("INVALID_EMAIL_OR_PASSWORD")) {
     return "El correo o la contraseña son incorrectos.";
   }
   if (upperMsg.includes("WEAK_PASSWORD")) {
@@ -464,10 +477,15 @@ async function handleLogin(e) {
     }
   } catch (error) {
     console.error("Login Error:", error);
-    errorDiv.innerText = translateError(error.message);
-    errorDiv.style.display = "block";
+    const msg = translateError(error.message);
+    if (errorDiv) {
+      errorDiv.innerText = msg;
+      errorDiv.style.display = "block";
+    }
+    showToast(msg, true);
   }
 }
+window.handleLogin = handleLogin;
 
 async function handleRegister(e) {
   e.preventDefault();
@@ -518,8 +536,10 @@ async function handleRegister(e) {
   } catch (error) {
     errorDiv.innerText = translateError(error.message);
     errorDiv.style.display = "block";
+    showToast(translateError(error.message), true);
   }
 }
+window.handleRegister = handleRegister;
 
 function updateSidebarProfile() {
   const nameSpan = document.getElementById("user-display-name");
