@@ -14931,6 +14931,86 @@ function onQuoteSearchInput(query) {
   window.currentQuoteMatches = matches;
 }
 
+function renderQuoteExtrasSelectors() {
+  const container = document.getElementById("quote-extras-container");
+  const list = document.getElementById("quote-extras-list");
+  if (!container || !list) return;
+
+  const extraCategories = Object.keys(state.extras || {}).filter(k => Array.isArray(state.extras[k]) && state.extras[k].length > 0);
+  if (extraCategories.length === 0) {
+    container.style.display = "none";
+    return;
+  }
+
+  list.innerHTML = extraCategories.map(catKey => {
+    const options = state.extras[catKey] || [];
+    const catName = catKey.charAt(0).toUpperCase() + catKey.slice(1);
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <span style="font-size: 0.75rem; color: var(--text-gray); font-weight: 600;">${catName}:</span>
+        <select id="quote-extra-${catKey}" class="form-select" style="padding: 4px 8px; font-size: 0.75rem; max-width: 65%;" onchange="recalculateQuoteSelectedProductPrice()">
+          <option value="">-- Ninguno --</option>
+          ${options.map(o => `<option value="${o.id}">${o.name} (+$${Math.round(o.cost || 0).toLocaleString('es-AR')})</option>`).join("")}
+        </select>
+      </div>
+    `;
+  }).join("");
+
+  container.style.display = "flex";
+}
+window.renderQuoteExtrasSelectors = renderQuoteExtrasSelectors;
+
+function recalculateQuoteSelectedProductPrice() {
+  const prod = state.selectedQuoteProduct;
+  if (!prod) return;
+
+  let baseCost = parseFloat(prod.baseCost || prod.cost || 0);
+  let basePrice = parseFloat(prod.price_local || prod.price || 0);
+
+  if (baseCost === 0 && prod.baseSku) {
+    const matchingProd = (state.products || []).find(p => p.baseSku === prod.baseSku || p.sku === prod.baseSku || (p.name && prod.name && p.name.toLowerCase() === prod.name.toLowerCase()));
+    if (matchingProd) {
+      if (matchingProd.baseCost || matchingProd.cost) baseCost = parseFloat(matchingProd.baseCost || matchingProd.cost || 0);
+      if (matchingProd.price_local || matchingProd.price) basePrice = parseFloat(matchingProd.price_local || matchingProd.price || 0);
+    }
+  }
+
+  let extraCostTotal = 0;
+  let selectedExtrasNames = [];
+
+  if (state.extras) {
+    Object.keys(state.extras).forEach(catKey => {
+      const el = document.getElementById(`quote-extra-${catKey}`);
+      if (el && el.value) {
+        const option = (state.extras[catKey] || []).find(o => o.id === el.value);
+        if (option) {
+          extraCostTotal += parseFloat(option.cost || 0);
+          selectedExtrasNames.push(option.name);
+        }
+      }
+    });
+  }
+
+  let finalPrice = basePrice;
+
+  if (baseCost > 0 && basePrice > 0) {
+    const markupRatio = basePrice / baseCost;
+    const newCost = baseCost + extraCostTotal;
+    finalPrice = newCost * markupRatio;
+  } else if (basePrice > 0) {
+    finalPrice = basePrice + extraCostTotal;
+  }
+
+  const roundedPrice = Math.round(finalPrice / 100) * 100 || Math.round(finalPrice);
+  const priceInput = document.getElementById("quote-item-price");
+  if (priceInput) {
+    priceInput.value = roundedPrice ? `$${roundedPrice.toLocaleString("es-AR")}` : "$0";
+  }
+
+  state.selectedQuoteExtrasNames = selectedExtrasNames;
+}
+window.recalculateQuoteSelectedProductPrice = recalculateQuoteSelectedProductPrice;
+
 function selectQuoteProduct(index) {
   const dropdown = document.getElementById("quote-search-dropdown");
   if (dropdown) dropdown.style.display = "none";
@@ -14940,6 +15020,7 @@ function selectQuoteProduct(index) {
   if (!prod) return;
   
   state.selectedQuoteProduct = prod;
+  state.selectedQuoteExtrasNames = [];
   
   const searchInput = document.getElementById("quote-product-search");
   if (searchInput) searchInput.value = prod.name || prod.sku || "";
@@ -14953,11 +15034,8 @@ function selectQuoteProduct(index) {
     infoBox.style.display = "block";
   }
   
-  const priceInput = document.getElementById("quote-item-price");
-  if (priceInput) {
-    const priceVal = Math.round(prod.price_local || prod.price || 0);
-    priceInput.value = priceVal ? `$${priceVal.toLocaleString('es-AR')}` : "$0";
-  }
+  renderQuoteExtrasSelectors();
+  recalculateQuoteSelectedProductPrice();
   
   const qtyInput = document.getElementById("quote-item-qty");
   if (qtyInput && (!qtyInput.value || parseInt(qtyInput.value) < 1)) {
@@ -15024,6 +15102,10 @@ function addQuoteItemFromForm() {
   if (selectedSize && selectedSize !== "Único" && !name.includes(`(${selectedSize})`)) {
     name = `${name} (${selectedSize})`;
   }
+
+  if (state.selectedQuoteExtrasNames && state.selectedQuoteExtrasNames.length > 0) {
+    name = `${name} + ${state.selectedQuoteExtrasNames.join(", ")}`;
+  }
   
   if (!state.quoteItems) state.quoteItems = [];
   
@@ -15037,6 +15119,7 @@ function addQuoteItemFromForm() {
   });
   
   state.selectedQuoteProduct = null;
+  state.selectedQuoteExtrasNames = [];
   if (searchInput) searchInput.value = "";
   if (priceInput) priceInput.value = "";
   if (qtyInput) qtyInput.value = "1";
@@ -15044,6 +15127,9 @@ function addQuoteItemFromForm() {
   
   const infoBox = document.getElementById("quote-selected-product-info");
   if (infoBox) infoBox.style.display = "none";
+  
+  const extrasContainer = document.getElementById("quote-extras-container");
+  if (extrasContainer) extrasContainer.style.display = "none";
   
   showToast("Producto agregado al presupuesto");
   renderQuotesUI();
