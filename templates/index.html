@@ -318,9 +318,8 @@
               <!-- Cargado dinámicamente en JS -->
             </select>
             <div class="period-pill-select">
-              <button class="period-pill-btn active" id="period-hoy" onclick="setPanelPeriod('hoy')">Hoy</button>
               <button class="period-pill-btn" id="period-semana" onclick="setPanelPeriod('semana')">7 Días</button>
-              <button class="period-pill-btn" id="period-mes" onclick="setPanelPeriod('mes')">Mensual</button>
+              <button class="period-pill-btn active" id="period-mes" onclick="setPanelPeriod('mes')">Mensual</button>
             </div>
           </div>
         </div>
@@ -341,7 +340,15 @@
               <div class="kpi-icon orange">💳</div>
             </div>
             <div id="panel-stat-ticket" class="kpi-value">$0</div>
-            <div class="kpi-desc">Precio Promedio por Unidad</div>
+            <div class="kpi-desc">Promedio por Venta</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title" style="color: var(--text-heading);">Margen Ponderado</span>
+              <div class="kpi-icon purple">📊</div>
+            </div>
+            <div id="panel-stat-margen-ponderado" class="kpi-value">0%</div>
+            <div class="kpi-desc">Margen Contribución</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-header">
@@ -374,14 +381,6 @@
             </div>
             <div id="panel-stat-neto" class="kpi-value">$0</div>
             <div class="kpi-desc">Operativo - Costos Fijos</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-header">
-              <span class="kpi-title" style="color: var(--text-heading);">Margen Ponderado</span>
-              <div class="kpi-icon purple">📊</div>
-            </div>
-            <div id="panel-stat-margen-ponderado" class="kpi-value">0%</div>
-            <div class="kpi-desc">Margen Contribución</div>
           </div>
         </div>
 

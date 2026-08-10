@@ -2173,8 +2173,9 @@ function renderPanel() {
     return sum + (s.items ? s.items.reduce((itemSum, item) => itemSum + (parseInt(item.quantity) || 0), 0) : 0);
   }, 0);
 
-  // Ticket Promedio
-  const averageTicket = totalItemsSold === 0 ? 0 : totalSalesValue / totalItemsSold;
+  // Ticket Promedio: Facturación Total / Cantidad de Ventas (Órdenes)
+  const totalSalesCount = filteredSales.length;
+  const averageTicket = totalSalesCount === 0 ? 0 : totalSalesValue / totalSalesCount;
 
   // Resultado Operativo: Ventas - Costo Físico de Prendas Vendidas
   const totalOperativo = filteredSales.reduce((sum, sale) => {
@@ -2252,57 +2253,88 @@ function renderPanel() {
 
   // --- Margen de Contribución Ponderado ---
   window.productContributionMetrics = {};
-  let totalProductSalesForMargin = 0;
-  let totalProductContributionForMargin = 0;
-  let hasValidMarginProducts = false;
+  let productSalesMap = {};
+  let totalAllProductsRevenue = 0;
 
   filteredSales.forEach(sale => {
-    if (sale.items) {
+    if (sale.items && sale.items.length > 0) {
       sale.items.forEach(item => {
-        const sku = item.sku;
-        const qty = parseInt(item.quantity) || 0;
-        const itemRevenue = parseFloat(item.price || 0) * qty;
+        const itemSku = item.sku || item.name || "item_generico";
+        const qty = parseInt(item.quantity) || parseInt(item.qty) || 1;
+        const itemRev = parseFloat(item.subtotal || 0) || (parseFloat(item.price || 0) * qty);
         
-        if (itemRevenue > 0 && item.product) {
-          const p = item.product;
-          let prodPrice = parseFloat(item.price || p.price || 0);
-          let prodCost = parseFloat(p.cost || 0);
+        if (itemRev > 0) {
+          const p = item.product || (state.products || []).find(prod => prod.sku === item.sku || prod.id === item.sku) || {};
+          const prodPrice = parseFloat(item.price || p.price || p.price_local || 0);
+          const prodCost = parseFloat(item.cost || p.cost || 0);
+          const pMargin = (p.margin !== undefined && p.margin !== null) ? parseFloat(p.margin) : null;
           
-          if (prodPrice > 0) {
-            // El usuario pide "markup / 1+markup", que matemáticamente es (Precio-Costo)/Precio
-            const itemMargin = (prodPrice - prodCost) / prodPrice;
-            
-            if (!window.productContributionMetrics[sku]) {
-              window.productContributionMetrics[sku] = {
-                name: p.name || item.name,
-                salesRevenue: 0,
-                contributionMargin: itemMargin
-              };
-            }
-            window.productContributionMetrics[sku].salesRevenue += itemRevenue;
-            totalProductSalesForMargin += itemRevenue;
-            totalProductContributionForMargin += (itemMargin * itemRevenue);
-            hasValidMarginProducts = true;
+          let markup = 0;
+          if (pMargin !== null && !isNaN(pMargin) && pMargin > 0) {
+            markup = pMargin > 5 ? pMargin / 100 : pMargin;
+          } else if (prodPrice > 0 && prodCost > 0 && prodPrice > prodCost) {
+            markup = (prodPrice - prodCost) / prodCost;
+          } else {
+            markup = 0.50; // 50% default markup
           }
+
+          // Margen de contribución del producto = markup / (1 + markup)
+          const itemMargin = markup / (1 + markup);
+
+          if (!productSalesMap[itemSku]) {
+            productSalesMap[itemSku] = {
+              name: item.name || p.name || itemSku,
+              revenue: 0,
+              itemMargin: itemMargin
+            };
+          }
+          productSalesMap[itemSku].revenue += itemRev;
+          totalAllProductsRevenue += itemRev;
         }
       });
+    } else if (sale.total > 0) {
+      const saleKey = `sale_${sale.id || Math.random()}`;
+      const itemRev = parseFloat(sale.total);
+      const itemMargin = 0.40;
+      productSalesMap[saleKey] = {
+        name: sale.client_name || "Venta Directa",
+        revenue: itemRev,
+        itemMargin: itemMargin
+      };
+      totalAllProductsRevenue += itemRev;
     }
   });
 
-  // Calculate weights internally as requested
-  if (totalProductSalesForMargin > 0) {
-    Object.keys(window.productContributionMetrics).forEach(sku => {
-      const pData = window.productContributionMetrics[sku];
-      pData.participation = pData.salesRevenue / totalProductSalesForMargin; // Participación en ventas
-      pData.weightedContribution = pData.contributionMargin * pData.participation; // Contribución ponderada
+  const totalBusinessSales = totalSalesValue > 0 ? totalSalesValue : totalAllProductsRevenue;
+  let margenPonderadoTotal = 0;
+
+  if (totalBusinessSales > 0) {
+    Object.keys(productSalesMap).forEach(key => {
+      const prodData = productSalesMap[key];
+      // Participación en las ventas totales del negocio = Venta total del producto / Venta total del negocio
+      const participacion = prodData.revenue / totalBusinessSales;
+      // Contribución ponderada = Margen de contribución * Participación
+      const contribucionPonderada = prodData.itemMargin * participacion;
+      margenPonderadoTotal += contribucionPonderada;
+
+      window.productContributionMetrics[key] = {
+        name: prodData.name,
+        salesRevenue: prodData.revenue,
+        contributionMargin: prodData.itemMargin,
+        participation: participacion,
+        weightedContribution: contribucionPonderada
+      };
     });
   }
 
-  const margenPonderadoTotal = totalProductSalesForMargin > 0 ? (totalProductContributionForMargin / totalProductSalesForMargin) : 0;
-  const margenText = hasValidMarginProducts ? (margenPonderadoTotal * 100).toFixed(2) + "%" : "0%";
-  
   const mgnEl = document.getElementById("panel-stat-margen-ponderado");
-  if (mgnEl) mgnEl.innerText = margenText;
+  if (mgnEl) {
+    if (totalBusinessSales > 0 && margenPonderadoTotal > 0) {
+      mgnEl.innerText = (margenPonderadoTotal * 100).toFixed(1) + "%";
+    } else {
+      mgnEl.innerText = "0%";
+    }
+  }
   // ----------------------------------------
 
   // Calcular desglose de canales (Local vs Tiendanube)
