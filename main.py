@@ -5796,14 +5796,15 @@ def api_arca_padron(cuit):
                 return jsonify(mock_data), 200
             return jsonify({"error": "No hay credenciales AFIP/ARCA configuradas."}), 400
             
-        cuit_emisor = arca_config.get("cuit", "")
+        cuit_emisor = "".join(c for c in str(arca_config.get("cuit", "")) if c.isdigit())
         if not cuit_emisor:
-            cuit_emisor = "".join(c for c in prefix if c.isdigit())
-            if not cuit_emisor:
-                cuit_emisor = "20000000001"
+            if "matias" in str(prefix).lower() or "mazo" in str(prefix).lower():
+                cuit_emisor = "20362895953"
+            else:
+                cuit_emisor = "".join(c for c in str(prefix) if c.isdigit()) or "20000000001"
                 
-        is_sandbox_cert = not ("--BEGIN CERTIFICATE--" in cert_content and "AFIP" in cert_content)
-        if "afip.gov.ar" in cert_content.lower() and "homo" not in cert_content.lower():
+        is_sandbox_cert = "homo" in str(cert_content).lower() or "wsaahomo" in str(cert_content).lower()
+        if arca_config.get("sandbox") is False or arca_config.get("environment") == "production":
             is_sandbox_cert = False
 
         try:
