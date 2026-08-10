@@ -311,42 +311,103 @@ class WSPadronClient:
             "Content-Type": "text/xml; charset=utf-8",
         }
         
+
+
+class WSPadronClient:
+    def __init__(self, token, sign, cuit, sandbox=True):
+        self.token = token
+        self.sign = sign
+        self.cuit = "".join(c for c in str(cuit) if c.isdigit())
+        self.sandbox = sandbox
+        self.url = "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13" if sandbox else "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13"
+
+    def get_persona(self, cuit_to_query):
+        cuit_to_query = "".join(c for c in str(cuit_to_query) if c.isdigit())
+        
+        soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a13="http://a13.soap.ws.server.puc.sr/">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <a13:getPersona>
+         <token>{self.token}</token>
+         <sign>{self.sign}</sign>
+         <cuitRepresentada>{self.cuit}</cuitRepresentada>
+         <idPersona>{cuit_to_query}</idPersona>
+      </a13:getPersona>
+   </soapenv:Body>
+</soapenv:Envelope>"""
+
+        headers = {
+            "Content-Type": "text/xml; charset=utf-8",
+        }
+        
         r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
         r.raise_for_status()
         
         root = ET.fromstring(r.text)
         
-        # Check for errors
-        fault = root.find(".//S:Fault") or root.find(".//{http://schemas.xmlsoap.org/soap/envelope/}Fault")
+        # Check for errors safely without namespace prefix issues
+        fault = None
+        for elem in root.iter():
+            if elem.tag.endswith("Fault"):
+                fault = elem
+                break
+                
         if fault is not None:
-            fault_string = fault.find("faultstring").text if fault.find("faultstring") is not None else "Error desconocido"
-            raise Exception(f"Error AFIP Padrón: {fault_string}")
+            fault_string = ""
+            for child in fault.iter():
+                if child.tag.endswith("faultstring"):
+                    fault_string = child.text
+                    break
+            if not fault_string:
+                fault_string = "Error en el servicio AFIP Padrón."
+            raise Exception(f"{fault_string}")
             
-        persona_return = root.find(".//return") or root.find(".//{http://a13.soap.ws.server.puc.sr/}return")
+        persona_return = None
+        for elem in root.iter():
+            if elem.tag.endswith("return"):
+                persona_return = elem
+                break
+                
         if persona_return is None:
             raise Exception("No se encontraron datos para el CUIT ingresado.")
             
         datos = {}
         
-        # Básicos
-        persona = persona_return.find("persona")
-        if persona is not None:
-            datos["razonSocial"] = persona.findtext("razonSocial", "")
-            if not datos["razonSocial"]:
-                nombre = persona.findtext("nombre", "")
-                apellido = persona.findtext("apellido", "")
-                if nombre or apellido:
-                    datos["razonSocial"] = f"{apellido} {nombre}".strip()
-            datos["estadoClave"] = persona.findtext("estadoClave", "INACTIVO")
+        def find_child_text(parent, tag_name, default=""):
+            for child in parent.iter():
+                if child.tag.endswith(tag_name):
+                    return child.text or default
+            return default
+            
+        persona = None
+        for elem in persona_return.iter():
+            if elem.tag.endswith("persona"):
+                persona = elem
+                break
+                
+        target_obj = persona if persona is not None else persona_return
+        datos["razonSocial"] = find_child_text(target_obj, "razonSocial", "")
+        if not datos["razonSocial"]:
+            nombre = find_child_text(target_obj, "nombre", "")
+            apellido = find_child_text(target_obj, "apellido", "")
+            if nombre or apellido:
+                datos["razonSocial"] = f"{apellido} {nombre}".strip()
+        datos["estadoClave"] = find_child_text(target_obj, "estadoClave", "ACTIVO")
             
         # Domicilio
-        domicilio = persona_return.find(".//domicilio")
+        domicilio = None
+        for elem in persona_return.iter():
+            if elem.tag.endswith("domicilio"):
+                domicilio = elem
+                break
+                
         if domicilio is not None:
-            calle = domicilio.findtext("calle", "")
-            numero = domicilio.findtext("numero", "")
-            localidad = domicilio.findtext("localidad", "")
-            cp = domicilio.findtext("codigoPostal", "")
-            prov = domicilio.findtext("descripcionProvincia", "")
+            calle = find_child_text(domicilio, "calle", "")
+            numero = find_child_text(domicilio, "numero", "")
+            localidad = find_child_text(domicilio, "localidad", "")
+            cp = find_child_text(domicilio, "codigoPostal", "")
+            prov = find_child_text(domicilio, "descripcionProvincia", "")
             
             addr_parts = []
             if calle: addr_parts.append(calle)
@@ -360,19 +421,24 @@ class WSPadronClient:
             datos["direccion"] = ""
             
         # Impuestos para deducir condición IVA
-        impuestos_nodes = persona_return.findall(".//impuesto")
         condicion_iva = "CONSUMIDOR FINAL"
-        for imp in impuestos_nodes:
-            id_impuesto = imp.findtext("idImpuesto")
-            if id_impuesto == "30":
-                condicion_iva = "IVA EXENTO"
-            elif id_impuesto == "32":
-                condicion_iva = "IVA SUJETO EXENTO"
-            elif id_impuesto == "10" or id_impuesto == "11":
-                condicion_iva = "RESPONSABLE INSCRIPTO"
-            elif id_impuesto == "20":
-                condicion_iva = "MONOTRIBUTO"
-                
+        for elem in persona_return.iter():
+            if elem.tag.endswith("impuesto"):
+                id_impuesto = find_child_text(elem, "idImpuesto", "")
+                if id_impuesto == "30":
+                    condicion_iva = "IVA EXENTO"
+                elif id_impuesto == "32":
+                    condicion_iva = "IVA SUJETO EXENTO"
+                elif id_impuesto in ["10", "11"]:
+                    condicion_iva = "RESPONSABLE INSCRIPTO"
+                elif id_impuesto == "20" and condicion_iva != "RESPONSABLE INSCRIPTO":
+                    condicion_iva = "MONOTRIBUTO"
+                    
+        if condicion_iva == "CONSUMIDOR FINAL":
+            for elem in persona_return.iter():
+                if elem.tag.endswith("monotributo") or elem.tag.endswith("regimen"):
+                    condicion_iva = "MONOTRIBUTO"
+                    break
+                    
         datos["condicion_iva"] = condicion_iva
-        
         return datos
