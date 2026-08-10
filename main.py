@@ -430,6 +430,9 @@ def save_username_mapping(username, email, upload_to_firestore=True, token=None)
     if not username or not email:
         return
     username = username.strip().lower()
+    clean_user = username.strip(".")
+    variants = list(set([username, clean_user, f"{clean_user}."]))
+
     data = {}
     if os.path.exists(USERNAMES_FILE):
         try:
@@ -437,34 +440,35 @@ def save_username_mapping(username, email, upload_to_firestore=True, token=None)
                 data = json.load(f)
         except:
             pass
-    data[username] = email
+    for v in variants:
+        data[v] = email
     try:
         with open(USERNAMES_FILE, "w") as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=4)
     except:
         pass
         
     if upload_to_firestore:
-        if db_admin:
-            try:
-                db_admin.collection("username_mappings").document(username).set({"email": email})
-            except Exception as e:
-                print(f"Error guardando username mapping en Firestore: {e}")
-        elif token:
-            try:
-                project_id = firebase_config.PROJECT_ID
-                db_id = firebase_config.DATABASE_ID
-                url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/{db_id}/documents/username_mappings/{username}"
-                headers = {"Authorization": f"Bearer {token}"}
-                payload = {
-                    "fields": {
-                        "email": {"stringValue": email}
+        for v in variants:
+            if db_admin:
+                try:
+                    db_admin.collection("username_mappings").document(v).set({"email": email})
+                except Exception as e:
+                    print(f"Error guardando username mapping en Firestore: {e}")
+            elif token:
+                try:
+                    project_id = firebase_config.PROJECT_ID
+                    db_id = firebase_config.DATABASE_ID
+                    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/{db_id}/documents/username_mappings/{v}"
+                    headers = {"Authorization": f"Bearer {token}"}
+                    payload = {
+                        "fields": {
+                            "email": {"stringValue": email}
+                        }
                     }
-                }
-                r = requests.patch(url, json=payload, headers=headers, timeout=10)
-                r.raise_for_status()
-            except Exception as e:
-                print(f"Error in REST save_username_mapping: {e}")
+                    r = requests.patch(url, json=payload, headers=headers, timeout=10)
+                except Exception as e:
+                    print(f"Error in REST save_username_mapping: {e}")
 
 @app.route("/api/auth/login", methods=["POST"])
 @limiter.limit("100 per minute")
@@ -1390,8 +1394,7 @@ def ensure_numeric_skus(prefix, token, user_docs, email=""):
                 str(d.get("baseSku", "")) != numeric_base or 
                 clean_old_sku != numeric_sku or 
                 bool(re.search(r'\D', clean_old_sku)) or 
-                bool(re.search(r'\D', str(d.get("baseSku", "")))) or 
-                is_matias
+                bool(re.search(r'\D', str(d.get("baseSku", ""))))
             )
 
             if needs_update:
