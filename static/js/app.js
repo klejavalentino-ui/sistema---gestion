@@ -2259,23 +2259,56 @@ function renderPanel() {
   filteredSales.forEach(sale => {
     if (sale.items && sale.items.length > 0) {
       sale.items.forEach(item => {
-        const itemSku = item.sku || item.name || "item_generico";
         const qty = parseInt(item.quantity) || parseInt(item.qty) || 1;
-        const itemRev = parseFloat(item.subtotal || 0) || (parseFloat(item.price || 0) * qty);
+        
+        // Buscar el producto de forma robusta por SKU, ID, versión numérica o Nombre
+        let p = item.product;
+        if (!p || !p.sku) {
+          const itemSku = String(item.sku || "").trim().toUpperCase();
+          const cleanItemSku = itemSku.replace(state.userProfile?.prefix || "", "");
+          const itemName = String(item.name || "").trim().toLowerCase();
+          
+          p = (state.products || []).find(prod => {
+            const prodSku = String(prod.sku || "").trim().toUpperCase();
+            const cleanProdSku = prodSku.replace(state.userProfile?.prefix || "", "");
+            
+            if (prodSku === itemSku || cleanProdSku === itemSku || cleanProdSku === cleanItemSku) return true;
+            if (String(prod.id) === String(item.sku)) return true;
+            if (window.cleanSkuStrictNumeric && cleanSkuStrictNumeric(prodSku) === cleanSkuStrictNumeric(itemSku)) return true;
+            return false;
+          });
+          
+          if (!p && itemName) {
+            p = (state.products || []).find(prod => {
+              const prodName = String(prod.name || "").trim().toLowerCase();
+              return prodName === itemName || prodName.includes(itemName) || itemName.includes(prodName);
+            });
+          }
+          if (!p) p = {};
+        }
+
+        // Obtener el precio unitario del item
+        let unitPrice = parseFloat(item.price || item.unitPrice || p.price || p.price_local || 0);
+        if (unitPrice === 0 && item.subtotal > 0) {
+          unitPrice = parseFloat(item.subtotal) / qty;
+        }
+
+        // Calcular la facturación total de este item en la venta
+        const itemRev = parseFloat(item.subtotal) || (unitPrice * qty);
         
         if (itemRev > 0) {
-          const p = item.product || (state.products || []).find(prod => prod.sku === item.sku || prod.id === item.sku) || {};
-          const prodPrice = parseFloat(item.price || p.price || p.price_local || 0);
-          const prodCost = parseFloat(item.cost || p.cost || 0);
+          const itemSku = item.sku || p.sku || item.name || p.name || "item_generico";
+          const prodCost = parseFloat(p.cost || 0);
           const pMargin = (p.margin !== undefined && p.margin !== null) ? parseFloat(p.margin) : null;
           
           let markup = 0;
           if (pMargin !== null && !isNaN(pMargin) && pMargin > 0) {
+            // Pasar a decimal (ej: 100% -> 1.0)
             markup = pMargin > 5 ? pMargin / 100 : pMargin;
-          } else if (prodPrice > 0 && prodCost > 0 && prodPrice > prodCost) {
-            markup = (prodPrice - prodCost) / prodCost;
+          } else if (unitPrice > 0 && prodCost > 0 && unitPrice > prodCost) {
+            markup = (unitPrice - prodCost) / prodCost;
           } else {
-            markup = 0.50; // 50% default markup
+            markup = 0.50; // Fallback del 50% de markup si no hay costos ni porcentajes guardados
           }
 
           // Margen de contribución del producto = markup / (1 + markup)
@@ -2295,7 +2328,7 @@ function renderPanel() {
     } else if (sale.total > 0) {
       const saleKey = `sale_${sale.id || Math.random()}`;
       const itemRev = parseFloat(sale.total);
-      const itemMargin = 0.40;
+      const itemMargin = 0.40; // 40% por defecto para ventas manuales sin items
       productSalesMap[saleKey] = {
         name: sale.client_name || "Venta Directa",
         revenue: itemRev,
