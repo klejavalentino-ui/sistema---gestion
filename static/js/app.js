@@ -5837,6 +5837,7 @@ function renderSecurityStockGrid() {
 
 // Product Modal (Add/Edit)
 function openCreateProductModal() {
+  const isComercio = state.businessType === "comercio";
   // Populate categories first so we can query the selected category
   populateProductFormCategories("");
   const currentCat = document.getElementById("prod-category")?.value || "";
