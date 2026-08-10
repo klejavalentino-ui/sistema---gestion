@@ -1063,6 +1063,7 @@ def get_all_state():
         return jsonify({"error": "Token inválido o expirado"}), 401
         
     try:
+        email = get_email_from_token(token)
         admin_uid = firebase_config.verify_id_token(token)
         if not admin_uid:
             return jsonify({"error": "Token inválido o expirado"}), 401
