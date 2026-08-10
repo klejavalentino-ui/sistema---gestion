@@ -10768,15 +10768,11 @@ async function saveEditExtraForm(e) {
 }
 
 function checkBusinessNameSetup() {
-  // Never show the business name modal to subusers — they use the admin's business
-  const isSubuser = !!state.subuser || state.role === "subuser";
-  if (isSubuser) return;
-  
-  if (state.token && !state.businessName) {
-    document.getElementById("business-name-modal").className = "modal-backdrop active";
-  } else {
-    const modal = document.getElementById("business-name-modal");
-    if (modal) modal.className = "modal-backdrop";
+  // El nombre de la empresa ya se configura en el registro y en Datos de la Empresa. No mostrar modal.
+  const modal = document.getElementById("business-name-modal");
+  if (modal) {
+    modal.className = "modal-backdrop";
+    modal.style.display = "none";
   }
 }
 

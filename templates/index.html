@@ -3910,8 +3910,8 @@
     </div>
   </div>
 
-  <!-- MODAL I: ASK BUSINESS NAME -->
-  <div id="business-name-modal" class="modal-backdrop" style="z-index: 10000; background: rgba(0,0,0,0.85);">
+  <!-- MODAL I: ASK BUSINESS NAME (DESACTIVADO: el nombre del negocio se toma del registro y configuración) -->
+  <div id="business-name-modal" class="modal-backdrop" style="display: none !important; z-index: -9999; opacity: 0; pointer-events: none;">
     <div class="modal-content max-w-sm" style="margin-top: 15vh;">
       <div class="modal-header">
         <h3 class="modal-title">Configurar Tu Negocio</h3>
@@ -3923,7 +3923,7 @@
           </p>
           <div class="form-group">
             <label class="form-label" for="input-setup-business-name">Nombre de la Empresa</label>
-            <input type="text" id="input-setup-business-name" class="form-input" placeholder="Ej. McDonald's" required>
+            <input type="text" id="input-setup-business-name" class="form-input" placeholder="Ej. McDonald's">
           </div>
         </div>
         <div class="modal-footer" style="justify-content: flex-end;">
