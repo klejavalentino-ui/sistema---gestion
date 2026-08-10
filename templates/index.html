@@ -2401,6 +2401,16 @@
                   <option value="Estética">Estética</option>
                 </select>
               </div>
+              <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+                <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Generación de SKU / Código de Barras</label>
+                <select id="business-settings-sku-mode" class="form-select">
+                  <option value="auto">Automático (El sistema asigna un código numérico único)</option>
+                  <option value="manual">Manual (Ingreso manual mediante lectora de código de barras o importación)</option>
+                </select>
+                <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 4px;">
+                  Seleccioná <strong>Automático</strong> si tus productos no tienen código de barras de fábrica. El sistema generará automáticamente un código numérico limpio.
+                </p>
+              </div>
               <div class="form-group" id="business-settings-sizes-container" style="margin-bottom: 0; grid-column: span 2;">
                 <label class="form-label" style="font-size: 0.75rem; text-transform: uppercase;">Variantes de Talle (Separados por coma)</label>
                 <input type="text" id="business-settings-sizes" class="form-input" placeholder="Ej: XS, S, M, L, XL, XXL, Único">

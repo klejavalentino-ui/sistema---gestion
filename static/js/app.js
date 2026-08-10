@@ -80,14 +80,29 @@ const state = {
 
 let tempLocationStock = {};
 
-function getCleanBaseSku(sku, baseSku) {
-  if (baseSku && String(baseSku).trim()) {
-    return String(baseSku).trim().toUpperCase();
+function cleanSkuStrictNumeric(val, fallbackSeed = "") {
+  if (!val) val = fallbackSeed;
+  let s = String(val).trim();
+  let digits = s.replace(/\D/g, "");
+  if (!digits) {
+    if (s) {
+      let hash = 0;
+      for (let i = 0; i < s.length; i++) {
+        hash = (hash << 5) - hash + s.charCodeAt(i);
+        hash |= 0;
+      }
+      digits = String(Math.abs(hash) % 1000000000).padStart(6, '0');
+    } else {
+      digits = String(Math.floor(1000000000 + Math.random() * 9000000000));
+    }
   }
-  if (!sku) return "";
-  let str = String(sku).trim();
-  str = str.replace(/-(_?)(XS|S|M|L|XL|XXL|3XL|U|UNIC[OÁ]|ÚNICO|[0-9]{1,2})$/i, "");
-  return str.toUpperCase();
+  return digits;
+}
+window.cleanSkuStrictNumeric = cleanSkuStrictNumeric;
+
+function getCleanBaseSku(sku, baseSku) {
+  const raw = (baseSku && String(baseSku).trim()) ? String(baseSku).trim() : String(sku || "").trim();
+  return cleanSkuStrictNumeric(raw);
 }
 window.getCleanBaseSku = getCleanBaseSku;
 
@@ -5800,41 +5815,19 @@ function openCreateProductModal() {
 
   renderSecurityStockGrid();
   document.getElementById("modal-product-title").innerText = "Nuevo Producto";
-  document.getElementById("prod-sku").value = "";
-  document.getElementById("prod-sku").readOnly = false;
-  document.getElementById("prod-name").value = "";
-  document.getElementById("prod-color").value = "";
-  document.getElementById("prod-cost-input").value = "";
-  formatCurrencyField(document.getElementById("prod-cost-input"));
-  document.getElementById("prod-margin").value = 50;
-  
-  document.getElementById("prod-price-local").value = "";
-  formatCurrencyField(document.getElementById("prod-price-local"));
-  document.getElementById("prod-price-tiendanube").value = "";
-  document.getElementById("prod-stock-taller").value = "infinito";
-  
-  const priceLocalInput = document.getElementById("prod-price-local");
-  if (priceLocalInput) {
-    priceLocalInput.dataset.auto = "true";
-  }
-  
-  // Limpiar stock dinámico
-  document.getElementById("prod-te").value = "";
-  document.getElementById("prod-ss").value = "";
-  document.getElementById("prod-te-textil").value = "";
-  
-  // Limpiar stocks de seguridad de talles
-  getConfiguredSizes(currentCat).forEach(sz => {
-    const ssEl = document.getElementById(`ss-${sz}`);
-    if (ssEl) {
-      ssEl.value = "";
-      ssEl.readOnly = false;
+  const isAutoSku = (state.userProfile?.skuMode || "auto") === "auto";
+  const skuInput = document.getElementById("prod-sku");
+  if (skuInput) {
+    if (isAutoSku) {
+      skuInput.value = String(Math.floor(1000000000 + Math.random() * 9000000000));
+      skuInput.placeholder = "Auto-generado (Numérico)";
+    } else {
+      skuInput.value = "";
+      skuInput.placeholder = "Ingresá el código numérico (ej. 7791234567890)";
     }
-  });
-
-  const isComercio = state.businessType === "comercio";
+    skuInput.readOnly = false;
+  }
   document.getElementById("prod-name").placeholder = isComercio ? "Ej. Alfajor Triple Chocolate" : "Ej. Remera Oversize Negra";
-  document.getElementById("prod-sku").placeholder = isComercio ? "Ej. ALFA-CHO-01" : "Ej. REM-OVR-N";
   
   // Initialize locations stock strictly with configured user locations
   tempLocationStock = {};
@@ -6281,8 +6274,12 @@ async function saveProductForm(e) {
   if (isEditing) {
     // Guardar cambios para todos los talles ingresados
     const oldGroupKey = document.getElementById("product-modal").dataset.oldGroupKey;
-    const cleanBaseSku = baseSku.trim().toUpperCase();
-    const cleanColorStr = (color && color.toLowerCase() !== "único" && color.toLowerCase() !== "unico") ? color.replace(/[\/\s()]/g, "_").toUpperCase() : "";
+    const isAutoSku = (state.userProfile?.skuMode || "auto") === "auto";
+    let rawBaseInput = baseSku;
+    if (!rawBaseInput && isAutoSku) {
+      rawBaseInput = String(Math.floor(1000000000 + Math.random() * 9000000000));
+    }
+    const cleanBaseSku = cleanSkuStrictNumeric(rawBaseInput, Date.now().toString());
 
     // Delete variants that were deselected/disabled by the user
     if (!isComercio && Array.isArray(state.tempActiveProductSizes)) {
@@ -6307,6 +6304,7 @@ async function saveProductForm(e) {
       });
     }
 
+    let editVariantCounter = 1;
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const matchingVariants = state.products.filter(v => {
         if (!v) return false;
@@ -6327,8 +6325,8 @@ async function saveProductForm(e) {
         });
       }
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
-      const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
-      const safeSku = existingVariant ? existingVariant.sku.replace(/\//g, "_") : (cleanColorStr ? `${cleanBaseSku}-${cleanColorStr}-${cleanSizeStr}` : `${cleanBaseSku}-${cleanSizeStr}`);
+      const safeSku = cleanSkuStrictNumeric(existingVariant ? existingVariant.sku : `${cleanBaseSku}${editVariantCounter}`);
+      editVariantCounter++;
       
       const payload = {
         id: existingVariant ? existingVariant.id : Date.now() + Math.random(),
@@ -6359,14 +6357,21 @@ async function saveProductForm(e) {
     }
   } else {
     // Crear variantes
-    const cleanColorStr = (color && color.toLowerCase() !== "único" && color.toLowerCase() !== "unico") ? color.replace(/[\/\s()]/g, "_").toUpperCase() : "";
+    const isAutoSku = (state.userProfile?.skuMode || "auto") === "auto";
+    let rawBaseInput = baseSku;
+    if (!rawBaseInput && isAutoSku) {
+      rawBaseInput = String(Math.floor(1000000000 + Math.random() * 9000000000));
+    }
+    const cleanBaseSku = cleanSkuStrictNumeric(rawBaseInput, Date.now().toString());
+
+    let createVariantCounter = 1;
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
-      const cleanSizeStr = size.replace("Único", "U").replace(/[\/\s()]/g, "_");
-      const safeSku = cleanColorStr ? `${baseSku}-${cleanColorStr}-${cleanSizeStr}` : `${baseSku}-${cleanSizeStr}`;
+      const safeSku = cleanSkuStrictNumeric(`${cleanBaseSku}${createVariantCounter}`);
+      createVariantCounter++;
       const payload = {
         id: Date.now() + Math.random(),
-        baseSku: baseSku,
+        baseSku: cleanBaseSku,
         sku: safeSku,
         name: name,
         category: category,
@@ -12927,6 +12932,11 @@ async function loadBusinessData() {
       ivaEl.value = state.userProfile.ivaCondition || "monotributista";
     }
     
+    const skuModeEl = document.getElementById("business-settings-sku-mode");
+    if (skuModeEl) {
+      skuModeEl.value = state.userProfile.skuMode || "auto";
+    }
+    
     // Mapear Logo
     const logoBase64 = state.userProfile.logoBase64;
     const previewContainer = document.getElementById("business-settings-logo-preview-container");
@@ -13075,6 +13085,7 @@ async function saveBusinessSettings() {
       businessModel: model,
       businessType: type,
       ivaCondition: document.getElementById("business-settings-iva") ? document.getElementById("business-settings-iva").value : (state.userProfile?.ivaCondition || "monotributista"),
+      skuMode: document.getElementById("business-settings-sku-mode") ? document.getElementById("business-settings-sku-mode").value : (state.userProfile?.skuMode || "auto"),
       logoBase64: logoValue,
       sizeVariants: document.getElementById("business-settings-sizes") 
                       ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 

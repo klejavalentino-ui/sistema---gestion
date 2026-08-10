@@ -108,16 +108,21 @@ def safe_int(val, default=0):
     except (ValueError, TypeError):
         return default
 
+def clean_sku_strict_numeric(val, fallback_seed=""):
+    if not val:
+        val = fallback_seed
+    s = str(val).strip()
+    digits = re.sub(r'\D', '', s)
+    if not digits:
+        if s:
+            digits = str(abs(hash(s)) % 1000000000).zfill(6)
+        else:
+            digits = str(int(time.time() * 1000))
+    return digits
+
 def get_clean_base_sku(sku, base_sku=""):
-    if base_sku and str(base_sku).strip():
-        return str(base_sku).strip()
-    if not sku:
-        return ""
-    sku_str = str(sku).strip()
-    parts = sku_str.split("-")
-    if len(parts) > 1 and parts[-1].upper() in ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "1", "2", "3", "4", "5", "U", "ÚNICO", "UNICO"]:
-        return "-".join(parts[:-1])
-    return sku_str
+    raw = str(base_sku).strip() if base_sku and str(base_sku).strip() else str(sku or "").strip()
+    return clean_sku_strict_numeric(raw)
 
 def clean_name_and_extract_size(raw_name, raw_size=""):
     name = (raw_name or "").strip()
@@ -1099,6 +1104,7 @@ def get_all_state():
             all_sales = future_sales.result()
             
         user_docs = filter_user_docs(all_products, prefix)
+        ensure_numeric_skus(prefix, token, user_docs, email=email)
         deduplicate_user_product_variants(prefix, token, user_docs)
         user_sales = filter_user_docs(all_sales, prefix)
         
@@ -1354,7 +1360,55 @@ def get_all_state():
         return handle_error(e)
 
 
-# --- 1. Rutas de Productos e Inventario (Reales) ---
+def ensure_numeric_skus(prefix, token, user_docs, email=""):
+    try:
+        is_matias = ("matias" in (email or "").lower()) or any(
+            isinstance(d, dict) and "mazo" in str(d.get("businessName", "")).lower() for d in user_docs if isinstance(d, dict) and d.get("id") == "user_profile"
+        )
+        
+        variant_counter = 1
+        for d in list(user_docs):
+            if not isinstance(d, dict):
+                continue
+            doc_id = str(d.get("id", ""))
+            if doc_id.startswith((
+                "supplier_", "fixedcost_", "account_", "cashtransaction_", 
+                "influencer_", "marketingexpense_", "extras_config", 
+                "categories_config", "stockintake_", "productionorder_", "user_profile"
+            )) or doc_id in ["extras_config", "categories_config", "user_profile"]:
+                continue
+
+            old_sku_raw = str(d.get("sku", ""))
+            clean_old_sku = old_sku_raw[len(prefix):] if old_sku_raw.startswith(prefix) else old_sku_raw
+            old_base_raw = str(d.get("baseSku", ""))
+
+            numeric_base = clean_sku_strict_numeric(old_base_raw or clean_old_sku, fallback_seed=d.get("name", "1000"))
+            numeric_sku = clean_sku_strict_numeric(clean_old_sku, fallback_seed=f"{numeric_base}{variant_counter}")
+            variant_counter += 1
+
+            needs_update = (
+                str(d.get("baseSku", "")) != numeric_base or 
+                clean_old_sku != numeric_sku or 
+                bool(re.search(r'\D', clean_old_sku)) or 
+                bool(re.search(r'\D', str(d.get("baseSku", "")))) or 
+                is_matias
+            )
+
+            if needs_update:
+                d["baseSku"] = numeric_base
+                old_doc_key = f"{prefix}{clean_old_sku}"
+                new_doc_key = f"{prefix}{numeric_sku}"
+                d["sku"] = f"{prefix}{numeric_sku}"
+                d["id"] = numeric_sku
+
+                try:
+                    firebase_config.set_document("products", new_doc_key, d, token)
+                    if old_doc_key != new_doc_key:
+                        firebase_config.delete_document("products", old_doc_key, token)
+                except Exception as update_err:
+                    print(f"[NUMERIC MIGRATION ERR] {update_err}")
+    except Exception as ex:
+        print(f"[NUMERIC MIGRATION EXCEPTION] {ex}")
 
 def deduplicate_user_product_variants(prefix, token, user_docs):
     try:
@@ -1490,7 +1544,16 @@ def save_products_batch():
         if isinstance(data, list):
             results = []
             for p in data:
-                sku = str(p.get("sku", "")).strip()
+                raw_sku = str(p.get("sku", "")).strip()
+                raw_sku_unprefixed = raw_sku[len(prefix):] if raw_sku.startswith(prefix) else raw_sku
+                numeric_sku = clean_sku_strict_numeric(raw_sku_unprefixed, fallback_seed=p.get("name", "1000"))
+                numeric_base = clean_sku_strict_numeric(p.get("baseSku", "") or numeric_sku)
+                
+                p["baseSku"] = numeric_base
+                p["sku"] = f"{prefix}{numeric_sku}"
+                p["id"] = numeric_sku
+                doc_key = f"{prefix}{numeric_sku}"
+
                 cost = safe_float(p.get("cost", 0.0))
                 margin = safe_float(p.get("margin", 0.0))
                 price_local_in = safe_float(p.get("price_local", 0.0))
@@ -1502,9 +1565,6 @@ def save_products_batch():
                 p["stock"] = safe_int(p.get("stock", 0))
                 p["price_local"] = price_local_in
                 p["price"] = price_local_in
-                clean_sku = sku.replace("/", "_").replace("\\", "_")
-                doc_key = f"{prefix}{clean_sku}"
-                p["sku"] = f"{prefix}{sku}" if not sku.startswith(prefix) else sku
                 res = firebase_config.set_document("products", doc_key, p, token)
                 if res:
                     res["id"] = res["id"][len(prefix):] if isinstance(res.get("id"), str) and res["id"].startswith(prefix) else res.get("id")
@@ -1522,9 +1582,16 @@ def save_products_batch():
 
             return jsonify(results)
         else:
-            sku = str(data.get("sku", "")).strip()
-            if not sku:
-                return jsonify({"error": "SKU requerido"}), 400
+            raw_sku = str(data.get("sku", "")).strip()
+            raw_sku_unprefixed = raw_sku[len(prefix):] if raw_sku.startswith(prefix) else raw_sku
+            numeric_sku = clean_sku_strict_numeric(raw_sku_unprefixed, fallback_seed=data.get("name", "1000"))
+            numeric_base = clean_sku_strict_numeric(data.get("baseSku", "") or numeric_sku)
+
+            data["baseSku"] = numeric_base
+            data["sku"] = f"{prefix}{numeric_sku}"
+            data["id"] = numeric_sku
+            doc_key = f"{prefix}{numeric_sku}"
+
             cost = safe_float(data.get("cost", 0.0))
             margin = safe_float(data.get("margin", 0.0))
             price_local_in = safe_float(data.get("price_local", 0.0))
@@ -1536,9 +1603,6 @@ def save_products_batch():
             data["stock"] = safe_int(data.get("stock", 0))
             data["price_local"] = price_local_in
             data["price"] = price_local_in
-            clean_sku = sku.replace("/", "_").replace("\\", "_")
-            doc_key = f"{prefix}{clean_sku}"
-            data["sku"] = f"{prefix}{sku}" if not sku.startswith(prefix) else sku
             res = firebase_config.set_document("products", doc_key, data, token)
             if res:
                 res["id"] = res["id"][len(prefix):] if isinstance(res.get("id"), str) and res["id"].startswith(prefix) else res.get("id")
