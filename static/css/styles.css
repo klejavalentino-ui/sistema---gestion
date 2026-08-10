@@ -936,7 +936,7 @@ input[type=number] {
 /* --- Dashboard / Panel Controls --- */
 .dashboard-kpis {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 8px;
   margin-bottom: 24px;
 }

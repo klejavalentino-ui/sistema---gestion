@@ -2235,6 +2235,61 @@ function renderPanel() {
   }
   netEl.style.color = netResult >= 0 ? "#10b981" : "#ef4444";
 
+  // --- Margen de Contribución Ponderado ---
+  window.productContributionMetrics = {};
+  let totalProductSalesForMargin = 0;
+  let totalProductContributionForMargin = 0;
+  let hasValidMarginProducts = false;
+
+  filteredSales.forEach(sale => {
+    if (sale.items) {
+      sale.items.forEach(item => {
+        const sku = item.sku;
+        const qty = parseInt(item.quantity) || 0;
+        const itemRevenue = parseFloat(item.price || 0) * qty;
+        
+        if (itemRevenue > 0 && item.product) {
+          const p = item.product;
+          let prodPrice = parseFloat(item.price || p.price || 0);
+          let prodCost = parseFloat(p.cost || 0);
+          
+          if (prodPrice > 0) {
+            // El usuario pide "markup / 1+markup", que matemáticamente es (Precio-Costo)/Precio
+            const itemMargin = (prodPrice - prodCost) / prodPrice;
+            
+            if (!window.productContributionMetrics[sku]) {
+              window.productContributionMetrics[sku] = {
+                name: p.name || item.name,
+                salesRevenue: 0,
+                contributionMargin: itemMargin
+              };
+            }
+            window.productContributionMetrics[sku].salesRevenue += itemRevenue;
+            totalProductSalesForMargin += itemRevenue;
+            totalProductContributionForMargin += (itemMargin * itemRevenue);
+            hasValidMarginProducts = true;
+          }
+        }
+      });
+    }
+  });
+
+  // Calculate weights internally as requested
+  if (totalProductSalesForMargin > 0) {
+    Object.keys(window.productContributionMetrics).forEach(sku => {
+      const pData = window.productContributionMetrics[sku];
+      pData.participation = pData.salesRevenue / totalProductSalesForMargin; // Participación en ventas
+      pData.weightedContribution = pData.contributionMargin * pData.participation; // Contribución ponderada
+    });
+  }
+
+  const margenPonderadoTotal = totalProductSalesForMargin > 0 ? (totalProductContributionForMargin / totalProductSalesForMargin) : 0;
+  const margenText = hasValidMarginProducts ? (margenPonderadoTotal * 100).toFixed(2) + "%" : "0%";
+  
+  const mgnEl = document.getElementById("panel-stat-margen-ponderado");
+  if (mgnEl) mgnEl.innerText = margenText;
+  // ----------------------------------------
+
   // Calcular desglose de canales (Local vs Tiendanube)
   let channelStats = {};
   const configuredChannels = state.userProfile?.salesChannels || ["Local Principal"];
