@@ -1675,6 +1675,9 @@
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 12px;">
                 <h5 style="color: var(--text-gray); margin: 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">Ventas Recientes (No Facturadas)</h5>
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <button class="btn btn-secondary" onclick="exportArcaExcel()" style="padding: 6px 12px; font-size: 0.75rem; font-weight: 700; height: auto; display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card); color: var(--text-white); border: 1px solid var(--accent-blue);">
+                    <i>📊</i> Exportar Excel ARCA (3 Hojas)
+                  </button>
                   <button class="btn btn-secondary" onclick="selectAllUninvoicedSales(true)" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 700; height: auto;">Marcar Todo</button>
                   <button class="btn btn-secondary" onclick="selectAllUninvoicedSales(false)" style="padding: 6px 12px; font-size: 0.7rem; font-weight: 700; height: auto;">Desmarcar Todo</button>
                   <button class="btn btn-emerald" id="arca-bulk-invoice-btn" onclick="emitBulkArcaInvoices()" style="padding: 6px 14px; font-size: 0.75rem; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; opacity: 0.5; cursor: not-allowed; transition: all 0.2s ease;" disabled>
@@ -1692,6 +1695,7 @@
                       <th style="padding: 8px;">Fecha</th>
                       <th style="padding: 8px;">Monto Total</th>
                       <th style="padding: 8px;">Medio de Pago</th>
+                      <th style="padding: 8px;">Canal de Venta</th>
                       <th style="padding: 8px; text-align: right;">Acción</th>
                     </tr>
                   </thead>
@@ -1712,6 +1716,7 @@
                       <th style="padding: 8px;">Tipo</th>
                       <th style="padding: 8px;">Número de Factura</th>
                       <th style="padding: 8px;">Cliente CUIT</th>
+                      <th style="padding: 8px;">Condición IVA</th>
                       <th style="padding: 8px; text-align: right;">Total Facturado</th>
                       <th style="padding: 8px;">CAE / Vencimiento</th>
                       <th style="padding: 8px; text-align: center;">Estado</th>
@@ -1721,7 +1726,7 @@
                   <tbody id="arca-invoices-log">
                     <!-- Inyectado dinámicamente -->
                     <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
-                      <td colspan="9" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
+                      <td colspan="10" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2347,8 +2352,8 @@
 
         <!-- SUB-TABS NAVIGATION -->
         <div style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; overflow-x: auto;">
-          <button type="button" class="subtab-btn active" id="btn-subtab-biz" onclick="switchSubTab('biz')">🏢 Negocio</button>
-          <button type="button" class="subtab-btn" id="btn-subtab-projects" onclick="switchSubTab('projects')">📂 Mis Negocios</button>
+          <button type="button" class="subtab-btn active" id="btn-subtab-biz" onclick="switchSubTab('biz')">🏢 Datos de la Empresa</button>
+          <button type="button" class="subtab-btn" id="btn-subtab-projects" onclick="switchSubTab('projects')">📂 Gestión de Proyectos</button>
           <button type="button" class="subtab-btn" id="btn-subtab-locations" onclick="switchSubTab('locations')">📍 Ubicaciones</button>
           <button type="button" class="subtab-btn" id="btn-subtab-channels" onclick="switchSubTab('channels')">📣 Canales de Venta</button>
           <button type="button" class="subtab-btn" id="btn-subtab-print" onclick="switchSubTab('print')">🖨️ Impresión</button>
@@ -2363,9 +2368,9 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
               <div>
                 <h3 style="font-size: 1.1rem; color: var(--text-white); margin: 0; display: flex; align-items: center; gap: 8px;">
-                  🏢 Mis Negocios
+                  📂 Gestión de Proyectos
                 </h3>
-                <p style="font-size: 0.8rem; color: var(--text-gray); margin: 4px 0 0 0;">Puedes gestionar hasta 3 negocios independientes con sus propios datos aislados.</p>
+                <p style="font-size: 0.8rem; color: var(--text-gray); margin: 4px 0 0 0;">Puedes gestionar hasta 3 proyectos o marcas independientes con sus propios datos aislados.</p>
               </div>
               <div style="text-align: right;">
                 <span id="projects-counter-badge" class="badge-blue" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px;">Cargando...</span>
@@ -2378,17 +2383,17 @@
 
             <div style="display: flex; justify-content: flex-end;">
               <button type="button" id="btn-add-new-project-settings" class="btn btn-primary" onclick="openNewProjectModal()" style="display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-plus"></i> Crear Nuevo Negocio
+                <i class="fa-solid fa-plus"></i> Crear Nuevo Proyecto
               </button>
             </div>
           </div>
         </div>
 
-        <!-- PANEL 1: MI NEGOCIO (GENERAL) -->
+        <!-- PANEL 1: DATOS DE LA EMPRESA (GENERAL) -->
         <div id="panel-subtab-biz" class="subtab-panel">
           <div class="idx-card" style="padding: 24px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 20px;">
             <h3 style="font-size: 1rem; color: var(--text-white); margin-top: 0; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
-              🏢 Datos del Negocio
+              🏢 Datos de la Empresa
             </h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
               <div class="form-group" style="margin-bottom: 0;">
@@ -4567,6 +4572,19 @@
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
         <button class="btn btn-secondary" onclick="closeRemitoConfigModal()">Cancelar</button>
         <button class="btn btn-primary" onclick="saveRemitoConfig()" style="background: #2563eb; color: #ffffff;">💾 Guardar Configuración</button>
+      </div>
+    </div>
+  <!-- MODAL DE CONFIRMACIÓN DE CAMBIOS CRÍTICOS EN CONFIGURACIÓN -->
+  <div id="settings-confirm-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 460px; text-align: center; padding: 24px; border: 1px solid var(--border-color); background: var(--bg-card); border-radius: 12px;">
+      <div style="font-size: 2.2rem; margin-bottom: 12px;">⚠️</div>
+      <h3 style="font-size: 1.1rem; color: #f59e0b; margin: 0 0 10px 0; font-weight: 800;">Confirmar Modificación Estructural</h3>
+      <p id="settings-confirm-modal-text" style="font-size: 0.82rem; color: var(--text-gray-light); margin-bottom: 20px; line-height: 1.5; text-align: center;">
+        ¿Estás seguro de que deseas guardar las modificaciones en la estructura de tu negocio?
+      </p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button type="button" class="btn btn-secondary" onclick="closeSettingsConfirmModal()" style="padding: 8px 16px;">Cancelar</button>
+        <button type="button" id="settings-confirm-submit-btn" class="btn btn-primary" style="background: #f59e0b; color: #000; font-weight: bold; border: none; padding: 8px 20px;">Confirmar Cambios</button>
       </div>
     </div>
   </div>

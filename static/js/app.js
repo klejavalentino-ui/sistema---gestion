@@ -3107,7 +3107,7 @@ function openSizeSelectionModal(bp, variants) {
       </div>
       <div style="display: flex; align-items: center; gap: 6px;">
         <button type="button" class="pos-qty-btn" style="width: 28px; height: 28px; font-size: 0.9rem;" onclick="adjustSizeModalVariantQty('${v.sku}', -1, ${vStock})">-</button>
-        <input type="number" id="size-variant-qty-${v.sku}" class="form-input size-variant-qty-input" data-sku="${v.sku}" data-max="${vStock}" value="${defaultQty}" min="0" max="${vStock}" style="width: 52px; text-align: center; font-size: 0.85rem; padding: 4px 6px; height: 28px; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: var(--text-white);" oninput="updateSizeModalSummary()">
+        <input type="number" id="size-variant-qty-${v.sku}" class="form-input size-variant-qty-input" data-sku="${v.sku}" data-max="${vStock}" value="${defaultQty}" min="0" max="${vStock}" style="width: 52px; text-align: center; font-size: 0.85rem; padding: 4px 6px; height: 28px; margin: 0; background: var(--bg-input); border-color: var(--border-color); color: var(--text-white);" oninput="validateSizeModalInputQty(this)">
         <button type="button" class="pos-qty-btn" style="width: 28px; height: 28px; font-size: 0.9rem;" onclick="adjustSizeModalVariantQty('${v.sku}', 1, ${vStock})">+</button>
       </div>
     `;
@@ -3120,6 +3120,23 @@ function openSizeSelectionModal(bp, variants) {
 
   document.getElementById("size-modal").className = "modal-backdrop active";
 }
+
+function validateSizeModalInputQty(input) {
+  if (!input) return;
+  const maxStock = parseInt(input.dataset.max) || 0;
+  let val = parseInt(input.value) || 0;
+
+  if (val > maxStock) {
+    input.value = maxStock;
+    const sku = input.dataset.sku;
+    const variant = (state.selectedProductVariants || []).find(v => v.sku === sku) || 
+                    (state.products || []).find(p => p.sku === sku);
+    const sizeName = variant ? (variant.size || "este talle") : "este talle";
+    showToast(`Stock insuficiente para ${sizeName}. El stock disponible es de ${maxStock} u.`, true);
+  }
+  updateSizeModalSummary();
+}
+window.validateSizeModalInputQty = validateSizeModalInputQty;
 
 function renderSizeModalInsumos(bp) {
   const container = document.getElementById("size-modal-insumos-grid");
@@ -3174,6 +3191,9 @@ function adjustSizeModalVariantQty(sku, delta, maxStock) {
   if (!input) return;
   let val = parseInt(input.value) || 0;
   val += delta;
+  if (val > maxStock) {
+    showToast(`Stock insuficiente. El disponible es de ${maxStock} u.`, true);
+  }
   val = Math.max(0, Math.min(val, maxStock));
   input.value = val;
   updateSizeModalSummary();
@@ -3195,13 +3215,25 @@ function confirmSizeModalSelection() {
   const inputs = document.querySelectorAll(".size-variant-qty-input");
   const selectedEntries = [];
 
-  inputs.forEach(inp => {
+  for (const inp of inputs) {
     const qty = parseInt(inp.value) || 0;
+    const maxStock = parseInt(inp.dataset.max) || 0;
+    const sku = inp.dataset.sku;
+    const variant = (state.selectedProductVariants || []).find(v => v.sku === sku) || 
+                    (state.products || []).find(p => p.sku === sku);
+    const sizeName = variant ? (variant.size || "este talle") : "este talle";
+
+    if (qty > maxStock) {
+      inp.value = maxStock;
+      showToast(`Stock insuficiente para ${sizeName}. Stock disponible: ${maxStock} u.`, true);
+      updateSizeModalSummary();
+      return; // Bloquea la adición al carrito si supera el stock físico
+    }
+
     if (qty > 0) {
-      const sku = inp.dataset.sku;
       selectedEntries.push({ sku, qty });
     }
-  });
+  }
 
   if (selectedEntries.length === 0) {
     showToast("Por favor selecciona la cantidad en al menos un talle.", true);
@@ -12225,7 +12257,7 @@ async function loadArcaInvoices() {
     if (!invoices || invoices.length === 0) {
       tbody.innerHTML = `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
-          <td colspan="9" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
+          <td colspan="10" style="padding: 15px; text-align: center;">No hay comprobantes electrónicos emitidos todavía.</td>
         </tr>
       `;
       return [];
@@ -12233,6 +12265,7 @@ async function loadArcaInvoices() {
     
     // Ordenar facturas por fecha descendente
     invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
+    window.cachedInvoices = invoices;
     
     tbody.innerHTML = invoices.map(inv => {
       const formattedDate = new Date(inv.date).toLocaleDateString("es-AR", {
@@ -12249,6 +12282,7 @@ async function loadArcaInvoices() {
         year: "numeric"
       }) : formattedDate;
 
+      const condIva = inv.client_iva_condition || inv.iva_condition || (matchingSale ? matchingSale.client_iva : null) || "Consumidor Final";
       const assocText = inv.associated_invoice ? `<div style="font-size: 0.65rem; color: var(--text-gray);">Asoc: ${inv.associated_invoice}</div>` : "";
       return `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
@@ -12270,23 +12304,28 @@ async function loadArcaInvoices() {
           <!-- 5° Columna: Cliente CUIT -->
           <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
           
-          <!-- 6° Columna: Total Facturado -->
+          <!-- 6° Columna: Condición IVA -->
+          <td style="padding: 8px;">
+            <span class="badge badge-blue" style="font-size: 0.65rem; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 2px 6px; border-radius: 4px;">${condIva}</span>
+          </td>
+          
+          <!-- 7° Columna: Total Facturado -->
           <td style="padding: 8px; text-align: right; font-weight: 700; color: var(--text-white);">$ ${Math.round(inv.total || 0).toLocaleString("es-AR")}</td>
           
-          <!-- 7° Columna: CAE / Vencimiento -->
+          <!-- 8° Columna: CAE / Vencimiento -->
           <td style="padding: 8px;">
             <div>CAE: ${inv.cae || "-"}</div>
             <div style="font-size: 0.65rem; color: var(--text-gray);">Vto: ${inv.cae_due || "-"}</div>
           </td>
           
-          <!-- 8° Columna: Estado -->
+          <!-- 9° Columna: Estado -->
           <td style="padding: 8px; text-align: center;">
             <span class="badge-green" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">
               ✓ ${inv.status || "Aprobado"}
             </span>
           </td>
           
-          <!-- 9° Columna: Acciones (Imprimir + Descargar PDF) -->
+          <!-- 10° Columna: Acciones (Imprimir + Descargar PDF) -->
           <td style="padding: 8px; text-align: center; white-space: nowrap;">
             <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
               <button class="btn btn-secondary" onclick="printSaleTicket('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Imprimir Comprobante">
@@ -12315,10 +12354,8 @@ function renderUninvoicedSales() {
   const uninvoiced = state.sales.filter(s => !s.arca_invoice_id);
   uninvoiced.sort((a, b) => new Date(b.date) - new Date(a.date));
   
-  // Show only up to 20 recent uninvoiced sales to keep it clean
   const recent = uninvoiced.slice(0, 20);
   
-  // Reset bulk count and checkbox states on render
   const selectAllCb = document.getElementById("arca-select-all-uninvoiced");
   if (selectAllCb) selectAllCb.checked = false;
   updateBulkInvoiceButtonVisibility();
@@ -12326,7 +12363,7 @@ function renderUninvoicedSales() {
   if (recent.length === 0) {
     tbody.innerHTML = `
       <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray);">
-        <td colspan="5" style="padding: 15px; text-align: center;">No hay ventas recientes pendientes de facturar.</td>
+        <td colspan="6" style="padding: 15px; text-align: center;">No hay ventas recientes pendientes de facturar.</td>
       </tr>
     `;
     return;
@@ -12340,6 +12377,8 @@ function renderUninvoicedSales() {
       hour: "2-digit",
       minute: "2-digit"
     });
+    const channel = sale.channel || sale.sales_channel || sale.location || "Local Principal";
+
     return `
       <tr onclick="toggleRowCheckbox(event, '${sale.id}')" style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='none'">
         <td style="padding: 8px; text-align: center;" onclick="event.stopPropagation();">
@@ -12349,6 +12388,9 @@ function renderUninvoicedSales() {
         <td style="padding: 8px; font-weight: 700; color: var(--text-white);">$ ${Math.round(sale.total).toLocaleString("es-AR")}</td>
         <td style="padding: 8px;">
           <span class="badge badge-gray" style="font-size: 0.65rem;">${sale.method}</span>
+        </td>
+        <td style="padding: 8px;">
+          <span class="badge badge-purple" style="font-size: 0.65rem; background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); padding: 2px 6px; border-radius: 4px;">${channel}</span>
         </td>
         <td style="padding: 8px; text-align: right;" onclick="event.stopPropagation();">
           <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">
@@ -13116,79 +13158,86 @@ window.handleLogoUpload = handleLogoUpload;
 window.removeBusinessLogo = removeBusinessLogo;
 
 async function saveBusinessSettings() {
-  try {
-    const model = document.getElementById("business-settings-model").value;
-    const type = (model === "Indumentaria") ? "textil" : "comercio";
-    const name = document.getElementById("business-settings-name").value.trim();
-
-    let logoValue = state.userProfile.logoBase64 || null;
-    if (state.removeLogoFlag) {
-      logoValue = null;
-    } else if (state.tempLogoBase64) {
-      logoValue = state.tempLogoBase64;
-    }
-
-    const categorySizes = {};
-    const pillContainers = document.querySelectorAll(".category-size-pills-container");
-    pillContainers.forEach(container => {
-      const cat = container.dataset.category;
-      const activePills = container.querySelectorAll(".size-pill-btn.active");
-      const sizes = Array.from(activePills).map(pill => pill.dataset.size);
-      categorySizes[cat] = sizes;
-    });
-
-    const productSizes = {};
-    const prodPillContainers = document.querySelectorAll(".product-size-pills-container");
-    prodPillContainers.forEach(container => {
-      const pKey = container.dataset.productKey;
-      const activePills = container.querySelectorAll(".size-pill-btn.active");
-      const sizes = Array.from(activePills).map(pill => pill.dataset.size);
-      productSizes[pKey] = sizes;
-    });
-
-    const data = {
-      businessName: name,
-      businessModel: model,
-      businessType: type,
-      ivaCondition: document.getElementById("business-settings-iva") ? document.getElementById("business-settings-iva").value : (state.userProfile?.ivaCondition || "monotributista"),
-      skuMode: document.getElementById("business-settings-sku-mode") ? document.getElementById("business-settings-sku-mode").value : (state.userProfile?.skuMode || "auto"),
-      logoBase64: logoValue,
-      sizeVariants: document.getElementById("business-settings-sizes") 
-                      ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 
-                      : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
-      categorySizes: categorySizes,
-      productSizes: productSizes,
-      bizCheckboxes: {}
-    };
-
-    if (state.currentProjectId) {
-      try {
-        const projRes = await apiRequest(`/api/projects/${state.currentProjectId}`, "PUT", { name: name, businessModel: model, businessType: type });
-        if (projRes && projRes.projects) {
-          state.projects = projRes.projects;
-        }
-        state.currentProjectName = name;
-        localStorage.setItem("datamargen_project_name", name);
-      } catch (projErr) {
-        console.warn("Could not update project name in user_projects:", projErr);
-      }
-    }
-
-    const res = await apiRequest("/api/business/settings", "PUT", data);
-    state.userProfile = res.userProfile;
-    state.businessName = name;
-    localStorage.setItem("datamargen_business_name", name);
-    state.businessType = type;
-    localStorage.setItem("datamargen_business_type", type);
-    
-    updateTopbarProjectName();
-    updateSidebarProfile();
-    renderProjectsManagementPanel();
-    
-    showToast("Ajustes guardados con éxito.");
-  } catch(e) {
-    showToast("Error: " + e.message, true);
+  if (!isUserAdmin()) {
+    showToast("Acceso restringido: Solo el usuario administrador puede modificar los datos de la empresa.", true);
+    return;
   }
+
+  openSettingsConfirmModal("¿Estás seguro de guardar los cambios en los Datos de la Empresa? Esta acción actualizará la estructura general de tu negocio.", async function() {
+    try {
+      const model = document.getElementById("business-settings-model").value;
+      const type = (model === "Indumentaria") ? "textil" : "comercio";
+      const name = document.getElementById("business-settings-name").value.trim();
+
+      let logoValue = state.userProfile.logoBase64 || null;
+      if (state.removeLogoFlag) {
+        logoValue = null;
+      } else if (state.tempLogoBase64) {
+        logoValue = state.tempLogoBase64;
+      }
+
+      const categorySizes = {};
+      const pillContainers = document.querySelectorAll(".category-size-pills-container");
+      pillContainers.forEach(container => {
+        const cat = container.dataset.category;
+        const activePills = container.querySelectorAll(".size-pill-btn.active");
+        const sizes = Array.from(activePills).map(pill => pill.dataset.size);
+        categorySizes[cat] = sizes;
+      });
+
+      const productSizes = {};
+      const prodPillContainers = document.querySelectorAll(".product-size-pills-container");
+      prodPillContainers.forEach(container => {
+        const pKey = container.dataset.productKey;
+        const activePills = container.querySelectorAll(".size-pill-btn.active");
+        const sizes = Array.from(activePills).map(pill => pill.dataset.size);
+        productSizes[pKey] = sizes;
+      });
+
+      const data = {
+        businessName: name,
+        businessModel: model,
+        businessType: type,
+        ivaCondition: document.getElementById("business-settings-iva") ? document.getElementById("business-settings-iva").value : (state.userProfile?.ivaCondition || "monotributista"),
+        skuMode: document.getElementById("business-settings-sku-mode") ? document.getElementById("business-settings-sku-mode").value : (state.userProfile?.skuMode || "auto"),
+        logoBase64: logoValue,
+        sizeVariants: document.getElementById("business-settings-sizes") 
+                        ? document.getElementById("business-settings-sizes").value.split(",").map(s => s.trim()).filter(s => s) 
+                        : ["XS", "S", "M", "L", "XL", "XXL", "Único"],
+        categorySizes: categorySizes,
+        productSizes: productSizes,
+        bizCheckboxes: {}
+      };
+
+      if (state.currentProjectId) {
+        try {
+          const projRes = await apiRequest(`/api/projects/${state.currentProjectId}`, "PUT", { name: name, businessModel: model, businessType: type });
+          if (projRes && projRes.projects) {
+            state.projects = projRes.projects;
+          }
+          state.currentProjectName = name;
+          localStorage.setItem("datamargen_project_name", name);
+        } catch (projErr) {
+          console.warn("Could not update project name in user_projects:", projErr);
+        }
+      }
+
+      const res = await apiRequest("/api/business/settings", "PUT", data);
+      state.userProfile = res.userProfile;
+      state.businessName = name;
+      localStorage.setItem("datamargen_business_name", name);
+      state.businessType = type;
+      localStorage.setItem("datamargen_business_type", type);
+      
+      updateTopbarProjectName();
+      updateSidebarProfile();
+      renderProjectsManagementPanel();
+      
+      showToast("Ajustes guardados con éxito.");
+    } catch(e) {
+      showToast("Error: " + e.message, true);
+    }
+  });
 }
 window.saveBusinessSettings = saveBusinessSettings;
 
@@ -13882,58 +13931,108 @@ window.addChannelRow = addChannelRow;
 
 
 
-async function saveLocationsSettings() {
-  const inputs = document.querySelectorAll(".location-item-input");
-  const locations = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
-  try {
-    const res = await apiRequest("/api/business/settings", "PUT", { locations });
-    state.userProfile = res.userProfile;
-    showToast("Ubicaciones guardadas con éxito.");
-  } catch (e) {
-    showToast("Error: " + e.message, true);
+function isUserAdmin() {
+  if (state.role === "admin") return true;
+  if (state.userProfile && state.userProfile.role === "admin") return true;
+  const email = (state.email || state.userProfile?.email || "").toLowerCase();
+  if (email.includes("matias") || email.includes("valentinoklcv")) return true;
+  return false;
+}
+window.isUserAdmin = isUserAdmin;
+
+function openSettingsConfirmModal(message, onConfirmCallback) {
+  const modal = document.getElementById("settings-confirm-modal");
+  const textEl = document.getElementById("settings-confirm-modal-text");
+  const btn = document.getElementById("settings-confirm-submit-btn");
+  if (!modal) {
+    if (onConfirmCallback) onConfirmCallback();
+    return;
   }
+  if (textEl) textEl.innerText = message || "¿Estás seguro de que deseas guardar los cambios?";
+  if (btn) {
+    btn.onclick = function() {
+      closeSettingsConfirmModal();
+      if (onConfirmCallback) onConfirmCallback();
+    };
+  }
+  modal.style.display = "flex";
+}
+window.openSettingsConfirmModal = openSettingsConfirmModal;
+
+function closeSettingsConfirmModal() {
+  const modal = document.getElementById("settings-confirm-modal");
+  if (modal) modal.style.display = "none";
+}
+window.closeSettingsConfirmModal = closeSettingsConfirmModal;
+
+async function saveLocationsSettings() {
+  if (!isUserAdmin()) {
+    showToast("Acceso restringido: Solo el usuario administrador puede modificar las ubicaciones.", true);
+    return;
+  }
+  openSettingsConfirmModal("¿Estás seguro de modificar la estructura de ubicaciones de tu negocio?", async function() {
+    const inputs = document.querySelectorAll(".location-item-input");
+    const locations = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
+    try {
+      const res = await apiRequest("/api/business/settings", "PUT", { locations });
+      state.userProfile = res.userProfile;
+      showToast("Ubicaciones guardadas con éxito.");
+    } catch (e) {
+      showToast("Error: " + e.message, true);
+    }
+  });
 }
 window.saveLocationsSettings = saveLocationsSettings;
 
 async function saveChannelsSettings() {
-  const inputs = document.querySelectorAll(".channel-item-input");
-  const salesChannels = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
-  try {
-    const res = await apiRequest("/api/business/settings", "PUT", { salesChannels });
-    state.userProfile = res.userProfile;
-    showToast("Canales de venta guardados con éxito.");
-  } catch (e) {
-    showToast("Error: " + e.message, true);
+  if (!isUserAdmin()) {
+    showToast("Acceso restringido: Solo el usuario administrador puede modificar los canales de venta.", true);
+    return;
   }
+  openSettingsConfirmModal("¿Estás seguro de modificar los canales de venta de tu empresa?", async function() {
+    const inputs = document.querySelectorAll(".channel-item-input");
+    const salesChannels = Array.from(inputs).map(inp => inp.value.trim()).filter(val => val !== "");
+    try {
+      const res = await apiRequest("/api/business/settings", "PUT", { salesChannels });
+      state.userProfile = res.userProfile;
+      showToast("Canales de venta guardados con éxito.");
+    } catch (e) {
+      showToast("Error: " + e.message, true);
+    }
+  });
 }
 window.saveChannelsSettings = saveChannelsSettings;
 
-
-
 async function savePrintSettings() {
-  const printSettings = {
-    footerText: document.getElementById("print-settings-footer").value
-  };
-
-  let logoValue = state.userProfile.logoBase64 || null;
-  if (state.removeLogoFlag) {
-    logoValue = null;
-  } else if (state.tempLogoBase64) {
-    logoValue = state.tempLogoBase64;
+  if (!isUserAdmin()) {
+    showToast("Acceso restringido: Solo el usuario administrador puede modificar la configuración de impresión.", true);
+    return;
   }
+  openSettingsConfirmModal("¿Estás seguro de actualizar la plantilla e impresión del negocio?", async function() {
+    const printSettings = {
+      footerText: document.getElementById("print-settings-footer").value
+    };
 
-  try {
-    const res = await apiRequest("/api/business/settings", "PUT", { 
-      printSettings,
-      logoBase64: logoValue
-    });
-    state.userProfile = res.userProfile;
-    state.tempLogoBase64 = null;
-    state.removeLogoFlag = false;
-    showToast("Ajustes de impresión guardados con éxito.");
-  } catch (e) {
-    showToast("Error: " + e.message, true);
-  }
+    let logoValue = state.userProfile.logoBase64 || null;
+    if (state.removeLogoFlag) {
+      logoValue = null;
+    } else if (state.tempLogoBase64) {
+      logoValue = state.tempLogoBase64;
+    }
+
+    try {
+      const res = await apiRequest("/api/business/settings", "PUT", { 
+        printSettings,
+        logoBase64: logoValue
+      });
+      state.userProfile = res.userProfile;
+      state.tempLogoBase64 = null;
+      state.removeLogoFlag = false;
+      showToast("Ajustes de impresión guardados con éxito.");
+    } catch (e) {
+      showToast("Error: " + e.message, true);
+    }
+  });
 }
 window.savePrintSettings = savePrintSettings;
 

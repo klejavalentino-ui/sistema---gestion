@@ -1839,6 +1839,197 @@ def save_services_settings():
 
 
 
+@app.route("/api/export-arca-excel", methods=["POST"])
+def export_arca_excel_route():
+    token = get_auth_token()
+    if not token:
+        return jsonify({"error": "No autorizado"}), 401
+    prefix = get_user_prefix(token)
+    if not prefix:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+
+    try:
+        import io, openpyxl, time
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        data = request.json or {}
+        uninvoiced_sales = data.get("uninvoiced", [])
+        invoices = data.get("invoices", [])
+
+        wb = openpyxl.Workbook()
+
+        header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+        header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+        title_font = Font(name="Calibri", size=14, bold=True, color="1E293B")
+        cell_font = Font(name="Calibri", size=10)
+        bold_font = Font(name="Calibri", size=10, bold=True)
+        thin_border = Border(
+            left=Side(style='thin', color='CBD5E1'),
+            right=Side(style='thin', color='CBD5E1'),
+            top=Side(style='thin', color='CBD5E1'),
+            bottom=Side(style='thin', color='CBD5E1')
+        )
+
+        # HOJA 1: Ventas Recientes (No Facturadas)
+        ws1 = wb.active
+        ws1.title = "No Facturadas"
+        ws1.views.sheetView[0].showGridLines = True
+        ws1.cell(row=1, column=1, value="VENTAS RECIENTES PENDIENTES DE FACTURAR (ARCA)").font = title_font
+        ws1.row_dimensions[1].height = 30
+
+        headers1 = ["Fecha", "Monto Total ($)", "Medio de Pago", "Canal de Venta", "Estado"]
+        ws1.row_dimensions[3].height = 24
+        for col_num, h_text in enumerate(headers1, 1):
+            cell = ws1.cell(row=3, column=col_num, value=h_text)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center" if col_num in [1, 3, 4, 5] else "right", vertical="center")
+            cell.border = thin_border
+
+        for r_idx, s in enumerate(uninvoiced_sales, 4):
+            ws1.row_dimensions[r_idx].height = 20
+            f_date = str(s.get("date", "")).split("T")[0] if "T" in str(s.get("date", "")) else str(s.get("date", ""))
+            total_val = float(s.get("total", 0.0))
+            method = str(s.get("method", "Contado"))
+            channel = str(s.get("channel") or s.get("sales_channel") or s.get("location") or "Local Principal")
+
+            row_data = [f_date, total_val, method, channel, "Pendiente de Facturar"]
+            for c_idx, val in enumerate(row_data, 1):
+                cell = ws1.cell(row=r_idx, column=c_idx, value=val)
+                cell.font = cell_font
+                cell.border = thin_border
+                if c_idx == 2:
+                    cell.number_format = "$#,##0"
+                    cell.alignment = Alignment(horizontal="right", vertical="center")
+                else:
+                    cell.alignment = Alignment(horizontal="left" if c_idx in [1, 3, 4] else "center", vertical="center")
+
+        for col in ws1.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            ws1.column_dimensions[col_letter].width = max(max_len + 4, 14)
+
+        # HOJA 2: Historial de Comprobantes Emitidos
+        ws2 = wb.create_sheet(title="Comprobantes Emitidos")
+        ws2.views.sheetView[0].showGridLines = True
+        ws2.cell(row=1, column=1, value="HISTORIAL DE COMPROBANTES ELECTRÓNICOS EMITIDOS (ARCA)").font = title_font
+        ws2.row_dimensions[1].height = 30
+
+        headers2 = ["Fecha Emitida", "Fecha Venta", "Tipo", "Número Factura", "Cliente / CUIT", "Condición IVA", "Total Facturado ($)", "CAE", "Vencimiento CAE", "Estado"]
+        ws2.row_dimensions[3].height = 24
+        for col_num, h_text in enumerate(headers2, 1):
+            cell = ws2.cell(row=3, column=col_num, value=h_text)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center" if col_num in [1, 2, 3, 4, 8, 9, 10] else "left", vertical="center")
+            cell.border = thin_border
+
+        for r_idx, inv in enumerate(invoices, 4):
+            ws2.row_dimensions[r_idx].height = 20
+            f_emit = str(inv.get("date", "")).split("T")[0]
+            f_sale = str(inv.get("sale_date") or inv.get("date", "")).split("T")[0]
+            inv_type = str(inv.get("type", "Factura C"))
+            inv_num = str(inv.get("invoice_number", "-"))
+            client_cuit = f"{inv.get('client_name', '')} ({inv.get('client_cuit', 'Consumidor Final')})".strip()
+            cond_iva = str(inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
+            total_inv = float(inv.get("total", 0.0))
+            cae = str(inv.get("cae", "-"))
+            cae_due = str(inv.get("cae_due", "-"))
+            status = str(inv.get("status", "Aprobado"))
+
+            row_data = [f_emit, f_sale, inv_type, inv_num, client_cuit, cond_iva, total_inv, cae, cae_due, status]
+            for c_idx, val in enumerate(row_data, 1):
+                cell = ws2.cell(row=r_idx, column=c_idx, value=val)
+                cell.font = cell_font
+                cell.border = thin_border
+                if c_idx == 7:
+                    cell.number_format = "$#,##0"
+                    cell.alignment = Alignment(horizontal="right", vertical="center")
+                else:
+                    cell.alignment = Alignment(horizontal="left" if c_idx in [4, 5, 6] else "center", vertical="center")
+
+        for col in ws2.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            ws2.column_dimensions[col_letter].width = max(max_len + 4, 14)
+
+        # HOJA 3: Resumen & Métricas Fiscales
+        ws3 = wb.create_sheet(title="Resumen y Métricas Fiscales")
+        ws3.views.sheetView[0].showGridLines = True
+        ws3.cell(row=1, column=1, value="RESUMEN Y MÉTRICAS FISCALES PARA CONTABILIDAD").font = title_font
+        ws3.row_dimensions[1].height = 30
+
+        total_invoiced = sum(float(inv.get("total", 0.0)) for inv in invoices)
+        total_uninvoiced = sum(float(s.get("total", 0.0)) for s in uninvoiced_sales)
+        grand_total = total_invoiced + total_uninvoiced
+
+        ws3.cell(row=3, column=1, value="Métrica General").font = header_font
+        ws3.cell(row=3, column=1).fill = header_fill
+        ws3.cell(row=3, column=2, value="Monto ($) / Cantidad").font = header_font
+        ws3.cell(row=3, column=2).fill = header_fill
+
+        summary_rows = [
+            ("Total Facturado con ARCA", total_invoiced),
+            ("Total Pendiente de Facturar", total_uninvoiced),
+            ("Total General de Ventas Registradas", grand_total),
+            ("Porcentaje Facturado", f"{(total_invoiced / grand_total * 100):.1f}%" if grand_total > 0 else "0%"),
+            ("Cantidad de Comprobantes Emitidos", len(invoices)),
+            ("Cantidad de Ventas Pendientes", len(uninvoiced_sales))
+        ]
+
+        for idx, (label, val) in enumerate(summary_rows, 4):
+            c1 = ws3.cell(row=idx, column=1, value=label)
+            c2 = ws3.cell(row=idx, column=2, value=val)
+            c1.font = bold_font
+            c2.font = bold_font
+            c1.border = thin_border
+            c2.border = thin_border
+            if isinstance(val, (int, float)):
+                c2.number_format = "$#,##0"
+                c2.alignment = Alignment(horizontal="right")
+
+        ws3.cell(row=12, column=1, value="Desglose Facturado por Condición IVA").font = header_font
+        ws3.cell(row=12, column=1).fill = header_fill
+        ws3.cell(row=12, column=2, value="Monto Facturado ($)").font = header_font
+        ws3.cell(row=12, column=2).fill = header_fill
+
+        iva_breakdown = {}
+        for inv in invoices:
+            c_iva = str(inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
+            iva_breakdown[c_iva] = iva_breakdown.get(c_iva, 0.0) + float(inv.get("total", 0.0))
+
+        if not iva_breakdown:
+            iva_breakdown["Consumidor Final"] = 0.0
+
+        for idx, (c_iva, amt) in enumerate(iva_breakdown.items(), 13):
+            c1 = ws3.cell(row=idx, column=1, value=c_iva)
+            c2 = ws3.cell(row=idx, column=2, value=amt)
+            c1.font = cell_font
+            c2.font = cell_font
+            c1.border = thin_border
+            c2.border = thin_border
+            c2.number_format = "$#,##0"
+            c2.alignment = Alignment(horizontal="right")
+
+        for col in ws3.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            ws3.column_dimensions[col_letter].width = max(max_len + 6, 20)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=f"Reporte_Fiscal_ARCA_{time.strftime('%Y%m%d')}.xlsx"
+        )
+    except Exception as e:
+        return jsonify({"error": f"Error al generar Excel de ARCA: {str(e)}"}), 500
+
 @app.route("/api/export-inventory-excel", methods=["POST"])
 def export_inventory_excel_route():
     token = get_auth_token()
