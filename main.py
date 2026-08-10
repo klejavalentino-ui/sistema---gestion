@@ -1839,6 +1839,7 @@ def save_services_settings():
 
 
 
+@app.route("/api/export-inventory-excel", methods=["POST"])
 def export_inventory_excel_route():
     token = get_auth_token()
     if not token:
