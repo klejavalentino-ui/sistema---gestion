@@ -5093,35 +5093,87 @@ async function downloadInvoicePDF(saleId) {
 window.downloadInvoicePDF = downloadInvoicePDF;
 
 function exportSalesHistory() {
-  const formatted = state.sales.flatMap(s => 
+  const allSalesMap = new Map();
+  (state.sales || []).forEach(s => { if (s && s.id) allSalesMap.set(s.id, s); });
+  (state.tiendanubeSales || []).forEach(s => { if (s && s.id) allSalesMap.set(s.id, s); });
+  const allSalesList = Array.from(allSalesMap.values());
+
+  const configuredSizesList = (typeof getConfiguredSizes === "function" ? getConfiguredSizes() : []) || [];
+  const defaultSizesList = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Talle 1 (S/M)", "Talle 2 (M/L)", "Talle 2 (L/XL)", "Talle 3 (L/XL)", "Talle 4 (XL)", "Único"];
+  const allValidSizes = [...new Set([...configuredSizesList, ...defaultSizesList])];
+
+  const formatted = allSalesList.flatMap(s => 
     s.items ? s.items.map(item => {
       const p = item.product || {};
       const itemSku = (p.sku || item.sku || "").trim();
       const itemName = (p.name || item.name || "").trim();
-      
-      const invProd = (state.products || []).find(invP => 
+      const cleanName = itemName.replace(/\(.*?\)/g, "").trim().toLowerCase();
+
+      // Buscar coincidencia en inventario (state.products)
+      const products = state.products || [];
+      let invProd = products.find(invP => 
         (itemSku && invP.sku === itemSku) ||
         (itemSku && invP.baseSku && itemSku.startsWith(invP.baseSku)) ||
-        (itemName && invP.name && invP.name.toLowerCase().trim() === itemName.toLowerCase().trim()) ||
-        (itemName && invP.name && itemName.toLowerCase().startsWith(invP.name.toLowerCase().trim()))
+        (cleanName && invP.name && invP.name.toLowerCase().trim() === cleanName) ||
+        (cleanName && invP.name && cleanName.startsWith(invP.name.toLowerCase().trim())) ||
+        (cleanName && invP.name && invP.name.toLowerCase().trim().startsWith(cleanName))
       );
 
-      const category = (invProd && invProd.category && invProd.category !== "General") 
+      // Categoría real del inventario
+      let category = (invProd && invProd.category && invProd.category !== "General" && invProd.category !== "Indumentaria") 
         ? invProd.category 
-        : (p.category && p.category !== "General" ? p.category : "Indumentaria");
+        : (p.category && p.category !== "General" && p.category !== "Indumentaria" ? p.category : "");
 
-      let size = item.size || p.size || (invProd ? invProd.size : null);
-      if (!size || size === "Único") {
-        const sizeMatch = itemName.match(/\((?:Talle\s*)?([^\)]+)\)/i);
-        if (sizeMatch && sizeMatch[1]) {
-          size = sizeMatch[1].trim();
-        } else if (invProd && invProd.size) {
-          size = invProd.size;
-        } else {
-          size = "Único";
+      if (!category) {
+        const nLow = itemName.toLowerCase();
+        if (nLow.includes("piluso") || nLow.includes("gorra") || nLow.includes("gorro") || nLow.includes("media") || nLow.includes("flags") || nLow.includes("bau")) category = "Accesorios";
+        else if (nLow.includes("remera") || nLow.includes("musculosa") || nLow.includes("top")) category = "Remeras y musculosas";
+        else if (nLow.includes("buzo") || nLow.includes("campera") || nLow.includes("sweater") || nLow.includes("chaleco") || nLow.includes("tejido")) category = "Sweaters & Tejidos";
+        else if (nLow.includes("bermuda") || nLow.includes("pantalon") || nLow.includes("short")) category = "Pantalones y bermudas";
+        else if (nLow.includes("camisa")) category = "Camisas";
+        else category = invProd?.category || p?.category || "Indumentaria";
+      }
+
+      // Talle estrictamente de la sección de Configuración (Sin colores)
+      let rawSizeCandidate = (item.size || p.size || "").trim();
+      const parenMatch = itemName.match(/\((.*?)\)/);
+      if (parenMatch && parenMatch[1]) {
+        rawSizeCandidate = rawSizeCandidate ? `${rawSizeCandidate}, ${parenMatch[1]}` : parenMatch[1];
+      }
+
+      let size = "Único";
+      if (rawSizeCandidate) {
+        const tokens = rawSizeCandidate.split(/[,/]+/).map(t => t.trim()).filter(Boolean);
+        for (const tok of tokens) {
+          const matchValid = allValidSizes.find(sz => sz.toLowerCase() === tok.toLowerCase());
+          if (matchValid) {
+            size = matchValid;
+            break;
+          }
+          const upperTok = tok.toUpperCase();
+          if (["XS", "S", "M", "L", "XL", "XXL", "XXXL"].includes(upperTok)) {
+            size = upperTok;
+            break;
+          }
+          if (/^Talle\s*\d+/i.test(tok)) {
+            size = tok;
+            break;
+          }
+          if (/^[1-5]$/.test(tok)) {
+            size = `Talle ${tok}`;
+            break;
+          }
         }
       }
 
+      if (size === "Único" && invProd && invProd.size && invProd.size !== "Único") {
+        size = invProd.size;
+      }
+
+      // Canal de Venta
+      const channel = s.channel || s.sales_channel || s.location || (s.id && s.id.startsWith("TN-") ? "Tiendanube" : "Local Principal");
+
+      // Precio Unitario real
       let priceUnit = parseFloat(item.price || item.unitPrice || item.unit_price || p.price_local || p.price || 0);
       if (priceUnit <= 0 && item.subtotal > 0 && item.quantity > 0) {
         priceUnit = item.subtotal / item.quantity;
@@ -5130,8 +5182,18 @@ function exportSalesHistory() {
         priceUnit = parseFloat(invProd.price_local || invProd.price || 0);
       }
 
-      let baseUnitCost = parseFloat(p.cost || p.baseCost || (invProd ? (invProd.baseCost || invProd.cost) : 0) || 0);
+      // Costo Unitario de Inventario
+      let baseUnitCost = parseFloat(p.cost || p.baseCost || (invProd ? (invProd.baseCost || invProd.cost || invProd.cost_local || invProd.unitCost) : 0) || 0);
 
+      // Si invProd no tiene costo directo pero sus variantes sí, buscar variante con costo
+      if (baseUnitCost === 0 && invProd) {
+        const sibling = products.find(sp => (sp.baseSku === invProd.baseSku || sp.name === invProd.name) && (parseFloat(sp.baseCost || sp.cost || sp.cost_local) > 0));
+        if (sibling) {
+          baseUnitCost = parseFloat(sibling.baseCost || sibling.cost || sibling.cost_local || 0);
+        }
+      }
+
+      // Sumar insumos o adicionales agregados en la venta
       let itemExtraCost = 0;
       const itemExtras = item.extras || s.extras || {};
       if (itemExtras) {
@@ -5156,6 +5218,7 @@ function exportSalesHistory() {
         Producto: itemName || "Producto",
         Categoria: category,
         Talle: size,
+        CanalDeVenta: channel,
         Cantidad: item.quantity || 1,
         PrecioUnitario: Math.round(priceUnit),
         CostoUnitario: costoUnitario,
