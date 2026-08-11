@@ -9557,14 +9557,13 @@ function exportFixedCostsToExcel() {
     Concepto: c.concept,
     Periodo: c.period,
     Categoria: c.category,
-    Monto: c.amount,
-    Pagado: c.isPaid ? 'SÍ' : 'NO'
+    Monto: c.amount
   }));
 
   const ws = XLSX.utils.json_to_sheet(formatted);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Gastos Fijos");
-  XLSX.writeFile(wb, `Gastos_Mensuales_${state.viewCostsMonth}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, "Costos Fijos");
+  XLSX.writeFile(wb, `Costos_Fijos_${state.viewCostsMonth}.xlsx`);
 }
 
 function exportStockIntakesToExcel() {
