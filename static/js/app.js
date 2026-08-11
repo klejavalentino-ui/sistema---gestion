@@ -5095,55 +5095,71 @@ window.downloadInvoicePDF = downloadInvoicePDF;
 function exportSalesHistory() {
   const formatted = state.sales.flatMap(s => 
     s.items ? s.items.map(item => {
-      let itemExtraCost = 0;
-      let extraEstampado = "";
-      let extraBordado = "";
-      let extraPackaging = "";
-      
       const p = item.product || {};
-      const extrasObj = p.extras || {};
+      const itemSku = (p.sku || item.sku || "").trim();
+      const itemName = (p.name || item.name || "").trim();
+      
+      const invProd = (state.products || []).find(invP => 
+        (itemSku && invP.sku === itemSku) ||
+        (itemSku && invP.baseSku && itemSku.startsWith(invP.baseSku)) ||
+        (itemName && invP.name && invP.name.toLowerCase().trim() === itemName.toLowerCase().trim()) ||
+        (itemName && invP.name && itemName.toLowerCase().startsWith(invP.name.toLowerCase().trim()))
+      );
 
-      if (s.extras) {
-        Object.keys(s.extras).forEach(catKey => {
-          const extraId = s.extras[catKey];
+      const category = (invProd && invProd.category && invProd.category !== "General") 
+        ? invProd.category 
+        : (p.category && p.category !== "General" ? p.category : "Indumentaria");
+
+      let size = item.size || p.size || (invProd ? invProd.size : null);
+      if (!size || size === "Único") {
+        const sizeMatch = itemName.match(/\((?:Talle\s*)?([^\)]+)\)/i);
+        if (sizeMatch && sizeMatch[1]) {
+          size = sizeMatch[1].trim();
+        } else if (invProd && invProd.size) {
+          size = invProd.size;
+        } else {
+          size = "Único";
+        }
+      }
+
+      let priceUnit = parseFloat(item.price || item.unitPrice || item.unit_price || p.price_local || p.price || 0);
+      if (priceUnit <= 0 && item.subtotal > 0 && item.quantity > 0) {
+        priceUnit = item.subtotal / item.quantity;
+      }
+      if (priceUnit <= 0 && invProd) {
+        priceUnit = parseFloat(invProd.price_local || invProd.price || 0);
+      }
+
+      let baseUnitCost = parseFloat(p.cost || p.baseCost || (invProd ? (invProd.baseCost || invProd.cost) : 0) || 0);
+
+      let itemExtraCost = 0;
+      const itemExtras = item.extras || s.extras || {};
+      if (itemExtras) {
+        Object.keys(itemExtras).forEach(catKey => {
+          const extraId = itemExtras[catKey];
           if (extraId && extraId !== "0") {
-            const list = state.extras[catKey] || [];
+            const list = (state.extras && state.extras[catKey]) ? state.extras[catKey] : [];
             const found = list.find(o => o.id === extraId);
-            if (found) {
-              if (catKey === "estampados") extraEstampado = found.name;
-              else if (catKey === "bordados") extraBordado = found.name;
-              else if (catKey === "packagings") extraPackaging = found.name;
-
-              // Solo sumar el costo del adicional si NO está incluido de forma estática en el inventario de este producto
-              let hasStatic = false;
-              if (catKey === "estampados") hasStatic = !!(p.estampadoId || extrasObj.estampados);
-              else if (catKey === "packagings") hasStatic = !!(p.packagingId || extrasObj.packagings);
-              else if (catKey === "bordados") hasStatic = !!(p.bordadoId || extrasObj.bordados);
-
-              if (!hasStatic) {
-                itemExtraCost += parseFloat(found.cost) || 0;
-              }
+            if (found && found.cost) {
+              itemExtraCost += parseFloat(found.cost) || 0;
             }
           }
         });
       }
 
-      const finalUnitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
-      const price = finalUnitCost * (1 + (parseFloat(p.margin) || 0) / 100);
+      const costoUnitario = Math.round(baseUnitCost + itemExtraCost);
+
       return {
         ID_Venta: s.id,
-        Fecha: new Date(s.date).toLocaleDateString(),
-        Metodo: s.method,
-        Producto: p.name,
-        Categoria: p.category,
-        Talle: item.size,
-        Color: p.color,
-        Cantidad: item.quantity,
-        PrecioUnitario: Math.round(price),
-        Adicional_Estampado: extraEstampado,
-        Adicional_Bordado: extraBordado,
-        Adicional_Packaging: extraPackaging,
-        TotalVenta: Math.round(s.total)
+        Fecha: new Date(s.date).toLocaleDateString("es-AR"),
+        Metodo: s.method || "Contado",
+        Producto: itemName || "Producto",
+        Categoria: category,
+        Talle: size,
+        Cantidad: item.quantity || 1,
+        PrecioUnitario: Math.round(priceUnit),
+        CostoUnitario: costoUnitario,
+        TotalVenta: Math.round(s.total || (priceUnit * (item.quantity || 1)))
       };
     }) : []
   );

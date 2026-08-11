@@ -254,28 +254,23 @@ export default function Sales() {
   };
 
   const handleExportHistory = () => {
-    // Format for Excel - ALL history without restrictions
     const excelData = salesHistory.flatMap((sale: any) => 
       sale.items.map((item: any) => {
-        const price = item.product.cost * (1 + item.product.margin / 100);
-        const estimatedCost = item.product.cost;
-        const resultadoOperativo = (price - estimatedCost) * item.quantity;
+        const p = item.product || {};
+        const price = item.price || p.price_local || p.price || 0;
+        const baseCost = p.cost || p.baseCost || 0;
 
         return {
-          'ID Venta': sale.id,
-          'Fecha': new Date(sale.date).toLocaleDateString(),
-          'Hora': new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-          'Ubicación': sale.location || 'N/A',
-          'Canal de Venta': sale.channel || 'N/A',
-          'Método de Pago': sale.method,
-          'Producto': item.product.name,
-          'Categoría': item.product.category,
-          'Talle': item.size,
-          'Color': item.product.color,
-          'Cantidad': item.quantity,
-          'Precio Unitario': price,
-          'Resultado Operativo': resultadoOperativo,
-          'Total Venta': sale.total
+          'ID_Venta': sale.id,
+          'Fecha': new Date(sale.date).toLocaleDateString("es-AR"),
+          'Metodo': sale.method || 'Contado',
+          'Producto': item.product?.name || item.name || 'Producto',
+          'Categoria': item.product?.category && item.product.category !== 'General' ? item.product.category : 'Indumentaria',
+          'Talle': item.size || item.product?.size || 'Único',
+          'Cantidad': item.quantity || 1,
+          'PrecioUnitario': Math.round(price),
+          'CostoUnitario': Math.round(baseCost),
+          'TotalVenta': Math.round(sale.total)
         };
       })
     );
@@ -283,7 +278,7 @@ export default function Sales() {
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Historial_Ventas");
-    XLSX.writeFile(wb, `Historial_Ventas_Completo_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+    XLSX.writeFile(wb, `Historial_Ventas_Completo_${new Date().toLocaleDateString("es-AR").replace(/\//g, '-')}.xlsx`);
   };
 
   // Deduplicate products for display (show one card per baseSku)
