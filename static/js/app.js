@@ -3477,6 +3477,10 @@ function renderPOSCart(recalc = true) {
       price = finalUnitCost * (1 + item.product.margin / 100);
     }
 
+    // Redondear siempre a 100 (con o sin insumos incorporados)
+    price = Math.round(price / 100) * 100;
+    item.price = price;
+
     const itemTotal = price * (parseInt(item.quantity) || 0);
     total += itemTotal;
 
@@ -3491,7 +3495,7 @@ function renderPOSCart(recalc = true) {
         <h4 class="pos-cart-item-name">${item.product.name}</h4>
         <p class="pos-cart-item-variant">${item.size} | ${item.product.color}</p>
         ${insumosBadgesHtml}
-        <p class="pos-cart-item-price">$ ${Math.round(price).toLocaleString()}</p>
+        <p class="pos-cart-item-price">$ ${Math.round(price).toLocaleString('es-AR')}</p>
       </div>
       <div class="pos-cart-item-actions">
         <button class="pos-cart-item-delete" onclick="removePOSCartItem(${idx})">✕</button>
@@ -3511,14 +3515,11 @@ function renderPOSCart(recalc = true) {
     const discountPct = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
     const subtotal = total;
     const discountAmount = (subtotal * discountPct) / 100;
-    let finalTotal = subtotal - discountAmount;
-    if (discountPct > 0) {
-      finalTotal = Math.round(finalTotal / 100) * 100;
-    }
+    let finalTotal = Math.round((subtotal - discountAmount) / 100) * 100;
 
     const totalValEl = document.getElementById("pos-cart-total-val");
     if (totalValEl) {
-      totalValEl.innerText = `$ ${Math.round(finalTotal).toLocaleString()}`;
+      totalValEl.innerText = `$ ${Math.round(finalTotal).toLocaleString('es-AR')}`;
       totalValEl.dataset.total = finalTotal;
       totalValEl.dataset.subtotal = subtotal;
       totalValEl.dataset.discountPct = discountPct;
@@ -3527,111 +3528,9 @@ function renderPOSCart(recalc = true) {
 }
 
 function renderPOSCartExtras() {
+  // Desactivado: los insumos se seleccionan en el modal de cada producto al seleccionar talle.
   const section = document.getElementById("pos-cart-extras-section");
-  if (!section) return;
-
-  if (state.businessType !== "textil") {
-    section.style.display = "none";
-    return;
-  }
-
-  if (state.cart.length === 0) {
-    section.style.display = "none";
-    return;
-  }
-
-  // Guardar selecciones anteriores antes de limpiar el contenedor
-  const previousSelections = {};
-  Object.keys(state.extras).forEach(catKey => {
-    const select = document.getElementById(`pos-cart-extra-select-${catKey}`);
-    if (select) {
-      previousSelections[catKey] = select.value;
-    }
-  });
-
-  const grid = document.getElementById("pos-cart-extras-grid");
-  grid.innerHTML = "";
-
-  let visibleCount = 0;
-
-  Object.keys(state.extras).forEach(catKey => {
-    const options = state.extras[catKey] || [];
-    if (options.length === 0) return;
-
-    // Omitir si TODOS los productos del carrito ya lo tienen incluido estáticamente
-    const allHaveStatic = state.cart.every(item => {
-      const p = item.product;
-      const extrasObj = p.extras || {};
-      if (catKey === "estampados") return !!(p.estampadoId || extrasObj.estampados);
-      if (catKey === "packagings") return !!(p.packagingId || extrasObj.packagings);
-      if (catKey === "bordados") return !!(p.bordadoId || extrasObj.bordados);
-      return false;
-    });
-
-    if (allHaveStatic) return;
-
-    visibleCount++;
-
-    const labelMap = {
-      estampados: "Estampado",
-      packagings: "Packaging",
-      bordados: "Bordado"
-    };
-    const friendlyName = labelMap[catKey] || catKey.charAt(0).toUpperCase() + catKey.slice(1);
-
-    const formGroup = document.createElement("div");
-    formGroup.style.display = "flex";
-    formGroup.style.flexDirection = "column";
-    formGroup.style.gap = "4px";
-
-    const label = document.createElement("label");
-    label.style.fontSize = "0.7rem";
-    label.style.fontWeight = "600";
-    label.style.color = "var(--text-gray)";
-    label.innerText = friendlyName;
-
-    const select = document.createElement("select");
-    select.id = `pos-cart-extra-select-${catKey}`;
-    select.className = "form-input";
-    select.style.padding = "6px 10px";
-    select.style.fontSize = "0.8rem";
-    select.style.background = "var(--bg-card)";
-    select.style.color = "#fff";
-    select.style.borderColor = "var(--border-color)";
-    
-    const defOpt = document.createElement("option");
-    defOpt.value = "0";
-    defOpt.innerText = `Sin ${friendlyName}`;
-    select.appendChild(defOpt);
-
-    options.forEach(opt => {
-      const o = document.createElement("option");
-      o.value = opt.id;
-      o.innerText = `${opt.name} (+$${Math.round(opt.cost).toLocaleString()})`;
-      select.appendChild(o);
-    });
-
-    // Restaurar valor previo si es válido
-    if (previousSelections[catKey]) {
-      select.value = previousSelections[catKey];
-    } else {
-      select.value = "0";
-    }
-
-    select.addEventListener("change", () => {
-      renderPOSCart(true);
-    });
-
-    formGroup.appendChild(label);
-    formGroup.appendChild(select);
-    grid.appendChild(formGroup);
-  });
-
-  if (visibleCount > 0) {
-    section.style.display = "block";
-  } else {
-    section.style.display = "none";
-  }
+  if (section) section.style.display = "none";
 }
 
 // POS Checkout Modal Flow
