@@ -8462,7 +8462,8 @@ function openAccountModal(type) {
   document.getElementById("acc-phone").value = "";
   document.getElementById("acc-address").value = "";
   document.getElementById("acc-payment-terms").value = "";
-  
+  // Al abrir para nuevo cliente: desbloquear todos los campos ARCA
+  unlockArcaFields();
   document.getElementById("account-modal").className = "modal-backdrop active";
 }
 
@@ -8510,19 +8511,23 @@ async function fetchAfipPadronData() {
     }
     if (data.condicion_iva) {
       const inputIva = document.getElementById("acc-condicion-iva");
-      if (inputIva) {
-        const backendVal = data.condicion_iva.toUpperCase().trim();
+      const backendVal = data.condicion_iva.toUpperCase().trim();
+      // Solo marcar como completado si el valor NO es Consumidor Final (el default)
+      if (inputIva && backendVal !== "CONSUMIDOR FINAL") {
         const mappedVal = ivaMap[backendVal];
+        let matched = false;
         if (mappedVal) {
           for (let i = 0; i < inputIva.options.length; i++) {
             if (inputIva.options[i].value.toUpperCase() === mappedVal.toUpperCase()) {
               inputIva.selectedIndex = i;
               filledFields.push("Condición IVA");
+              matched = true;
               break;
             }
           }
-        } else {
-          // Fallback: búsqueda por substring si no está en el mapa
+        }
+        if (!matched) {
+          // Fallback substring
           for (let i = 0; i < inputIva.options.length; i++) {
             const optVal = inputIva.options[i].value.toUpperCase();
             if (optVal.includes(backendVal) || backendVal.includes(optVal)) {
@@ -8540,7 +8545,11 @@ async function fetchAfipPadronData() {
     }
 
     if (filledFields.length > 0) {
-      showToast(`✅ Datos ARCA completados: ${filledFields.join(", ")}`, "success");
+      showToast(`✅ Datos ARCA verificados: ${filledFields.join(", ")}`, "success");
+      // Bloquear los campos que fueron completados por ARCA
+      lockArcaFields(filledFields);
+    } else {
+      showToast("ARCA: datos obtenidos (revisá la Condición IVA manualmente)", "warning");
     }
 
     if (data.estadoClave && data.estadoClave.toUpperCase() !== "ACTIVO") {
@@ -8559,6 +8568,37 @@ async function fetchAfipPadronData() {
       btnSearch.disabled = false;
     }
   }
+}
+
+function lockArcaFields(filledFields) {
+  const lockStyle = "background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.35); cursor: not-allowed; opacity: 0.85;";
+  const lockTitle = "Verificado y bloqueado por ARCA";
+
+  if (filledFields.includes("Razón Social")) {
+    const el = document.getElementById("acc-razon-social");
+    if (el) { el.readOnly = true; el.style.cssText = lockStyle; el.title = lockTitle; }
+  }
+  if (filledFields.includes("Condición IVA")) {
+    const el = document.getElementById("acc-condicion-iva");
+    if (el) { el.disabled = true; el.style.cssText = lockStyle; el.title = lockTitle; }
+  }
+  if (filledFields.includes("Domicilio")) {
+    const el = document.getElementById("acc-address");
+    if (el) { el.readOnly = true; el.style.cssText = lockStyle; el.title = lockTitle; }
+  }
+}
+
+function unlockArcaFields() {
+  const ids = ["acc-razon-social", "acc-condicion-iva", "acc-address"];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.readOnly = false;
+      el.disabled = false;
+      el.style.cssText = "";
+      el.title = "";
+    }
+  });
 }
 
 async function saveAccountForm(e) {
@@ -8621,7 +8661,18 @@ function editAccount(accId) {
   document.getElementById("acc-phone").value = acc.phone || "";
   document.getElementById("acc-address").value = acc.address || "";
   document.getElementById("acc-payment-terms").value = acc.paymentTerms !== undefined ? acc.paymentTerms : "";
-  
+
+  // Si el cliente tiene CUIT y datos ARCA verificados, bloquear esos campos
+  unlockArcaFields();
+  const tieneArcaData = acc.cuit && (acc.razonSocial || (acc.condicionIva && acc.condicionIva !== "CONSUMIDOR FINAL") || acc.address);
+  if (tieneArcaData) {
+    const camposBloqueados = [];
+    if (acc.razonSocial) camposBloqueados.push("Razón Social");
+    if (acc.condicionIva && acc.condicionIva !== "CONSUMIDOR FINAL") camposBloqueados.push("Condición IVA");
+    if (acc.address) camposBloqueados.push("Domicilio");
+    lockArcaFields(camposBloqueados);
+  }
+
   document.getElementById("account-modal").className = "modal-backdrop active";
 }
 

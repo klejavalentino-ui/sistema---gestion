@@ -410,41 +410,90 @@ class WSPadronClient:
         else:
             datos["direccion"] = ""
             
-        # Impuestos para deducir condición IVA
-        # ARCA puede devolver <idImpuesto> o <id> según la versión del servicio
+        # ─── Detección de Condición IVA ───────────────────────────────────────────
+        # Estrategia multi-nivel para manejar distintas versiones del XML de ARCA A13
         condicion_iva = "CONSUMIDOR FINAL"
-        ids_impuesto_encontrados = []
-        
+
+        # Loggear el XML completo de persona_return para debug
+        try:
+            import xml.etree.ElementTree as ET_debug
+            print(f"[ARCA IVA DEBUG] XML persona_return: {ET_debug.tostring(persona_return, encoding='unicode')[:2000]}")
+        except Exception:
+            pass
+
+        # Estrategia 1: Detectar por nodos estructurales de alto nivel
+        # ARCA pone 'datosRegimenGeneral' para RI/Exentos y 'datosMonotributo' para monotributistas
+        tiene_regimen_general = False
+        tiene_monotributo = False
+        for elem in persona_return.iter():
+            tag = elem.tag.lower()
+            if tag.endswith("datosregimengeneral"):
+                # Tiene contenido real?
+                if len(list(elem)) > 0:
+                    tiene_regimen_general = True
+            elif tag.endswith("datosmonotributo"):
+                if len(list(elem)) > 0:
+                    tiene_monotributo = True
+
+        # Estrategia 2: Buscar texto descriptivo en campos de impuestos
+        desc_iva_encontrada = ""
         for elem in persona_return.iter():
             if elem.tag.endswith("impuesto"):
-                # Buscar el ID del impuesto — puede ser <idImpuesto> o <id>
-                id_impuesto = ""
+                for child in elem.iter():
+                    tag_lc = child.tag.lower()
+                    texto = (child.text or "").upper().strip()
+                    if tag_lc.endswith("descripcion") or tag_lc.endswith("descripcionimpuesto"):
+                        if "RESPONSABLE INSCRIPTO" in texto or "IVA RESPONSABLE" in texto:
+                            desc_iva_encontrada = "RESPONSABLE INSCRIPTO"
+                            break
+                        elif "EXENTO" in texto:
+                            desc_iva_encontrada = "IVA EXENTO"
+                            break
+                        elif "MONOTRIBUTO" in texto:
+                            desc_iva_encontrada = "MONOTRIBUTO"
+                            break
+                if desc_iva_encontrada:
+                    break
+
+        # Estrategia 3: Buscar por idImpuesto numérico exacto
+        # Solo tomar hijos directos del nodo impuesto para evitar falsos positivos
+        ids_impuesto = []
+        for elem in persona_return.iter():
+            if elem.tag.endswith("impuesto"):
                 for child in elem:
-                    if child.tag.endswith("idImpuesto") or child.tag.endswith("id"):
-                        id_impuesto = (child.text or "").strip()
-                        break
-                if not id_impuesto:
-                    id_impuesto = find_child_text(elem, "idImpuesto", "") or find_child_text(elem, "id", "")
-                
-                if id_impuesto:
-                    ids_impuesto_encontrados.append(id_impuesto)
-                    
-        print(f"[ARCA PADRON] IDs impuesto encontrados: {ids_impuesto_encontrados}")
-        
-        # Prioridad: RI > Exento > Monotributo > Consumidor Final
-        if any(x in ids_impuesto_encontrados for x in ["10", "11"]):
+                    # Buscar exactamente el tag que termine en 'idImpuesto' o sea exactamente 'id'
+                    local_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+                    if local_tag == "idImpuesto" or local_tag == "id":
+                        val = (child.text or "").strip()
+                        if val.isdigit():
+                            ids_impuesto.append(val)
+
+        print(f"[ARCA IVA DEBUG] tiene_regimen_general={tiene_regimen_general}, tiene_monotributo={tiene_monotributo}")
+        print(f"[ARCA IVA DEBUG] desc_iva_encontrada={desc_iva_encontrada}, ids_impuesto={ids_impuesto}")
+
+        # Aplicar prioridad: RI > Exento > Monotributo > Consumidor Final
+        if any(x in ids_impuesto for x in ["10", "11"]):
             condicion_iva = "RESPONSABLE INSCRIPTO"
-        elif any(x in ids_impuesto_encontrados for x in ["30", "32", "21", "22"]):
+        elif any(x in ids_impuesto for x in ["30", "32", "21", "22"]):
             condicion_iva = "IVA EXENTO"
-        elif "20" in ids_impuesto_encontrados:
+        elif "20" in ids_impuesto:
             condicion_iva = "MONOTRIBUTO"
-        
-        # Fallback: si no encontró impuestos por ID, buscar por nodo monotributo/regimen
+        elif desc_iva_encontrada:
+            condicion_iva = desc_iva_encontrada
+        elif tiene_regimen_general:
+            # Tiene régimen general pero no pudimos identificar el impuesto: asumir RI como conservador
+            condicion_iva = "RESPONSABLE INSCRIPTO"
+        elif tiene_monotributo:
+            condicion_iva = "MONOTRIBUTO"
+
+        # Estrategia 4 (última): buscar nodo monotributo/regimen directamente
         if condicion_iva == "CONSUMIDOR FINAL":
             for elem in persona_return.iter():
-                if elem.tag.endswith("monotributo") or elem.tag.endswith("regimen"):
+                local = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+                if local.lower() in ("monotributo", "regimen") and len(list(elem)) > 0:
                     condicion_iva = "MONOTRIBUTO"
                     break
-                    
+
+        print(f"[ARCA IVA DEBUG] condicion_iva final: {condicion_iva}")
         datos["condicion_iva"] = condicion_iva
         return datos
