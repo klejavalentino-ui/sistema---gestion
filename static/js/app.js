@@ -1839,14 +1839,24 @@ async function refreshState() {
 
     if (lastPayment) {
       try {
-        const pDate = new Date(lastPayment);
-        expiryDateObj = new Date(pDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const now = new Date();
-        const diffDays = (now - pDate) / (1000 * 3600 * 24);
+        let pDate;
+        if (typeof lastPayment === "string" && lastPayment.includes("-")) {
+          const parts = lastPayment.split("T")[0].split("-").map(Number);
+          pDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        } else {
+          pDate = new Date(lastPayment);
+        }
 
-        if (diffDays <= 30) {
+        expiryDateObj = new Date(pDate);
+        expiryDateObj.setMonth(expiryDateObj.getMonth() + 1);
+
+        const now = new Date();
+        const graceEndDate = new Date(expiryDateObj);
+        graceEndDate.setDate(graceEndDate.getDate() + 4);
+
+        if (now <= expiryDateObj) {
           isPaymentActive = true;
-        } else if (diffDays <= 34) {
+        } else if (now <= graceEndDate) {
           // 4 Días de Gracia
           isPaymentActive = true;
           inGracePeriod = true;
@@ -10442,8 +10452,15 @@ function updateNotifications() {
       let expDate = null;
       if (lastPayment) {
         try {
-          const pDt = new Date(lastPayment);
-          expDate = new Date(pDt.getTime() + 30 * 24 * 60 * 60 * 1000);
+          let pDt;
+          if (typeof lastPayment === "string" && lastPayment.includes("-")) {
+            const parts = lastPayment.split("T")[0].split("-").map(Number);
+            pDt = new Date(parts[0], parts[1] - 1, parts[2]);
+          } else {
+            pDt = new Date(lastPayment);
+          }
+          expDate = new Date(pDt);
+          expDate.setMonth(expDate.getMonth() + 1);
         } catch (e) {}
       } else if (state.userProfile?.createdAt) {
         try {
