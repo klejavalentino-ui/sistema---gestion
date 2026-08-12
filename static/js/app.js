@@ -2386,32 +2386,16 @@ function renderPanel() {
     }
   });
 
-  const totalBusinessSales = totalSalesValue > 0 ? totalSalesValue : totalAllProductsRevenue;
-  let margenPonderadoTotal = 0;
-
-  if (totalBusinessSales > 0) {
-    Object.keys(productSalesMap).forEach(key => {
-      const prodData = productSalesMap[key];
-      // Participación en las ventas totales del negocio = Venta total del producto / Venta total del negocio
-      const participacion = prodData.revenue / totalBusinessSales;
-      // Contribución ponderada = Margen de contribución * Participación
-      const contribucionPonderada = prodData.itemMargin * participacion;
-      margenPonderadoTotal += contribucionPonderada;
-
-      window.productContributionMetrics[key] = {
-        name: prodData.name,
-        salesRevenue: prodData.revenue,
-        contributionMargin: prodData.itemMargin,
-        participation: participacion,
-        weightedContribution: contribucionPonderada
-      };
-    });
+  // --- Margen de Contribución: (Resultado Operativo / Ventas Totales) * 100 ---
+  let margenContribucionPct = 0;
+  if (totalSalesValue > 0) {
+    margenContribucionPct = (totalOperativo / totalSalesValue) * 100;
   }
 
   const mgnEl = document.getElementById("panel-stat-margen-ponderado");
   if (mgnEl) {
-    if (totalBusinessSales > 0 && margenPonderadoTotal > 0) {
-      mgnEl.innerText = (margenPonderadoTotal * 100).toFixed(1) + "%";
+    if (totalSalesValue > 0 && !isNaN(margenContribucionPct)) {
+      mgnEl.innerText = margenContribucionPct.toFixed(1) + "%";
     } else {
       mgnEl.innerText = "0%";
     }
