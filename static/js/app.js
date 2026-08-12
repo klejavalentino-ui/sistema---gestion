@@ -15415,11 +15415,17 @@ function renderQuotesUI() {
   }
   
   const bizNameEl = document.getElementById("quote-display-business-name");
+  const bName = state.userProfile?.businessName || state.businessName || state.currentProjectName || "MAZO.";
   if (bizNameEl) {
-    const bName = state.businessName || state.userProfile?.businessName || "Datamargen";
     bizNameEl.innerText = `Presupuesto - ${bName}`;
   }
   
+  const isAutoSku = (state.userProfile?.skuMode === "auto" || !state.userProfile?.skuMode || state.userProfile?.skuMode === "automático");
+  const skuTh = document.getElementById("quote-table-th-sku");
+  if (skuTh) {
+    skuTh.style.display = isAutoSku ? "none" : "table-cell";
+  }
+
   const clientNameInput = document.getElementById("quote-client-name");
   const clientNoteInput = document.getElementById("quote-client-note");
   const clientDetailsInput = document.getElementById("quote-client-details");
@@ -15457,9 +15463,10 @@ function renderQuotesUI() {
   } else {
     tbody.innerHTML = items.map((item, idx) => {
       const { cleanName, sizeStr } = getCleanNameAndSize(item);
+      const skuTd = isAutoSku ? "" : `<td style="font-family: monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">${item.sku}</td>`;
       return `
         <tr>
-          <td style="font-family: monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">${item.sku}</td>
+          ${skuTd}
           <td style="font-weight: 700; color: var(--text-white);">${cleanName}</td>
           <td style="text-align: center; font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">${sizeStr}</td>
           <td style="text-align: right; font-weight: 700; color: var(--text-white);">$${Math.round(item.price).toLocaleString('es-AR')}</td>
@@ -15510,7 +15517,9 @@ function copyQuoteToWhatsApp() {
     return;
   }
   
-  const bName = state.businessName || state.userProfile?.businessName || "Datamargen";
+  const bName = state.userProfile?.businessName || state.businessName || state.currentProjectName || "MAZO.";
+  const isAutoSku = (state.userProfile?.skuMode === "auto" || !state.userProfile?.skuMode || state.userProfile?.skuMode === "automático");
+
   const clientNameInput = document.getElementById("quote-client-name");
   const clientNoteInput = document.getElementById("quote-client-note");
   const clientDetailsInput = document.getElementById("quote-client-details");
@@ -15540,7 +15549,8 @@ function copyQuoteToWhatsApp() {
   items.forEach(item => {
     const { cleanName, sizeStr } = getCleanNameAndSize(item);
     const sizeInfo = (sizeStr && sizeStr !== 'Único') ? ` [Talle: ${sizeStr}]` : '';
-    msg += `• *[${item.sku}]* ${cleanName}${sizeInfo}\n`;
+    const skuPrefix = isAutoSku ? "" : `*[${item.sku}]* `;
+    msg += `• ${skuPrefix}*${cleanName}*${sizeInfo}\n`;
     msg += `   ${item.qty} u. x $${Math.round(item.price).toLocaleString('es-AR')} = *$${Math.round(item.subtotal).toLocaleString('es-AR')}*\n`;
   });
   
@@ -15602,7 +15612,8 @@ async function downloadQuotePDF() {
     return;
   }
 
-  const bizName = state.businessName || state.userProfile?.businessName || "Datamargen";
+  const bizName = state.userProfile?.businessName || state.businessName || state.currentProjectName || "MAZO.";
+  const isAutoSku = (state.userProfile?.skuMode === "auto" || !state.userProfile?.skuMode || state.userProfile?.skuMode === "automático");
   const dateStr = new Date().toLocaleDateString('es-AR');
   const clientNameInput = document.getElementById("quote-client-name");
   const clientNoteInput = document.getElementById("quote-client-note");
@@ -15654,9 +15665,9 @@ async function downloadQuotePDF() {
   pdfContainer.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px;">
       <div style="display: flex; align-items: center; gap: 15px;">
-        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 55px; max-width: 150px; object-fit: contain;">` : ''}
+        ${state.userProfile?.logoBase64 ? `<img src="${state.userProfile.logoBase64}" style="max-height: 90px; max-width: 220px; object-fit: contain; margin-right: 15px;">` : ''}
         <div>
-          <h1 style="margin: 0 0 4px 0; font-size: 22px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
+          <h1 style="margin: 0 0 4px 0; font-size: 24px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">${bizName}</h1>
         </div>
       </div>
       <div style="text-align: right;">
@@ -15680,7 +15691,7 @@ async function downloadQuotePDF() {
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px;">
       <thead>
         <tr style="background-color: #0f172a; color: #ffffff;">
-          <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">SKU</th>
+          ${isAutoSku ? '' : '<th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">SKU</th>'}
           <th style="padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;">Nombre del Producto</th>
           <th style="padding: 9px 12px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase;">Talle</th>
           <th style="padding: 9px 12px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase;">Precio Unit.</th>
@@ -15691,9 +15702,10 @@ async function downloadQuotePDF() {
       <tbody>
         ${items.map((it, idx) => {
           const { cleanName, sizeStr } = getCleanNameAndSize(it);
+          const skuTd = isAutoSku ? '' : `<td style="padding: 9px 12px; font-size: 11px; font-weight: 700; color: #2563eb; font-family: monospace;">${it.sku}</td>`;
           return `
             <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-              <td style="padding: 9px 12px; font-size: 11px; font-weight: 700; color: #2563eb; font-family: monospace;">${it.sku}</td>
+              ${skuTd}
               <td style="padding: 9px 12px; font-size: 12px; font-weight: 600; color: #0f172a;">${cleanName}</td>
               <td style="padding: 9px 12px; font-size: 11px; text-align: center; color: #475569; font-weight: 600;">${sizeStr}</td>
               <td style="padding: 9px 12px; font-size: 12px; text-align: right; color: #334155;">$${Math.round(it.price).toLocaleString('es-AR')}</td>
