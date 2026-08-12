@@ -246,14 +246,18 @@ if (document.readyState === "loading") {
 }
 
 // --- Toast Notifications ---
-function showToast(message, isError = false) {
+function showToast(message, type = "success") {
   const toast = document.getElementById("idx-toast");
+  // Compatibilidad: si se pasa booleano (true = error) convertir a string
+  if (type === true) type = "error";
+  if (type === false) type = "success";
+  const typeClass = (type === "error" || type === "warning") ? type : "success";
   toast.innerText = message;
-  toast.className = "idx-toast active" + (isError ? " error" : " success");
+  toast.className = `idx-toast active ${typeClass}`;
   
   setTimeout(() => {
     toast.className = "idx-toast";
-  }, 3000);
+  }, 4000);
 }
 
 // --- Autenticación ---

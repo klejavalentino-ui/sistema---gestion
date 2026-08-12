@@ -411,19 +411,35 @@ class WSPadronClient:
             datos["direccion"] = ""
             
         # Impuestos para deducir condición IVA
+        # ARCA puede devolver <idImpuesto> o <id> según la versión del servicio
         condicion_iva = "CONSUMIDOR FINAL"
+        ids_impuesto_encontrados = []
+        
         for elem in persona_return.iter():
             if elem.tag.endswith("impuesto"):
-                id_impuesto = find_child_text(elem, "idImpuesto", "")
-                if id_impuesto == "30":
-                    condicion_iva = "IVA EXENTO"
-                elif id_impuesto == "32":
-                    condicion_iva = "IVA SUJETO EXENTO"
-                elif id_impuesto in ["10", "11"]:
-                    condicion_iva = "RESPONSABLE INSCRIPTO"
-                elif id_impuesto == "20" and condicion_iva != "RESPONSABLE INSCRIPTO":
-                    condicion_iva = "MONOTRIBUTO"
+                # Buscar el ID del impuesto — puede ser <idImpuesto> o <id>
+                id_impuesto = ""
+                for child in elem:
+                    if child.tag.endswith("idImpuesto") or child.tag.endswith("id"):
+                        id_impuesto = (child.text or "").strip()
+                        break
+                if not id_impuesto:
+                    id_impuesto = find_child_text(elem, "idImpuesto", "") or find_child_text(elem, "id", "")
+                
+                if id_impuesto:
+                    ids_impuesto_encontrados.append(id_impuesto)
                     
+        print(f"[ARCA PADRON] IDs impuesto encontrados: {ids_impuesto_encontrados}")
+        
+        # Prioridad: RI > Exento > Monotributo > Consumidor Final
+        if any(x in ids_impuesto_encontrados for x in ["10", "11"]):
+            condicion_iva = "RESPONSABLE INSCRIPTO"
+        elif any(x in ids_impuesto_encontrados for x in ["30", "32", "21", "22"]):
+            condicion_iva = "IVA EXENTO"
+        elif "20" in ids_impuesto_encontrados:
+            condicion_iva = "MONOTRIBUTO"
+        
+        # Fallback: si no encontró impuestos por ID, buscar por nodo monotributo/regimen
         if condicion_iva == "CONSUMIDOR FINAL":
             for elem in persona_return.iter():
                 if elem.tag.endswith("monotributo") or elem.tag.endswith("regimen"):

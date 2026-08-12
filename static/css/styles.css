@@ -1260,10 +1260,17 @@ input[type=number] {
 
 .idx-toast.error {
   border-color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .idx-toast.success {
   border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.idx-toast.warning {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
 }
 
 /* Keyframes */
