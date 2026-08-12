@@ -15543,7 +15543,6 @@ function copyQuoteToWhatsApp() {
   msg += `📅 Fecha: ${dateStr}\n`;
   if (clientName) msg += `👤 Cliente: ${clientName}\n`;
   if (clientNote) msg += `📝 Nota: ${clientNote}\n`;
-  if (clientDetails) msg += `📌 Detalles: ${clientDetails}\n`;
   msg += `----------------------------------------\n`;
   
   items.forEach(item => {
@@ -15560,6 +15559,10 @@ function copyQuoteToWhatsApp() {
     msg += `Descuento (${discountPercent}%): -$${Math.round(discountAmount).toLocaleString('es-AR')}\n`;
   }
   msg += `💰 *TOTAL FINAL: $${Math.round(total).toLocaleString('es-AR')}*\n`;
+
+  if (clientDetails) {
+    msg += `\n📌 *Detalles:*\n${clientDetails}\n`;
+  }
 
   if (customTerms && customTerms.trim()) {
     msg += `\n*Condiciones Comerciales:*\n`;
