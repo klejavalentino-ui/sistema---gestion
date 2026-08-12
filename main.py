@@ -370,10 +370,20 @@ USERNAMES_FILE = os.path.join(BASE_DIR, "usernames.json")
 def get_email_for_username(username):
     if not username:
         return None
-    raw_user = username.strip().lower()
+    raw_user = username.strip().lower().lstrip("@")
     clean_user = raw_user.strip(".")
-    candidates = [raw_user, clean_user, f"{clean_user}."]
+    candidates = list(set([raw_user, clean_user, f"{clean_user}.", f"@{raw_user}", f"@{clean_user}"]))
     
+    known_map = {
+        "matias": "matiascuchettidiaz@gmail.com",
+        "carocuchetti": "carolinacuchetti@gmail.com",
+        "cepillo": "klejavalentino@gmail.com",
+        "valentino": "klejavalentino@gmail.com",
+        "valentinoklcv": "valentinoklcv@gmail.com"
+    }
+    if clean_user in known_map:
+        return known_map[clean_user]
+
     email = None
     if os.path.exists(USERNAMES_FILE):
         try:
@@ -381,7 +391,7 @@ def get_email_for_username(username):
                 data = json.load(f)
                 for cand in candidates:
                     for k, v in data.items():
-                        if k.strip().lower() == cand:
+                        if k.strip().lower().lstrip("@") == cand:
                             email = v
                             break
                     if email:
@@ -421,17 +431,14 @@ def get_email_for_username(username):
             except Exception as e:
                 print(f"Error in REST fallback get_email_for_username: {e}")
                 
-    if any(m in clean_user for m in ["mazo", "matias", "cuchetti"]):
-        return "matiascuchettidiaz@gmail.com"
-            
     return None
 
 def save_username_mapping(username, email, upload_to_firestore=True, token=None):
     if not username or not email:
         return
-    username = username.strip().lower()
-    clean_user = username.strip(".")
-    variants = list(set([username, clean_user, f"{clean_user}."]))
+    raw_user = username.strip().lower().lstrip("@")
+    clean_user = raw_user.strip(".")
+    variants = list(set([raw_user, clean_user, f"{clean_user}.", f"@{raw_user}", f"@{clean_user}"]))
 
     data = {}
     if os.path.exists(USERNAMES_FILE):
@@ -459,6 +466,7 @@ def save_username_mapping(username, email, upload_to_firestore=True, token=None)
                 try:
                     project_id = firebase_config.PROJECT_ID
                     db_id = firebase_config.DATABASE_ID
+                    api_key = firebase_config.API_KEY
                     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/{db_id}/documents/username_mappings/{v}"
                     headers = {"Authorization": f"Bearer {token}"}
                     payload = {
@@ -474,23 +482,25 @@ def save_username_mapping(username, email, upload_to_firestore=True, token=None)
 @limiter.limit("100 per minute")
 def login():
     data = request.json or {}
-    email = data.get("email", "").strip() # Podría ser un username
+    user_input = data.get("email", "").strip() # Podría ser correo o username (@Matias, Matias, Cepillo, etc.)
     password = data.get("password")
     
-    if not email or not password:
+    if not user_input or not password:
         return jsonify({"error": "Correo/Usuario y contraseña son requeridos"}), 400
         
-    if "@" in email:
-        email = email.lower()
+    target_email = None
+
+    if "@" in user_input and "." in user_input.split("@")[-1]:
+        target_email = user_input.lower()
     else:
-        mapped = get_email_for_username(email)
+        mapped = get_email_for_username(user_input)
         if mapped:
-            email = mapped.lower()
+            target_email = mapped.lower()
         else:
-            return jsonify({"error": "Nombre de usuario no encontrado. Inicie sesión con su CORREO ELECTRÓNICO (ej: mi@correo.com) por única vez para vincular su usuario automáticamente."}), 404
+            target_email = user_input.lower()
             
     try:
-        res = firebase_config.sign_in(email, password)
+        res = firebase_config.sign_in(target_email, password)
         token = res.get("idToken")
         
         detected_biz_type = "textil"
@@ -518,7 +528,7 @@ def login():
                 
             active_profile = profiles.get(detected_biz_type)
             if active_profile and active_profile.get("username"):
-                save_username_mapping(active_profile["username"], email, token=token)
+                save_username_mapping(active_profile["username"], target_email, token=token)
         except Exception as ex:
             print(f"Error al sincronizar username mapping durante login: {ex}")
             
@@ -538,7 +548,24 @@ def login():
             "refreshToken": res.get("refreshToken")
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 401
+        # Fallback de reintento si el mapeo directo no se encontró en la primera pasada
+        mapped_retry = get_email_for_username(user_input)
+        if mapped_retry and mapped_retry.lower() != target_email:
+            try:
+                res = firebase_config.sign_in(mapped_retry.lower(), password)
+                token = res.get("idToken")
+                return jsonify({
+                    "token": token,
+                    "email": res.get("email"),
+                    "localId": res.get("localId"),
+                    "businessType": "textil",
+                    "projects": [],
+                    "maxProjects": 3,
+                    "refreshToken": res.get("refreshToken")
+                })
+            except Exception as inner_e:
+                return jsonify({"error": "Credenciales incorrectas. Verifique su usuario/correo y contraseña."}), 401
+        return jsonify({"error": "Credenciales incorrectas. Verifique su usuario/correo y contraseña."}), 401
 
 @app.route("/api/auth/refresh", methods=["POST"])
 @limiter.limit("10 per minute")
