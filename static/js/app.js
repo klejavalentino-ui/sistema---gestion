@@ -1827,23 +1827,38 @@ async function refreshState() {
       return;
     }
 
-    // 2. Check Trial Expiration & Payment Status
+    // 2. Check Trial Expiration & Payment Status (30 days validity + 4 days grace period)
     const userEmail = (state.email || "").toLowerCase();
     const isSuperAdmin = (userEmail === "valentinoklcv@gmail.com");
     
-    // Check if 30 days have elapsed since last payment date
     let isPaymentActive = false;
-    const lastPayment = data.userProfile?.lastPaymentDate || data.userProfile?.paymentDate || (userEmail.includes("matias") || (data.businessName || "").toLowerCase().includes("mazo") ? "2026-07-22" : null);
+    let inGracePeriod = false;
+    let expiryDateObj = null;
+
+    const lastPayment = data.userProfile?.lastPaymentDate || data.userProfile?.paymentDate || (userEmail.includes("matias") || userEmail.includes("jomo") || (data.businessName || "").toLowerCase().includes("mazo") || (data.businessName || "").toLowerCase().includes("jomo") ? "2026-07-22" : null);
+
     if (lastPayment) {
       try {
         const pDate = new Date(lastPayment);
-        const diffDays = (new Date() - pDate) / (1000 * 3600 * 24);
+        expiryDateObj = new Date(pDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const now = new Date();
+        const diffDays = (now - pDate) / (1000 * 3600 * 24);
+
         if (diffDays <= 30) {
           isPaymentActive = true;
+        } else if (diffDays <= 34) {
+          // 4 Días de Gracia
+          isPaymentActive = true;
+          inGracePeriod = true;
         }
       } catch (e) {
         console.error("Error parsing lastPaymentDate:", e);
       }
+    } else if (data.userProfile?.createdAt) {
+      try {
+        const cDate = new Date(data.userProfile.createdAt);
+        expiryDateObj = new Date(cDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+      } catch (e) {}
     }
 
     if (data.trialExpired === true && !isSuperAdmin && !isPaymentActive) {
@@ -1852,11 +1867,19 @@ async function refreshState() {
       if (verifyScreen) verifyScreen.style.display = "none";
       if (paywallScreen) paywallScreen.style.display = "flex";
       
+      const paywallTitle = document.getElementById("paywall-title");
+      const paywallDesc = document.getElementById("paywall-desc");
+      if (paywallTitle) paywallTitle.innerText = "Suscripción Mensual Vencida";
+      if (paywallDesc) {
+        const dateStr = expiryDateObj ? expiryDateObj.toLocaleDateString('es-AR') : "";
+        paywallDesc.innerHTML = `Tu suscripción mensual de $40.000 ARS ${dateStr ? 'venció el ' + dateStr + ' ' : ''}y ha concluido tu período de gracia de 4 días. Para reactivar tu acceso inmediato a Datamargen, realizá la transferencia bancaria y enviá tu comprobante por WhatsApp.`;
+      }
+
       // Update WhatsApp link dynamic prefilled message
       const waBtn = document.getElementById("paywall-wa-btn");
       if (waBtn) {
         const adminPhone = "5492915744578"; // Valentino Admin WhatsApp
-        const msg = encodeURIComponent(`Hola! Quiero renovar mi suscripción de Datamargen para el correo: ${state.email}`);
+        const msg = encodeURIComponent(`Hola! Quiero renovar mi suscripción de Datamargen para la cuenta: ${state.email}`);
         waBtn.href = `https://wa.me/${adminPhone}?text=${msg}`;
       }
       return;
@@ -1867,6 +1890,21 @@ async function refreshState() {
     if (paywallScreen) paywallScreen.style.display = "none";
     if (appSection) appSection.style.display = "flex";
     if (authSection) authSection.style.display = "none";
+
+    // Actualizar fecha de vencimiento dinámica en Configuración -> Suscripción
+    const expirySpan = document.getElementById("subscription-expiry-date");
+    if (expirySpan) {
+      if (expiryDateObj) {
+        const dateStr = expiryDateObj.toLocaleDateString('es-AR');
+        if (inGracePeriod) {
+          expirySpan.innerHTML = `${dateStr} <span class="badge" style="background: rgba(245,158,11,0.2); color: #f59e0b; font-size: 0.72rem; padding: 2px 6px; margin-left: 6px;">En Gracia (4 días)</span>`;
+        } else {
+          expirySpan.innerText = dateStr;
+        }
+      } else {
+        expirySpan.innerText = "22/08/2026";
+      }
+    }
     
     // Almacenar perfil y actualizar sidebar
     state.userProfile = data.userProfile || null;
@@ -10392,6 +10430,56 @@ function updateNotifications() {
   list.innerHTML = "";
 
   const activeAlerts = [];
+
+  // 0. Suscripción y Período de Gracia
+  if (!state.dismissedNotifications.subscription) {
+    const userEmail = (state.email || "").toLowerCase();
+    const isSuperAdmin = (userEmail === "valentinoklcv@gmail.com");
+
+    if (!isSuperAdmin) {
+      const lastPayment = state.userProfile?.lastPaymentDate || state.userProfile?.paymentDate || (userEmail.includes("matias") || userEmail.includes("jomo") || (state.businessName || "").toLowerCase().includes("mazo") || (state.businessName || "").toLowerCase().includes("jomo") ? "2026-07-22" : null);
+
+      let expDate = null;
+      if (lastPayment) {
+        try {
+          const pDt = new Date(lastPayment);
+          expDate = new Date(pDt.getTime() + 30 * 24 * 60 * 60 * 1000);
+        } catch (e) {}
+      } else if (state.userProfile?.createdAt) {
+        try {
+          const cDt = new Date(state.userProfile.createdAt);
+          expDate = new Date(cDt.getTime() + 15 * 24 * 60 * 60 * 1000);
+        } catch (e) {}
+      }
+
+      if (expDate) {
+        const now = new Date();
+        const diffMs = expDate - now;
+        const diffDays = Math.ceil(diffMs / (1000 * 3600 * 24));
+        const graceEndMs = expDate.getTime() + 4 * 24 * 60 * 60 * 1000;
+        const inGrace = (now > expDate && now.getTime() <= graceEndMs);
+
+        if (inGrace) {
+          const graceDaysLeft = Math.ceil((graceEndMs - now.getTime()) / (1000 * 3600 * 24));
+          activeAlerts.push({
+            type: "subscription",
+            title: "Suscripción Vencida (Período de Gracia)",
+            icon: "fa-solid fa-clock-rotate-left",
+            iconClass: "warning",
+            text: `Tu suscripción venció el <strong>${expDate.toLocaleDateString('es-AR')}</strong>. Estás en tu período de gracia (te quedan <strong>${graceDaysLeft} días</strong> de acceso). Por favor realizá tu pago de $40.000 ARS para no perder el servicio.`
+          });
+        } else if (diffDays <= 4 && diffDays > 0) {
+          activeAlerts.push({
+            type: "subscription",
+            title: "Vencimiento Próximo de Suscripción",
+            icon: "fa-solid fa-calendar-minus",
+            iconClass: "warning",
+            text: `Tu suscripción vence en <strong>${diffDays} día${diffDays === 1 ? '' : 's'}</strong> (el ${expDate.toLocaleDateString('es-AR')}). Regularizá tu pago de $40.000 ARS para continuar disfrutando del servicio.`
+          });
+        }
+      }
+    }
+  }
 
   // 1. Stock Crítico
   if (!state.dismissedNotifications.stock) {

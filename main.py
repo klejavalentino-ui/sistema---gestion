@@ -1207,18 +1207,20 @@ def get_all_state():
             except Exception as sync_ex:
                 print(f"Error auto-syncing profile to Google Sheets on get_all_state: {sync_ex}")
 
-        # Superadmin check & Payment 30-day active calculation
+        # Superadmin check & Payment 30-day active calculation (+4 days grace period)
         email_str = (email or "").lower()
         is_superadmin = (email_str == "valentinoklcv@gmail.com")
 
-        # Payment date check (30 days validity per payment)
+        # Payment date check (30 days validity per payment + 4 days grace period)
         last_payment = profile_doc.get("lastPaymentDate") or profile_doc.get("paymentDate")
-        if not last_payment and ("mazo" in profile_doc.get("businessName", "").lower() or "matias" in email_str or is_superadmin):
+        if not last_payment and (any(k in email_str or k in profile_doc.get("businessName", "").lower() for k in ["mazo", "matias", "jomo"])):
             last_payment = "2026-07-22"
             profile_doc["lastPaymentDate"] = "2026-07-22"
 
         is_payment_active = False
         payment_days_left = 30
+        in_grace_period = False
+
         if last_payment:
             try:
                 if isinstance(last_payment, str):
@@ -1230,7 +1232,11 @@ def get_all_state():
                 p_elapsed = (datetime.now() - p_dt).days
                 if p_elapsed <= 30:
                     is_payment_active = True
-                    payment_days_left = max(1, 30 - p_elapsed)
+                    payment_days_left = max(0, 30 - p_elapsed)
+                elif p_elapsed <= 34: # 4 días de gracia permitidos
+                    is_payment_active = True
+                    in_grace_period = True
+                    payment_days_left = 0
             except Exception as p_err:
                 print(f"Error parsing lastPaymentDate {last_payment}: {p_err}")
 
@@ -1277,7 +1283,7 @@ def get_all_state():
             return jsonify({
                 "emailVerified": True,
                 "trialExpired": True,
-                "error": "Período de prueba o suscripción vencido. Por favor contactate para renovar."
+                "error": "Suscripción o período de gracia vencido. Por favor realizá tu pago de $40.000 ARS para renovar tu acceso."
             })
             
         # Check if configurations are seeded
