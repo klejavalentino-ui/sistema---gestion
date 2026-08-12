@@ -309,40 +309,13 @@ class WSPadronClient:
 
         headers = {
             "Content-Type": "text/xml; charset=utf-8",
-        }
-        
-
-
-class WSPadronClient:
-    def __init__(self, token, sign, cuit, sandbox=True):
-        self.token = token
-        self.sign = sign
-        self.cuit = "".join(c for c in str(cuit) if c.isdigit())
-        self.sandbox = sandbox
-        self.url = "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13" if sandbox else "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13"
-
-    def get_persona(self, cuit_to_query):
-        cuit_to_query = "".join(c for c in str(cuit_to_query) if c.isdigit())
-        
-        soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a13="http://a13.soap.ws.server.puc.sr/">
-   <soapenv:Header/>
-   <soapenv:Body>
-      <a13:getPersona>
-         <token>{self.token}</token>
-         <sign>{self.sign}</sign>
-         <cuitRepresentada>{self.cuit}</cuitRepresentada>
-         <idPersona>{cuit_to_query}</idPersona>
-      </a13:getPersona>
-   </soapenv:Body>
-</soapenv:Envelope>"""
-
-        headers = {
-            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": "http://a13.soap.ws.server.puc.sr/personaServiceA13/getPersonaRequest",
         }
         
         r = _post_request(self.url, data=soap_envelope.encode("utf-8"), headers=headers, timeout=30)
         r.raise_for_status()
+        
+        print(f"[AFIP API RESPONSE] {r.text}")
         
         root = ET.fromstring(r.text)
         
@@ -365,12 +338,29 @@ class WSPadronClient:
             
         persona_return = None
         for elem in root.iter():
-            if elem.tag.endswith("return"):
+            if elem.tag.lower().endswith("return"):
                 persona_return = elem
                 break
                 
         if persona_return is None:
             raise Exception("No se encontraron datos para el CUIT ingresado.")
+            
+        # Revisar si hay un error devuelto dentro del return
+        error_constancia = None
+        for elem in persona_return.iter():
+            if elem.tag.endswith("errorConstancia") or elem.tag.endswith("errorMonotributo"):
+                error_constancia = elem
+                break
+        
+        if error_constancia is not None:
+            err_msg = ""
+            for child in error_constancia.iter():
+                if child.tag.endswith("error") or child.tag.endswith("mensaje"):
+                    err_msg = child.text
+                    break
+            if err_msg:
+                raise Exception(f"AFIP: {err_msg}")
+            raise Exception("El CUIT ingresado no es válido o no está inscripto.")
             
         datos = {}
         

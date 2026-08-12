@@ -2919,11 +2919,27 @@ def save_fixed_cost():
     data["name"] = data.get("concept", "")
     data["cost"] = safe_float(data.get("amount", 0.0))
     data["stock"] = 0
-    if "isPaid" not in data:
-        data["isPaid"] = False
+    data["isPaid"] = True
         
     try:
         res = firebase_config.set_document("products", f"{prefix}{sku}", data, token)
+        
+        # Generar movimiento de caja automático
+        caja_payload = {
+            "description": f"Pago de Costo Fijo - {data.get('concept', '')}",
+            "type": "expense",
+            "amount": float(data.get("amount", 0.0)),
+            "date": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+        }
+        caja_id = int(time.time() * 1000)
+        caja_payload["sku"] = f"cashtransaction_{caja_id}"
+        caja_payload["name"] = caja_payload["description"]
+        caja_payload["cost"] = caja_payload["amount"]
+        caja_payload["stock"] = 0
+        caja_payload["id"] = str(caja_id)
+        
+        firebase_config.set_document("products", f"{prefix}{caja_payload['sku']}", caja_payload, token)
+        
         if res:
             res["id"] = res["id"][len(prefix):]
             if "sku" in res and res["sku"].startswith(prefix):
@@ -6096,9 +6112,11 @@ def api_arca_padron(cuit):
             else:
                 cuit_emisor = "".join(c for c in str(prefix) if c.isdigit()) or "20000000001"
                 
-        is_sandbox_cert = "homo" in str(cert_content).lower() or "wsaahomo" in str(cert_content).lower()
-        if arca_config.get("sandbox") is False or arca_config.get("environment") == "production":
-            is_sandbox_cert = False
+        # Detectar ambiente: se basa en la config de Firestore, no en el contenido del certificado PEM
+        # Por defecto producción (False) a menos que esté explícitamente configurado como sandbox/homologación
+        environment = arca_config.get("environment", "production")
+        is_sandbox_flag = arca_config.get("sandbox", False)
+        is_sandbox_cert = (is_sandbox_flag is True) or (str(environment).lower() in ["sandbox", "homologacion", "homo", "test"])
 
         try:
             from arca_service import WSAAClient, WSPadronClient

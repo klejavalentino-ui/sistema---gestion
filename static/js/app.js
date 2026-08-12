@@ -1384,10 +1384,15 @@ function handleExcelImport(event) {
           totalStock = stockVal;
         }
         
-        let size = getHeaderVal(cleanRow, ["talle", "talles", "size", "tamano", "tamaño", "variante", "variacion", "talles/variantes"]);
-        if (!size) size = "Único";
+        let rawSize = getHeaderVal(cleanRow, ["talle", "talles", "size", "tamano", "tamaño", "variante", "variacion", "talles/variantes"]);
+        let size = "Único";
+        const configuredSizes = state.config?.sizes || ["XS", "S", "M", "L", "XL", "XXL", "Único"];
+        if (rawSize) {
+          const match = configuredSizes.find(s => s.toLowerCase() === rawSize.toLowerCase().trim());
+          if (match) size = match;
+        }
 
-        let color = getHeaderVal(cleanRow, ["color", "variante", "variacion"]);
+        let color = ""; // Color is not used anymore, it goes in the product name
         
         const hasPercentSign = rawMargenStr.includes("%");
         let margin = parseFloat(rawMargenStr.replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0.0;
@@ -5033,8 +5038,9 @@ function exportSalesHistory() {
   const defaultSizesList = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Talle 1 (S/M)", "Talle 2 (M/L)", "Talle 2 (L/XL)", "Talle 3 (L/XL)", "Talle 4 (XL)", "Único"];
   const allValidSizes = [...new Set([...configuredSizesList, ...defaultSizesList])];
 
-  const formatted = allSalesList.flatMap(s => 
-    s.items ? s.items.map(item => {
+  const formatted = allSalesList.flatMap(s => {
+    const itemsList = s.items || s.cart || s.products || [];
+    return itemsList.map(item => {
       const p = item.product || {};
       const itemSku = (p.sku || item.sku || "").trim();
       const itemName = (p.name || item.name || "").trim();
@@ -5155,8 +5161,8 @@ function exportSalesHistory() {
         CostoUnitario: costoUnitario,
         TotalVenta: Math.round(s.total || (priceUnit * (item.quantity || 1)))
       };
-    }) : []
-  );
+    });
+  });
 
   const ws = XLSX.utils.json_to_sheet(formatted);
   const wb = XLSX.utils.book_new();
@@ -5466,6 +5472,16 @@ function renderInventory() {
       };
     }
     groupedProducts[groupKey].variants.push(p);
+    
+    const pCost = parseFloat(p.cost) || parseFloat(p.baseCost) || parseFloat(p.cost_local) || 0;
+    if (pCost > groupedProducts[groupKey].cost) {
+      groupedProducts[groupKey].cost = pCost;
+    }
+    const pMargin = parseFloat(p.margin) || 0;
+    if (pMargin > groupedProducts[groupKey].margin) {
+      groupedProducts[groupKey].margin = pMargin;
+    }
+
     const stockLocalVal = getProductLocationStockSum(p);
     groupedProducts[groupKey].totalStock += stockLocalVal;
     groupedProducts[groupKey].totalMinStock += getProductMinStock(p, salesByProduct);
@@ -8454,36 +8470,75 @@ async function fetchAfipPadronData() {
   const cuitInput = document.getElementById("acc-cuit");
   if (!cuitInput) return;
   const cuit = cuitInput.value.replace(/\D/g, "");
-  if (cuit.length !== 11) return;
-
-  const originalIcon = cuitInput.nextElementSibling ? cuitInput.nextElementSibling.innerHTML : "";
-  if (cuitInput.nextElementSibling) {
-    cuitInput.nextElementSibling.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite;"></div>';
-    cuitInput.nextElementSibling.disabled = true;
+  if (cuit.length !== 11) {
+    showToast("Ingresá un CUIT completo de 11 dígitos antes de buscar.", "warning");
+    return;
   }
+
+  const btnSearch = cuitInput.parentElement ? cuitInput.parentElement.querySelector("button") : null;
+  const originalBtnContent = btnSearch ? btnSearch.innerHTML : "";
+  if (btnSearch) {
+    btnSearch.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite;"></div>';
+    btnSearch.disabled = true;
+  }
+
+  // Mapeo explícito: valor devuelto por backend → value del <option>
+  const ivaMap = {
+    "RESPONSABLE INSCRIPTO": "IVA RESPONSABLE INSCRIPTO",
+    "IVA RESPONSABLE INSCRIPTO": "IVA RESPONSABLE INSCRIPTO",
+    "MONOTRIBUTO": "RESPONSABLE MONOTRIBUTO",
+    "RESPONSABLE MONOTRIBUTO": "RESPONSABLE MONOTRIBUTO",
+    "IVA EXENTO": "IVA EXENTO",
+    "EXENTO": "IVA EXENTO",
+    "IVA SUJETO EXENTO": "IVA EXENTO",
+    "NO RESPONSABLE": "NO RESPONSABLE IVA",
+    "NO RESPONSABLE IVA": "NO RESPONSABLE IVA",
+    "CONSUMIDOR FINAL": "CONSUMIDOR FINAL",
+  };
 
   try {
     const data = await apiRequest(`/api/arca/padron/${cuit}`);
+    let filledFields = [];
+
     if (data.razonSocial) {
       const inputRs = document.getElementById("acc-razon-social");
-      if (inputRs) inputRs.value = data.razonSocial;
+      if (inputRs) { inputRs.value = data.razonSocial; filledFields.push("Razón Social"); }
     }
     if (data.condicion_iva) {
       const inputIva = document.getElementById("acc-condicion-iva");
       if (inputIva) {
-        const expected = data.condicion_iva.toUpperCase();
-        for (let i = 0; i < inputIva.options.length; i++) {
-          if (inputIva.options[i].value.toUpperCase().includes(expected) || expected.includes(inputIva.options[i].value.toUpperCase())) {
-            inputIva.selectedIndex = i;
-            break;
+        const backendVal = data.condicion_iva.toUpperCase().trim();
+        const mappedVal = ivaMap[backendVal];
+        if (mappedVal) {
+          for (let i = 0; i < inputIva.options.length; i++) {
+            if (inputIva.options[i].value.toUpperCase() === mappedVal.toUpperCase()) {
+              inputIva.selectedIndex = i;
+              filledFields.push("Condición IVA");
+              break;
+            }
+          }
+        } else {
+          // Fallback: búsqueda por substring si no está en el mapa
+          for (let i = 0; i < inputIva.options.length; i++) {
+            const optVal = inputIva.options[i].value.toUpperCase();
+            if (optVal.includes(backendVal) || backendVal.includes(optVal)) {
+              inputIva.selectedIndex = i;
+              filledFields.push("Condición IVA");
+              break;
+            }
           }
         }
       }
     }
     if (data.direccion) {
       const inputDir = document.getElementById("acc-address");
-      if (inputDir) inputDir.value = data.direccion;
+      if (inputDir) { inputDir.value = data.direccion; filledFields.push("Domicilio"); }
     }
+
+    if (filledFields.length > 0) {
+      showToast(`✅ Datos ARCA completados: ${filledFields.join(", ")}`, "success");
+    }
+
     if (data.estadoClave && data.estadoClave.toUpperCase() !== "ACTIVO") {
       Swal.fire({
         icon: "warning",
@@ -8493,11 +8548,11 @@ async function fetchAfipPadronData() {
     }
   } catch (e) {
     console.error(e);
-    showToast(e.message || "Error de conexión al consultar padrón", "error");
+    showToast(e.message || "Error de conexión al consultar padrón ARCA", "error");
   } finally {
-    if (cuitInput.nextElementSibling) {
-      cuitInput.nextElementSibling.innerHTML = '🔍';
-      cuitInput.nextElementSibling.disabled = false;
+    if (btnSearch) {
+      btnSearch.innerHTML = originalBtnContent || "🔍";
+      btnSearch.disabled = false;
     }
   }
 }
@@ -9456,7 +9511,7 @@ async function handleAddExpenseSubmit(e) {
     period: finalPeriod,
     category: currentSelectedCategory,
     amount: amount,
-    isPaid: false
+    isPaid: true
   };
 
   try {
@@ -10238,9 +10293,6 @@ function openFixedCostsPanelModal() {
               <p style="font-size: 0.8rem; font-weight: 800; color: var(--text-white);">${cost.concept}</p>
               <p style="font-size: 0.7rem; color: var(--text-gray); margin-top: 2px;">$ ${Math.round(cost.amount).toLocaleString()}</p>
             </div>
-            <button class="btn ${isPaid ? 'btn-secondary' : 'btn-primary'}" style="padding: 6px 12px; font-size: 0.65rem;" onclick="submitPayFixedCost('${cost.id}')" ${isPaid ? 'disabled' : ''}>
-              ${isPaid ? '✓ Pagado' : 'Pagar'}
-            </button>
           </div>
         `;
       });
@@ -15505,7 +15557,7 @@ function copyQuoteToWhatsApp() {
     return;
   }
   
-  const bName = state.userProfile?.businessName || state.businessName || state.currentProjectName || "MAZO.";
+  const bName = state.currentProjectName || state.businessName || state.userProfile?.businessName || "MAZO.";
   const isAutoSku = (state.userProfile?.skuMode === "auto" || !state.userProfile?.skuMode || state.userProfile?.skuMode === "automático");
 
   const clientNameInput = document.getElementById("quote-client-name");
@@ -15533,6 +15585,14 @@ function copyQuoteToWhatsApp() {
   if (clientNote) msg += `📝 Nota: ${clientNote}\n`;
   msg += `----------------------------------------\n`;
   
+  if (discountPercent > 0) {
+    msg += `Subtotal: $${Math.round(subtotal).toLocaleString('es-AR')}\n`;
+    msg += `Descuento (${discountPercent}%): -$${Math.round(discountAmount).toLocaleString('es-AR')}\n`;
+  }
+  msg += `💰 *TOTAL FINAL: $${Math.round(total).toLocaleString('es-AR')}*\n`;
+  msg += `----------------------------------------\n\n`;
+  
+  msg += `📌 *Detalle de Productos:*\n`;
   items.forEach(item => {
     const { cleanName, sizeStr } = getCleanNameAndSize(item);
     const sizeInfo = (sizeStr && sizeStr !== 'Único') ? ` [Talle: ${sizeStr}]` : '';
@@ -15540,16 +15600,9 @@ function copyQuoteToWhatsApp() {
     msg += `• ${skuPrefix}*${cleanName}*${sizeInfo}\n`;
     msg += `   ${item.qty} u. x $${Math.round(item.price).toLocaleString('es-AR')} = *$${Math.round(item.subtotal).toLocaleString('es-AR')}*\n`;
   });
-  
-  msg += `----------------------------------------\n`;
-  if (discountPercent > 0) {
-    msg += `Subtotal: $${Math.round(subtotal).toLocaleString('es-AR')}\n`;
-    msg += `Descuento (${discountPercent}%): -$${Math.round(discountAmount).toLocaleString('es-AR')}\n`;
-  }
-  msg += `💰 *TOTAL FINAL: $${Math.round(total).toLocaleString('es-AR')}*\n`;
 
   if (clientDetails) {
-    msg += `\n📌 *Detalles:*\n${clientDetails}\n`;
+    msg += `\n📌 *Observaciones:*\n${clientDetails}\n`;
   }
 
   if (customTerms && customTerms.trim()) {
@@ -15603,7 +15656,7 @@ async function downloadQuotePDF() {
     return;
   }
 
-  const bizName = state.userProfile?.businessName || state.businessName || state.currentProjectName || "MAZO.";
+  const bizName = state.currentProjectName || state.businessName || state.userProfile?.businessName || "MAZO.";
   const isAutoSku = (state.userProfile?.skuMode === "auto" || !state.userProfile?.skuMode || state.userProfile?.skuMode === "automático");
   const dateStr = new Date().toLocaleDateString('es-AR');
   const clientNameInput = document.getElementById("quote-client-name");
