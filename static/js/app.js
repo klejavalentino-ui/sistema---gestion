@@ -13201,8 +13201,42 @@ window.renderCategorySizePills = renderCategorySizePills;
 async function loadBusinessData() {
   if (state.userProfile) {
     const curProj = (state.projects || []).find(p => p.id === state.currentProjectId);
+    const isAdmin = isUserAdmin();
+
+    // ─── Campos exclusivos del Administrador ──────────────────────────────────
+    const adminOnlyFields = [
+      { id: "business-settings-name",    labelPrefix: "Nombre del Negocio" },
+      { id: "business-settings-model",   labelPrefix: "Tipo de Negocio" },
+      { id: "business-settings-sku-mode", labelPrefix: "Generación de SKU / Código de Barras" },
+    ];
+
     document.getElementById("business-settings-name").value = state.currentProjectName || curProj?.name || state.userProfile.businessName || "";
     document.getElementById("business-settings-model").value = curProj?.businessModel || state.userProfile.businessModel || "Indumentaria";
+
+    adminOnlyFields.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (!isAdmin) {
+        el.disabled = true;
+        el.readOnly = true;
+        el.style.cssText = "opacity: 0.6; cursor: not-allowed; pointer-events: none;";
+        el.title = "Solo el administrador puede modificar este campo";
+        // Agregar badge 🔒 al label si no existe ya
+        const label = el.closest(".form-group")?.querySelector("label");
+        if (label && !label.querySelector(".admin-lock-badge")) {
+          const badge = document.createElement("span");
+          badge.className = "admin-lock-badge";
+          badge.style.cssText = "margin-left: 6px; font-size: 0.65rem; background: rgba(239,68,68,0.15); color: #ef4444; padding: 1px 6px; border-radius: 4px; font-weight: 600; letter-spacing: 0.02em;";
+          badge.textContent = "🔒 Solo Admin";
+          label.appendChild(badge);
+        }
+      } else {
+        el.disabled = false;
+        el.readOnly = false;
+        el.style.cssText = "";
+        el.title = "";
+      }
+    });
     
     const ivaEl = document.getElementById("business-settings-iva");
     if (ivaEl) {
@@ -13229,9 +13263,49 @@ async function loadBusinessData() {
       previewImg.src = logoBase64;
       previewContainer.style.display = "flex";
       removeBtn.style.display = "inline-block";
+      // Ocultar el file input nativo (que muestra "No se ha seleccionado ningún archivo")
+      // y mostrar un indicador visual amigable
+      if (fileInput) {
+        fileInput.style.display = "none";
+        // Crear/actualizar el indicador de logo cargado
+        let loadedRow = fileInput.parentElement?.querySelector(".logo-loaded-row");
+        if (!loadedRow) {
+          loadedRow = document.createElement("div");
+          loadedRow.className = "logo-loaded-row";
+          loadedRow.style.cssText = "display: flex; align-items: center; gap: 10px; flex-grow: 1;";
+          fileInput.insertAdjacentElement("afterend", loadedRow);
+        }
+        loadedRow.style.display = "flex";
+        loadedRow.innerHTML = `
+          <span style="font-size: 0.8rem; color: #10b981; font-weight: 600;">✅ Logo cargado</span>
+          <button type="button" onclick="document.getElementById('business-settings-logo-input').style.display=''; document.querySelector('.logo-loaded-row').style.display='none'; document.getElementById('business-settings-logo-input').click();"
+            class="btn" style="padding: 4px 10px; font-size: 0.75rem; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: var(--text-gray-light); cursor: pointer;">
+            🔄 Cambiar logo
+          </button>
+        `;
+      }
     } else if (previewContainer && removeBtn) {
       previewContainer.style.display = "none";
       removeBtn.style.display = "none";
+      // Asegurarse de que el file input esté visible si no hay logo
+      if (fileInput) fileInput.style.display = "";
+      const loadedRow = fileInput?.parentElement?.querySelector(".logo-loaded-row");
+      if (loadedRow) loadedRow.style.display = "none";
+    }
+
+    // Bloquear sección de impresión para no-admins
+    const printFooter = document.getElementById("print-settings-footer");
+    const printSaveBtn = document.getElementById("btn-save-print-settings");
+    if (!isAdmin) {
+      if (fileInput) { fileInput.disabled = true; fileInput.style.pointerEvents = "none"; }
+      if (removeBtn) { removeBtn.disabled = true; removeBtn.style.opacity = "0.5"; }
+      if (printFooter) { printFooter.readOnly = true; printFooter.style.cssText = "opacity: 0.6; cursor: not-allowed;"; printFooter.title = "Solo el administrador puede modificar"; }
+      if (printSaveBtn) { printSaveBtn.disabled = true; printSaveBtn.style.opacity = "0.5"; printSaveBtn.title = "Solo el administrador puede guardar cambios"; }
+    } else {
+      if (fileInput) { fileInput.disabled = false; fileInput.style.pointerEvents = ""; }
+      if (removeBtn) { removeBtn.disabled = false; removeBtn.style.opacity = "1"; }
+      if (printFooter) { printFooter.readOnly = false; printFooter.style.cssText = ""; printFooter.title = ""; }
+      if (printSaveBtn) { printSaveBtn.disabled = false; printSaveBtn.style.opacity = "1"; printSaveBtn.title = ""; }
     }
 
     // Configuración de Talles
@@ -13901,9 +13975,18 @@ function updateTopbarProjectName() {
 window.updateTopbarProjectName = updateTopbarProjectName;
 
 function openNewProjectModal() {
+  if (!isUserAdmin()) {
+    Swal.fire({
+      icon: "error",
+      title: "Acceso Restringido",
+      text: "Solo el administrador puede crear nuevos negocios.",
+      confirmButtonColor: "#ef4444"
+    });
+    return;
+  }
   const projects = state.projects || [];
   if (projects.length >= 3) {
-    showToast("Has alcanzado el límite máximo de 3 negocios por cuenta.", true);
+    showToast("Has alcanzado el límite máximo de 3 negocios por cuenta.", "error");
     return;
   }
   document.getElementById("new-proj-name").value = "";
@@ -13969,13 +14052,19 @@ function renderProjectsManagementPanel() {
   if (counterEl) counterEl.innerText = `Negocios: ${projects.length} / 3`;
 
   if (addBtn) {
-    if (projects.length >= 3) {
+    if (!isUserAdmin()) {
+      // No-admins no pueden crear negocios: ocultar botón completamente
+      addBtn.style.display = "none";
+    } else if (projects.length >= 3) {
+      addBtn.style.display = "";
       addBtn.disabled = true;
       addBtn.style.opacity = "0.5";
       addBtn.title = "Límite máximo de 3 negocios alcanzado";
     } else {
+      addBtn.style.display = "";
       addBtn.disabled = false;
       addBtn.style.opacity = "1";
+      addBtn.title = "";
     }
   }
 
@@ -14057,47 +14146,90 @@ async function deleteProjectFromSettings(projId, projName) {
 window.deleteProjectFromSettings = deleteProjectFromSettings;
 
 function renderDynamicSettingsRows() {
+  const isAdmin = isUserAdmin();
+
   const locContainer = document.getElementById("locations-list-container");
   if (locContainer) {
     locContainer.innerHTML = "";
     const locations = state.userProfile.locations || ["Local Principal"];
-    locations.forEach(loc => addLocationRow(loc));
+    locations.forEach(loc => addLocationRow(loc, isAdmin));
+    // Bloquear/mostrar el botón de agregar y guardar según rol
+    const locAddBtn = document.querySelector("[onclick='addLocationRow()']") || document.getElementById("btn-add-location");
+    const locSaveBtn = document.querySelector("[onclick='saveLocationsSettings()']");
+    if (locAddBtn) locAddBtn.style.display = isAdmin ? "" : "none";
+    if (locSaveBtn) {
+      if (!isAdmin) {
+        locSaveBtn.disabled = true;
+        locSaveBtn.style.opacity = "0.5";
+        locSaveBtn.title = "Solo el administrador puede guardar cambios";
+      } else {
+        locSaveBtn.disabled = false;
+        locSaveBtn.style.opacity = "1";
+        locSaveBtn.title = "";
+      }
+    }
   }
 
   const chanContainer = document.getElementById("channels-list-container");
   if (chanContainer) {
     chanContainer.innerHTML = "";
     const channels = state.userProfile.salesChannels || ["Local Principal"];
-    channels.forEach(chan => addChannelRow(chan));
+    channels.forEach(chan => addChannelRow(chan, isAdmin));
+    // Bloquear/mostrar el botón de agregar y guardar
+    const chanAddBtn = document.querySelector("[onclick='addChannelRow()']") || document.getElementById("btn-add-channel");
+    const chanSaveBtn = document.querySelector("[onclick='saveChannelsSettings()']");
+    if (chanAddBtn) chanAddBtn.style.display = isAdmin ? "" : "none";
+    if (chanSaveBtn) {
+      if (!isAdmin) {
+        chanSaveBtn.disabled = true;
+        chanSaveBtn.style.opacity = "0.5";
+        chanSaveBtn.title = "Solo el administrador puede guardar cambios";
+      } else {
+        chanSaveBtn.disabled = false;
+        chanSaveBtn.style.opacity = "1";
+        chanSaveBtn.title = "";
+      }
+    }
   }
 }
 
-function addLocationRow(value = "") {
+function addLocationRow(value = "", isAdmin = true) {
   const container = document.getElementById("locations-list-container");
   if (!container) return;
   const div = document.createElement("div");
   div.style = "display: flex; gap: 12px; align-items: center; margin-bottom: 12px;";
-  div.innerHTML = `
-    <input type="text" class="form-input location-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre de la ubicación">
-    <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
-  `;
+  if (isAdmin) {
+    div.innerHTML = `
+      <input type="text" class="form-input location-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre de la ubicación">
+      <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+    `;
+  } else {
+    div.innerHTML = `
+      <input type="text" class="form-input location-item-input" value="${value}" readonly disabled style="flex: 1; opacity: 0.6; cursor: not-allowed; pointer-events: none;" title="Solo el administrador puede modificar las ubicaciones">
+    `;
+  }
   container.appendChild(div);
 }
 window.addLocationRow = addLocationRow;
 
-function addChannelRow(value = "") {
+function addChannelRow(value = "", isAdmin = true) {
   const container = document.getElementById("channels-list-container");
   if (!container) return;
   const div = document.createElement("div");
   div.style = "display: flex; gap: 12px; align-items: center; margin-bottom: 12px;";
-  div.innerHTML = `
-    <input type="text" class="form-input channel-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre del canal">
-    <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
-  `;
+  if (isAdmin) {
+    div.innerHTML = `
+      <input type="text" class="form-input channel-item-input" value="${value}" style="flex: 1; border-color: var(--border-color); background: var(--bg-input); color: var(--text-dark);" placeholder="Nombre del canal">
+      <button type="button" class="btn" style="background: rgba(229,56,59,0.1); border: 1px solid rgba(229,56,59,0.2); color: var(--accent-red); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="this.parentElement.remove()" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+    `;
+  } else {
+    div.innerHTML = `
+      <input type="text" class="form-input channel-item-input" value="${value}" readonly disabled style="flex: 1; opacity: 0.6; cursor: not-allowed; pointer-events: none;" title="Solo el administrador puede modificar los canales de venta">
+    `;
+  }
   container.appendChild(div);
 }
 window.addChannelRow = addChannelRow;
-
 
 
 function isUserAdmin() {
