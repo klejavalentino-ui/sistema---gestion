@@ -4499,13 +4499,8 @@ function openSalesHistoryModal() {
       if (sale.method.startsWith("Cta. corriente")) badgeClass = "badge-blue";
       else if (sale.method === "Canje" || sale.method === "custom") badgeClass = "badge-gray";
       
-      const channelLabel = sale.origen === "tiendanube" 
-        ? "Tienda Nube" 
-        : (sale.canal_venta || (state.userProfile?.salesChannels && state.userProfile.salesChannels[0]) || "Local Principal");
-        
-      const originBadge = (sale.origen === "tiendanube") 
-        ? `<span class="badge" style="margin-left: 4px; background: #8b5cf6; color: var(--text-white); padding: 2px 6px; font-size: 0.65rem;">${channelLabel}</span>` 
-        : `<span class="badge" style="margin-left: 4px; background: rgba(255,255,255,0.1); color: #ccc; padding: 2px 6px; font-size: 0.65rem;">${channelLabel}</span>`;
+      const channelLabel = resolveSaleChannel(sale);
+      const originBadge = renderChannelBadge(channelLabel);
         
       el.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; ${sale.status === 'cancelled' ? 'opacity: 0.6;' : ''}">
@@ -12516,6 +12511,71 @@ async function loadArcaInvoices() {
   }
 }
 
+const CHANNEL_PALETTES = [
+  { bg: 'rgba(168, 85, 247, 0.15)', text: '#c084fc', border: 'rgba(168, 85, 247, 0.3)' }, // Purple
+  { bg: 'rgba(59, 130, 246, 0.15)', text: '#60a5fa', border: 'rgba(59, 130, 246, 0.3)' },   // Blue
+  { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399', border: 'rgba(16, 185, 129, 0.3)' },  // Emerald
+  { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' },  // Amber
+  { bg: 'rgba(244, 63, 94, 0.15)', text: '#fb7185', border: 'rgba(244, 63, 94, 0.3)' },   // Rose
+  { bg: 'rgba(99, 102, 241, 0.15)', text: '#818cf8', border: 'rgba(99, 102, 241, 0.3)' },  // Indigo
+  { bg: 'rgba(20, 184, 166, 0.15)', text: '#2dd4bf', border: 'rgba(20, 184, 166, 0.3)' },  // Teal
+  { bg: 'rgba(236, 72, 153, 0.15)', text: '#f472b6', border: 'rgba(236, 72, 153, 0.3)' },  // Pink
+];
+
+function resolveSaleChannel(sale, customConfigured = null) {
+  if (!sale) return "Canal Principal";
+  const configuredChannels = customConfigured || (
+    (state.userProfile?.salesChannels && state.userProfile.salesChannels.length > 0)
+      ? state.userProfile.salesChannels
+      : (state.userProfile?.locations && state.userProfile.locations.length > 0 ? state.userProfile.locations : [])
+  );
+
+  const raw = (sale.canal_venta || sale.canalVenta || sale.channel || sale.sales_channel || sale.location || sale.ubicacion || "").trim();
+
+  if (!configuredChannels || configuredChannels.length === 0) {
+    return raw || "Canal Principal";
+  }
+
+  // Exact or case-insensitive match against user's configured channels
+  if (raw) {
+    const matched = configuredChannels.find(c => c.toLowerCase() === raw.toLowerCase());
+    if (matched) return matched;
+  }
+
+  // Check if sale originates from Tiendanube
+  const origin = (sale.origen || sale.origin || "").toLowerCase();
+  const saleId = String(sale.id || "");
+  if (origin === "tiendanube" || saleId.startsWith("TN-")) {
+    const tnMatch = configuredChannels.find(c => {
+      const l = c.toLowerCase();
+      return l.includes("tienda") || l.includes("nube") || l.includes("online") || l.includes("web");
+    });
+    if (tnMatch) return tnMatch;
+  }
+
+  // Check partial match
+  if (raw) {
+    const partialMatch = configuredChannels.find(c => c.toLowerCase().includes(raw.toLowerCase()) || raw.toLowerCase().includes(c.toLowerCase()));
+    if (partialMatch) return partialMatch;
+  }
+
+  // Always strictly return one of the configured channels from configuration section
+  return configuredChannels[0];
+}
+window.resolveSaleChannel = resolveSaleChannel;
+
+function renderChannelBadge(channelName) {
+  const name = (channelName || "General").trim();
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % CHANNEL_PALETTES.length;
+  const style = CHANNEL_PALETTES[index];
+  return `<span class="badge" style="font-size: 0.65rem; background: ${style.bg}; color: ${style.text}; border: 1px solid ${style.border}; padding: 3px 8px; border-radius: 6px; font-weight: 600; text-transform: capitalize;">${name}</span>`;
+}
+window.renderChannelBadge = renderChannelBadge;
+
 function renderUninvoicedSales() {
   const tbody = document.getElementById("arca-uninvoiced-sales-log");
   if (!tbody) return;
@@ -12546,7 +12606,7 @@ function renderUninvoicedSales() {
       hour: "2-digit",
       minute: "2-digit"
     });
-    const channel = sale.channel || sale.sales_channel || sale.location || "Local Principal";
+    const channel = resolveSaleChannel(sale);
 
     return `
       <tr onclick="toggleRowCheckbox(event, '${sale.id}')" style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='none'">
@@ -12559,7 +12619,7 @@ function renderUninvoicedSales() {
           <span class="badge badge-gray" style="font-size: 0.65rem;">${sale.method}</span>
         </td>
         <td style="padding: 8px;">
-          <span class="badge badge-purple" style="font-size: 0.65rem; background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); padding: 2px 6px; border-radius: 4px;">${channel}</span>
+          ${renderChannelBadge(channel)}
         </td>
         <td style="padding: 8px; text-align: right;" onclick="event.stopPropagation();">
           <button class="btn btn-emerald" style="padding: 4px 8px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 4px;" onclick="emitInvoiceFromSale('${sale.id}')">
@@ -12570,6 +12630,78 @@ function renderUninvoicedSales() {
     `;
   }).join("");
 }
+
+async function exportArcaExcel() {
+  try {
+    showToast("Generando reporte Excel ARCA...");
+    let token = state.token;
+    if (window.firebase && firebase.auth() && firebase.auth().currentUser) {
+      try {
+        token = await firebase.auth().currentUser.getIdToken(true);
+        state.token = token;
+      } catch (err) {
+        console.warn("No se pudo refrescar el token de Firebase:", err);
+      }
+    }
+
+    const configuredChannels = (state.userProfile?.salesChannels && state.userProfile.salesChannels.length > 0)
+      ? state.userProfile.salesChannels
+      : (state.userProfile?.locations || []);
+
+    const uninvoiced = state.sales.filter(s => !s.arca_invoice_id).map(sale => {
+      const channelName = resolveSaleChannel(sale, configuredChannels);
+      return {
+        ...sale,
+        channel: channelName,
+        canal_venta: channelName,
+        sales_channel: channelName
+      };
+    });
+
+    const invoices = (state.arcaInvoices || []).map(inv => {
+      return {
+        ...inv
+      };
+    });
+
+    const response = await fetch("/api/export-arca-excel", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        uninvoiced: uninvoiced,
+        invoices: invoices
+      })
+    });
+
+    if (!response.ok) {
+      let errText = "Error al exportar Excel de ARCA";
+      try {
+        const errJson = await response.json();
+        errText = errJson.error || errText;
+      } catch(e) {}
+      throw new Error(errText);
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    a.download = `Reporte_Fiscal_ARCA_${dateStr}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast("Reporte Excel descargado con éxito.");
+  } catch (error) {
+    console.error("Error al exportar Excel ARCA:", error);
+    showToast("Error: " + error.message, true);
+  }
+}
+window.exportArcaExcel = exportArcaExcel;
 
 function toggleSelectAllUninvoiced(source) {
   const checkboxes = document.querySelectorAll(".arca-select-uninvoiced");

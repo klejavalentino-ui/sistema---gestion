@@ -1186,7 +1186,7 @@ def get_all_state():
                 profile_doc["sizes"] = ["XS", "S", "M", "L", "XL", "XXL", "Único", "Talle 1 (S/M)", "Talle 2 (M/L)", "Talle 2 (L/XL)", "Talle 3 (L/XL)"]
                 changed = True
             if not profile_doc.get("salesChannels") or profile_doc.get("salesChannels") == ["Local Principal"]:
-                profile_doc["salesChannels"] = ["Local Principal"]
+                profile_doc["salesChannels"] = profile_doc.get("locations") or ["Bahia Blanca", "Buenos Aires"]
                 changed = True
             if changed:
                 profile_doc_to_save = dict(profile_doc)
@@ -1920,12 +1920,27 @@ def export_arca_excel_route():
             cell.alignment = Alignment(horizontal="center" if col_num in [1, 3, 4, 5] else "right", vertical="center")
             cell.border = thin_border
 
+        profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
+        configured_channels = profile_doc.get("salesChannels") or profile_doc.get("locations") or []
+
         for r_idx, s in enumerate(uninvoiced_sales, 4):
             ws1.row_dimensions[r_idx].height = 20
             f_date = str(s.get("date", "")).split("T")[0] if "T" in str(s.get("date", "")) else str(s.get("date", ""))
             total_val = float(s.get("total", 0.0))
             method = str(s.get("method", "Contado"))
-            channel = str(s.get("channel") or s.get("sales_channel") or s.get("location") or "Local Principal")
+            raw_channel = str(s.get("canal_venta") or s.get("canalVenta") or s.get("channel") or s.get("sales_channel") or s.get("location") or s.get("ubicacion") or "").strip()
+            channel = raw_channel
+            if configured_channels:
+                matched = next((c for c in configured_channels if c.lower() == raw_channel.lower()), None)
+                if matched:
+                    channel = matched
+                elif s.get("origen") == "tiendanube" or str(s.get("id", "")).startswith("TN-"):
+                    tn_match = next((c for c in configured_channels if any(kw in c.lower() for kw in ["tienda", "nube", "online", "web"])), None)
+                    channel = tn_match if tn_match else configured_channels[0]
+                else:
+                    channel = configured_channels[0]
+            if not channel:
+                channel = "Canal Principal"
 
             row_data = [f_date, total_val, method, channel, "Pendiente de Facturar"]
             for c_idx, val in enumerate(row_data, 1):
