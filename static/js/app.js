@@ -12412,6 +12412,44 @@ async function emitArcaInvoice(event) {
   }
 }
 
+function getInvoiceClientCondicionIva(inv, matchingSale) {
+  let val = inv.client_condicion_iva || inv.clientCondicionIva || inv.client_iva_condition || inv.iva_condition || inv.client_iva;
+  if ((!val || val === "Consumidor Final" || val === "CONSUMIDOR FINAL") && matchingSale) {
+    const saleCond = matchingSale.client_condicion_iva || matchingSale.clientCondicionIva || matchingSale.client_iva || matchingSale.client_iva_condition;
+    if (saleCond) val = saleCond;
+  }
+  if (!val) return "Consumidor Final";
+  
+  const lower = String(val).trim().toLowerCase();
+  if (lower.includes("inscripto") || lower.includes("ri")) return "IVA Responsable Inscripto";
+  if (lower.includes("monotribut")) return "Responsable Monotributo";
+  if (lower.includes("exento")) return "IVA Exento";
+  if (lower.includes("no responsable")) return "No Responsable IVA";
+  if (lower.includes("consumidor")) return "Consumidor Final";
+  return val;
+}
+window.getInvoiceClientCondicionIva = getInvoiceClientCondicionIva;
+
+function renderIvaBadge(condIva) {
+  const norm = String(condIva || "Consumidor Final").trim();
+  const lower = norm.toLowerCase();
+  
+  if (lower.includes("inscripto") || lower.includes("ri")) {
+    return `<span class="badge" style="font-size: 0.65rem; font-weight: 700; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.5); padding: 2px 7px; border-radius: 4px;">IVA Resp. Inscripto</span>`;
+  }
+  if (lower.includes("monotribut")) {
+    return `<span class="badge" style="font-size: 0.65rem; font-weight: 700; background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.5); padding: 2px 7px; border-radius: 4px;">Resp. Monotributo</span>`;
+  }
+  if (lower.includes("exento")) {
+    return `<span class="badge" style="font-size: 0.65rem; font-weight: 700; background: rgba(20, 184, 166, 0.2); color: #2dd4bf; border: 1px solid rgba(45, 212, 191, 0.5); padding: 2px 7px; border-radius: 4px;">IVA Exento</span>`;
+  }
+  if (lower.includes("no responsable")) {
+    return `<span class="badge" style="font-size: 0.65rem; font-weight: 700; background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(203, 213, 225, 0.5); padding: 2px 7px; border-radius: 4px;">No Responsable IVA</span>`;
+  }
+  return `<span class="badge" style="font-size: 0.65rem; font-weight: 600; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.4); padding: 2px 7px; border-radius: 4px;">Consumidor Final</span>`;
+}
+window.renderIvaBadge = renderIvaBadge;
+
 async function loadArcaInvoices() {
   try {
     const invoices = await apiRequest("/api/invoices");
@@ -12438,16 +12476,24 @@ async function loadArcaInvoices() {
         year: "numeric"
       });
       
-      // Buscar venta correspondiente en state.sales para obtener su fecha
-      const matchingSale = state.sales.find(s => s.id === inv.sale_id);
+      // Buscar venta correspondiente en state.sales para obtener su fecha y datos completos
+      const cleanInvNum = String(inv.invoice_number || "").trim();
+      const matchingSale = (state.sales || []).find(s => {
+        if (inv.sale_id && (String(s.id) === String(inv.sale_id) || String(s.id).endsWith(String(inv.sale_id)))) return true;
+        if (cleanInvNum && String(s.arca_invoice_id || "").trim() === cleanInvNum) return true;
+        return false;
+      });
+      
       const formattedSaleDate = matchingSale ? new Date(matchingSale.date).toLocaleDateString("es-AR", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric"
       }) : formattedDate;
 
-      const condIva = inv.client_iva_condition || inv.iva_condition || (matchingSale ? matchingSale.client_iva : null) || "Consumidor Final";
+      const condIva = getInvoiceClientCondicionIva(inv, matchingSale);
+      const clientCuit = (inv.client_cuit && inv.client_cuit !== "20-99999999-9") ? inv.client_cuit : (matchingSale?.client_cuit || inv.client_cuit || "20-99999999-9");
       const assocText = inv.associated_invoice ? `<div style="font-size: 0.65rem; color: var(--text-gray);">Asoc: ${inv.associated_invoice}</div>` : "";
+      
       return `
         <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-gray-light);">
           <!-- 1° Columna: Fecha Emitida -->
@@ -12466,11 +12512,11 @@ async function loadArcaInvoices() {
           <td style="padding: 8px; font-weight: 600;">${inv.invoice_number || "-"}</td>
           
           <!-- 5° Columna: Cliente CUIT -->
-          <td style="padding: 8px;">${inv.client_cuit || "20-99999999-9"}</td>
+          <td style="padding: 8px;">${clientCuit}</td>
           
           <!-- 6° Columna: Condición IVA -->
           <td style="padding: 8px;">
-            <span class="badge badge-blue" style="font-size: 0.65rem; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 2px 6px; border-radius: 4px;">${condIva}</span>
+            ${renderIvaBadge(condIva)}
           </td>
           
           <!-- 7° Columna: Total Facturado -->
@@ -12511,15 +12557,38 @@ async function loadArcaInvoices() {
   }
 }
 
-const CHANNEL_PALETTES = [
-  { bg: 'rgba(168, 85, 247, 0.15)', text: '#c084fc', border: 'rgba(168, 85, 247, 0.3)' }, // Purple
-  { bg: 'rgba(59, 130, 246, 0.15)', text: '#60a5fa', border: 'rgba(59, 130, 246, 0.3)' },   // Blue
-  { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399', border: 'rgba(16, 185, 129, 0.3)' },  // Emerald
-  { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' },  // Amber
-  { bg: 'rgba(244, 63, 94, 0.15)', text: '#fb7185', border: 'rgba(244, 63, 94, 0.3)' },   // Rose
-  { bg: 'rgba(99, 102, 241, 0.15)', text: '#818cf8', border: 'rgba(99, 102, 241, 0.3)' },  // Indigo
-  { bg: 'rgba(20, 184, 166, 0.15)', text: '#2dd4bf', border: 'rgba(20, 184, 166, 0.3)' },  // Teal
-  { bg: 'rgba(236, 72, 153, 0.15)', text: '#f472b6', border: 'rgba(236, 72, 153, 0.3)' },  // Pink
+const CHANNEL_NAME_MAP = {
+  "tiendanube": { bg: "rgba(14, 165, 233, 0.22)", text: "#38bdf8", border: "rgba(56, 189, 248, 0.55)" }, // Celeste / Sky Blue
+  "tienda nube": { bg: "rgba(14, 165, 233, 0.22)", text: "#38bdf8", border: "rgba(56, 189, 248, 0.55)" },
+  "tienda online": { bg: "rgba(14, 165, 233, 0.22)", text: "#38bdf8", border: "rgba(56, 189, 248, 0.55)" },
+  "online": { bg: "rgba(14, 165, 233, 0.22)", text: "#38bdf8", border: "rgba(56, 189, 248, 0.55)" },
+  "web": { bg: "rgba(14, 165, 233, 0.22)", text: "#38bdf8", border: "rgba(56, 189, 248, 0.55)" },
+  
+  "minorista": { bg: "rgba(16, 185, 129, 0.22)", text: "#34d399", border: "rgba(52, 211, 153, 0.55)" }, // Verde Esmeralda
+  "local": { bg: "rgba(16, 185, 129, 0.22)", text: "#34d399", border: "rgba(52, 211, 153, 0.55)" },
+  "mostrador": { bg: "rgba(16, 185, 129, 0.22)", text: "#34d399", border: "rgba(52, 211, 153, 0.55)" },
+  "local principal": { bg: "rgba(16, 185, 129, 0.22)", text: "#34d399", border: "rgba(52, 211, 153, 0.55)" },
+
+  "mayorista": { bg: "rgba(245, 158, 11, 0.22)", text: "#fbbf24", border: "rgba(251, 191, 36, 0.55)" }, // Amarillo / Ámbar
+  
+  "personalizado": { bg: "rgba(168, 85, 247, 0.22)", text: "#c084fc", border: "rgba(192, 132, 252, 0.55)" }, // Violeta / Púrpura
+  "custom": { bg: "rgba(168, 85, 247, 0.22)", text: "#c084fc", border: "rgba(192, 132, 252, 0.55)" },
+
+  "whatsapp": { bg: "rgba(34, 197, 94, 0.22)", text: "#4ade80", border: "rgba(74, 222, 128, 0.55)" }, // Verde Lima
+  "taller": { bg: "rgba(249, 115, 22, 0.22)", text: "#fb923c", border: "rgba(251, 146, 60, 0.55)" }, // Naranja
+  "buenos aires": { bg: "rgba(99, 102, 241, 0.22)", text: "#818cf8", border: "rgba(129, 140, 248, 0.55)" }, // Índigo
+  "bahia blanca": { bg: "rgba(20, 184, 166, 0.22)", text: "#2dd4bf", border: "rgba(45, 212, 191, 0.55)" } // Turquesa
+};
+
+const DISTINCT_PALETTES = [
+  { bg: 'rgba(14, 165, 233, 0.22)', text: '#38bdf8', border: 'rgba(56, 189, 248, 0.55)' }, // Sky Blue
+  { bg: 'rgba(16, 185, 129, 0.22)', text: '#34d399', border: 'rgba(52, 211, 153, 0.55)' }, // Emerald Green
+  { bg: 'rgba(168, 85, 247, 0.22)', text: '#c084fc', border: 'rgba(192, 132, 252, 0.55)' }, // Purple
+  { bg: 'rgba(245, 158, 11, 0.22)', text: '#fbbf24', border: 'rgba(251, 191, 36, 0.55)' }, // Amber
+  { bg: 'rgba(249, 115, 22, 0.22)', text: '#fb923c', border: 'rgba(251, 146, 60, 0.55)' }, // Orange
+  { bg: 'rgba(20, 184, 166, 0.22)', text: '#2dd4bf', border: 'rgba(45, 212, 191, 0.55)' }, // Teal
+  { bg: 'rgba(244, 63, 94, 0.22)', text: '#fb7185', border: 'rgba(251, 113, 133, 0.55)' }, // Rose
+  { bg: 'rgba(99, 102, 241, 0.22)', text: '#818cf8', border: 'rgba(129, 140, 248, 0.55)' }  // Indigo
 ];
 
 function resolveSaleChannel(sale, customConfigured = null) {
@@ -12566,13 +12635,17 @@ window.resolveSaleChannel = resolveSaleChannel;
 
 function renderChannelBadge(channelName) {
   const name = (channelName || "General").trim();
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const lower = name.toLowerCase();
+  let style = CHANNEL_NAME_MAP[lower];
+  if (!style) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % DISTINCT_PALETTES.length;
+    style = DISTINCT_PALETTES[index];
   }
-  const index = Math.abs(hash) % CHANNEL_PALETTES.length;
-  const style = CHANNEL_PALETTES[index];
-  return `<span class="badge" style="font-size: 0.65rem; background: ${style.bg}; color: ${style.text}; border: 1px solid ${style.border}; padding: 3px 8px; border-radius: 6px; font-weight: 600; text-transform: capitalize;">${name}</span>`;
+  return `<span class="badge" style="font-size: 0.68rem; font-weight: 700; background: ${style.bg}; color: ${style.text}; border: 1px solid ${style.border}; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; letter-spacing: 0.2px;">${name}</span>`;
 }
 window.renderChannelBadge = renderChannelBadge;
 
@@ -12658,9 +12731,23 @@ async function exportArcaExcel() {
       };
     });
 
-    const invoices = (state.arcaInvoices || []).map(inv => {
+    const invoices = (state.arcaInvoices || window.cachedInvoices || []).map(inv => {
+      const cleanInvNum = String(inv.invoice_number || "").trim();
+      const matchingSale = (state.sales || []).find(s => {
+        if (inv.sale_id && (String(s.id) === String(inv.sale_id) || String(s.id).endsWith(String(inv.sale_id)))) return true;
+        if (cleanInvNum && String(s.arca_invoice_id || "").trim() === cleanInvNum) return true;
+        return false;
+      });
+      const condIva = getInvoiceClientCondicionIva(inv, matchingSale);
+      const clientCuit = (inv.client_cuit && inv.client_cuit !== "20-99999999-9") ? inv.client_cuit : (matchingSale?.client_cuit || inv.client_cuit || "Consumidor Final");
+      const clientName = inv.client_name || matchingSale?.client_razon_social || matchingSale?.client_name || "";
       return {
-        ...inv
+        ...inv,
+        client_condicion_iva: condIva,
+        client_iva_condition: condIva,
+        iva_condition: condIva,
+        client_cuit: clientCuit,
+        client_name: clientName
       };
     });
 

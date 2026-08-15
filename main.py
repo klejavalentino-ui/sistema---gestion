@@ -1980,7 +1980,7 @@ def export_arca_excel_route():
             inv_type = str(inv.get("type", "Factura C"))
             inv_num = str(inv.get("invoice_number", "-"))
             client_cuit = f"{inv.get('client_name', '')} ({inv.get('client_cuit', 'Consumidor Final')})".strip()
-            cond_iva = str(inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
+            cond_iva = str(inv.get("client_condicion_iva") or inv.get("clientCondicionIva") or inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
             total_inv = float(inv.get("total", 0.0))
             cae = str(inv.get("cae", "-"))
             cae_due = str(inv.get("cae_due", "-"))
@@ -2044,7 +2044,7 @@ def export_arca_excel_route():
 
         iva_breakdown = {}
         for inv in invoices:
-            c_iva = str(inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
+            c_iva = str(inv.get("client_condicion_iva") or inv.get("clientCondicionIva") or inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
             iva_breakdown[c_iva] = iva_breakdown.get(c_iva, 0.0) + float(inv.get("total", 0.0))
 
         if not iva_breakdown:
@@ -4904,13 +4904,42 @@ def get_invoices():
         # 1. Recuperar facturas del usuario desde la subcolección invoices
         docs = firebase_config.list_documents("invoices", token) or []
         
-        # 2. Recuperar ventas para auto-recuperar facturas perdidas
+        # 2. Recuperar ventas para auto-recuperar facturas perdidas y enriquecer datos
         sales = firebase_config.list_documents("sales", token) or []
+        
+        # Mapear ventas por número de factura y por ID limpio
+        sales_by_inv_num = {}
+        sales_by_sale_id = {}
+        for s in sales:
+            doc_id = s.get("id", "")
+            if doc_id.startswith(prefix):
+                clean_sale_id = doc_id[len(prefix):]
+                sales_by_sale_id[clean_sale_id] = s
+                if s.get("arca_invoice_id"):
+                    sales_by_inv_num[s.get("arca_invoice_id")] = s
         
         # Mapear números de facturas ya presentes en la colección invoices
         existing_invoice_numbers = {d.get("invoice_number") for d in docs if d.get("invoice_number")}
         
         updated_any = False
+        
+        # Enriquecer facturas existentes que no tengan condición o tengan CUIT genérico
+        for d in docs:
+            inv_num = d.get("invoice_number")
+            sale_id = d.get("sale_id")
+            matching_sale = sales_by_inv_num.get(inv_num) or sales_by_sale_id.get(sale_id)
+            if matching_sale:
+                sale_cond = matching_sale.get("client_condicion_iva") or matching_sale.get("client_iva") or matching_sale.get("client_iva_condition")
+                if sale_cond and (not d.get("client_condicion_iva") or d.get("client_condicion_iva") == "Consumidor Final"):
+                    d["client_condicion_iva"] = sale_cond
+                    updated_any = True
+                if matching_sale.get("client_cuit") and (not d.get("client_cuit") or d.get("client_cuit") == "20-99999999-9"):
+                    d["client_cuit"] = matching_sale.get("client_cuit")
+                    updated_any = True
+                if not d.get("client_name") and (matching_sale.get("client_razon_social") or matching_sale.get("client_name")):
+                    d["client_name"] = matching_sale.get("client_razon_social") or matching_sale.get("client_name")
+                    updated_any = True
+
         for s in sales:
             doc_id = s.get("id", "")
             if doc_id.startswith(prefix) and s.get("arca_invoice_id"):
@@ -4919,10 +4948,12 @@ def get_invoices():
                     clean_sale_id = doc_id[len(prefix):]
                     inv_data = {
                         "sale_id": clean_sale_id,
-                        "type": "Factura C",
+                        "type": s.get("arca_invoice_type", "Factura C"),
                         "invoice_number": inv_num,
                         "cuit_emisor": "",
                         "client_cuit": s.get("client_cuit", "20-99999999-9"),
+                        "client_name": s.get("client_razon_social") or s.get("client_name") or "",
+                        "client_condicion_iva": s.get("client_condicion_iva") or s.get("client_iva") or s.get("client_iva_condition") or "Consumidor Final",
                         "total": safe_float(s.get("total", 0.0)),
                         "cae": s.get("arca_cae", ""),
                         "cae_due": s.get("arca_cae_due", ""),
