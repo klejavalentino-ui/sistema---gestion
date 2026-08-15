@@ -4080,44 +4080,60 @@ async function finishCheckoutWithARCA() {
   }
 }
 
-async function downloadFacturaCA4PDF(saleIdOrObject) {
-  const sale = typeof saleIdOrObject === "object" ? saleIdOrObject : state.sales.find(s => s.id === saleIdOrObject);
-  if (!sale) {
-    showToast("Venta no encontrada para generar Factura C A4", true);
-    return;
-  }
-
+function getFacturaA4HTML(sale) {
   let arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
   const userEmail = (state.email || state.userEmail || "").toLowerCase();
 
   const cuit = arca.cuit || "20362895953";
-  const pos = arca.pos || "00001";
+  const pos = arca.pos || "0002";
   const condicionEmisor = (arca.condicion_iva || "Responsable Monotributo").toUpperCase();
 
   const isMazoCuit = cuit.includes("20362895953");
   const isMatias = isMazoCuit || userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
 
   const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "MI NEGOCIO"));
-  const businessName = arca.razon_social ? arca.razon_social : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "EMPRESA FICTICIA S.A."));
+  const businessName = arca.razon_social ? arca.razon_social : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "EMPRESA / MONOTRIBUTISTA"));
   
-  let rawAddress = arca.domicilio ? arca.domicilio : (arca.domicilio_comercial ? arca.domicilio_comercial : (arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Av. Principal 123 - CABA")));
+  let rawAddress = arca.domicilio ? arca.domicilio : (arca.domicilio_comercial ? arca.domicilio_comercial : (arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Domicilio Comercial")));
 
   const iibb = arca.iibb || cuit;
   const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
   
-  const rawInvoiceId = sale.arca_invoice_id || "00000085";
-  const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : rawInvoiceId.padStart(8, '0');
-  const posNum = pos.padStart(5, '0');
+  const rawInvoiceId = sale.arca_invoice_id || sale.invoice_number || "00000001";
+  const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : String(rawInvoiceId).padStart(8, '0');
+  const posNum = String(pos).replace(/[^0-9]/g, '').padStart(5, '0') || "00002";
 
   const dateStr = sale.date ? (sale.date.includes("T") ? sale.date.split("T")[0].split("-").reverse().join("/") : sale.date) : new Date().toLocaleDateString('es-AR');
-  const cae = sale.arca_cae || "86305092733678";
-  const caeDue = sale.arca_cae_due ? (sale.arca_cae_due.includes("T") ? sale.arca_cae_due.split("T")[0].split("-").reverse().join("/") : sale.arca_cae_due) : "02/08/2026";
+  const cae = sale.arca_cae || sale.cae || "86305092733678";
+  const caeDue = (sale.arca_cae_due || sale.cae_due) ? (String(sale.arca_cae_due || sale.cae_due).includes("T") ? String(sale.arca_cae_due || sale.cae_due).split("T")[0].split("-").reverse().join("/") : String(sale.arca_cae_due || sale.cae_due)) : "25/08/2026";
 
   const clientName = sale.client_razon_social || sale.client_name || "Consumidor Final";
   const clientCuit = sale.client_cuit || "";
-  const clientCondicionIva = (sale.client_condicion_iva || "CONSUMIDOR FINAL").toUpperCase();
+  const clientCondicionIva = (sale.client_condicion_iva || sale.client_iva_condition || "CONSUMIDOR FINAL").toUpperCase();
   const clientAddress = sale.client_address || "";
   const condicionVenta = sale.method ? sale.method : "Contado";
+
+  let voucherLetter = "C";
+  let voucherCode = "011";
+  let cbteTipoCode = 11;
+
+  if (condicionEmisor.includes("INSCRIPTO")) {
+    if (clientCuit.replace(/[^0-9]/g, '').length === 11 && (clientCondicionIva.includes("MONOTRIBUTO") || clientCondicionIva.includes("INSCRIPTO"))) {
+      voucherLetter = "A";
+      voucherCode = "001";
+      cbteTipoCode = 1;
+    } else {
+      voucherLetter = "B";
+      voucherCode = "006";
+      cbteTipoCode = 6;
+    }
+  } else {
+    voucherLetter = "C";
+    voucherCode = "011";
+    cbteTipoCode = 11;
+  }
+
+  const leyendaMonotributo = sale.leyenda_monotributo || (voucherLetter === "A" && clientCondicionIva.includes("MONOTRIBUTO") ? "El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado a efectos del Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley Nº 27.618" : "");
 
   let qrImgHtml = "";
   if (cae) {
@@ -4126,182 +4142,339 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
         "ver": 1,
         "fecha": sale.date ? sale.date.split("T")[0] : new Date().toISOString().split("T")[0],
         "cuit": parseInt(cuit.replace(/[^0-9]/g, '') || 0),
-        "ptoVta": parseInt(pos),
-        "tipoCmp": 11,
-        "nroCmp": parseInt(formattedInvoiceNum),
-        "importe": parseFloat(sale.total),
+        "ptoVta": parseInt(posNum),
+        "tipoCmp": cbteTipoCode,
+        "nroCmp": parseInt(formattedInvoiceNum) || 1,
+        "importe": parseFloat(sale.total || 0),
         "moneda": "PES",
         "ctz": 1.0,
-        "tipoDocRec": parseInt(clientCuit) > 0 ? (clientCuit.length === 11 ? 80 : 96) : 99,
+        "tipoDocRec": parseInt(clientCuit) > 0 ? (clientCuit.replace(/[^0-9]/g, '').length === 11 ? 80 : 96) : 99,
         "nroDocRec": parseInt(clientCuit) > 0 ? parseInt(clientCuit.replace(/[^0-9]/g, '')) : 0,
         "tipoCodAut": "E",
-        "codAut": parseInt(cae.replace(/[^0-9]/g, '')) || 0
+        "codAut": parseInt(String(cae).replace(/[^0-9]/g, '')) || 0
       };
       const base64QrData = btoa(JSON.stringify(qrData));
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.afip.gob.ar/fe/qr/?p=${base64QrData}`;
-      qrImgHtml = `<img src="${qrUrl}" alt="QR AFIP" style="width: 105px; height: 105px;">`;
+      qrImgHtml = `<img src="${qrUrl}" alt="QR ARCA" style="width: 100px; height: 100px;">`;
     } catch (e) {
       console.error("Error QR:", e);
     }
   }
 
+  const logoHtml = state.userProfile?.logoBase64 
+    ? `<img src="${state.userProfile.logoBase64}" style="max-height: 50px; max-width: 140px; object-fit: contain;">` 
+    : `<h2 style="margin:0; font-size: 20px; font-weight: bold;">${tradeName}</h2>`;
+
+  const totalNum = parseFloat(sale.total || 0);
+
+  let itemsRows = "";
+  if (sale.items && sale.items.length > 0) {
+    itemsRows = sale.items.map(it => {
+      const skuStr = it.product?.sku || it.sku || "PROD";
+      const rawName = it.custom_name || it.product?.name || it.name || "Producto";
+      const nameStr = it.custom_name ? it.custom_name : (typeof cleanFacturaItemName === 'function' ? cleanFacturaItemName(rawName) : rawName);
+      const qty = parseFloat(it.quantity || it.qty || 1);
+      const price = parseFloat(it.price || (it.product ? it.product.price_local : 0) || (totalNum / qty));
+      const subtotalItem = price * qty;
+      const sizeStr = (!it.custom_name && it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") ? ` (Talle ${it.size})` : "";
+      return `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">${skuStr}</td>
+          <td style="border-right: 1px solid #000; padding: 6px 8px;">${nameStr}${sizeStr}</td>
+          <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">${qty.toFixed(2)}</td>
+          <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
+          <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">$ ${price.toFixed(2)}</td>
+          <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+          <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+          <td style="padding: 6px 8px; text-align: right; font-weight: bold;">$ ${subtotalItem.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join("");
+  } else {
+    itemsRows = `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">SERV-01</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px;">Venta de Productos / Servicios Comerciales</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">1.00</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">$ ${totalNum.toFixed(2)}</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold;">$ ${totalNum.toFixed(2)}</td>
+      </tr>
+    `;
+  }
+
+  return `
+    <div style="width: 100%; max-width: 800px; margin: 0 auto; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.35; box-sizing: border-box;">
+      <!-- Top Bordered Header -->
+      <div style="border: 1px solid #000; position: relative; padding: 10px 12px; margin-bottom: 0;">
+        <!-- Title Original -->
+        <div style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;">ORIGINAL</div>
+        <div style="border-top: 1px solid #000; margin: 0 -12px 10px -12px;"></div>
+
+        <!-- Center Box Letter -->
+        <div style="position: absolute; top: 26px; left: 50%; transform: translateX(-50%); border: 1px solid #000; background: #fff; width: 55px; height: 50px; text-align: center; z-index: 10;">
+          <span style="font-size: 24px; font-weight: bold; display: block; line-height: 1;">${voucherLetter}</span>
+          <span style="font-size: 8px; font-weight: bold; display: block; margin-top: 2px;">COD. ${voucherCode}</span>
+        </div>
+
+        <!-- Two Columns Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <!-- Left Side: Emisor -->
+          <div style="width: 48%; padding-right: 15px;">
+            <div style="margin-bottom: 8px;">${logoHtml}</div>
+            <p style="margin: 2px 0;"><strong>Razón Social:</strong> ${businessName}</p>
+            <p style="margin: 2px 0;"><strong>Domicilio Comercial:</strong> ${rawAddress}</p>
+            <p style="margin: 2px 0;"><strong>Condición frente al IVA:</strong> ${condicionEmisor}</p>
+          </div>
+
+          <div style="border-left: 1px solid #000; height: 95px; position: absolute; left: 50%; top: 26px;"></div>
+
+          <!-- Right Side: Voucher Info -->
+          <div style="width: 48%; padding-left: 20px;">
+            <h1 style="font-size: 22px; font-weight: bold; margin: 0 0 8px 0; letter-spacing: 1px;">FACTURA</h1>
+            <p style="margin: 2px 0;"><strong>Punto de Venta:</strong> ${posNum} &nbsp;&nbsp;&nbsp; <strong>Comp. Nro:</strong> ${formattedInvoiceNum}</p>
+            <p style="margin: 2px 0;"><strong>Fecha de Emisión:</strong> ${dateStr}</p>
+            <p style="margin: 2px 0;"><strong>CUIT:</strong> ${cuit}</p>
+            <p style="margin: 2px 0;"><strong>Ingresos Brutos:</strong> ${iibb}</p>
+            <p style="margin: 2px 0;"><strong>Fecha de Inicio de Actividades:</strong> ${incioAct}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Client Box -->
+      <div style="border: 1px solid #000; border-top: none; padding: 8px 12px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <div style="width: 45%;"><strong>CUIT / Identificación:</strong> ${clientCuit || '---'}</div>
+          <div style="width: 55%;"><strong>Apellido y Nombre / Razón Social:</strong> ${clientName}</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <div style="width: 45%;"><strong>Condición frente al IVA:</strong> ${clientCondicionIva}</div>
+          <div style="width: 55%;"><strong>Domicilio:</strong> ${clientAddress || '---'}</div>
+        </div>
+        <div>
+          <strong>Condición de venta:</strong> ${condicionVenta}
+        </div>
+      </div>
+
+      ${leyendaMonotributo ? `<div style="font-size: 8.5px; border: 1px solid #000; padding: 4px 8px; margin-bottom: 12px; text-align: justify;">${leyendaMonotributo}</div>` : ''}
+
+      <!-- Items Table -->
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 15px;">
+        <thead>
+          <tr style="background-color: #f1f5f9; border-bottom: 1px solid #000;">
+            <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 10px;">Código</th>
+            <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 10px;">Producto / Servicio</th>
+            <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 10px;">Cantidad</th>
+            <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 10px;">U. Medida</th>
+            <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">Precio Unit.</th>
+            <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">% Bonif</th>
+            <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">Imp. Bonif.</th>
+            <th style="padding: 6px 8px; text-align: right; font-size: 10px;">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+        </tbody>
+      </table>
+
+      <!-- Totals Box -->
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+        <div style="border: 1px solid #000; width: 280px; padding: 8px 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; font-weight: bold;">
+            <span>Subtotal: $</span>
+            <span>${totalNum.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px;">
+            <span>Importe Otros Tributos: $</span>
+            <span>0,00</span>
+          </div>
+          <div style="border-top: 1px solid #000; margin: 4px 0;"></div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 900;">
+            <span>Importe Total: $</span>
+            <span>${totalNum.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARCA Footer Box -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; padding-top: 5px; border-top: 1px solid #000;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          ${qrImgHtml}
+          <div>
+            <div style="font-size: 15px; font-weight: 900; letter-spacing: 1px; color: #000;">ARCA</div>
+            <div style="font-size: 7px; text-transform: uppercase; color: #444; margin-bottom: 4px;">AGENCIA DE RECAUDACIÓN Y CONTROL ADUANERO</div>
+            <div style="font-size: 11px; font-weight: bold; font-style: italic;">Comprobante Autorizado</div>
+            <div style="font-size: 7.5px; color: #555; margin-top: 2px;">Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación</div>
+          </div>
+        </div>
+
+        <div style="text-align: right;">
+          <div style="font-size: 10px; color: #666; margin-bottom: 6px;">Pág. 1/1</div>
+          <div style="font-size: 12px; font-weight: bold;">CAE N°: &nbsp; ${cae}</div>
+          <div style="font-size: 11px; margin-top: 3px;">Fecha de Vto. de CAE: &nbsp; ${caeDue}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+window.getFacturaA4HTML = getFacturaA4HTML;
+
+function printInvoiceA4(sale) {
+  const htmlContent = getFacturaA4HTML(sale);
+  const rawInvoiceId = sale.arca_invoice_id || sale.invoice_number || sale.id || "00000001";
+
+  const fullDocHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Factura ${rawInvoiceId}</title>
+      <style>
+        @page {
+          size: A4 portrait;
+          margin: 10mm;
+        }
+        * {
+          box-sizing: border-box;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        body {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 11px;
+          line-height: 1.35;
+          color: #000;
+          background: #fff;
+          margin: 0;
+          padding: 10px;
+          width: 100%;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+      </style>
+    </head>
+    <body>
+      ${htmlContent}
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank", "width=850,height=1000");
+  if (printWindow) {
+    printWindow.document.write(fullDocHtml);
+    printWindow.document.close();
+    printWindow.focus();
+
+    const imgs = printWindow.document.querySelectorAll("img");
+    if (imgs && imgs.length > 0) {
+      let loaded = 0;
+      const onDone = () => {
+        loaded++;
+        if (loaded >= imgs.length) {
+          printWindow.print();
+          printWindow.close();
+        }
+      };
+      imgs.forEach(img => {
+        if (img.complete) onDone();
+        else {
+          img.onload = onDone;
+          img.onerror = onDone;
+        }
+      });
+      setTimeout(() => {
+        if (!printWindow.closed) {
+          printWindow.print();
+          printWindow.close();
+        }
+      }, 1500);
+    } else {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 300);
+    }
+  } else {
+    showToast("Permiso de ventanas emergentes bloqueado. Por favor, habilítelo para poder imprimir.", true);
+  }
+}
+window.printInvoiceA4 = printInvoiceA4;
+
+async function downloadFacturaCA4PDF(saleIdOrObject) {
+  let sale = typeof saleIdOrObject === "object" ? saleIdOrObject : null;
+  if (!sale) {
+    sale = (state.sales || []).find(s => String(s.id) === String(saleIdOrObject) || String(s.id).endsWith(String(saleIdOrObject)) || String(s.arca_invoice_id) === String(saleIdOrObject));
+  }
+  if (!sale) {
+    const inv = (state.arcaInvoices || window.cachedInvoices || []).find(i => String(i.sale_id) === String(saleIdOrObject) || String(i.invoice_number) === String(saleIdOrObject));
+    if (inv) {
+      sale = {
+        id: inv.sale_id,
+        arca_invoice_id: inv.invoice_number,
+        arca_cae: inv.cae,
+        arca_cae_due: inv.cae_due,
+        total: inv.total,
+        date: inv.date,
+        client_cuit: inv.client_cuit,
+        client_name: inv.client_name,
+        client_razon_social: inv.client_name,
+        client_condicion_iva: inv.client_condicion_iva || inv.client_iva_condition,
+        method: "Contado",
+        items: []
+      };
+    }
+  }
+
+  if (!sale) {
+    showToast("Venta no encontrada para generar Factura A4", true);
+    return;
+  }
+
+  const clientName = sale.client_razon_social || sale.client_name || "Cliente";
+  const rawInvoiceId = sale.arca_invoice_id || sale.invoice_number || "00000001";
+  const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : String(rawInvoiceId).padStart(8, '0');
+
   const pdfContainer = document.createElement("div");
-  pdfContainer.style.padding = "25px 30px";
-  pdfContainer.style.fontFamily = "Arial, sans-serif";
+  pdfContainer.style.position = "fixed";
+  pdfContainer.style.left = "0";
+  pdfContainer.style.top = "0";
+  pdfContainer.style.zIndex = "-99999";
+  pdfContainer.style.width = "210mm";
+  pdfContainer.style.padding = "20px 25px";
+  pdfContainer.style.fontFamily = "Arial, Helvetica, sans-serif";
   pdfContainer.style.color = "#000000";
   pdfContainer.style.backgroundColor = "#ffffff";
   pdfContainer.style.boxSizing = "border-box";
   pdfContainer.style.fontSize = "11px";
   pdfContainer.style.lineHeight = "1.35";
 
-  const logoHtml = state.userProfile?.logoBase64 
-    ? `<img src="${state.userProfile.logoBase64}" style="max-height: 50px; max-width: 140px; object-fit: contain;">` 
-    : `<h2 style="margin:0; font-size: 20px; font-weight: bold;">${tradeName}</h2>`;
+  pdfContainer.innerHTML = getFacturaA4HTML(sale);
+  document.body.appendChild(pdfContainer);
 
-  pdfContainer.innerHTML = `
-    <!-- Top Bordered Header -->
-    <div style="border: 1px solid #000; position: relative; padding: 10px 12px; margin-bottom: 0;">
-      <!-- Title Original -->
-      <div style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;">ORIGINAL</div>
-      <div style="border-top: 1px solid #000; margin: 0 -12px 10px -12px;"></div>
-
-      <!-- Center Box C -->
-      <div style="position: absolute; top: 26px; left: 50%; transform: translateX(-50%); border: 1px solid #000; background: #fff; width: 55px; height: 50px; text-align: center; z-index: 10;">
-        <span style="font-size: 24px; font-weight: bold; display: block; line-height: 1;">C</span>
-        <span style="font-size: 8px; font-weight: bold; display: block; margin-top: 2px;">COD. 011</span>
-      </div>
-
-      <!-- Two Columns Header -->
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <!-- Left Side: Emisor -->
-        <div style="width: 48%; padding-right: 15px;">
-          <div style="margin-bottom: 8px;">${logoHtml}</div>
-          <p style="margin: 2px 0;"><strong>Razón Social:</strong> ${businessName}</p>
-          <p style="margin: 2px 0;"><strong>Domicilio Comercial:</strong> ${rawAddress}</p>
-          <p style="margin: 2px 0;"><strong>Condición frente al IVA:</strong> ${condicionEmisor}</p>
-        </div>
-
-        <div style="border-left: 1px solid #000; height: 95px; position: absolute; left: 50%; top: 26px;"></div>
-
-        <!-- Right Side: Voucher Info -->
-        <div style="width: 48%; padding-left: 20px;">
-          <h1 style="font-size: 22px; font-weight: bold; margin: 0 0 8px 0; letter-spacing: 1px;">FACTURA</h1>
-          <p style="margin: 2px 0;"><strong>Punto de Venta:</strong> ${posNum} &nbsp;&nbsp;&nbsp; <strong>Comp. Nro:</strong> ${formattedInvoiceNum}</p>
-          <p style="margin: 2px 0;"><strong>Fecha de Emisión:</strong> ${dateStr}</p>
-          <p style="margin: 2px 0;"><strong>CUIT:</strong> ${cuit}</p>
-          <p style="margin: 2px 0;"><strong>Ingresos Brutos:</strong> ${iibb}</p>
-          <p style="margin: 2px 0;"><strong>Fecha de Inicio de Actividades:</strong> ${incioAct}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Client Box -->
-    <div style="border: 1px solid #000; border-top: none; padding: 8px 12px; margin-bottom: 12px;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-        <div style="width: 45%;"><strong>CUIT:</strong> ${clientCuit || '---'}</div>
-        <div style="width: 55%;"><strong>Apellido y Nombre / Razón Social:</strong> ${clientName}</div>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-        <div style="width: 45%;"><strong>Condición frente al IVA:</strong> ${clientCondicionIva}</div>
-        <div style="width: 55%;"><strong>Domicilio:</strong> ${clientAddress || '---'}</div>
-      </div>
-      <div>
-        <strong>Condición de venta:</strong> ${condicionVenta}
-      </div>
-    </div>
-
-    <!-- Items Table -->
-    <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 15px;">
-      <thead>
-        <tr style="background-color: #e2e8f0; border-bottom: 1px solid #000;">
-          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 10px;">Código</th>
-          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 10px;">Producto / Servicio</th>
-          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 10px;">Cantidad</th>
-          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 10px;">U. Medida</th>
-          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">Precio Unit.</th>
-          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">% Bonif</th>
-          <th style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 10px;">Imp. Bonif.</th>
-          <th style="padding: 6px 8px; text-align: right; font-size: 10px;">Subtotal</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${(sale.items || []).map(it => {
-          const skuStr = it.product?.sku || it.sku || "PROD";
-          const rawName = it.custom_name || it.product?.name || it.name || "Producto";
-          const nameStr = it.custom_name ? it.custom_name : cleanFacturaItemName(rawName);
-          const qty = it.quantity || it.qty || 1;
-          const price = it.price || (it.product ? it.product.price_local : 0);
-          const subtotalItem = price * qty;
-          const sizeStr = (!it.custom_name && it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") ? ` (Talle ${it.size})` : "";
-          return `
-            <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">${skuStr}</td>
-              <td style="border-right: 1px solid #000; padding: 6px 8px;">${nameStr}${sizeStr}</td>
-              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">${qty.toFixed(2)}</td>
-              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
-              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">${price.toFixed(2)}</td>
-              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
-              <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
-              <td style="padding: 6px 8px; text-align: right; font-weight: bold;">${subtotalItem.toFixed(2)}</td>
-            </tr>
-          `;
-        }).join("")}
-      </tbody>
-    </table>
-
-    <!-- Totals Box -->
-    <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-      <div style="border: 1px solid #000; width: 280px; padding: 8px 12px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; font-weight: bold;">
-          <span>Subtotal: $</span>
-          <span>${sale.total.toFixed(2)}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px;">
-          <span>Importe Otros Tributos: $</span>
-          <span>0,00</span>
-        </div>
-        <div style="border-top: 1px solid #000; margin: 4px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 900;">
-          <span>Importe Total: $</span>
-          <span>${sale.total.toFixed(2)}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- AFIP Footer Box -->
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; padding-top: 5px;">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        ${qrImgHtml}
-        <div>
-          <div style="font-size: 15px; font-weight: 900; letter-spacing: 1px; color: #000;">ARCA</div>
-          <div style="font-size: 7px; text-transform: uppercase; color: #444; margin-bottom: 4px;">AGENCIA DE RECAUDACIÓN Y CONTROL ADUANERO</div>
-          <div style="font-size: 11px; font-weight: bold; font-style: italic;">Comprobante Autorizado</div>
-          <div style="font-size: 7.5px; color: #555; margin-top: 2px;">Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación</div>
-        </div>
-      </div>
-
-      <div style="text-align: right;">
-        <div style="font-size: 10px; color: #666; margin-bottom: 6px;">Pág. 1/1</div>
-        <div style="font-size: 12px; font-weight: bold;">CAE N°: &nbsp; ${cae}</div>
-        <div style="font-size: 11px; margin-top: 3px;">Fecha de Vto. de CAE: &nbsp; ${caeDue}</div>
-      </div>
-    </div>
-  `;
-
-  if (window.html2pdf) {
-    const opt = {
-      margin:       [6, 6, 6, 6],
-      filename:     `Factura_C_${posNum}_${formattedInvoiceNum}_${clientName.replace(/\s+/g, '_')}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    try {
-      showToast("Generando Factura C A4 PDF...");
+  try {
+    if (window.html2pdf) {
+      const opt = {
+        margin:       [8, 8, 8, 8],
+        filename:     `Factura_${formattedInvoiceNum}_${clientName.replace(/\s+/g, '_')}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      showToast("Generando Factura A4 en PDF...");
       await html2pdf().set(opt).from(pdfContainer).save();
-    } catch (e) {
-      console.error("Error html2pdf Factura C:", e);
+      showToast("¡Factura A4 descargada con éxito!");
+    } else {
+      printInvoiceA4(sale);
     }
+  } catch (e) {
+    console.error("Error html2pdf Factura A4:", e);
+    showToast("Error al generar Factura A4 PDF", true);
+  } finally {
+    pdfContainer.remove();
   }
 }
 window.downloadFacturaCA4PDF = downloadFacturaCA4PDF;
@@ -4889,8 +5062,31 @@ function getInvoiceTicketInnerHTML(sale) {
   }
 }
 
-function printSaleTicket(saleId) {
-  const sale = state.sales.find(s => s.id === saleId);
+function printSaleTicket(saleIdOrObject) {
+  let sale = typeof saleIdOrObject === "object" ? saleIdOrObject : null;
+  if (!sale) {
+    sale = (state.sales || []).find(s => String(s.id) === String(saleIdOrObject) || String(s.id).endsWith(String(saleIdOrObject)) || String(s.arca_invoice_id) === String(saleIdOrObject));
+  }
+  if (!sale) {
+    const inv = (state.arcaInvoices || window.cachedInvoices || []).find(i => String(i.sale_id) === String(saleIdOrObject) || String(i.invoice_number) === String(saleIdOrObject));
+    if (inv) {
+      sale = {
+        id: inv.sale_id,
+        arca_invoice_id: inv.invoice_number,
+        arca_cae: inv.cae,
+        arca_cae_due: inv.cae_due,
+        total: inv.total,
+        date: inv.date,
+        client_cuit: inv.client_cuit,
+        client_name: inv.client_name,
+        client_razon_social: inv.client_name,
+        client_condicion_iva: inv.client_condicion_iva || inv.client_iva_condition,
+        method: "Contado",
+        items: []
+      };
+    }
+  }
+
   if (!sale) {
     showToast("Venta no encontrada para imprimir", true);
     return;
@@ -4952,18 +5148,98 @@ function printSaleTicket(saleId) {
     showToast("Permiso de ventanas emergentes bloqueado. Por favor, habilítelo para poder imprimir.", true);
   }
 }
+window.printSaleTicket = printSaleTicket;
 
-async function downloadInvoicePDF(saleId) {
-  const sale = state.sales.find(s => s.id === saleId);
+function printSmartInvoiceOrTicket(saleIdOrObject) {
+  let sale = typeof saleIdOrObject === "object" ? saleIdOrObject : null;
+  if (!sale) {
+    sale = (state.sales || []).find(s => String(s.id) === String(saleIdOrObject) || String(s.id).endsWith(String(saleIdOrObject)) || String(s.arca_invoice_id) === String(saleIdOrObject));
+  }
+  if (!sale) {
+    const inv = (state.arcaInvoices || window.cachedInvoices || []).find(i => String(i.sale_id) === String(saleIdOrObject) || String(i.invoice_number) === String(saleIdOrObject));
+    if (inv) {
+      sale = {
+        id: inv.sale_id,
+        arca_invoice_id: inv.invoice_number,
+        arca_cae: inv.cae,
+        arca_cae_due: inv.cae_due,
+        total: inv.total,
+        date: inv.date,
+        client_cuit: inv.client_cuit,
+        client_name: inv.client_name,
+        client_razon_social: inv.client_name,
+        client_condicion_iva: inv.client_condicion_iva || inv.client_iva_condition,
+        method: "Contado",
+        items: []
+      };
+    }
+  }
+
+  if (!sale) {
+    showToast("Comprobante no encontrado para imprimir", true);
+    return;
+  }
+
+  const condIva = String(sale.client_condicion_iva || sale.client_iva_condition || sale.client_iva || "CONSUMIDOR FINAL").toUpperCase();
+  const isCF = condIva.includes("CONSUMIDOR") || (!sale.client_cuit || sale.client_cuit === "20-99999999-9" || sale.client_cuit === "20999999999");
+
+  // Si es consumidor final: emitir ticket
+  // Si es responsable inscripto, monotributo, exento, etc.: emitir factura profesional tamaño A4
+  if (isCF) {
+    printSaleTicket(sale);
+  } else {
+    printInvoiceA4(sale);
+  }
+}
+window.printSmartInvoiceOrTicket = printSmartInvoiceOrTicket;
+
+async function downloadInvoicePDF(saleIdOrObject) {
+  let sale = typeof saleIdOrObject === "object" ? saleIdOrObject : null;
+  if (!sale) {
+    sale = (state.sales || []).find(s => String(s.id) === String(saleIdOrObject) || String(s.id).endsWith(String(saleIdOrObject)) || String(s.arca_invoice_id) === String(saleIdOrObject));
+  }
+  if (!sale) {
+    const inv = (state.arcaInvoices || window.cachedInvoices || []).find(i => String(i.sale_id) === String(saleIdOrObject) || String(i.invoice_number) === String(saleIdOrObject));
+    if (inv) {
+      sale = {
+        id: inv.sale_id,
+        arca_invoice_id: inv.invoice_number,
+        arca_cae: inv.cae,
+        arca_cae_due: inv.cae_due,
+        total: inv.total,
+        date: inv.date,
+        client_cuit: inv.client_cuit,
+        client_name: inv.client_name,
+        client_razon_social: inv.client_name,
+        client_condicion_iva: inv.client_condicion_iva || inv.client_iva_condition,
+        method: "Contado",
+        items: []
+      };
+    }
+  }
+
   if (!sale) {
     showToast("Venta no encontrada para descargar PDF", true);
     return;
   }
 
-  showToast("Generando y descargando PDF de la factura...");
+  const condIva = String(sale.client_condicion_iva || sale.client_iva_condition || sale.client_iva || "CONSUMIDOR FINAL").toUpperCase();
+  const isCF = condIva.includes("CONSUMIDOR") || (!sale.client_cuit || sale.client_cuit === "20-99999999-9" || sale.client_cuit === "20999999999");
 
-  // Contenedor standalone (NO acoplado al DOM para evitar interferencias y recortes)
+  // Si es Responsable Inscripto, Monotributo, Exento, etc. -> Descargar Factura A4 Profesional
+  if (!isCF) {
+    await downloadFacturaCA4PDF(sale);
+    return;
+  }
+
+  // Si es Consumidor Final -> Descargar Ticket de venta en PDF
+  showToast("Generando y descargando PDF...");
+
   const pdfContainer = document.createElement("div");
+  pdfContainer.style.position = "fixed";
+  pdfContainer.style.left = "0";
+  pdfContainer.style.top = "0";
+  pdfContainer.style.zIndex = "-99999";
   pdfContainer.style.width = "140mm";
   pdfContainer.style.margin = "0 auto";
   pdfContainer.style.padding = "20px";
@@ -5003,10 +5279,12 @@ async function downloadInvoicePDF(saleId) {
     </div>
   `;
 
+  document.body.appendChild(pdfContainer);
+
   const fileName = sale.arca_invoice_id ? `Factura_${sale.arca_invoice_id}.pdf` : `Comprobante_${sale.id}.pdf`;
 
   const opt = {
-    margin: [15, 15, 15, 15],
+    margin: [10, 10, 10, 10],
     filename: fileName,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
@@ -5018,11 +5296,13 @@ async function downloadInvoicePDF(saleId) {
       await html2pdf().set(opt).from(pdfContainer).save();
       showToast("¡PDF descargado con éxito!");
     } else {
-      printSaleTicket(saleId);
+      printSaleTicket(sale);
     }
   } catch (err) {
     console.error("Error al generar PDF:", err);
     showToast("Error al descargar PDF.", true);
+  } finally {
+    pdfContainer.remove();
   }
 }
 window.downloadInvoicePDF = downloadInvoicePDF;
@@ -12541,10 +12821,10 @@ async function loadArcaInvoices() {
           <!-- 10° Columna: Acciones (Imprimir + Descargar PDF) -->
           <td style="padding: 8px; text-align: center; white-space: nowrap;">
             <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
-              <button class="btn btn-secondary" onclick="printSaleTicket('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Imprimir Comprobante">
+              <button class="btn btn-secondary" onclick="printSmartInvoiceOrTicket('${inv.sale_id || inv.invoice_number}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Imprimir Comprobante">
                 <i class="fas fa-print" style="color: var(--accent-blue);"></i> Imprimir
               </button>
-              <button class="btn btn-secondary" onclick="downloadInvoicePDF('${inv.sale_id}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Descargar PDF">
+              <button class="btn btn-secondary" onclick="downloadInvoicePDF('${inv.sale_id || inv.invoice_number}')" style="padding: 4px 8px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); color: var(--text-white);" title="Descargar PDF">
                 <i class="fas fa-file-pdf" style="color: var(--accent-red);"></i> Descargar PDF
               </button>
             </div>

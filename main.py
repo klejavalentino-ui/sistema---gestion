@@ -2083,50 +2083,54 @@ def export_arca_excel_route():
         # =========================================================================
         ws3 = wb.create_sheet(title="Resumen y Métricas Fiscales")
         ws3.views.sheetView[0].showGridLines = True
+        subtitle_font = Font(name="Calibri", size=10, italic=True, color="64748B")
+        
         ws3.cell(row=1, column=1, value="RESUMEN Y MÉTRICAS FISCALES PARA CONTABILIDAD").font = title_font
-        ws3.row_dimensions[1].height = 30
+        ws3.cell(row=2, column=1, value="Período: Últimos 12 meses (datos consolidados y sincronizados con ARCA)").font = subtitle_font
+        ws3.row_dimensions[1].height = 24
+        ws3.row_dimensions[2].height = 18
 
-        ws3.cell(row=3, column=1, value="Métrica General").font = header_font
-        ws3.cell(row=3, column=1).fill = header_fill
-        ws3.cell(row=3, column=2, value="Monto ($) / Cantidad").font = header_font
-        ws3.cell(row=3, column=2).fill = header_fill
+        ws3.cell(row=4, column=1, value="Métrica General").font = header_font
+        ws3.cell(row=4, column=1).fill = header_fill
+        ws3.cell(row=4, column=2, value="Monto ($) / Cantidad").font = header_font
+        ws3.cell(row=4, column=2).fill = header_fill
 
         # Definir Fórmulas Dinámicas de Excel
-        c1 = ws3.cell(row=4, column=1, value="Total Facturado con ARCA")
-        c2 = ws3.cell(row=4, column=2, value=f"=SUM('Comprobantes Emitidos'!G4:G{last_inv_row})" if invoices else 0)
+        c1 = ws3.cell(row=5, column=1, value="Total Facturado con ARCA")
+        c2 = ws3.cell(row=5, column=2, value=f"=SUM('Comprobantes Emitidos'!G4:G{last_inv_row})" if invoices else 0)
         c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
         c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
 
-        c1 = ws3.cell(row=5, column=1, value="Total Pendiente de Facturar")
-        c2 = ws3.cell(row=5, column=2, value=f"=SUM('No Facturadas'!B4:B{last_uninvoiced_row})" if uninvoiced_sales else 0)
+        c1 = ws3.cell(row=6, column=1, value="Total Pendiente de Facturar")
+        c2 = ws3.cell(row=6, column=2, value=f"=SUM('No Facturadas'!B4:B{last_uninvoiced_row})" if uninvoiced_sales else 0)
         c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
         c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
 
-        c1 = ws3.cell(row=6, column=1, value="Total General de Ventas Registradas")
-        c2 = ws3.cell(row=6, column=2, value="=SUM(B4:B5)")
+        c1 = ws3.cell(row=7, column=1, value="Total General de Ventas Registradas")
+        c2 = ws3.cell(row=7, column=2, value="=SUM(B5:B6)")
         c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
         c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
 
-        c1 = ws3.cell(row=7, column=1, value="Porcentaje Facturado")
-        c2 = ws3.cell(row=7, column=2, value="=IF(B6>0, B4/B6, 0)")
+        c1 = ws3.cell(row=8, column=1, value="Porcentaje Facturado")
+        c2 = ws3.cell(row=8, column=2, value="=IF(B7>0, B5/B7, 0)")
         c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
         c2.number_format = "0.0%"; c2.alignment = Alignment(horizontal="right")
 
-        c1 = ws3.cell(row=8, column=1, value="Cantidad de Comprobantes Emitidos")
-        c2 = ws3.cell(row=8, column=2, value=f"=COUNTA('Comprobantes Emitidos'!A4:A{last_inv_row})" if invoices else 0)
+        c1 = ws3.cell(row=9, column=1, value="Cantidad de Comprobantes Emitidos")
+        c2 = ws3.cell(row=9, column=2, value=f"=COUNTA('Comprobantes Emitidos'!A4:A{last_inv_row})" if invoices else 0)
         c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
         c2.number_format = "#,##0"; c2.alignment = Alignment(horizontal="right")
 
-        c1 = ws3.cell(row=9, column=1, value="Cantidad de Ventas Pendientes")
-        c2 = ws3.cell(row=9, column=2, value=f"=COUNTA('No Facturadas'!A4:A{last_uninvoiced_row})" if uninvoiced_sales else 0)
+        c1 = ws3.cell(row=10, column=1, value="Cantidad de Ventas Pendientes")
+        c2 = ws3.cell(row=10, column=2, value=f"=COUNTA('No Facturadas'!A4:A{last_uninvoiced_row})" if uninvoiced_sales else 0)
         c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
         c2.number_format = "#,##0"; c2.alignment = Alignment(horizontal="right")
 
         # Desglose por Condición de IVA con SUMIF de Excel
-        ws3.cell(row=12, column=1, value="Desglose Facturado por Condición IVA").font = header_font
-        ws3.cell(row=12, column=1).fill = header_fill
-        ws3.cell(row=12, column=2, value="Monto Facturado ($)").font = header_font
-        ws3.cell(row=12, column=2).fill = header_fill
+        ws3.cell(row=13, column=1, value="Desglose Facturado por Condición IVA").font = header_font
+        ws3.cell(row=13, column=1).fill = header_fill
+        ws3.cell(row=13, column=2, value="Monto Facturado ($)").font = header_font
+        ws3.cell(row=13, column=2).fill = header_fill
 
         iva_categories = ["IVA Responsable Inscripto", "Responsable Monotributo", "Consumidor Final", "IVA Exento", "No Responsable IVA"]
         for inv in invoices:
@@ -2134,7 +2138,7 @@ def export_arca_excel_route():
             if cat not in iva_categories:
                 iva_categories.append(cat)
 
-        for idx, cat_name in enumerate(iva_categories, 13):
+        for idx, cat_name in enumerate(iva_categories, 14):
             c1 = ws3.cell(row=idx, column=1, value=cat_name)
             c2 = ws3.cell(row=idx, column=2, value=f"=SUMIF('Comprobantes Emitidos'!F4:F{last_inv_row}, A{idx}, 'Comprobantes Emitidos'!G4:G{last_inv_row})" if invoices else 0)
             c1.font = cell_font
@@ -2144,10 +2148,11 @@ def export_arca_excel_route():
             c2.number_format = "$#,##0"
             c2.alignment = Alignment(horizontal="right")
 
-        total_cat_row = 13 + len(iva_categories)
+        total_cat_row = 14 + len(iva_categories)
         c1 = ws3.cell(row=total_cat_row, column=1, value="Total Desglose IVA")
-        c2 = ws3.cell(row=total_cat_row, column=2, value=f"=SUM(B13:B{total_cat_row - 1})")
+        c2 = ws3.cell(row=total_cat_row, column=2, value=f"=SUM(B14:B{total_cat_row - 1})")
         c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
         c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
 
         for col in ws3.columns:
