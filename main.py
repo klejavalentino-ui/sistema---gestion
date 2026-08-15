@@ -1890,6 +1890,75 @@ def export_arca_excel_route():
         uninvoiced_sales = data.get("uninvoiced", [])
         invoices = data.get("invoices", [])
 
+        # Recuperar perfil y ventas si falta algún dato
+        all_sales = firebase_config.list_documents("sales", token) or []
+        profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
+        configured_channels = profile_doc.get("salesChannels") or profile_doc.get("locations") or []
+
+        # Si no llegaron ventas no facturadas desde el cliente, recuperarlas del servidor
+        if not uninvoiced_sales:
+            for s in all_sales:
+                doc_id = s.get("id", "")
+                if doc_id.startswith(prefix) and not s.get("arca_invoice_id"):
+                    uninvoiced_sales.append(s)
+
+        # Ordenar ventas pendientes SIEMPRE de lo MÁS RECIENTE a lo MÁS VIEJO (descendente)
+        uninvoiced_sales.sort(key=lambda s: str(s.get("date", "")), reverse=True)
+
+        # Si no llegaron facturas emitidas desde el cliente, recuperarlas del servidor
+        if not invoices:
+            invoice_docs = firebase_config.list_documents("invoices", token) or []
+            sales_by_inv_num = {}
+            sales_by_sale_id = {}
+            for s in all_sales:
+                doc_id = s.get("id", "")
+                if doc_id.startswith(prefix):
+                    clean_id = doc_id[len(prefix):]
+                    sales_by_sale_id[clean_id] = s
+                    if s.get("arca_invoice_id"):
+                        sales_by_inv_num[s.get("arca_invoice_id")] = s
+
+            existing_inv_nums = set()
+            for d in invoice_docs:
+                inv_num = d.get("invoice_number")
+                if inv_num:
+                    existing_inv_nums.add(inv_num)
+                sale_id = d.get("sale_id")
+                matching_sale = sales_by_inv_num.get(inv_num) or sales_by_sale_id.get(sale_id)
+                if matching_sale:
+                    sale_cond = matching_sale.get("client_condicion_iva") or matching_sale.get("client_iva") or matching_sale.get("client_iva_condition")
+                    if sale_cond and (not d.get("client_condicion_iva") or d.get("client_condicion_iva") == "Consumidor Final"):
+                        d["client_condicion_iva"] = sale_cond
+                    if matching_sale.get("client_cuit") and (not d.get("client_cuit") or d.get("client_cuit") == "20-99999999-9"):
+                        d["client_cuit"] = matching_sale.get("client_cuit")
+                    if not d.get("client_name"):
+                        d["client_name"] = matching_sale.get("client_razon_social") or matching_sale.get("client_name") or ""
+                invoices.append(d)
+
+            for s in all_sales:
+                doc_id = s.get("id", "")
+                if doc_id.startswith(prefix) and s.get("arca_invoice_id"):
+                    inv_num = s.get("arca_invoice_id")
+                    if inv_num not in existing_inv_nums:
+                        clean_id = doc_id[len(prefix):]
+                        invoices.append({
+                            "sale_id": clean_id,
+                            "type": s.get("arca_invoice_type", "Factura C"),
+                            "invoice_number": inv_num,
+                            "client_cuit": s.get("client_cuit", "20-99999999-9"),
+                            "client_name": s.get("client_razon_social") or s.get("client_name") or "",
+                            "client_condicion_iva": s.get("client_condicion_iva") or s.get("client_iva") or s.get("client_iva_condition") or "Consumidor Final",
+                            "total": safe_float(s.get("total", 0.0)),
+                            "cae": s.get("arca_cae", ""),
+                            "cae_due": s.get("arca_cae_due", ""),
+                            "status": "Aprobado",
+                            "date": s.get("date", "")
+                        })
+                        existing_inv_nums.add(inv_num)
+
+        # Ordenar facturas SIEMPRE de lo MÁS RECIENTE a lo MÁS VIEJO (descendente)
+        invoices.sort(key=lambda x: str(x.get("date", "")), reverse=True)
+
         wb = openpyxl.Workbook()
 
         header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
@@ -1904,11 +1973,13 @@ def export_arca_excel_route():
             bottom=Side(style='thin', color='CBD5E1')
         )
 
-        # HOJA 1: Ventas Recientes (No Facturadas)
+        # =========================================================================
+        # HOJA 1: Ventas Recientes (No Facturadas) - Orden de lo más nuevo a lo más viejo
+        # =========================================================================
         ws1 = wb.active
         ws1.title = "No Facturadas"
         ws1.views.sheetView[0].showGridLines = True
-        ws1.cell(row=1, column=1, value="VENTAS RECIENTES PENDIENTES DE FACTURAR (ARCA)").font = title_font
+        ws1.cell(row=1, column=1, value="VENTAS PENDIENTES DE FACTURAR (ARCA)").font = title_font
         ws1.row_dimensions[1].height = 30
 
         headers1 = ["Fecha", "Monto Total ($)", "Medio de Pago", "Canal de Venta", "Estado"]
@@ -1919,9 +1990,6 @@ def export_arca_excel_route():
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center" if col_num in [1, 3, 4, 5] else "right", vertical="center")
             cell.border = thin_border
-
-        profile_doc = firebase_config.get_document("products", f"{prefix}user_profile", token) or {}
-        configured_channels = profile_doc.get("salesChannels") or profile_doc.get("locations") or []
 
         for r_idx, s in enumerate(uninvoiced_sales, 4):
             ws1.row_dimensions[r_idx].height = 20
@@ -1940,7 +2008,7 @@ def export_arca_excel_route():
                 else:
                     channel = configured_channels[0]
             if not channel:
-                channel = "Canal Principal"
+                channel = "General"
 
             row_data = [f_date, total_val, method, channel, "Pendiente de Facturar"]
             for c_idx, val in enumerate(row_data, 1):
@@ -1953,12 +2021,16 @@ def export_arca_excel_route():
                 else:
                     cell.alignment = Alignment(horizontal="left" if c_idx in [1, 3, 4] else "center", vertical="center")
 
+        last_uninvoiced_row = 3 + len(uninvoiced_sales) if uninvoiced_sales else 4
+
         for col in ws1.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = get_column_letter(col[0].column)
             ws1.column_dimensions[col_letter].width = max(max_len + 4, 14)
 
-        # HOJA 2: Historial de Comprobantes Emitidos
+        # =========================================================================
+        # HOJA 2: Historial de Comprobantes Emitidos - Orden de lo más nuevo a lo más viejo
+        # =========================================================================
         ws2 = wb.create_sheet(title="Comprobantes Emitidos")
         ws2.views.sheetView[0].showGridLines = True
         ws2.cell(row=1, column=1, value="HISTORIAL DE COMPROBANTES ELECTRÓNICOS EMITIDOS (ARCA)").font = title_font
@@ -1979,14 +2051,16 @@ def export_arca_excel_route():
             f_sale = str(inv.get("sale_date") or inv.get("date", "")).split("T")[0]
             inv_type = str(inv.get("type", "Factura C"))
             inv_num = str(inv.get("invoice_number", "-"))
-            client_cuit = f"{inv.get('client_name', '')} ({inv.get('client_cuit', 'Consumidor Final')})".strip()
+            client_cuit_val = str(inv.get("client_cuit", "20-99999999-9")).strip()
+            client_name_val = str(inv.get("client_name", "")).strip()
+            client_display = f"{client_name_val} ({client_cuit_val})".strip() if client_name_val else client_cuit_val
             cond_iva = str(inv.get("client_condicion_iva") or inv.get("clientCondicionIva") or inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
             total_inv = float(inv.get("total", 0.0))
             cae = str(inv.get("cae", "-"))
             cae_due = str(inv.get("cae_due", "-"))
             status = str(inv.get("status", "Aprobado"))
 
-            row_data = [f_emit, f_sale, inv_type, inv_num, client_cuit, cond_iva, total_inv, cae, cae_due, status]
+            row_data = [f_emit, f_sale, inv_type, inv_num, client_display, cond_iva, total_inv, cae, cae_due, status]
             for c_idx, val in enumerate(row_data, 1):
                 cell = ws2.cell(row=r_idx, column=c_idx, value=val)
                 cell.font = cell_font
@@ -1997,62 +2071,72 @@ def export_arca_excel_route():
                 else:
                     cell.alignment = Alignment(horizontal="left" if c_idx in [4, 5, 6] else "center", vertical="center")
 
+        last_inv_row = 3 + len(invoices) if invoices else 4
+
         for col in ws2.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = get_column_letter(col[0].column)
             ws2.column_dimensions[col_letter].width = max(max_len + 4, 14)
 
-        # HOJA 3: Resumen & Métricas Fiscales
+        # =========================================================================
+        # HOJA 3: Resumen & Métricas Fiscales con FÓRMULAS VIVAS DE EXCEL
+        # =========================================================================
         ws3 = wb.create_sheet(title="Resumen y Métricas Fiscales")
         ws3.views.sheetView[0].showGridLines = True
         ws3.cell(row=1, column=1, value="RESUMEN Y MÉTRICAS FISCALES PARA CONTABILIDAD").font = title_font
         ws3.row_dimensions[1].height = 30
-
-        total_invoiced = sum(float(inv.get("total", 0.0)) for inv in invoices)
-        total_uninvoiced = sum(float(s.get("total", 0.0)) for s in uninvoiced_sales)
-        grand_total = total_invoiced + total_uninvoiced
 
         ws3.cell(row=3, column=1, value="Métrica General").font = header_font
         ws3.cell(row=3, column=1).fill = header_fill
         ws3.cell(row=3, column=2, value="Monto ($) / Cantidad").font = header_font
         ws3.cell(row=3, column=2).fill = header_fill
 
-        summary_rows = [
-            ("Total Facturado con ARCA", total_invoiced),
-            ("Total Pendiente de Facturar", total_uninvoiced),
-            ("Total General de Ventas Registradas", grand_total),
-            ("Porcentaje Facturado", f"{(total_invoiced / grand_total * 100):.1f}%" if grand_total > 0 else "0%"),
-            ("Cantidad de Comprobantes Emitidos", len(invoices)),
-            ("Cantidad de Ventas Pendientes", len(uninvoiced_sales))
-        ]
+        # Definir Fórmulas Dinámicas de Excel
+        c1 = ws3.cell(row=4, column=1, value="Total Facturado con ARCA")
+        c2 = ws3.cell(row=4, column=2, value=f"=SUM('Comprobantes Emitidos'!G4:G{last_inv_row})" if invoices else 0)
+        c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
 
-        for idx, (label, val) in enumerate(summary_rows, 4):
-            c1 = ws3.cell(row=idx, column=1, value=label)
-            c2 = ws3.cell(row=idx, column=2, value=val)
-            c1.font = bold_font
-            c2.font = bold_font
-            c1.border = thin_border
-            c2.border = thin_border
-            if isinstance(val, (int, float)):
-                c2.number_format = "$#,##0"
-                c2.alignment = Alignment(horizontal="right")
+        c1 = ws3.cell(row=5, column=1, value="Total Pendiente de Facturar")
+        c2 = ws3.cell(row=5, column=2, value=f"=SUM('No Facturadas'!B4:B{last_uninvoiced_row})" if uninvoiced_sales else 0)
+        c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
 
+        c1 = ws3.cell(row=6, column=1, value="Total General de Ventas Registradas")
+        c2 = ws3.cell(row=6, column=2, value="=SUM(B4:B5)")
+        c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
+
+        c1 = ws3.cell(row=7, column=1, value="Porcentaje Facturado")
+        c2 = ws3.cell(row=7, column=2, value="=IF(B6>0, B4/B6, 0)")
+        c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "0.0%"; c2.alignment = Alignment(horizontal="right")
+
+        c1 = ws3.cell(row=8, column=1, value="Cantidad de Comprobantes Emitidos")
+        c2 = ws3.cell(row=8, column=2, value=f"=COUNTA('Comprobantes Emitidos'!A4:A{last_inv_row})" if invoices else 0)
+        c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "#,##0"; c2.alignment = Alignment(horizontal="right")
+
+        c1 = ws3.cell(row=9, column=1, value="Cantidad de Ventas Pendientes")
+        c2 = ws3.cell(row=9, column=2, value=f"=COUNTA('No Facturadas'!A4:A{last_uninvoiced_row})" if uninvoiced_sales else 0)
+        c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "#,##0"; c2.alignment = Alignment(horizontal="right")
+
+        # Desglose por Condición de IVA con SUMIF de Excel
         ws3.cell(row=12, column=1, value="Desglose Facturado por Condición IVA").font = header_font
         ws3.cell(row=12, column=1).fill = header_fill
         ws3.cell(row=12, column=2, value="Monto Facturado ($)").font = header_font
         ws3.cell(row=12, column=2).fill = header_fill
 
-        iva_breakdown = {}
+        iva_categories = ["IVA Responsable Inscripto", "Responsable Monotributo", "Consumidor Final", "IVA Exento", "No Responsable IVA"]
         for inv in invoices:
-            c_iva = str(inv.get("client_condicion_iva") or inv.get("clientCondicionIva") or inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
-            iva_breakdown[c_iva] = iva_breakdown.get(c_iva, 0.0) + float(inv.get("total", 0.0))
+            cat = str(inv.get("client_condicion_iva") or inv.get("clientCondicionIva") or inv.get("client_iva_condition") or inv.get("iva_condition") or "Consumidor Final")
+            if cat not in iva_categories:
+                iva_categories.append(cat)
 
-        if not iva_breakdown:
-            iva_breakdown["Consumidor Final"] = 0.0
-
-        for idx, (c_iva, amt) in enumerate(iva_breakdown.items(), 13):
-            c1 = ws3.cell(row=idx, column=1, value=c_iva)
-            c2 = ws3.cell(row=idx, column=2, value=amt)
+        for idx, cat_name in enumerate(iva_categories, 13):
+            c1 = ws3.cell(row=idx, column=1, value=cat_name)
+            c2 = ws3.cell(row=idx, column=2, value=f"=SUMIF('Comprobantes Emitidos'!F4:F{last_inv_row}, A{idx}, 'Comprobantes Emitidos'!G4:G{last_inv_row})" if invoices else 0)
             c1.font = cell_font
             c2.font = cell_font
             c1.border = thin_border
@@ -2060,10 +2144,16 @@ def export_arca_excel_route():
             c2.number_format = "$#,##0"
             c2.alignment = Alignment(horizontal="right")
 
+        total_cat_row = 13 + len(iva_categories)
+        c1 = ws3.cell(row=total_cat_row, column=1, value="Total Desglose IVA")
+        c2 = ws3.cell(row=total_cat_row, column=2, value=f"=SUM(B13:B{total_cat_row - 1})")
+        c1.font = bold_font; c2.font = bold_font; c1.border = thin_border; c2.border = thin_border
+        c2.number_format = "$#,##0"; c2.alignment = Alignment(horizontal="right")
+
         for col in ws3.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = get_column_letter(col[0].column)
-            ws3.column_dimensions[col_letter].width = max(max_len + 6, 20)
+            ws3.column_dimensions[col_letter].width = max(max_len + 6, 22)
 
         output = io.BytesIO()
         wb.save(output)
@@ -2076,6 +2166,8 @@ def export_arca_excel_route():
             download_name=f"Reporte_Fiscal_ARCA_{time.strftime('%Y%m%d')}.xlsx"
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Error al generar Excel de ARCA: {str(e)}"}), 500
 
 @app.route("/api/export-inventory-excel", methods=["POST"])

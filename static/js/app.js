@@ -12453,6 +12453,8 @@ window.renderIvaBadge = renderIvaBadge;
 async function loadArcaInvoices() {
   try {
     const invoices = await apiRequest("/api/invoices");
+    state.arcaInvoices = invoices || [];
+    window.cachedInvoices = invoices || [];
     const tbody = document.getElementById("arca-invoices-log");
     if (!tbody) return invoices || [];
     
@@ -12465,9 +12467,10 @@ async function loadArcaInvoices() {
       return [];
     }
     
-    // Ordenar facturas por fecha descendente
+    // Ordenar facturas por fecha descendente (de más nuevo a más viejo)
     invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
     window.cachedInvoices = invoices;
+    state.arcaInvoices = invoices;
     
     tbody.innerHTML = invoices.map(inv => {
       const formattedDate = new Date(inv.date).toLocaleDateString("es-AR", {
@@ -12592,7 +12595,7 @@ const DISTINCT_PALETTES = [
 ];
 
 function resolveSaleChannel(sale, customConfigured = null) {
-  if (!sale) return "Canal Principal";
+  if (!sale) return "General";
   const configuredChannels = customConfigured || (
     (state.userProfile?.salesChannels && state.userProfile.salesChannels.length > 0)
       ? state.userProfile.salesChannels
@@ -12602,7 +12605,7 @@ function resolveSaleChannel(sale, customConfigured = null) {
   const raw = (sale.canal_venta || sale.canalVenta || sale.channel || sale.sales_channel || sale.location || sale.ubicacion || "").trim();
 
   if (!configuredChannels || configuredChannels.length === 0) {
-    return raw || "Canal Principal";
+    return raw || "General";
   }
 
   // Exact or case-insensitive match against user's configured channels
@@ -12721,7 +12724,11 @@ async function exportArcaExcel() {
       ? state.userProfile.salesChannels
       : (state.userProfile?.locations || []);
 
-    const uninvoiced = state.sales.filter(s => !s.arca_invoice_id).map(sale => {
+    // 1. Obtener y ordenar ventas no facturadas de MÁS NUEVO a MÁS VIEJO
+    let rawUninvoiced = (state.sales || []).filter(s => !s.arca_invoice_id);
+    rawUninvoiced.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const uninvoiced = rawUninvoiced.map(sale => {
       const channelName = resolveSaleChannel(sale, configuredChannels);
       return {
         ...sale,
@@ -12731,7 +12738,20 @@ async function exportArcaExcel() {
       };
     });
 
-    const invoices = (state.arcaInvoices || window.cachedInvoices || []).map(inv => {
+    // 2. Obtener facturas emitidas (si aún no se cargaron, pedirlas al backend)
+    let rawInvoices = state.arcaInvoices || window.cachedInvoices;
+    if (!rawInvoices || rawInvoices.length === 0) {
+      try {
+        rawInvoices = await apiRequest("/api/invoices");
+        state.arcaInvoices = rawInvoices || [];
+        window.cachedInvoices = rawInvoices || [];
+      } catch (e) {
+        console.warn("No se pudieron cargar facturas previas:", e);
+      }
+    }
+    rawInvoices = rawInvoices || [];
+
+    const invoices = rawInvoices.map(inv => {
       const cleanInvNum = String(inv.invoice_number || "").trim();
       const matchingSale = (state.sales || []).find(s => {
         if (inv.sale_id && (String(s.id) === String(inv.sale_id) || String(s.id).endsWith(String(inv.sale_id)))) return true;
@@ -12750,6 +12770,8 @@ async function exportArcaExcel() {
         client_name: clientName
       };
     });
+    // Ordenar facturas de MÁS NUEVO a MÁS VIEJO
+    invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const response = await fetch("/api/export-arca-excel", {
       method: "POST",
