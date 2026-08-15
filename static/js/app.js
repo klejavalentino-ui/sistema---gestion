@@ -4438,33 +4438,47 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
   const rawInvoiceId = sale.arca_invoice_id || sale.invoice_number || "00000001";
   const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : String(rawInvoiceId).padStart(8, '0');
 
-  const pdfContainer = document.createElement("div");
-  pdfContainer.style.position = "fixed";
-  pdfContainer.style.left = "0";
-  pdfContainer.style.top = "0";
-  pdfContainer.style.zIndex = "-99999";
-  pdfContainer.style.width = "210mm";
-  pdfContainer.style.padding = "20px 25px";
-  pdfContainer.style.fontFamily = "Arial, Helvetica, sans-serif";
-  pdfContainer.style.color = "#000000";
-  pdfContainer.style.backgroundColor = "#ffffff";
-  pdfContainer.style.boxSizing = "border-box";
-  pdfContainer.style.fontSize = "11px";
-  pdfContainer.style.lineHeight = "1.35";
+  showToast("Generando Factura A4 en PDF...");
 
-  pdfContainer.innerHTML = getFacturaA4HTML(sale);
+  const pdfContainer = document.createElement("div");
+  pdfContainer.id = "temp-a4-pdf-render";
+  pdfContainer.style.cssText = "position: absolute; left: 0; top: 0; width: 794px; background: #ffffff !important; color: #000000 !important; z-index: 9999999; box-sizing: border-box; padding: 25px 30px; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.35;";
+
+  pdfContainer.innerHTML = `
+    <style>
+      #temp-a4-pdf-render * {
+        color: #000000 !important;
+        box-sizing: border-box;
+      }
+      #temp-a4-pdf-render table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+    </style>
+    ${getFacturaA4HTML(sale)}
+  `;
   document.body.appendChild(pdfContainer);
 
   try {
+    await new Promise(resolve => setTimeout(resolve, 250));
+
     if (window.html2pdf) {
       const opt = {
-        margin:       [8, 8, 8, 8],
+        margin:       [6, 6, 6, 6],
         filename:     `Factura_${formattedInvoiceNum}_${clientName.replace(/\s+/g, '_')}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        html2canvas:  { 
+          scale: 2, 
+          useCORS: true, 
+          allowTaint: true, 
+          scrollY: 0, 
+          scrollX: 0, 
+          windowWidth: 794,
+          backgroundColor: '#ffffff', 
+          logging: false 
+        },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
-      showToast("Generando Factura A4 en PDF...");
       await html2pdf().set(opt).from(pdfContainer).save();
       showToast("¡Factura A4 descargada con éxito!");
     } else {
@@ -4472,7 +4486,7 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
     }
   } catch (e) {
     console.error("Error html2pdf Factura A4:", e);
-    showToast("Error al generar Factura A4 PDF", true);
+    printInvoiceA4(sale);
   } finally {
     pdfContainer.remove();
   }
@@ -5236,45 +5250,31 @@ async function downloadInvoicePDF(saleIdOrObject) {
   showToast("Generando y descargando PDF...");
 
   const pdfContainer = document.createElement("div");
-  pdfContainer.style.position = "fixed";
-  pdfContainer.style.left = "0";
-  pdfContainer.style.top = "0";
-  pdfContainer.style.zIndex = "-99999";
-  pdfContainer.style.width = "140mm";
-  pdfContainer.style.margin = "0 auto";
-  pdfContainer.style.padding = "20px";
-  pdfContainer.style.background = "#ffffff";
-  pdfContainer.style.color = "#000000";
-  pdfContainer.style.fontFamily = "'Courier New', Courier, monospace";
-  pdfContainer.style.boxSizing = "border-box";
+  pdfContainer.id = "temp-ticket-pdf-render";
+  pdfContainer.style.cssText = "position: absolute; left: 0; top: 0; width: 420px; background: #ffffff !important; color: #000000 !important; z-index: 9999999; box-sizing: border-box; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.3;";
 
   pdfContainer.innerHTML = `
     <style>
-      .pdf-wrapper {
-        color: #000000 !important;
-        background-color: #ffffff !important;
-        font-family: 'Courier New', Courier, monospace !important;
-        width: 100% !important;
-      }
-      .pdf-wrapper * {
+      #temp-ticket-pdf-render * {
         color: #000000 !important;
         background-color: transparent !important;
         border-color: #000000 !important;
+        box-sizing: border-box;
       }
-      .pdf-wrapper table {
+      #temp-ticket-pdf-render table {
         width: 100% !important;
         border-collapse: collapse !important;
       }
-      .pdf-wrapper th {
+      #temp-ticket-pdf-render th {
         border-bottom: 1px dashed #000000 !important;
         padding: 4px 2px !important;
         font-weight: bold !important;
       }
-      .pdf-wrapper td {
+      #temp-ticket-pdf-render td {
         padding: 4px 2px !important;
       }
     </style>
-    <div class="pdf-wrapper">
+    <div style="width: 100%; background: #ffffff; color: #000000;">
       ${getInvoiceTicketInnerHTML(sale)}
     </div>
   `;
@@ -5284,14 +5284,24 @@ async function downloadInvoicePDF(saleIdOrObject) {
   const fileName = sale.arca_invoice_id ? `Factura_${sale.arca_invoice_id}.pdf` : `Comprobante_${sale.id}.pdf`;
 
   const opt = {
-    margin: [10, 10, 10, 10],
+    margin: [6, 6, 6, 6],
     filename: fileName,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+    html2canvas: { 
+      scale: 2, 
+      useCORS: true, 
+      allowTaint: true, 
+      scrollY: 0, 
+      scrollX: 0, 
+      windowWidth: 420,
+      backgroundColor: '#ffffff', 
+      logging: false 
+    },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
   try {
+    await new Promise(resolve => setTimeout(resolve, 250));
     if (typeof html2pdf !== 'undefined') {
       await html2pdf().set(opt).from(pdfContainer).save();
       showToast("¡PDF descargado con éxito!");
@@ -5300,7 +5310,7 @@ async function downloadInvoicePDF(saleIdOrObject) {
     }
   } catch (err) {
     console.error("Error al generar PDF:", err);
-    showToast("Error al descargar PDF.", true);
+    printSaleTicket(sale);
   } finally {
     pdfContainer.remove();
   }
