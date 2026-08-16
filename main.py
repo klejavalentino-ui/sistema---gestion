@@ -3913,6 +3913,21 @@ def sync_tiendanube_catalog_route():
             import re
             return re.sub(r'\s+', ' ', s)
 
+        def is_production_product(d):
+            if not d:
+                return False
+            cat = str(d.get("category", "")).strip().lower()
+            cat_norm = normalize_text_key(cat)
+            if cat_norm.startswith("producc"):
+                return True
+            name = str(d.get("name", "")).strip().lower()
+            if name.startswith("p.") or name.startswith("p "):
+                return True
+            sku = str(d.get("sku", "") or d.get("id", "")).strip().lower()
+            if sku.startswith("p.") or sku.startswith("p-"):
+                return True
+            return False
+
         def get_doc_full_name(d):
             name = (d.get("name") or "").strip()
             color = (d.get("color") or "").strip()
@@ -3921,9 +3936,11 @@ def sync_tiendanube_catalog_route():
                     return f"{name} {color}".strip()
             return name.strip()
 
-        existing_by_name = {}      # norm_name -> list of docs
-        existing_by_base_sku = {}  # base_sku -> list of docs
-        existing_by_sku = {}       # clean_sku -> list of docs
+        existing_by_name = {}          # norm_name -> list of docs
+        existing_by_base_sku = {}      # base_sku -> list of docs
+        existing_by_sku = {}           # clean_sku -> list of docs
+        existing_by_tn_prod_id = {}    # str(tn_prod_id) -> list of docs
+        existing_by_tn_var_id = {}     # str(tn_var_id) -> list of docs
         all_existing_skus = set()
         system_products = []
 
@@ -3940,13 +3957,30 @@ def sync_tiendanube_catalog_route():
                                  ])
 
             if not is_system_meta_doc:
-                clean_sku = doc_id[len(prefix):].upper()
-                base_sku = (d.get("baseSku") or clean_sku.split("-")[0]).upper()
+                clean_sku = doc_id[len(prefix):].upper().strip()
+                base_sku = (d.get("baseSku") or clean_sku.split("-")[0]).upper().strip()
                 all_existing_skus.add(clean_sku)
                 all_existing_skus.add(base_sku)
 
                 existing_by_sku.setdefault(clean_sku, []).append(d)
                 existing_by_base_sku.setdefault(base_sku, []).append(d)
+
+                # Index by tiendanube IDs
+                tn_pid = d.get("tiendanube_product_id")
+                if tn_pid:
+                    existing_by_tn_prod_id.setdefault(str(tn_pid).strip(), []).append(d)
+                
+                tn_vid = d.get("tiendanube_variant_id")
+                if tn_vid:
+                    existing_by_tn_var_id.setdefault(str(tn_vid).strip(), []).append(d)
+                
+                # Also if baseSku or clean_sku is a pure number or TN + number (e.g. 342821116)
+                if base_sku.startswith("TN"):
+                    num_part = base_sku[2:]
+                    if num_part:
+                        existing_by_tn_prod_id.setdefault(num_part, []).append(d)
+                elif base_sku.isdigit():
+                    existing_by_tn_prod_id.setdefault(base_sku, []).append(d)
 
                 full_p_name = get_doc_full_name(d)
                 norm_name = normalize_text_key(full_p_name)
@@ -3971,6 +4005,7 @@ def sync_tiendanube_catalog_route():
 
         for tn_prod in all_tn_products:
             p_id = tn_prod.get("id")
+            p_id_str = str(p_id).strip() if p_id else ""
             p_name_dict = tn_prod.get("name", {})
             p_name = p_name_dict.get("es", p_name_dict.get("en", next(iter(p_name_dict.values())) if p_name_dict.values() else "Sin Nombre"))
             attributes = tn_prod.get("attributes", [])
@@ -3989,6 +4024,7 @@ def sync_tiendanube_catalog_route():
 
             for variant in tn_prod.get("variants", []):
                 v_id = variant.get("id")
+                v_id_str = str(v_id).strip() if v_id else ""
                 raw_price = safe_float(variant.get("price"))
                 promo_price = safe_float(variant.get("promotional_price"))
                 # Si en Tiendanube hay un precio promocional/descuento activo (> 0 y menor que el regular), se toma ese precio. De lo contrario, el precio regular.
@@ -4031,12 +4067,24 @@ def sync_tiendanube_catalog_route():
                 norm_tn_name = normalize_text_key(tn_full_name)
                 norm_clean_name = normalize_text_key(clean_name)
 
-                # Matching check: Find ALL existing size variants for this model
-                matched_docs = existing_by_name.get(norm_tn_name) or existing_by_name.get(norm_clean_name) or []
-                if not matched_docs and variant.get("sku"):
-                    raw_sku = str(variant.get("sku")).strip().upper()
-                    base_sku_raw = raw_sku.split("-")[0]
-                    matched_docs = existing_by_sku.get(raw_sku) or existing_by_base_sku.get(base_sku_raw) or []
+                # Matching check: Priority multi-level search
+                matched_docs = []
+                if v_id_str and v_id_str in existing_by_tn_var_id:
+                    matched_docs = existing_by_tn_var_id[v_id_str]
+
+                if not matched_docs and p_id_str and p_id_str in existing_by_tn_prod_id:
+                    matched_docs = existing_by_tn_prod_id[p_id_str]
+
+                if not matched_docs:
+                    if variant.get("sku"):
+                        raw_sku = str(variant.get("sku")).strip().upper()
+                        base_sku_raw = raw_sku.split("-")[0]
+                        matched_docs = existing_by_sku.get(raw_sku) or existing_by_base_sku.get(base_sku_raw) or []
+                    if not matched_docs and p_id_str:
+                        matched_docs = existing_by_sku.get(p_id_str) or existing_by_base_sku.get(p_id_str) or existing_by_base_sku.get(f"TN{p_id_str}") or []
+
+                if not matched_docs:
+                    matched_docs = existing_by_name.get(norm_tn_name) or existing_by_name.get(norm_clean_name) or []
 
                 if matched_docs:
                     # RULE: Match found -> Preserve ALL size variant documents belonging to this model,
@@ -4046,6 +4094,10 @@ def sync_tiendanube_catalog_route():
                         doc_id = doc.get("id")
                         matched_system_doc_ids.add(doc_id)
                         
+                        # EXCLUSION RULE: Never touch or update products belonging to Production categories (Producción... / P.)
+                        if is_production_product(doc):
+                            continue
+
                         doc_cost = safe_float(doc.get("cost") or doc.get("baseCost"))
                         current_price = safe_float(doc.get("price"))
                         current_price_local = safe_float(doc.get("price_local"))
@@ -4071,7 +4123,7 @@ def sync_tiendanube_catalog_route():
                             if not updated_doc.get("image_url") and images:
                                 updated_doc["image_url"] = images[0].get("src")
                                 
-                            # Si hubo cambio en el precio o falta tiendanube_variant_id, registrar para persistir
+                            # Si cambió el precio o faltaban IDs de Tiendanube, persistir
                             if abs(current_price - price) > 0.01 or abs(current_price_local - price) > 0.01 or abs(current_price_tn - price) > 0.01 or not doc.get("tiendanube_variant_id"):
                                 products_to_update[doc_id] = updated_doc
                 else:
@@ -4161,16 +4213,12 @@ def sync_tiendanube_catalog_route():
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 executor.map(save_one_product, all_prods_to_save)
 
-        # 6. Delete products in system not in TN, EXCEPT categories starting with "Producción" / "produccion"
+        # 6. Delete products in system not in TN, EXCEPT categories starting with "Producción" / "produccion" or P.
         deleted_docs = []
         for d in system_products:
             doc_id = d.get("id", "")
             if doc_id not in matched_system_doc_ids:
-                cat = str(d.get("category", "")).strip().lower()
-                cat_norm = normalize_text_key(cat)
-                is_production_cat = cat_norm.startswith("producc")
-
-                if not is_production_cat:
+                if not is_production_product(d):
                     try:
                         firebase_config.delete_document("products", doc_id, token)
                         deleted_docs.append(d)
