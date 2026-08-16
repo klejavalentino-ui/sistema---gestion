@@ -4121,23 +4121,16 @@ def sync_tiendanube_catalog_route():
                 else:
                     # RULE: Product in TN but not in system -> Create new product
                     import random
-                    base_num = int(p_id) if (p_id and str(p_id).isdigit()) else random.randint(100000, 999999)
-                    candidate_base_sku = f"TN{base_num}"
+                    base_num = int(p_id) if (p_id and str(p_id).isdigit()) else random.randint(1000000000, 9999999999)
+                    candidate_base_sku = f"{base_num}"
                     
                     suffix_counter = 1
                     while candidate_base_sku in all_existing_skus:
-                        candidate_base_sku = f"TN{base_num}{suffix_counter}"
+                        candidate_base_sku = f"{base_num}{suffix_counter}"
                         suffix_counter += 1
 
                     all_existing_skus.add(candidate_base_sku)
-
-                    def get_size_sku_suffix(s):
-                        if not s or s.lower() in ["único", "unico", "u"]:
-                            return "U"
-                        return s.upper().replace(" ", "").replace("/", "-")
-
-                    size_suffix = get_size_sku_suffix(size) if (size and size != "Único") else ("U" if biz_type == "comercio" else "")
-                    final_sku = f"{candidate_base_sku}-{size_suffix}" if size_suffix else candidate_base_sku
+                    final_sku = candidate_base_sku
 
                     image_url = images[0].get("src") if images else ""
 

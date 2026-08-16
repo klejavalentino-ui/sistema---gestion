@@ -5813,6 +5813,24 @@ function renderInventory() {
     groupedProducts[groupKey].totalMinStock += getProductMinStock(p, salesByProduct);
   });
 
+  // Garantizar que cada producto/modelo tenga un SKU base numérico estrictamente único en la vista
+  const seenBaseSkus = new Map(); // baseSku -> groupKey
+  Object.values(groupedProducts).forEach(g => {
+    let bSku = cleanSkuStrictNumeric(g.baseSku, Date.now().toString());
+    if (seenBaseSkus.has(bSku) && seenBaseSkus.get(bSku) !== g.groupKey) {
+      let counter = 1;
+      let candidate = `${bSku}${counter}`;
+      while (seenBaseSkus.has(candidate)) {
+        counter++;
+        candidate = `${bSku}${counter}`;
+      }
+      bSku = candidate;
+    }
+    g.baseSku = bSku;
+    seenBaseSkus.set(bSku, g.groupKey);
+    g.variants.forEach(v => { v.baseSku = bSku; });
+  });
+
   const groupedList = Object.values(groupedProducts);
 
   // Filtrar el listado agrupado
@@ -6754,7 +6772,29 @@ async function saveProductForm(e) {
     if (!rawBaseInput && isAutoSku) {
       rawBaseInput = String(Math.floor(1000000000 + Math.random() * 9000000000));
     }
-    const cleanBaseSku = cleanSkuStrictNumeric(rawBaseInput, Date.now().toString());
+    let cleanBaseSku = cleanSkuStrictNumeric(rawBaseInput, Date.now().toString());
+
+    // Validar que el baseSku no colisione con otro grupo de producto
+    const otherProductsBaseSkus = new Set(
+      state.products
+        .filter(prod => getProductGroupKey(prod) !== oldGroupKey)
+        .map(prod => getCleanBaseSku(prod.sku, prod.baseSku))
+        .filter(Boolean)
+    );
+
+    if (otherProductsBaseSkus.has(cleanBaseSku)) {
+      if (!isAutoSku) {
+        showToast("El SKU ingresado ya pertenece a otro producto. Cada producto debe tener un código numérico único.", true);
+        return;
+      }
+      let counter = 1;
+      let candidate = `${cleanBaseSku}${counter}`;
+      while (otherProductsBaseSkus.has(candidate)) {
+        counter++;
+        candidate = `${cleanBaseSku}${counter}`;
+      }
+      cleanBaseSku = cleanSkuStrictNumeric(candidate);
+    }
 
     // Obtener todas las variantes actuales que pertenecen estrictamente a este producto y color
     const groupVariants = state.products.filter(prod => {
@@ -6867,15 +6907,48 @@ async function saveProductForm(e) {
     if (!rawBaseInput && isAutoSku) {
       rawBaseInput = String(Math.floor(1000000000 + Math.random() * 9000000000));
     }
-    const cleanBaseSku = cleanSkuStrictNumeric(rawBaseInput, Date.now().toString());
+    let cleanBaseSku = cleanSkuStrictNumeric(rawBaseInput, Date.now().toString());
 
+    // Validar que el baseSku no colisione con ningún producto existente
+    const allProductsBaseSkus = new Set(
+      state.products
+        .map(prod => getCleanBaseSku(prod.sku, prod.baseSku))
+        .filter(Boolean)
+    );
+
+    if (allProductsBaseSkus.has(cleanBaseSku)) {
+      if (!isAutoSku) {
+        showToast("El SKU ingresado ya pertenece a otro producto. Cada producto debe tener un código numérico único.", true);
+        return;
+      }
+      let counter = 1;
+      let candidate = `${cleanBaseSku}${counter}`;
+      while (allProductsBaseSkus.has(candidate)) {
+        counter++;
+        candidate = `${cleanBaseSku}${counter}`;
+      }
+      cleanBaseSku = cleanSkuStrictNumeric(candidate);
+    }
+
+    const allProductsSkus = new Set(
+      state.products.map(prod => cleanSkuStrictNumeric(prod.sku || prod.id || "")).filter(Boolean)
+    );
+
+    const usedSkusInBatch = new Set();
     let createVariantCounter = 1;
     for (const [size, stock] of Object.entries(sizeStocks)) {
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
-      const safeSku = cleanSkuStrictNumeric(`${cleanBaseSku}${createVariantCounter}`);
+      let candidate = cleanSkuStrictNumeric(`${cleanBaseSku}${createVariantCounter}`);
+      while (allProductsSkus.has(candidate) || usedSkusInBatch.has(candidate)) {
+        createVariantCounter++;
+        candidate = cleanSkuStrictNumeric(`${cleanBaseSku}${createVariantCounter}`);
+      }
+      const safeSku = candidate;
+      usedSkusInBatch.add(safeSku);
       createVariantCounter++;
+
       const payload = {
-        id: Date.now() + Math.random(),
+        id: safeSku,
         baseSku: cleanBaseSku,
         sku: safeSku,
         name: name,
