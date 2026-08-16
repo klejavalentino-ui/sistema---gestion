@@ -4340,29 +4340,26 @@ function getFacturaA4FullDocHTML(sale) {
           box-sizing: border-box !important;
           margin: 0;
           padding: 0;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+          color: #000000 !important;
+          -webkit-text-fill-color: #000000 !important;
+          text-shadow: none !important;
         }
         html, body {
-          width: 794px;
-          margin: 0;
-          padding: 0;
+          width: 794px !important;
+          min-height: 1123px !important;
           background: #ffffff !important;
-          color: #000000 !important;
-          font-family: Arial, Helvetica, sans-serif;
+          background-color: #ffffff !important;
+          font-family: Arial, Helvetica, sans-serif !important;
         }
         #invoice-page {
-          width: 754px;
-          margin: 20px auto;
-          padding: 0;
-          background: #ffffff;
+          width: 754px !important;
+          margin: 20px auto !important;
+          padding: 10px !important;
+          background-color: #ffffff !important;
         }
-        table {
-          width: 100% !important;
-          border-collapse: collapse !important;
-        }
-        th, td, p, span, div, h1, h2, h3 {
+        table, th, td {
           color: #000000 !important;
+          border-color: #000000 !important;
         }
       </style>
     </head>
@@ -4423,13 +4420,15 @@ window.printInvoiceA4 = printInvoiceA4;
 async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 794) {
   const iframe = document.createElement("iframe");
   iframe.style.position = 'fixed';
-  iframe.style.left = '-99999px';
-  iframe.style.top = '0';
+  iframe.style.left = '0px';
+  iframe.style.top = '0px';
   iframe.style.width = targetWidth + 'px';
-  iframe.style.minHeight = '1123px';
+  iframe.style.height = '1123px';
+  iframe.style.opacity = '1';
+  iframe.style.zIndex = '-9999';
+  iframe.style.pointerEvents = 'none';
   iframe.style.border = 'none';
-  iframe.style.opacity = '0';
-  iframe.style.zIndex = '-1';
+  iframe.style.background = '#ffffff';
   document.body.appendChild(iframe);
 
   try {
@@ -4452,6 +4451,8 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
       }, 50);
     });
 
+    await new Promise(resolve => setTimeout(resolve, 200));
+
     const element = frameDoc.getElementById('invoice-page') || frameDoc.body;
     const html2canvasFn = window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas);
 
@@ -4460,13 +4461,13 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
         scale: 2,
         useCORS: true,
         logging: false,
+        backgroundColor: '#ffffff',
         scrollX: 0,
         scrollY: 0,
-        windowWidth: targetWidth,
-        backgroundColor: '#ffffff'
+        windowWidth: targetWidth
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const JsPdfClass = (window.jspdf && window.jspdf.jsPDF) || window.jspdf || window.jsPDF || (window.html2pdf && window.html2pdf.jsPDF);
 
       if (JsPdfClass) {
@@ -4474,7 +4475,7 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
         const pdfWidth = 210;
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         pdf.save(filename);
         showToast("¡PDF descargado con éxito!");
         return;
@@ -5159,29 +5160,25 @@ function getTicketFullDocHTML(sale) {
           box-sizing: border-box !important;
           margin: 0;
           padding: 0;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+          color: #000000 !important;
+          -webkit-text-fill-color: #000000 !important;
+          text-shadow: none !important;
         }
         html, body {
-          width: 420px;
-          margin: 0;
-          padding: 0;
+          width: 420px !important;
           background: #ffffff !important;
-          color: #000000 !important;
-          font-family: 'Courier New', Courier, monospace;
+          background-color: #ffffff !important;
+          font-family: 'Courier New', Courier, monospace !important;
         }
         #invoice-page {
-          width: 390px;
-          margin: 15px auto;
-          padding: 0;
-          background: #ffffff;
+          width: 390px !important;
+          margin: 15px auto !important;
+          padding: 10px !important;
+          background-color: #ffffff !important;
         }
-        table {
-          width: 100% !important;
-          border-collapse: collapse !important;
-        }
-        th, td, p, span, div, h1, h2, h3 {
+        table, th, td {
           color: #000000 !important;
+          border-color: #000000 !important;
         }
       </style>
     </head>
