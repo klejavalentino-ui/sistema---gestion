@@ -5855,15 +5855,19 @@ function renderInventory() {
     // Ordenar los talles según las variantes configuradas en el negocio
     const configuredSizes = getConfiguredSizes(g.category, g.groupKey);
 
+    const isComercio = state.businessType === "comercio";
     const allProductSizes = new Set();
+    let hasExplicitUnico = false;
+
     g.variants.forEach(v => {
       if (!v) return;
 
       const stockVal = getProductLocationStockSum(v);
 
-      // Solo tomamos en cuenta variantes que tengan ID de Tiendanube, o stock > 0, o si es la única variante del producto
-      const isRealVariant = Boolean(v.tiendanube_variant_id) || stockVal > 0 || g.variants.length === 1;
-      if (!isRealVariant) return;
+      // Para negocios de Indumentaria: SOLO mostrar variantes de talle con stock estrictamente mayor a cero (> 0)
+      if (!isComercio) {
+        if (stockVal <= 0) return;
+      }
 
       const checkAndAdd = (sz) => {
         if (!sz) return;
@@ -5871,6 +5875,8 @@ function renderInventory() {
         if (trimmed && trimmed.toLowerCase() !== "unico" && trimmed.toLowerCase() !== "único") {
           const match = configuredSizes.find(cs => cs.toLowerCase().trim() === trimmed.toLowerCase());
           allProductSizes.add(match || trimmed);
+        } else if (trimmed && (trimmed.toLowerCase() === "unico" || trimmed.toLowerCase() === "único")) {
+          hasExplicitUnico = true;
         }
       };
 
@@ -5886,7 +5892,16 @@ function renderInventory() {
       return idxA - idxB;
     });
 
-    const tallesText = sortedTalles.length > 0 ? sortedTalles.join(", ") : "Único";
+    let tallesText = "-";
+    if (sortedTalles.length > 0) {
+      tallesText = sortedTalles.join(", ");
+    } else if (hasExplicitUnico || isComercio) {
+      tallesText = "Único";
+    } else if (g.totalStock > 0) {
+      tallesText = "Único";
+    } else {
+      tallesText = "-";
+    }
 
     let extractedPrice = 0;
     for (const v of g.variants) {
