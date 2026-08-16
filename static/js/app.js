@@ -4334,22 +4334,26 @@ function getFacturaA4FullDocHTML(sale) {
       <style>
         @page {
           size: A4 portrait;
-          margin: 10mm;
+          margin: 0;
         }
         * {
           box-sizing: border-box !important;
+          margin: 0;
+          padding: 0;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
         html, body {
-          margin: 0 !important;
-          padding: 0 !important;
+          width: 794px !important;
+          min-height: 1123px !important;
           background-color: #ffffff !important;
           color: #000000 !important;
           font-family: Arial, Helvetica, sans-serif !important;
           font-size: 11px !important;
           line-height: 1.35 !important;
-          width: 794px !important;
+          margin: 0 auto !important;
+          padding: 20px !important;
+          overflow: visible !important;
         }
         table {
           width: 100% !important;
@@ -4360,7 +4364,7 @@ function getFacturaA4FullDocHTML(sale) {
         }
       </style>
     </head>
-    <body style="background-color: #ffffff !important; color: #000000 !important; padding: 20px 25px;">
+    <body>
       ${htmlContent}
     </body>
     </html>
@@ -4414,7 +4418,15 @@ window.printInvoiceA4 = printInvoiceA4;
 
 async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 794) {
   const iframe = document.createElement("iframe");
-  iframe.style.cssText = "position: fixed; left: 0; top: 0; width: " + targetWidth + "px; height: 1123px; border: none; z-index: -1000; opacity: 0.01; pointer-events: none;";
+  iframe.style.position = 'fixed';
+  iframe.style.left = '0';
+  iframe.style.top = '0';
+  iframe.style.width = targetWidth + 'px';
+  iframe.style.height = '1123px';
+  iframe.style.zIndex = '-9999';
+  iframe.style.visibility = 'hidden';
+  iframe.style.border = 'none';
+  iframe.style.background = '#ffffff';
   document.body.appendChild(iframe);
 
   try {
@@ -4437,23 +4449,23 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
       }, 50);
     });
 
+    const opt = {
+      margin:       [10, 10, 10, 10], // mm
+      filename:     filename,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { 
+        scale: 2, 
+        useCORS: true, 
+        scrollX: 0, 
+        scrollY: 0, 
+        windowWidth: targetWidth,
+        width: targetWidth,
+        backgroundColor: '#ffffff'
+      },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
     if (window.html2pdf) {
-      const opt = {
-        margin:       [6, 6, 6, 6],
-        filename:     filename,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { 
-          scale: 2, 
-          useCORS: true, 
-          allowTaint: true, 
-          scrollY: 0, 
-          scrollX: 0, 
-          windowWidth: targetWidth,
-          backgroundColor: '#ffffff', 
-          logging: false 
-        },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
       await window.html2pdf().set(opt).from(frameDoc.body).save();
       showToast("¡PDF descargado con éxito!");
       return;
@@ -4464,21 +4476,20 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
       const canvas = await html2canvasFn(frameDoc.body, {
         scale: 2,
         useCORS: true,
-        allowTaint: true,
-        scrollY: 0,
         scrollX: 0,
+        scrollY: 0,
         windowWidth: targetWidth,
-        backgroundColor: '#ffffff',
-        logging: false
+        width: targetWidth,
+        backgroundColor: '#ffffff'
       });
 
       const imgData = canvas.toDataURL('image/jpeg', 0.98);
       const JsPdfClass = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (window.jsPDF || (window.html2pdf && window.html2pdf.jsPDF));
       if (JsPdfClass) {
         const pdf = new JsPdfClass('p', 'mm', 'a4');
-        const pdfWidth = 198;
+        const pdfWidth = 190;
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'JPEG', 6, 6, pdfWidth, Math.min(pdfHeight, 285));
+        pdf.addImage(imgData, 'JPEG', 10, 10, pdfWidth, Math.min(pdfHeight, 277));
         pdf.save(filename);
         showToast("¡PDF descargado con éxito!");
         return;
