@@ -4321,13 +4321,13 @@ function getFacturaA4HTML(sale) {
 }
 window.getFacturaA4HTML = getFacturaA4HTML;
 
-function printInvoiceA4(sale) {
+function getFacturaA4FullDocHTML(sale) {
   const htmlContent = getFacturaA4HTML(sale);
   const rawInvoiceId = sale.arca_invoice_id || sale.invoice_number || sale.id || "00000001";
 
-  const fullDocHtml = `
+  return `
     <!DOCTYPE html>
-    <html>
+    <html lang="es">
     <head>
       <meta charset="utf-8">
       <title>Factura ${rawInvoiceId}</title>
@@ -4337,31 +4337,39 @@ function printInvoiceA4(sale) {
           margin: 10mm;
         }
         * {
-          box-sizing: border-box;
+          box-sizing: border-box !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        body {
-          font-family: Arial, Helvetica, sans-serif;
-          font-size: 11px;
-          line-height: 1.35;
-          color: #000;
-          background: #fff;
-          margin: 0;
-          padding: 10px;
-          width: 100%;
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          font-family: Arial, Helvetica, sans-serif !important;
+          font-size: 11px !important;
+          line-height: 1.35 !important;
+          width: 794px !important;
         }
         table {
-          width: 100%;
-          border-collapse: collapse;
+          width: 100% !important;
+          border-collapse: collapse !important;
+        }
+        th, td, p, span, div, h1, h2, h3 {
+          color: #000000 !important;
         }
       </style>
     </head>
-    <body>
+    <body style="background-color: #ffffff !important; color: #000000 !important; padding: 20px 25px;">
       ${htmlContent}
     </body>
     </html>
   `;
+}
+window.getFacturaA4FullDocHTML = getFacturaA4FullDocHTML;
+
+function printInvoiceA4(sale) {
+  const fullDocHtml = getFacturaA4FullDocHTML(sale);
 
   const printWindow = window.open("", "_blank", "width=850,height=1000");
   if (printWindow) {
@@ -4404,6 +4412,98 @@ function printInvoiceA4(sale) {
 }
 window.printInvoiceA4 = printInvoiceA4;
 
+async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 794) {
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position: fixed; left: 0; top: 0; width: " + targetWidth + "px; height: 1123px; border: none; z-index: -1000; opacity: 0.01; pointer-events: none;";
+  document.body.appendChild(iframe);
+
+  try {
+    const frameDoc = iframe.contentWindow.document;
+    frameDoc.open();
+    frameDoc.write(fullHtmlString);
+    frameDoc.close();
+
+    // Esperar a que el DOM del iframe y sus imágenes se carguen
+    await new Promise((resolve) => {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        const imgs = Array.from(frameDoc.querySelectorAll("img"));
+        const allDone = imgs.every(img => img.complete);
+        if ((allDone && frameDoc.readyState === "complete") || attempts > 20) {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 50);
+    });
+
+    if (window.html2pdf) {
+      const opt = {
+        margin:       [6, 6, 6, 6],
+        filename:     filename,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+          scale: 2, 
+          useCORS: true, 
+          allowTaint: true, 
+          scrollY: 0, 
+          scrollX: 0, 
+          windowWidth: targetWidth,
+          backgroundColor: '#ffffff', 
+          logging: false 
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await window.html2pdf().set(opt).from(frameDoc.body).save();
+      showToast("¡PDF descargado con éxito!");
+      return;
+    }
+
+    const html2canvasFn = window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas);
+    if (html2canvasFn) {
+      const canvas = await html2canvasFn(frameDoc.body, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        scrollY: 0,
+        scrollX: 0,
+        windowWidth: targetWidth,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const JsPdfClass = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (window.jsPDF || (window.html2pdf && window.html2pdf.jsPDF));
+      if (JsPdfClass) {
+        const pdf = new JsPdfClass('p', 'mm', 'a4');
+        const pdfWidth = 198;
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(imgData, 'JPEG', 6, 6, pdfWidth, Math.min(pdfHeight, 285));
+        pdf.save(filename);
+        showToast("¡PDF descargado con éxito!");
+        return;
+      }
+    }
+
+    // Fallback nativo
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  } catch (err) {
+    console.error("Error en generatePdfFromHtmlDoc:", err);
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (e) {
+      showToast("Error al generar PDF: " + err.message, true);
+    }
+  } finally {
+    setTimeout(() => {
+      iframe.remove();
+    }, 1000);
+  }
+}
+window.generatePdfFromHtmlDoc = generatePdfFromHtmlDoc;
+
 async function downloadFacturaCA4PDF(saleIdOrObject) {
   let sale = typeof saleIdOrObject === "object" ? saleIdOrObject : null;
   if (!sale) {
@@ -4437,59 +4537,11 @@ async function downloadFacturaCA4PDF(saleIdOrObject) {
   const clientName = sale.client_razon_social || sale.client_name || "Cliente";
   const rawInvoiceId = sale.arca_invoice_id || sale.invoice_number || "00000001";
   const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : String(rawInvoiceId).padStart(8, '0');
+  const filename = `Factura_${formattedInvoiceNum}_${clientName.replace(/\s+/g, '_')}.pdf`;
 
   showToast("Generando Factura A4 en PDF...");
-
-  const pdfContainer = document.createElement("div");
-  pdfContainer.id = "temp-a4-pdf-render";
-  pdfContainer.style.cssText = "position: absolute; left: 0; top: 0; width: 794px; background: #ffffff !important; color: #000000 !important; z-index: 9999999; box-sizing: border-box; padding: 25px 30px; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.35;";
-
-  pdfContainer.innerHTML = `
-    <style>
-      #temp-a4-pdf-render * {
-        color: #000000 !important;
-        box-sizing: border-box;
-      }
-      #temp-a4-pdf-render table {
-        width: 100% !important;
-        border-collapse: collapse !important;
-      }
-    </style>
-    ${getFacturaA4HTML(sale)}
-  `;
-  document.body.appendChild(pdfContainer);
-
-  try {
-    await new Promise(resolve => setTimeout(resolve, 250));
-
-    if (window.html2pdf) {
-      const opt = {
-        margin:       [6, 6, 6, 6],
-        filename:     `Factura_${formattedInvoiceNum}_${clientName.replace(/\s+/g, '_')}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { 
-          scale: 2, 
-          useCORS: true, 
-          allowTaint: true, 
-          scrollY: 0, 
-          scrollX: 0, 
-          windowWidth: 794,
-          backgroundColor: '#ffffff', 
-          logging: false 
-        },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-      await html2pdf().set(opt).from(pdfContainer).save();
-      showToast("¡Factura A4 descargada con éxito!");
-    } else {
-      printInvoiceA4(sale);
-    }
-  } catch (e) {
-    console.error("Error html2pdf Factura A4:", e);
-    printInvoiceA4(sale);
-  } finally {
-    pdfContainer.remove();
-  }
+  const fullHtml = getFacturaA4FullDocHTML(sale);
+  await generatePdfFromHtmlDoc(fullHtml, filename, 794);
 }
 window.downloadFacturaCA4PDF = downloadFacturaCA4PDF;
 
@@ -5076,6 +5128,51 @@ function getInvoiceTicketInnerHTML(sale) {
   }
 }
 
+function getTicketFullDocHTML(sale) {
+  const innerHtml = getInvoiceTicketInnerHTML(sale);
+  const isFiscal = !!sale.arca_invoice_id;
+  const nroFactura = sale.arca_invoice_id || sale.id;
+
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8">
+      <title>${isFiscal ? 'Factura' : 'Ticket'} ${nroFactura}</title>
+      <style>
+        @page { margin: 0; }
+        * {
+          box-sizing: border-box !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          font-family: 'Courier New', Courier, monospace !important;
+          font-size: 11px !important;
+          line-height: 1.3 !important;
+          width: 420px !important;
+        }
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+        }
+        th, td, p, span, div, h1, h2, h3 {
+          color: #000000 !important;
+        }
+      </style>
+    </head>
+    <body style="background-color: #ffffff !important; color: #000000 !important; padding: 15px;">
+      ${innerHtml}
+    </body>
+    </html>
+  `;
+}
+window.getTicketFullDocHTML = getTicketFullDocHTML;
+
 function printSaleTicket(saleIdOrObject) {
   let sale = typeof saleIdOrObject === "object" ? saleIdOrObject : null;
   if (!sale) {
@@ -5106,46 +5203,30 @@ function printSaleTicket(saleIdOrObject) {
     return;
   }
 
-  const innerHTML = getInvoiceTicketInnerHTML(sale);
-  const isFiscal = !!sale.arca_invoice_id;
-  const nroFactura = sale.arca_invoice_id || sale.id;
-
-  const ticketHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>${isFiscal ? 'Factura' : 'Ticket'} ${nroFactura}</title>
-      <style>
-        @page { margin: 0; }
-        body { font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.3; color: #000; background: #fff; margin: 0; padding: 10px; width: 85mm; box-sizing: border-box; }
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .bold { font-weight: bold; }
-      </style>
-    </head>
-    <body>
-      ${innerHTML}
-    </body>
-    </html>
-  `;
-
+  const ticketHtml = getTicketFullDocHTML(sale);
   const printWindow = window.open("", "_blank", "width=600,height=800");
   if (printWindow) {
     printWindow.document.write(ticketHtml);
     printWindow.document.close();
     printWindow.focus();
     
-    const img = printWindow.document.querySelector("img");
-    if (img) {
-      img.onload = () => {
-        printWindow.print();
-        printWindow.close();
+    const imgs = printWindow.document.querySelectorAll("img");
+    if (imgs && imgs.length > 0) {
+      let loaded = 0;
+      const onDone = () => {
+        loaded++;
+        if (loaded >= imgs.length) {
+          printWindow.print();
+          printWindow.close();
+        }
       };
-      img.onerror = () => {
-        printWindow.print();
-        printWindow.close();
-      };
+      imgs.forEach(img => {
+        if (img.complete) onDone();
+        else {
+          img.onload = onDone;
+          img.onerror = onDone;
+        }
+      });
       setTimeout(() => {
         if (!printWindow.closed) {
           printWindow.print();
@@ -5247,73 +5328,10 @@ async function downloadInvoicePDF(saleIdOrObject) {
   }
 
   // Si es Consumidor Final -> Descargar Ticket de venta en PDF
-  showToast("Generando y descargando PDF...");
-
-  const pdfContainer = document.createElement("div");
-  pdfContainer.id = "temp-ticket-pdf-render";
-  pdfContainer.style.cssText = "position: absolute; left: 0; top: 0; width: 420px; background: #ffffff !important; color: #000000 !important; z-index: 9999999; box-sizing: border-box; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.3;";
-
-  pdfContainer.innerHTML = `
-    <style>
-      #temp-ticket-pdf-render * {
-        color: #000000 !important;
-        background-color: transparent !important;
-        border-color: #000000 !important;
-        box-sizing: border-box;
-      }
-      #temp-ticket-pdf-render table {
-        width: 100% !important;
-        border-collapse: collapse !important;
-      }
-      #temp-ticket-pdf-render th {
-        border-bottom: 1px dashed #000000 !important;
-        padding: 4px 2px !important;
-        font-weight: bold !important;
-      }
-      #temp-ticket-pdf-render td {
-        padding: 4px 2px !important;
-      }
-    </style>
-    <div style="width: 100%; background: #ffffff; color: #000000;">
-      ${getInvoiceTicketInnerHTML(sale)}
-    </div>
-  `;
-
-  document.body.appendChild(pdfContainer);
-
+  showToast("Generando PDF del comprobante...");
   const fileName = sale.arca_invoice_id ? `Factura_${sale.arca_invoice_id}.pdf` : `Comprobante_${sale.id}.pdf`;
-
-  const opt = {
-    margin: [6, 6, 6, 6],
-    filename: fileName,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { 
-      scale: 2, 
-      useCORS: true, 
-      allowTaint: true, 
-      scrollY: 0, 
-      scrollX: 0, 
-      windowWidth: 420,
-      backgroundColor: '#ffffff', 
-      logging: false 
-    },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-
-  try {
-    await new Promise(resolve => setTimeout(resolve, 250));
-    if (typeof html2pdf !== 'undefined') {
-      await html2pdf().set(opt).from(pdfContainer).save();
-      showToast("¡PDF descargado con éxito!");
-    } else {
-      printSaleTicket(sale);
-    }
-  } catch (err) {
-    console.error("Error al generar PDF:", err);
-    printSaleTicket(sale);
-  } finally {
-    pdfContainer.remove();
-  }
+  const fullHtml = getTicketFullDocHTML(sale);
+  await generatePdfFromHtmlDoc(fullHtml, fileName, 420);
 }
 window.downloadInvoicePDF = downloadInvoicePDF;
 
