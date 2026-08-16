@@ -4344,16 +4344,18 @@ function getFacturaA4FullDocHTML(sale) {
           print-color-adjust: exact !important;
         }
         html, body {
-          width: 794px !important;
-          min-height: 1123px !important;
-          background-color: #ffffff !important;
+          width: 794px;
+          margin: 0;
+          padding: 0;
+          background: #ffffff !important;
           color: #000000 !important;
-          font-family: Arial, Helvetica, sans-serif !important;
-          font-size: 11px !important;
-          line-height: 1.35 !important;
-          margin: 0 auto !important;
-          padding: 20px !important;
-          overflow: visible !important;
+          font-family: Arial, Helvetica, sans-serif;
+        }
+        #invoice-page {
+          width: 754px;
+          margin: 20px auto;
+          padding: 0;
+          background: #ffffff;
         }
         table {
           width: 100% !important;
@@ -4365,7 +4367,9 @@ function getFacturaA4FullDocHTML(sale) {
       </style>
     </head>
     <body>
-      ${htmlContent}
+      <div id="invoice-page">
+        ${htmlContent}
+      </div>
     </body>
     </html>
   `;
@@ -4419,14 +4423,13 @@ window.printInvoiceA4 = printInvoiceA4;
 async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 794) {
   const iframe = document.createElement("iframe");
   iframe.style.position = 'fixed';
-  iframe.style.left = '0';
+  iframe.style.left = '-99999px';
   iframe.style.top = '0';
   iframe.style.width = targetWidth + 'px';
-  iframe.style.height = '1123px';
-  iframe.style.zIndex = '-9999';
-  iframe.style.visibility = 'hidden';
+  iframe.style.minHeight = '1123px';
   iframe.style.border = 'none';
-  iframe.style.background = '#ffffff';
+  iframe.style.opacity = '0';
+  iframe.style.zIndex = '-1';
   document.body.appendChild(iframe);
 
   try {
@@ -4449,51 +4452,53 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
       }, 50);
     });
 
-    const opt = {
-      margin:       [10, 10, 10, 10], // mm
-      filename:     filename,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { 
-        scale: 2, 
-        useCORS: true, 
-        scrollX: 0, 
-        scrollY: 0, 
-        windowWidth: targetWidth,
-        width: targetWidth,
-        backgroundColor: '#ffffff'
-      },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    if (window.html2pdf) {
-      await window.html2pdf().set(opt).from(frameDoc.body).save();
-      showToast("¡PDF descargado con éxito!");
-      return;
-    }
-
+    const element = frameDoc.getElementById('invoice-page') || frameDoc.body;
     const html2canvasFn = window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas);
+
     if (html2canvasFn) {
-      const canvas = await html2canvasFn(frameDoc.body, {
+      const canvas = await html2canvasFn(element, {
         scale: 2,
         useCORS: true,
+        logging: false,
         scrollX: 0,
         scrollY: 0,
         windowWidth: targetWidth,
-        width: targetWidth,
         backgroundColor: '#ffffff'
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
-      const JsPdfClass = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (window.jsPDF || (window.html2pdf && window.html2pdf.jsPDF));
+      const imgData = canvas.toDataURL('image/png');
+      const JsPdfClass = (window.jspdf && window.jspdf.jsPDF) || window.jspdf || window.jsPDF || (window.html2pdf && window.html2pdf.jsPDF);
+
       if (JsPdfClass) {
         const pdf = new JsPdfClass('p', 'mm', 'a4');
-        const pdfWidth = 190;
+        const pdfWidth = 210;
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'JPEG', 10, 10, pdfWidth, Math.min(pdfHeight, 277));
+
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         pdf.save(filename);
         showToast("¡PDF descargado con éxito!");
         return;
       }
+    }
+
+    if (window.html2pdf) {
+      const opt = {
+        margin:       [0, 0, 0, 0],
+        filename:     filename,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+          scale: 2, 
+          useCORS: true, 
+          scrollX: 0, 
+          scrollY: 0, 
+          windowWidth: targetWidth,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await window.html2pdf().set(opt).from(element).save();
+      showToast("¡PDF descargado con éxito!");
+      return;
     }
 
     // Fallback nativo
@@ -4508,9 +4513,7 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
       showToast("Error al generar PDF: " + err.message, true);
     }
   } finally {
-    setTimeout(() => {
-      iframe.remove();
-    }, 1000);
+    iframe.remove();
   }
 }
 window.generatePdfFromHtmlDoc = generatePdfFromHtmlDoc;
@@ -5154,18 +5157,24 @@ function getTicketFullDocHTML(sale) {
         @page { margin: 0; }
         * {
           box-sizing: border-box !important;
+          margin: 0;
+          padding: 0;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
         html, body {
-          margin: 0 !important;
-          padding: 0 !important;
-          background-color: #ffffff !important;
+          width: 420px;
+          margin: 0;
+          padding: 0;
+          background: #ffffff !important;
           color: #000000 !important;
-          font-family: 'Courier New', Courier, monospace !important;
-          font-size: 11px !important;
-          line-height: 1.3 !important;
-          width: 420px !important;
+          font-family: 'Courier New', Courier, monospace;
+        }
+        #invoice-page {
+          width: 390px;
+          margin: 15px auto;
+          padding: 0;
+          background: #ffffff;
         }
         table {
           width: 100% !important;
@@ -5176,8 +5185,10 @@ function getTicketFullDocHTML(sale) {
         }
       </style>
     </head>
-    <body style="background-color: #ffffff !important; color: #000000 !important; padding: 15px;">
-      ${innerHtml}
+    <body>
+      <div id="invoice-page">
+        ${innerHtml}
+      </div>
     </body>
     </html>
   `;
