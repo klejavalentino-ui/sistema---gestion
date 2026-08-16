@@ -3918,15 +3918,7 @@ def sync_tiendanube_catalog_route():
                 return False
             cat = str(d.get("category", "")).strip().lower()
             cat_norm = normalize_text_key(cat)
-            if cat_norm.startswith("producc"):
-                return True
-            name = str(d.get("name", "")).strip().lower()
-            if name.startswith("p.") or name.startswith("p "):
-                return True
-            sku = str(d.get("sku", "") or d.get("id", "")).strip().lower()
-            if sku.startswith("p.") or sku.startswith("p-"):
-                return True
-            return False
+            return cat_norm.startswith("producc")
 
         def get_doc_full_name(d):
             name = (d.get("name") or "").strip()
