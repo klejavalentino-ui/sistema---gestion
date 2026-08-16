@@ -6353,8 +6353,11 @@ function getProductGroupKey(p) {
   }
   
   const cleanNameKey = cleanCompareText(nameStr);
-  const colorKey = colorStr ? colorStr.toLowerCase() : "";
-  return (cleanNameKey || cleanBase || "PROD") + ((colorKey && colorKey !== "único" && colorKey !== "unico") ? `_${colorKey}` : "");
+  const colorKey = colorStr ? cleanCompareText(colorStr) : "";
+  if (colorKey && colorKey !== "unico" && colorKey !== "sin color") {
+    return `${cleanNameKey || cleanBase || "prod"}_${colorKey}`;
+  }
+  return cleanNameKey || cleanBase || "prod";
 }
 
 function openEditProductModal(sku) {
@@ -6366,8 +6369,15 @@ function openEditProductModal(sku) {
   const cleanBase = getCleanBaseSku(p.sku, p.baseSku);
   document.getElementById("prod-sku").value = cleanBase;
   document.getElementById("prod-sku").readOnly = true; // no se edita SKU ya guardado
-  document.getElementById("prod-name").value = getProductNameWithColor(p);
-  document.getElementById("prod-color").value = p.color || "";
+  
+  let baseName = (p.name || "").trim();
+  const pColor = (p.color || "").trim();
+  if (pColor && pColor.toLowerCase() !== "único" && pColor.toLowerCase() !== "unico") {
+    const regex = new RegExp(`\\s+${pColor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i");
+    baseName = baseName.replace(regex, "").trim();
+  }
+  document.getElementById("prod-name").value = baseName;
+  document.getElementById("prod-color").value = pColor;
   document.getElementById("prod-cost-input").value = Math.round(p.baseCost || p.cost).toLocaleString("es-AR");
   formatCurrencyField(document.getElementById("prod-cost-input"));
   document.getElementById("prod-margin").value = p.margin;
@@ -6746,19 +6756,20 @@ async function saveProductForm(e) {
     }
     const cleanBaseSku = cleanSkuStrictNumeric(rawBaseInput, Date.now().toString());
 
-    // Delete variants that were deselected/disabled by the user
+    // Obtener todas las variantes actuales que pertenecen estrictamente a este producto y color
+    const groupVariants = state.products.filter(prod => {
+      if (!prod) return false;
+      const s = prod.sku || prod.id || "";
+      if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
+        return false;
+      }
+      return getProductGroupKey(prod) === oldGroupKey;
+    });
+
+    // Eliminar variantes desactivadas que pertenecían estrictamente a este producto y color
     if (!isComercio && Array.isArray(state.tempActiveProductSizes)) {
       const activeSizes = getEditModalProductSizes();
-      const rawVariants = state.products.filter(prod => {
-        if (!prod) return false;
-        const s = prod.sku || prod.id || "";
-        if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
-          return false;
-        }
-        return getProductGroupKey(prod) === oldGroupKey;
-      });
-
-      const deactivatedVariants = rawVariants.filter(v => {
+      const deactivatedVariants = groupVariants.filter(v => {
         return !activeSizes.some(sz => (sz || "").toLowerCase().trim() === (v.size || "").toLowerCase().trim());
       });
 
@@ -6769,19 +6780,25 @@ async function saveProductForm(e) {
       });
     }
 
+    // Set de SKUs de TODOS los demás productos para evitar colisiones
+    const otherProductsSkus = new Set(
+      state.products
+        .filter(prod => getProductGroupKey(prod) !== oldGroupKey)
+        .map(prod => cleanSkuStrictNumeric(prod.sku || prod.id || ""))
+        .filter(Boolean)
+    );
+
+    const usedSkusInBatch = new Set();
     let editVariantCounter = 1;
+
     for (const [size, stock] of Object.entries(sizeStocks)) {
-      const matchingVariants = state.products.filter(v => {
-        if (!v) return false;
-        const s = v.sku || v.id || "";
-        if (!s || s.startsWith("supplier_") || s.startsWith("fixedcost_") || s.startsWith("account_") || s.startsWith("cashtransaction_") || s.startsWith("influencer_") || s.startsWith("marketingexpense_") || s.startsWith("stockintake_") || s === "extras_config" || s === "categories_config") {
-          return false;
-        }
-        return getProductGroupKey(v) === oldGroupKey && (v.size || "").toLowerCase().trim() === (size || "").toLowerCase().trim();
+      const matchingVariants = groupVariants.filter(v => {
+        return (v.size || "").toLowerCase().trim() === (size || "").toLowerCase().trim();
       });
 
       let existingVariant = matchingVariants.find(v => v.tiendanube_variant_id) || matchingVariants[0];
 
+      // Limpiar duplicados si hubiese
       if (matchingVariants.length > 1) {
         matchingVariants.forEach(dup => {
           if (dup.id !== existingVariant?.id && dup.sku) {
@@ -6789,12 +6806,32 @@ async function saveProductForm(e) {
           }
         });
       }
+
       const variantSecurityStock = isComercio ? globalSecurityStock : sizeSecurityStocks[size];
-      const safeSku = cleanSkuStrictNumeric(existingVariant ? existingVariant.sku : `${cleanBaseSku}${editVariantCounter}`);
-      editVariantCounter++;
       
+      let safeSku = existingVariant ? cleanSkuStrictNumeric(existingVariant.sku) : null;
+      if (!safeSku || otherProductsSkus.has(safeSku) || usedSkusInBatch.has(safeSku)) {
+        if (existingVariant && existingVariant.sku && !otherProductsSkus.has(cleanSkuStrictNumeric(existingVariant.sku)) && !usedSkusInBatch.has(cleanSkuStrictNumeric(existingVariant.sku))) {
+          safeSku = cleanSkuStrictNumeric(existingVariant.sku);
+        } else {
+          let candidate = cleanSkuStrictNumeric(`${cleanBaseSku}${editVariantCounter}`);
+          while (otherProductsSkus.has(candidate) || usedSkusInBatch.has(candidate)) {
+            editVariantCounter++;
+            candidate = cleanSkuStrictNumeric(`${cleanBaseSku}${editVariantCounter}`);
+          }
+          safeSku = candidate;
+        }
+      }
+      usedSkusInBatch.add(safeSku);
+      editVariantCounter++;
+
+      // Conservar metadatos de Tiendanube e imagen
+      const tnProdId = existingVariant?.tiendanube_product_id || groupVariants[0]?.tiendanube_product_id || null;
+      const tnVarId = existingVariant?.tiendanube_variant_id || null;
+      const imgUrl = existingVariant?.image_url || groupVariants[0]?.image_url || null;
+
       const payload = {
-        id: existingVariant ? existingVariant.id : Date.now() + Math.random(),
+        id: existingVariant ? (existingVariant.id || existingVariant.sku) : safeSku,
         baseSku: cleanBaseSku,
         sku: safeSku,
         name: name,
@@ -6816,7 +6853,10 @@ async function saveProductForm(e) {
         bordadoId: extras.bordados || null,
         packagingId: extras.packagings || null,
         leadTime: leadTime,
-        securityStock: variantSecurityStock
+        securityStock: variantSecurityStock,
+        tiendanube_product_id: tnProdId,
+        tiendanube_variant_id: tnVarId,
+        image_url: imgUrl
       };
       batchPayload.push(payload);
     }
