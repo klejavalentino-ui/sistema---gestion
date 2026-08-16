@@ -12161,20 +12161,22 @@ async function executeTiendanubePushSync() {
 
 async function syncTiendanubeCatalog() {
   try {
-    showToast("Sincronizando catálogo desde Tiendanube... Esto puede tardar unos segundos.");
+    showToast("Sincronizando catálogo y precios desde Tiendanube... Esto puede tardar unos segundos.");
     const result = await apiRequest("/api/integrations/tiendanube/sync", "POST");
     const added = result.added_count !== undefined ? result.added_count : (result.count || 0);
     const deleted = result.deleted_count || 0;
+    const updated = result.updated_count || 0;
+    
+    let parts = [];
+    if (added > 0) parts.push(`${added} ${added === 1 ? 'producto nuevo agregado' : 'productos nuevos agregados'}`);
+    if (updated > 0) parts.push(`${updated} ${updated === 1 ? 'precio actualizado' : 'precios actualizados'}`);
+    if (deleted > 0) parts.push(`${deleted} ${deleted === 1 ? 'producto eliminado' : 'productos eliminados'}`);
     
     let msg = "";
-    if (added > 0 && deleted > 0) {
-      msg = `Sincronización completada: ${added} ${added === 1 ? 'producto agregado' : 'productos agregados'} y ${deleted} ${deleted === 1 ? 'producto eliminado' : 'productos eliminados'}.`;
-    } else if (added > 0) {
-      msg = `Sincronización completada: ${added} ${added === 1 ? 'producto agregado' : 'productos agregados'}.`;
-    } else if (deleted > 0) {
-      msg = `Sincronización completada: ${deleted} ${deleted === 1 ? 'producto eliminado' : 'productos eliminados'}.`;
+    if (parts.length > 0) {
+      msg = `Sincronización completada: ${parts.join(", ")}.`;
     } else {
-      msg = "Sincronización completada: No hubo cambios en el catálogo.";
+      msg = "Sincronización completada: Catálogo y precios ya estaban al día.";
     }
     
     showToast(msg);

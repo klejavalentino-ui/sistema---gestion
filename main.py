@@ -3966,6 +3966,7 @@ def sync_tiendanube_catalog_route():
             biz_type = "textil"
 
         products_to_create = []
+        products_to_update = {}
         matched_system_doc_ids = set()
 
         for tn_prod in all_tn_products:
@@ -3973,6 +3974,7 @@ def sync_tiendanube_catalog_route():
             p_name_dict = tn_prod.get("name", {})
             p_name = p_name_dict.get("es", p_name_dict.get("en", next(iter(p_name_dict.values())) if p_name_dict.values() else "Sin Nombre"))
             attributes = tn_prod.get("attributes", [])
+            images = tn_prod.get("images", [])
 
             # Map category from categories list using tn_categories dictionary
             product_categories = tn_prod.get("categories", [])
@@ -3987,7 +3989,12 @@ def sync_tiendanube_catalog_route():
 
             for variant in tn_prod.get("variants", []):
                 v_id = variant.get("id")
-                price = safe_float(variant.get("price"))
+                raw_price = safe_float(variant.get("price"))
+                promo_price = safe_float(variant.get("promotional_price"))
+                # Si en Tiendanube hay un precio promocional/descuento activo (> 0 y menor que el regular), se toma ese precio. De lo contrario, el precio regular.
+                price = promo_price if (promo_price > 0 and promo_price < raw_price) else raw_price
+                if price <= 0 and promo_price > 0:
+                    price = promo_price
 
                 # Parse talle y color
                 size = "Único"
@@ -4032,9 +4039,41 @@ def sync_tiendanube_catalog_route():
                     matched_docs = existing_by_sku.get(raw_sku) or existing_by_base_sku.get(base_sku_raw) or []
 
                 if matched_docs:
-                    # RULE: Match found -> Preserve ALL size variant documents belonging to this model!
+                    # RULE: Match found -> Preserve ALL size variant documents belonging to this model,
+                    # and UPDATE selling prices (price, price_local, price_tiendanube) to reflect Tiendanube prices/discounts,
+                    # recalculating markup (margin) without touching unit cost (cost/baseCost) or stock!
                     for doc in matched_docs:
-                        matched_system_doc_ids.add(doc.get("id"))
+                        doc_id = doc.get("id")
+                        matched_system_doc_ids.add(doc_id)
+                        
+                        doc_cost = safe_float(doc.get("cost") or doc.get("baseCost"))
+                        current_price = safe_float(doc.get("price"))
+                        current_price_local = safe_float(doc.get("price_local"))
+                        current_price_tn = safe_float(doc.get("price_tiendanube"))
+                        
+                        if price > 0:
+                            # Recalcular markup (margin): (precio - costo) / costo * 100
+                            recalculated_margin = round(((price - doc_cost) / doc_cost) * 100.0, 2) if doc_cost > 0 else safe_float(doc.get("margin", 0.0))
+                            
+                            updated_doc = {**doc}
+                            updated_doc["price"] = price
+                            updated_doc["price_local"] = price
+                            updated_doc["price_tiendanube"] = price
+                            updated_doc["margin"] = recalculated_margin
+                            updated_doc["tiendanube_product_id"] = p_id
+                            
+                            # Asociar tiendanube_variant_id si coincide en talle o es única
+                            doc_size = (doc.get("size") or "").strip().lower()
+                            tn_size = (size or "").strip().lower()
+                            if doc_size == tn_size or not doc.get("tiendanube_variant_id") or len(matched_docs) == 1:
+                                updated_doc["tiendanube_variant_id"] = v_id
+                                
+                            if not updated_doc.get("image_url") and images:
+                                updated_doc["image_url"] = images[0].get("src")
+                                
+                            # Si hubo cambio en el precio o falta tiendanube_variant_id, registrar para persistir
+                            if abs(current_price - price) > 0.01 or abs(current_price_local - price) > 0.01 or abs(current_price_tn - price) > 0.01 or not doc.get("tiendanube_variant_id"):
+                                products_to_update[doc_id] = updated_doc
                 else:
                     # RULE: Product in TN but not in system -> Create new product
                     import random
@@ -4056,7 +4095,6 @@ def sync_tiendanube_catalog_route():
                     size_suffix = get_size_sku_suffix(size) if (size and size != "Único") else ("U" if biz_type == "comercio" else "")
                     final_sku = f"{candidate_base_sku}-{size_suffix}" if size_suffix else candidate_base_sku
 
-                    images = tn_prod.get("images", [])
                     image_url = images[0].get("src") if images else ""
 
                     new_prod = {
@@ -4110,16 +4148,18 @@ def sync_tiendanube_catalog_route():
         except Exception as cat_err:
             print(f"[CATEGORY SYNC] Failed to update categories_config: {cat_err}")
 
-        # 5. Save newly created products concurrently
+        # 5. Save newly created and updated products concurrently
         from flask import copy_current_request_context
         
         @copy_current_request_context
         def save_one_product(prod):
-            sku_with_prefix = prod.get("sku")
+            sku_with_prefix = prod.get("sku") or prod.get("id")
             firebase_config.set_document("products", sku_with_prefix, prod, token)
             
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            executor.map(save_one_product, products_to_create)
+        all_prods_to_save = products_to_create + list(products_to_update.values())
+        if all_prods_to_save:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                executor.map(save_one_product, all_prods_to_save)
 
         # 6. Delete products in system not in TN, EXCEPT categories starting with "Producción" / "produccion"
         deleted_docs = []
@@ -4138,7 +4178,7 @@ def sync_tiendanube_catalog_route():
                     except Exception as del_err:
                         print(f"[SYNC CLEANUP ERROR] Failed to delete {doc_id}: {del_err}")
 
-        # Group deleted and added items by unique product model
+        # Group deleted, added, and updated items by unique product model
         unique_deleted_models = set()
         for d in deleted_docs:
             name_clean = (d.get("name") or "").strip().lower()
@@ -4157,10 +4197,21 @@ def sync_tiendanube_catalog_route():
             if model_key:
                 unique_added_models.add(model_key)
 
+        unique_updated_models = set()
+        for doc_id, p in products_to_update.items():
+            name_clean = (p.get("name") or "").strip().lower()
+            color_clean = (p.get("color") or "").strip().lower()
+            base_sku = (p.get("baseSku") or p.get("sku") or p.get("id") or "").strip().lower()
+            model_key = f"{name_clean}_{color_clean}" if name_clean else base_sku
+            if model_key:
+                unique_updated_models.add(model_key)
+
         return jsonify({
             "success": True, 
             "added_count": len(unique_added_models),
             "deleted_count": len(unique_deleted_models),
+            "updated_count": len(unique_updated_models),
+            "updated_variants_count": len(products_to_update),
             "added_variants_count": len(products_to_create),
             "deleted_variants_count": len(deleted_docs),
             "synced_count": len(all_tn_products)
