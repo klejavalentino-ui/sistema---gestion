@@ -4418,64 +4418,128 @@ function printInvoiceA4(sale) {
 window.printInvoiceA4 = printInvoiceA4;
 
 async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 794) {
-  const iframe = document.createElement("iframe");
-  iframe.style.position = 'fixed';
-  iframe.style.left = '0px';
-  iframe.style.top = '0px';
-  iframe.style.width = targetWidth + 'px';
-  iframe.style.height = '1123px';
-  iframe.style.opacity = '1';
-  iframe.style.zIndex = '-9999';
-  iframe.style.pointerEvents = 'none';
-  iframe.style.border = 'none';
-  iframe.style.background = '#ffffff';
-  document.body.appendChild(iframe);
+  // Extraer el contenido interno del HTML (dentro de <body>) para inyectarlo en el DOM principal
+  // Esto evita las restricciones cross-document del iframe que causan que html2canvas genere canvas en blanco
+  const bodyMatch = fullHtmlString.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const styleMatch = fullHtmlString.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const innerContent = bodyMatch ? bodyMatch[1] : fullHtmlString;
+  const innerStyles = styleMatch ? styleMatch[1] : "";
+
+  // Crear un contenedor temporal en el DOM principal con todos los estilos necesarios
+  // Se usa un ID único para poder aplicar estilos scoped sin afectar el resto de la app
+  const wrapperId = "pdf-render-wrapper-" + Date.now();
+  const wrapper = document.createElement("div");
+  wrapper.id = wrapperId;
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "0px";
+  wrapper.style.top = "0px";
+  wrapper.style.width = targetWidth + "px";
+  wrapper.style.minHeight = "1123px";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.backgroundColor = "#ffffff";
+  wrapper.style.color = "#000000";
+  wrapper.style.zIndex = "-9999";
+  wrapper.style.pointerEvents = "none";
+  wrapper.style.fontFamily = targetWidth <= 500 ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif";
+  wrapper.style.fontSize = "11px";
+  wrapper.style.lineHeight = "1.35";
+  wrapper.style.boxSizing = "border-box";
+  wrapper.style.overflow = "visible";
+
+  // Inyectar estilos scoped al wrapper, forzando colores aptos para PDF
+  // Se reemplazan variables CSS del tema oscuro con valores fijos blancos/negros
+  const basePdfStyles = `
+    #${wrapperId}, #${wrapperId} * {
+      box-sizing: border-box !important;
+      color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
+      text-shadow: none !important;
+      background-color: transparent !important;
+    }
+    #${wrapperId} {
+      background-color: #ffffff !important;
+      background: #ffffff !important;
+      font-family: ${targetWidth <= 500 ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif"} !important;
+    }
+    #${wrapperId} #invoice-page {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+    }
+    #${wrapperId} table, #${wrapperId} th, #${wrapperId} td {
+      color: #000000 !important;
+      border-color: #000000 !important;
+    }
+  `;
+
+  const pdfStyleEl = document.createElement("style");
+  pdfStyleEl.id = wrapperId + "-styles";
+  pdfStyleEl.textContent = basePdfStyles + (innerStyles
+    ? innerStyles
+        .replace(/var\(--text-white\)/g, "#000000")
+        .replace(/var\(--text-gray[^)]*\)/g, "#555555")
+        .replace(/var\(--bg-dark\)/g, "#ffffff")
+        .replace(/var\(--bg-card\)/g, "#ffffff")
+        .replace(/var\(--border-color\)/g, "#cccccc")
+        .replace(/var\(--accent-[^)]+\)/g, "#000000")
+    : "");
+  document.head.appendChild(pdfStyleEl);
+
+  wrapper.insertAdjacentHTML("beforeend", innerContent);
+  document.body.appendChild(wrapper);
+
+  // El CSS scoped aplicado arriba ya fuerza color: #000 y bg: transparent en todos los elementos.
+  // No se necesita post-procesamiento adicional con getComputedStyle.
 
   try {
-    const frameDoc = iframe.contentWindow.document;
-    frameDoc.open();
-    frameDoc.write(fullHtmlString);
-    frameDoc.close();
-
-    // Esperar a que el DOM del iframe y sus imágenes se carguen
+    // Esperar a que las imágenes dentro del wrapper se carguen
     await new Promise((resolve) => {
+      const imgs = Array.from(wrapper.querySelectorAll("img"));
+      if (imgs.length === 0) { resolve(); return; }
+      let loaded = 0;
       let attempts = 0;
       const interval = setInterval(() => {
         attempts++;
-        const imgs = Array.from(frameDoc.querySelectorAll("img"));
-        const allDone = imgs.every(img => img.complete);
-        if ((allDone && frameDoc.readyState === "complete") || attempts > 20) {
+        loaded = imgs.filter(img => img.complete).length;
+        if (loaded >= imgs.length || attempts > 30) {
           clearInterval(interval);
           resolve();
         }
       }, 50);
     });
 
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(resolve => setTimeout(resolve, 250));
 
-    const element = frameDoc.getElementById('invoice-page') || frameDoc.body;
+    const element = wrapper.querySelector("#invoice-page") || wrapper;
     const html2canvasFn = window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas);
 
     if (html2canvasFn) {
       const canvas = await html2canvasFn(element, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
-        backgroundColor: '#ffffff',
+        backgroundColor: "#ffffff",
         scrollX: 0,
         scrollY: 0,
-        windowWidth: targetWidth
+        windowWidth: targetWidth,
+        width: targetWidth,
+        onclone: (clonedDoc) => {
+          // En el clon, forzar todos los textos a negro y fondo blanco
+          clonedDoc.querySelectorAll("*").forEach(el => {
+            el.style.color = el.style.color || "#000000";
+            el.style.webkitTextFillColor = "#000000";
+          });
+        }
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const imgData = canvas.toDataURL("image/jpeg", 1.0);
       const JsPdfClass = (window.jspdf && window.jspdf.jsPDF) || window.jspdf || window.jsPDF || (window.html2pdf && window.html2pdf.jsPDF);
 
       if (JsPdfClass) {
-        const pdf = new JsPdfClass('p', 'mm', 'a4');
+        const pdf = new JsPdfClass("p", "mm", "a4");
         const pdfWidth = 210;
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
         pdf.save(filename);
         showToast("¡PDF descargado con éxito!");
         return;
@@ -4484,37 +4548,55 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
 
     if (window.html2pdf) {
       const opt = {
-        margin:       [0, 0, 0, 0],
-        filename:     filename,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { 
-          scale: 2, 
-          useCORS: true, 
-          scrollX: 0, 
-          scrollY: 0, 
+        margin:      [0, 0, 0, 0],
+        filename:    filename,
+        image:       { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          scrollX: 0,
+          scrollY: 0,
           windowWidth: targetWidth,
-          backgroundColor: '#ffffff'
+          backgroundColor: "#ffffff"
         },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
       };
       await window.html2pdf().set(opt).from(element).save();
       showToast("¡PDF descargado con éxito!");
       return;
     }
 
-    // Fallback nativo
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+    // Fallback: abrir ventana e imprimir
+    const fallbackWin = window.open("", "_blank", "width=900,height=1100");
+    if (fallbackWin) {
+      fallbackWin.document.write(fullHtmlString);
+      fallbackWin.document.close();
+      fallbackWin.focus();
+      setTimeout(() => { fallbackWin.print(); fallbackWin.close(); }, 800);
+    } else {
+      showToast("No se pudo generar el PDF. Intentá imprimir directamente.", true);
+    }
   } catch (err) {
     console.error("Error en generatePdfFromHtmlDoc:", err);
     try {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
+      // Fallback: intentar con ventana popup
+      const fallbackWin = window.open("", "_blank", "width=900,height=1100");
+      if (fallbackWin) {
+        fallbackWin.document.write(fullHtmlString);
+        fallbackWin.document.close();
+        fallbackWin.focus();
+        setTimeout(() => { fallbackWin.print(); fallbackWin.close(); }, 800);
+      } else {
+        showToast("Error al generar PDF: " + err.message, true);
+      }
     } catch (e) {
       showToast("Error al generar PDF: " + err.message, true);
     }
   } finally {
-    iframe.remove();
+    wrapper.remove();
+    const orphanStyle = document.getElementById(wrapperId + "-styles");
+    if (orphanStyle) orphanStyle.remove();
   }
 }
 window.generatePdfFromHtmlDoc = generatePdfFromHtmlDoc;
