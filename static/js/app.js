@@ -4418,96 +4418,78 @@ function printInvoiceA4(sale) {
 window.printInvoiceA4 = printInvoiceA4;
 
 async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 794) {
-  // Extraer el contenido interno del HTML (dentro de <body>) para inyectarlo en el DOM principal
-  // Esto evita las restricciones cross-document del iframe que causan que html2canvas genere canvas en blanco
+  // Extraer el contenido del <body> e <style> del HTML completo para inyectar en el DOM principal.
+  // Esto evita las restricciones cross-document del iframe (html2canvas no puede acceder a
+  // iframes con document.write() en browsers modernos, lo que generaba canvas en blanco).
   const bodyMatch = fullHtmlString.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
   const styleMatch = fullHtmlString.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
   const innerContent = bodyMatch ? bodyMatch[1] : fullHtmlString;
   const innerStyles = styleMatch ? styleMatch[1] : "";
 
-  // Crear un contenedor temporal en el DOM principal con todos los estilos necesarios
-  // Se usa un ID único para poder aplicar estilos scoped sin afectar el resto de la app
   const wrapperId = "pdf-render-wrapper-" + Date.now();
-  const wrapper = document.createElement("div");
-  wrapper.id = wrapperId;
-  wrapper.style.position = "fixed";
-  wrapper.style.left = "0px";
-  wrapper.style.top = "0px";
-  wrapper.style.width = targetWidth + "px";
-  wrapper.style.minHeight = "1123px";
-  wrapper.style.background = "#ffffff";
-  wrapper.style.backgroundColor = "#ffffff";
-  wrapper.style.color = "#000000";
-  wrapper.style.zIndex = "-9999";
-  wrapper.style.pointerEvents = "none";
-  wrapper.style.fontFamily = targetWidth <= 500 ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif";
-  wrapper.style.fontSize = "11px";
-  wrapper.style.lineHeight = "1.35";
-  wrapper.style.boxSizing = "border-box";
-  wrapper.style.overflow = "visible";
 
-  // Inyectar estilos scoped al wrapper, forzando colores aptos para PDF
-  // Se reemplazan variables CSS del tema oscuro con valores fijos blancos/negros
-  const basePdfStyles = `
+  // Helper: reemplazar variables CSS del tema oscuro con valores fijos para PDF
+  const safeCssVars = (css) => css
+    .replace(/var\(--text-white\)/g, "#000000")
+    .replace(/var\(--text-gray[^)]*\)/g, "#555555")
+    .replace(/var\(--bg-dark\)/g, "#ffffff")
+    .replace(/var\(--bg-card\)/g, "#ffffff")
+    .replace(/var\(--border-color\)/g, "#cccccc")
+    .replace(/var\(--accent-[^)]+\)/g, "#000000");
+
+  // Inyectar estilos scoped al <head> para forzar colores aptos para PDF
+  const pdfStyleEl = document.createElement("style");
+  pdfStyleEl.id = wrapperId + "-styles";
+  pdfStyleEl.textContent = `
     #${wrapperId}, #${wrapperId} * {
       box-sizing: border-box !important;
       color: #000000 !important;
       -webkit-text-fill-color: #000000 !important;
       text-shadow: none !important;
-      background-color: transparent !important;
     }
-    #${wrapperId} {
-      background-color: #ffffff !important;
-      background: #ffffff !important;
-      font-family: ${targetWidth <= 500 ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif"} !important;
-    }
-    #${wrapperId} #invoice-page {
-      background-color: #ffffff !important;
-      color: #000000 !important;
-    }
+    #${wrapperId} { background-color: #ffffff !important; background: #ffffff !important; }
+    #${wrapperId} #invoice-page { background-color: #ffffff !important; }
     #${wrapperId} table, #${wrapperId} th, #${wrapperId} td {
       color: #000000 !important;
       border-color: #000000 !important;
     }
+    ${innerStyles ? safeCssVars(innerStyles) : ""}
   `;
-
-  const pdfStyleEl = document.createElement("style");
-  pdfStyleEl.id = wrapperId + "-styles";
-  pdfStyleEl.textContent = basePdfStyles + (innerStyles
-    ? innerStyles
-        .replace(/var\(--text-white\)/g, "#000000")
-        .replace(/var\(--text-gray[^)]*\)/g, "#555555")
-        .replace(/var\(--bg-dark\)/g, "#ffffff")
-        .replace(/var\(--bg-card\)/g, "#ffffff")
-        .replace(/var\(--border-color\)/g, "#cccccc")
-        .replace(/var\(--accent-[^)]+\)/g, "#000000")
-    : "");
   document.head.appendChild(pdfStyleEl);
+
+  // Crear wrapper INVISIBLE durante la generación: top:-9999px lo posiciona
+  // por encima del viewport (el usuario no lo ve), sin afectar el layout de la página.
+  const wrapper = document.createElement("div");
+  wrapper.id = wrapperId;
+  wrapper.style.position = "fixed";
+  wrapper.style.top = "-9999px";     // ← encima del viewport, invisible
+  wrapper.style.left = "0px";
+  wrapper.style.width = targetWidth + "px";
+  wrapper.style.minHeight = "1123px";
+  wrapper.style.backgroundColor = "#ffffff";
+  wrapper.style.color = "#000000";
+  wrapper.style.zIndex = "-1";
+  wrapper.style.pointerEvents = "none";
+  wrapper.style.overflow = "visible";
 
   wrapper.insertAdjacentHTML("beforeend", innerContent);
   document.body.appendChild(wrapper);
 
-  // El CSS scoped aplicado arriba ya fuerza color: #000 y bg: transparent en todos los elementos.
-  // No se necesita post-procesamiento adicional con getComputedStyle.
-
   try {
-    // Esperar a que las imágenes dentro del wrapper se carguen
+    // Esperar que las imágenes (logo, QR de ARCA) terminen de cargar
     await new Promise((resolve) => {
       const imgs = Array.from(wrapper.querySelectorAll("img"));
       if (imgs.length === 0) { resolve(); return; }
-      let loaded = 0;
       let attempts = 0;
       const interval = setInterval(() => {
         attempts++;
-        loaded = imgs.filter(img => img.complete).length;
-        if (loaded >= imgs.length || attempts > 30) {
+        if (imgs.every(img => img.complete) || attempts > 40) {
           clearInterval(interval);
           resolve();
         }
       }, 50);
     });
-
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     const element = wrapper.querySelector("#invoice-page") || wrapper;
     const html2canvasFn = window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas);
@@ -4522,11 +4504,27 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
         scrollX: 0,
         scrollY: 0,
         windowWidth: targetWidth,
-        width: targetWidth,
         onclone: (clonedDoc) => {
-          // En el clon, forzar todos los textos a negro y fondo blanco
+          // CRÍTICO: en el documento clonado por html2canvas:
+          // 1) Ocultar todos los demás elementos del <body> (la UI de la app)
+          //    para que no interfieran ni corten el contenido del comprobante.
+          // 2) Reposicionar el wrapper a position:static para que el contenido
+          //    quede alineado desde el origen y se capture completamente.
+          Array.from(clonedDoc.body.children).forEach(child => {
+            if (child.id !== wrapperId) {
+              child.style.display = "none";
+            }
+          });
+          const clonedWrapper = clonedDoc.getElementById(wrapperId);
+          if (clonedWrapper) {
+            clonedWrapper.style.position = "static";
+            clonedWrapper.style.top = "0px";
+            clonedWrapper.style.left = "0px";
+            clonedWrapper.style.zIndex = "auto";
+          }
+          // Forzar texto negro en todo el clon (por si heredan variables CSS del tema oscuro)
           clonedDoc.querySelectorAll("*").forEach(el => {
-            el.style.color = el.style.color || "#000000";
+            el.style.color = "#000000";
             el.style.webkitTextFillColor = "#000000";
           });
         }
@@ -4548,9 +4546,9 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
 
     if (window.html2pdf) {
       const opt = {
-        margin:      [0, 0, 0, 0],
-        filename:    filename,
-        image:       { type: "jpeg", quality: 0.98 },
+        margin: [0, 0, 0, 0],
+        filename: filename,
+        image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
           scale: 2,
           useCORS: true,
@@ -4558,7 +4556,22 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
           scrollX: 0,
           scrollY: 0,
           windowWidth: targetWidth,
-          backgroundColor: "#ffffff"
+          backgroundColor: "#ffffff",
+          onclone: (clonedDoc) => {
+            Array.from(clonedDoc.body.children).forEach(child => {
+              if (child.id !== wrapperId) child.style.display = "none";
+            });
+            const clonedWrapper = clonedDoc.getElementById(wrapperId);
+            if (clonedWrapper) {
+              clonedWrapper.style.position = "static";
+              clonedWrapper.style.top = "0px";
+              clonedWrapper.style.left = "0px";
+            }
+            clonedDoc.querySelectorAll("*").forEach(el => {
+              el.style.color = "#000000";
+              el.style.webkitTextFillColor = "#000000";
+            });
+          }
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
       };
@@ -4567,7 +4580,7 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
       return;
     }
 
-    // Fallback: abrir ventana e imprimir
+    // Fallback: abrir ventana y dejar que el usuario use "Guardar como PDF" desde el diálogo de impresión
     const fallbackWin = window.open("", "_blank", "width=900,height=1100");
     if (fallbackWin) {
       fallbackWin.document.write(fullHtmlString);
@@ -4580,7 +4593,6 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
   } catch (err) {
     console.error("Error en generatePdfFromHtmlDoc:", err);
     try {
-      // Fallback: intentar con ventana popup
       const fallbackWin = window.open("", "_blank", "width=900,height=1100");
       if (fallbackWin) {
         fallbackWin.document.write(fullHtmlString);
@@ -4594,12 +4606,14 @@ async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 79
       showToast("Error al generar PDF: " + err.message, true);
     }
   } finally {
+    // Limpiar siempre: remover el wrapper y el style tag del <head>
     wrapper.remove();
     const orphanStyle = document.getElementById(wrapperId + "-styles");
     if (orphanStyle) orphanStyle.remove();
   }
 }
 window.generatePdfFromHtmlDoc = generatePdfFromHtmlDoc;
+
 
 async function downloadFacturaCA4PDF(saleIdOrObject) {
   let sale = typeof saleIdOrObject === "object" ? saleIdOrObject : null;
