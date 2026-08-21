@@ -4540,7 +4540,17 @@ def sync_tiendanube_orders_route():
                     "quantity": qty
                 })
                 
-            discount_amount = safe_float(order.get("discount"))
+            discount_amount = safe_float(order.get("discount", 0.0))
+            if discount_amount == 0.0 and order.get("discount_gateway"):
+                discount_amount = safe_float(order.get("discount_gateway"))
+            if discount_amount == 0.0 and order.get("discount_coupon"):
+                discount_amount = safe_float(order.get("discount_coupon"))
+            if discount_amount == 0.0 and order.get("promotional_discount"):
+                discount_amount = safe_float(order.get("promotional_discount"))
+
+            shipping_cost = safe_float(order.get("shipping_cost_customer", order.get("shipping", order.get("shipping_cost", 0.0))))
+            shipping_option_val = order.get("shipping_option") or ""
+
             discount_pct = (discount_amount / subtotal_price * 100.0) if (subtotal_price > 0 and discount_amount > 0) else 0.0
             
             order_tn_status = str(order.get("status") or "").lower().strip()
@@ -4569,6 +4579,10 @@ def sync_tiendanube_orders_route():
                 "total": total_price,
                 "subtotal": subtotal_price,
                 "discount_pct": discount_pct,
+                "discount_amount": discount_amount,
+                "discount": discount_amount,
+                "shipping_cost": shipping_cost,
+                "shipping_option": shipping_option_val,
                 "method": gateway,
                 "items": order_items,
                 "extras": {},
@@ -4584,7 +4598,6 @@ def sync_tiendanube_orders_route():
                 "client_phone": client_phone,
                 "client_cuit": client_cuit,
                 "tn_number": tn_number,
-                "shipping_option": order.get("shipping_option"),
                 "shipping_pickup_type": order.get("shipping_pickup_type")
             }
             

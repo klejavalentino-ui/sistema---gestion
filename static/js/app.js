@@ -4217,28 +4217,39 @@ function getFacturaA4HTML(sale) {
   const totalNum = parseFloat(sale.total || 0);
 
   let itemsRows = "";
+  let itemsSubtotal = 0;
+
   if (sale.items && sale.items.length > 0) {
-    itemsRows = sale.items.map(it => {
+    sale.items.forEach(it => {
       const skuStr = it.product?.sku || it.sku || "PROD";
       const rawName = it.custom_name || it.product?.name || it.name || "Producto";
       const nameStr = it.custom_name ? it.custom_name : (typeof cleanFacturaItemName === 'function' ? cleanFacturaItemName(rawName) : rawName);
       const qty = parseFloat(it.quantity || it.qty || 1);
-      const price = parseFloat(it.price || (it.product ? it.product.price_local : 0) || (totalNum / qty));
-      const subtotalItem = price * qty;
-      const sizeStr = (!it.custom_name && it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") ? ` (Talle ${it.size})` : "";
-      return `
+      const price = parseFloat(it.price || (it.product ? (it.product.price_local || it.product.price) : 0) || 0);
+      const unitPrice = price > 0 ? price : (totalNum / qty);
+      const subtotalItem = unitPrice * qty;
+      itemsSubtotal += subtotalItem;
+
+      let sizeStr = "";
+      if (!it.custom_name && it.size && String(it.size).toLowerCase() !== "único" && String(it.size).toLowerCase() !== "unico") {
+        if (!nameStr.toLowerCase().includes(String(it.size).toLowerCase())) {
+          sizeStr = ` (Talle ${it.size})`;
+        }
+      }
+
+      itemsRows += `
         <tr style="border-bottom: 1px solid #e2e8f0;">
           <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">${skuStr}</td>
           <td style="border-right: 1px solid #000; padding: 6px 8px;">${nameStr}${sizeStr}</td>
           <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">${qty.toFixed(2)}</td>
           <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
-          <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">$ ${price.toFixed(2)}</td>
+          <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">$ ${unitPrice.toFixed(2)}</td>
           <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
           <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
           <td style="padding: 6px 8px; text-align: right; font-weight: bold;">$ ${subtotalItem.toFixed(2)}</td>
         </tr>
       `;
-    }).join("");
+    });
   } else {
     itemsRows = `
       <tr style="border-bottom: 1px solid #e2e8f0;">
@@ -4250,6 +4261,53 @@ function getFacturaA4HTML(sale) {
         <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
         <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
         <td style="padding: 6px 8px; text-align: right; font-weight: bold;">$ ${totalNum.toFixed(2)}</td>
+      </tr>
+    `;
+    itemsSubtotal = totalNum;
+  }
+
+  // Fila de Envío y Descuento para que los detalles sumen exactamente el total
+  let shippingCostA4 = parseFloat(sale.shipping_cost || sale.shipping || 0) || 0;
+  let discountAmountA4 = parseFloat(sale.discount_amount || sale.discount || 0) || 0;
+  const deltaA4 = totalNum - (itemsSubtotal + shippingCostA4 - discountAmountA4);
+  if (Math.abs(deltaA4) > 0.5) {
+    if (deltaA4 > 0 && shippingCostA4 === 0) {
+      shippingCostA4 = deltaA4;
+    } else if (deltaA4 < 0 && discountAmountA4 === 0) {
+      discountAmountA4 = Math.abs(deltaA4);
+    }
+  }
+
+  if (shippingCostA4 > 0) {
+    const shippingName = sale.shipping_option ? `Servicio de Envío (${sale.shipping_option})` : "Servicio de Envío / Logística";
+    itemsRows += `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">ENV-01</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px;">🚚 ${shippingName}</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">1.00</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">$ ${shippingCostA4.toFixed(2)}</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold;">$ ${shippingCostA4.toFixed(2)}</td>
+      </tr>
+    `;
+  }
+
+  if (discountAmountA4 > 0) {
+    const discountName = (sale.method && sale.method.toLowerCase().includes("transfer"))
+      ? "Descuento por Transferencia / Pago"
+      : "Descuento Comercial / Bonificación";
+    itemsRows += `
+      <tr style="border-bottom: 1px solid #e2e8f0; color: #b91c1c;">
+        <td style="border-right: 1px solid #000; padding: 6px 8px; font-family: monospace;">DESC-01</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px;">🏷️ ${discountName}</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">1.00</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: center;">unidades</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">-$ ${discountAmountA4.toFixed(2)}</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">0,00</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold;">-$ ${discountAmountA4.toFixed(2)}</td>
       </tr>
     `;
   }
@@ -4968,7 +5026,10 @@ function getInvoiceTicketInnerHTML(sale) {
 
   // 1. Items HTML con formato holgado y columnas claras (Detalle, Cantidad, Precio Unitario, Total)
   let itemsHtml = "";
-  if (sale.items) {
+  let itemsSubtotal = 0;
+  const totalNum = parseFloat(sale.total || 0);
+
+  if (sale.items && sale.items.length > 0) {
     sale.items.forEach(item => {
       const p = item.product || {};
       const extrasObj = p.extras || {};
@@ -4991,7 +5052,7 @@ function getInvoiceTicketInnerHTML(sale) {
       }
 
       const qty = parseInt(item.quantity) || 1;
-      let unitPrice = parseFloat(item.price || item.unitPrice || item.price_local || item.price_tiendanube) || 0;
+      let unitPrice = parseFloat(item.price || item.unitPrice || (it => it.product ? (it.product.price_local || it.product.price_tiendanube || it.product.price) : 0)(item)) || 0;
       
       if (!unitPrice || unitPrice === 0) {
         const finalUnitCost = (parseFloat(p.cost) || 0) + itemExtraCost;
@@ -4999,19 +5060,27 @@ function getInvoiceTicketInnerHTML(sale) {
         unitPrice = finalUnitCost * (1 + margin / 100);
       }
       
-      if ((!unitPrice || unitPrice === 0) && sale.items.length === 1 && sale.total > 0) {
-        unitPrice = sale.total / qty;
+      if ((!unitPrice || unitPrice === 0) && sale.items.length === 1 && !sale.shipping_cost && !sale.discount && totalNum > 0) {
+        unitPrice = totalNum / qty;
       } else if ((!unitPrice || unitPrice === 0) && item.subtotal > 0) {
         unitPrice = item.subtotal / qty;
       }
       
-      const subtotal = (unitPrice > 0 ? unitPrice * qty : (item.subtotal || (sale.items.length === 1 ? sale.total : 0)));
-      const variantText = (state.businessType === "comercio" || p.size === "Único" || !item.size) ? "" : ` (${item.size})`;
+      const subtotal = (unitPrice > 0 ? unitPrice * qty : (item.subtotal || 0));
+      itemsSubtotal += subtotal;
+
+      const rawName = String(p.name || item.name || 'Producto').trim();
+      let variantText = "";
+      if (state.businessType !== "comercio" && item.size && String(item.size).toLowerCase() !== "único" && String(item.size).toLowerCase() !== "unico") {
+        if (!rawName.toLowerCase().includes(String(item.size).toLowerCase())) {
+          variantText = ` (${item.size})`;
+        }
+      }
 
       itemsHtml += `
         <tr style="border-bottom: 1px solid #eee;">
           <td style="font-size: 10px; text-align: left; padding: 4px 2px;">
-            ${p.name || item.name || 'Producto'}${variantText}
+            ${rawName}${variantText}
           </td>
           <td style="font-size: 10px; text-align: center; padding: 4px 2px;">${qty}</td>
           <td style="font-size: 10px; text-align: right; padding: 4px 2px; white-space: nowrap;">$ ${Math.round(unitPrice).toLocaleString('es-AR')}</td>
@@ -5019,6 +5088,48 @@ function getInvoiceTicketInnerHTML(sale) {
         </tr>
       `;
     });
+  }
+
+  // Fila de Envío y Descuento para que la suma de detalles coincida exactamente con el total
+  let shippingCostTicket = parseFloat(sale.shipping_cost || sale.shipping || 0) || 0;
+  let discountAmountTicket = parseFloat(sale.discount_amount || sale.discount || 0) || 0;
+  const deltaTicket = totalNum - (itemsSubtotal + shippingCostTicket - discountAmountTicket);
+  if (Math.abs(deltaTicket) > 0.5) {
+    if (deltaTicket > 0 && shippingCostTicket === 0) {
+      shippingCostTicket = deltaTicket;
+    } else if (deltaTicket < 0 && discountAmountTicket === 0) {
+      discountAmountTicket = Math.abs(deltaTicket);
+    }
+  }
+
+  if (shippingCostTicket > 0) {
+    const shippingName = sale.shipping_option ? `Envío (${sale.shipping_option})` : "Costo de Envío";
+    itemsHtml += `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="font-size: 10px; text-align: left; padding: 4px 2px; color: #333;">
+          🚚 ${shippingName}
+        </td>
+        <td style="font-size: 10px; text-align: center; padding: 4px 2px;">1</td>
+        <td style="font-size: 10px; text-align: right; padding: 4px 2px; white-space: nowrap;">$ ${Math.round(shippingCostTicket).toLocaleString('es-AR')}</td>
+        <td style="font-size: 10px; text-align: right; padding: 4px 2px; white-space: nowrap;">$ ${Math.round(shippingCostTicket).toLocaleString('es-AR')}</td>
+      </tr>
+    `;
+  }
+
+  if (discountAmountTicket > 0) {
+    const discountName = (sale.method && sale.method.toLowerCase().includes("transfer"))
+      ? "Descuento por Transferencia / Pago"
+      : "Descuento / Bonificación";
+    itemsHtml += `
+      <tr style="border-bottom: 1px solid #eee; color: #b91c1c;">
+        <td style="font-size: 10px; text-align: left; padding: 4px 2px;">
+          🏷️ ${discountName}
+        </td>
+        <td style="font-size: 10px; text-align: center; padding: 4px 2px;">1</td>
+        <td style="font-size: 10px; text-align: right; padding: 4px 2px; white-space: nowrap;">-$ ${Math.round(discountAmountTicket).toLocaleString('es-AR')}</td>
+        <td style="font-size: 10px; text-align: right; padding: 4px 2px; white-space: nowrap;">-$ ${Math.round(discountAmountTicket).toLocaleString('es-AR')}</td>
+      </tr>
+    `;
   }
 
   // 2. Ticket de cambio (sin detalle de prendas duplicado)
