@@ -4080,24 +4080,73 @@ async function finishCheckoutWithARCA() {
   }
 }
 
-function getFacturaA4HTML(sale) {
-  let arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
-  const userEmail = (state.email || state.userEmail || "").toLowerCase();
-
-  const cuit = arca.cuit || "20362895953";
-  const pos = arca.pos || "0002";
-  const condicionEmisor = (arca.condicion_iva || "Responsable Monotributo").toUpperCase();
-
-  const isMazoCuit = cuit.includes("20362895953");
-  const isMatias = isMazoCuit || userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
-
-  const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : (state.businessName || "MI NEGOCIO"));
-  const businessName = arca.razon_social ? arca.razon_social : (isMatias ? "CUCHETTI DIAZ MATIAS" : (state.businessName || "EMPRESA / MONOTRIBUTISTA"));
+function getArcaEmitterConfig() {
+  const arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
   
-  let rawAddress = arca.domicilio ? arca.domicilio : (arca.domicilio_comercial ? arca.domicilio_comercial : (arca.address || (isMatias ? "Castelli 1229 - Bahia Blanca, Buenos Aires" : "Domicilio Comercial")));
+  // Obtener posibles valores de los inputs del formulario ARCA en el DOM
+  const domCuit = document.getElementById("arca-cuit")?.value?.replace(/\D/g, "");
+  const domFantasia = document.getElementById("arca-nombre-fantasia")?.value?.trim();
+  const domRazon = document.getElementById("arca-razon-social")?.value?.trim();
+  const domDomicilio = document.getElementById("arca-domicilio")?.value?.trim();
+  const domStartDate = document.getElementById("arca-start-date")?.value?.trim();
+  const domCondicion = document.getElementById("arca-condicion-iva")?.value;
+  const domPos = document.getElementById("arca-pos")?.value?.trim();
 
+  // Valores canónicos oficiales de la cuenta ARCA
+  const defaultCuit = "20362895953";
+  const defaultFantasia = "MAZO.";
+  const defaultRazon = "CUCHETTI DIAZ MATIAS";
+  const defaultDomicilio = "Castelli 1229, Bahia Blanca, Buenos Aires";
+  const defaultStartDate = "01/10/2024";
+  const defaultCondicion = "MONOTRIBUTO";
+  const defaultPos = "0002";
+
+  const cuit = arca.cuit || domCuit || defaultCuit;
+
+  const cleanField = (val, fallback) => {
+    if (!val) return fallback;
+    const trimmed = String(val).trim();
+    const lower = trimmed.toLowerCase();
+    if (lower === "" || lower === "empresa" || lower === "empresa / monotributista" || lower === "domicilio comercial" || lower === "01/01/2020") {
+      return fallback;
+    }
+    return trimmed;
+  };
+
+  const tradeName = cleanField(arca.nombre_fantasia || arca.nombreFantasia || domFantasia, defaultFantasia);
+  const businessName = cleanField(arca.razon_social || arca.razonSocial || domRazon, defaultRazon);
+  let rawAddress = cleanField(arca.domicilio_comercial || arca.domicilioComercial || arca.domicilio || arca.address || domDomicilio, defaultDomicilio);
   const iibb = arca.iibb || cuit;
-  const incioAct = arca.inicio_actividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
+  const inicioAct = cleanField(arca.inicio_actividades || arca.inicioActividades || arca.start_date || domStartDate, defaultStartDate);
+
+  const rawCondicion = arca.condicion_iva || domCondicion || defaultCondicion;
+  const condicionEmisor = rawCondicion.toUpperCase().includes("INSCRIPTO") ? "RESPONSABLE INSCRIPTO" : "RESPONSABLE MONOTRIBUTO";
+  const pos = arca.pos || domPos || defaultPos;
+
+  return {
+    cuit,
+    tradeName,
+    businessName,
+    rawAddress,
+    addressStr: rawAddress.toLowerCase().includes("domicilio comercial") ? rawAddress : `Domicilio Comercial: ${rawAddress}`,
+    iibb,
+    inicioAct,
+    condicionEmisor,
+    pos
+  };
+}
+window.getArcaEmitterConfig = getArcaEmitterConfig;
+
+function getFacturaA4HTML(sale) {
+  const emitter = getArcaEmitterConfig();
+  const cuit = emitter.cuit;
+  const pos = emitter.pos;
+  const condicionEmisor = emitter.condicionEmisor;
+  const tradeName = emitter.tradeName;
+  const businessName = emitter.businessName;
+  const rawAddress = emitter.rawAddress;
+  const iibb = emitter.iibb;
+  const incioAct = emitter.inicioAct;
   
   const rawInvoiceId = sale.arca_invoice_id || sale.invoice_number || "00000001";
   const formattedInvoiceNum = rawInvoiceId.includes("-") ? rawInvoiceId.split("-")[1].padStart(8, '0') : String(rawInvoiceId).padStart(8, '0');
@@ -5035,22 +5084,16 @@ function getInvoiceTicketInnerHTML(sale) {
     `;
   } else {
     // Factura Oficial (A, B o C)
-    let arca = (state.integrations && state.integrations.arca) ? state.integrations.arca : {};
-    const cuit = arca.cuit || "00-00000000-0";
-    const pos = arca.pos || "0002";
-    const condicionEmisor = (arca.condicion_iva || "monotributo").toUpperCase();
+    const emitter = getArcaEmitterConfig();
+    const cuit = emitter.cuit;
+    const pos = emitter.pos;
+    const condicionEmisor = emitter.condicionEmisor.includes("INSCRIPTO") ? "RESPONSABLE INSCRIPTO" : "MONOTRIBUTO";
 
-    const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
-
-    const tradeName = arca.nombre_fantasia || arca.nombreFantasia || (isMatias ? "MAZO." : state.businessName || "Empresa");
-    const businessName = arca.razon_social || arca.razonSocial || (isMatias ? "CUCHETTI DIAZ MATIAS" : state.businessName || "Empresa / Monotributista");
-    
-    let rawAddress = arca.domicilio_comercial || arca.domicilioComercial || arca.domicilio || arca.address || (isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "Domicilio Comercial");
-    const addressStr = rawAddress.toLowerCase().includes("domicilio comercial") ? rawAddress : `Domicilio Comercial: ${rawAddress}`;
-    
-    const iibb = arca.iibb || cuit;
-    const incioAct = arca.inicio_actividades || arca.inicioActividades || arca.start_date || (isMatias ? "01/10/2024" : "01/01/2020");
+    const tradeName = emitter.tradeName;
+    const businessName = emitter.businessName;
+    const addressStr = emitter.addressStr;
+    const iibb = emitter.iibb;
+    const incioAct = emitter.inicioAct;
     const nroFactura = sale.arca_invoice_id || "";
     const cae = sale.arca_cae || "";
     const caeDue = sale.arca_cae_due || "";
@@ -12139,12 +12182,10 @@ async function renderIntegrationsStatus() {
     const arcaCertFile = document.getElementById("arca-cert-file");
     const arcaKeyFile = document.getElementById("arca-key-file");
     
-    const userEmail = (state.email || state.userEmail || "").toLowerCase();
-    const isMatias = userEmail.includes("matias") || (state.businessName || "").toLowerCase().includes("mazo");
-    const defaultFantasia = isMatias ? "MAZO." : "";
-    const defaultRazon = isMatias ? "CUCHETTI DIAZ MATIAS" : "";
-    const defaultDomicilio = isMatias ? "Castelli 1229, Bahia Blanca, Buenos Aires" : "";
-    const defaultStartDate = isMatias ? "01/10/2024" : "";
+    const defaultFantasia = "MAZO.";
+    const defaultRazon = "CUCHETTI DIAZ MATIAS";
+    const defaultDomicilio = "Castelli 1229, Bahia Blanca, Buenos Aires";
+    const defaultStartDate = "01/10/2024";
     
     // Establecer fecha por defecto a hoy en el input del formulario de facturación
     const dateInput = document.getElementById("arca-invoice-date");
@@ -12165,7 +12206,7 @@ async function renderIntegrationsStatus() {
         arcaBadge.style.background = "var(--bg-dark)";
       }
       if (cuitInput) {
-        cuitInput.value = arca.cuit || "";
+        cuitInput.value = arca.cuit || "20362895953";
         cuitInput.disabled = true;
       }
       if (fantasiaInput) {
@@ -12173,7 +12214,7 @@ async function renderIntegrationsStatus() {
         fantasiaInput.disabled = true;
       }
       if (razonInput) {
-        razonInput.value = (arca.razon_social && arca.razon_social !== "Mazo") ? arca.razon_social : defaultRazon;
+        razonInput.value = (arca.razon_social && arca.razon_social !== "Mazo" && arca.razon_social !== "3D") ? arca.razon_social : defaultRazon;
         razonInput.disabled = true;
       }
       if (domicilioInput) {
@@ -12227,13 +12268,16 @@ async function renderIntegrationsStatus() {
         arcaBadge.style.borderColor = "rgba(96, 165, 250, 0.2)";
         arcaBadge.style.background = "var(--bg-dark)";
       }
-      if (cuitInput) cuitInput.disabled = false;
+      if (cuitInput) {
+        if (!cuitInput.value) cuitInput.value = arca?.cuit || "20362895953";
+        cuitInput.disabled = false;
+      }
       if (fantasiaInput) {
         fantasiaInput.value = arca?.nombre_fantasia || arca?.nombreFantasia || defaultFantasia;
         fantasiaInput.disabled = false;
       }
       if (razonInput) {
-        razonInput.value = (arca?.razon_social && arca.razon_social !== "Mazo") ? arca.razon_social : defaultRazon;
+        razonInput.value = (arca?.razon_social && arca.razon_social !== "Mazo" && arca.razon_social !== "3D") ? arca.razon_social : defaultRazon;
         razonInput.disabled = false;
       }
       if (domicilioInput) {
