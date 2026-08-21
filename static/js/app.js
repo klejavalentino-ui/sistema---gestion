@@ -8460,8 +8460,7 @@ function renderStockIntakes() {
 
 
 // --- 5. CUENTAS CORRIENTES (Cuentas a Pagar & Cobranzas) ---
-// --- 5. CUENTAS CORRIENTES (Cuentas a Pagar & Cobranzas) ---
-// FIFO matching helper to calculate payment metrics
+// FIFO matching helper to calculate payment metrics using Promedio Ponderado por Monto
 function calculateAccountMetrics(acc) {
   const txs = acc.transactions || [];
   // Sort chronologically
@@ -8471,27 +8470,30 @@ function calculateAccountMetrics(acc) {
   const payments = [];
   
   sortedTxs.forEach(tx => {
-    const amt = tx.amount || 0;
-    const pay = tx.payment || 0;
+    const amt = Number(tx.amount) || 0;
+    const pay = Number(tx.payment) || 0;
     if (amt > 0) {
       debts.push({
-        date: new Date(tx.date),
+        date: tx.date,
         amount: amt,
         originalAmount: amt
       });
     }
     if (pay > 0) {
       payments.push({
-        date: new Date(tx.date),
+        date: tx.date,
         amount: pay
       });
     }
   });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let totalWeightedDaysSum = 0;
+  let totalInvoicedAmount = 0;
   
-  let totalDaysSum = 0;
-  let totalPortionSum = 0;
-  
-  // FIFO matching
+  // FIFO matching for payments
   let debtIdx = 0;
   payments.forEach(p => {
     let payAmt = p.amount;
@@ -8501,11 +8503,14 @@ function calculateAccountMetrics(acc) {
       const activeDebt = debts[debtIdx];
       const portion = Math.min(payAmt, activeDebt.amount);
       
-      const diffTime = paymentDate - activeDebt.date;
-      const diffDays = Math.max(0, diffTime / (1000 * 60 * 60 * 24));
+      const d1 = new Date(activeDebt.date);
+      const d2 = new Date(paymentDate);
+      d1.setHours(0, 0, 0, 0);
+      d2.setHours(0, 0, 0, 0);
+      const diffDays = Math.max(0, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
       
-      totalDaysSum += diffDays * portion;
-      totalPortionSum += portion;
+      totalWeightedDaysSum += diffDays * portion;
+      totalInvoicedAmount += portion;
       
       payAmt -= portion;
       activeDebt.amount -= portion;
@@ -8515,13 +8520,25 @@ function calculateAccountMetrics(acc) {
       }
     }
   });
+
+  // Calculate elapsed days for remaining unpaid balances up to today
+  for (let i = debtIdx; i < debts.length; i++) {
+    const activeDebt = debts[i];
+    const unpaidAmt = activeDebt.amount;
+    if (unpaidAmt <= 0.001) continue;
+
+    const d1 = new Date(activeDebt.date);
+    d1.setHours(0, 0, 0, 0);
+    const diffDays = Math.max(0, Math.round((today - d1) / (1000 * 60 * 60 * 24)));
+
+    totalWeightedDaysSum += diffDays * unpaidAmt;
+    totalInvoicedAmount += unpaidAmt;
+  }
   
-  const avgDays = totalPortionSum > 0 ? (totalDaysSum / totalPortionSum) : null;
+  const avgDays = totalInvoicedAmount > 0 ? (totalWeightedDaysSum / totalInvoicedAmount) : null;
   
   // Calculate overdue/due soon on the remaining unpaid debts
   const termDays = acc.paymentTerms !== undefined ? parseInt(acc.paymentTerms, 10) : 30;
-  const today = new Date();
-  today.setHours(0,0,0,0);
   
   let overdueAmount = 0;
   let dueSoonWeek = 0;
@@ -8530,23 +8547,22 @@ function calculateAccountMetrics(acc) {
   for (let i = debtIdx; i < debts.length; i++) {
     const activeDebt = debts[i];
     const unpaidAmt = activeDebt.amount;
-    if (unpaidAmt <= 0) continue;
+    if (unpaidAmt <= 0.001) continue;
     
-    // Calculate difference in days since the debt was incurred
-    const diffTime = today - activeDebt.date;
-    const elapsedDays = diffTime / (1000 * 60 * 60 * 24);
+    const d1 = new Date(activeDebt.date);
+    d1.setHours(0, 0, 0, 0);
+    const elapsedDays = Math.round((today - d1) / (1000 * 60 * 60 * 24));
     
     // If it exceeded payment terms, it is overdue (vencido)
     if (elapsedDays > termDays) {
       overdueAmount += unpaidAmt;
     } else {
       // It is not overdue yet. Calculate due date.
-      const dueDate = new Date(activeDebt.date);
+      const dueDate = new Date(d1);
       dueDate.setDate(dueDate.getDate() + termDays);
-      dueDate.setHours(0,0,0,0);
+      dueDate.setHours(0, 0, 0, 0);
       
-      const timeToDue = dueDate - today;
-      const daysToDue = timeToDue / (1000 * 60 * 60 * 24);
+      const daysToDue = Math.round((dueDate - today) / (1000 * 60 * 60 * 24));
       
       if (daysToDue >= 0 && daysToDue <= 7) {
         dueSoonWeek += unpaidAmt;
@@ -8558,7 +8574,10 @@ function calculateAccountMetrics(acc) {
   }
   
   return {
-    avgDays: avgDays !== null ? Math.round(avgDays) : null,
+    avgDays: avgDays !== null ? (avgDays % 1 === 0 ? avgDays : Number(avgDays.toFixed(1))) : null,
+    rawAvgDays: avgDays,
+    weightedDaysSum: totalWeightedDaysSum,
+    totalInvoiced: totalInvoicedAmount,
     overdueAmount: Math.round(overdueAmount),
     dueSoonWeek: Math.round(dueSoonWeek),
     dueSoonMonth: Math.round(dueSoonMonth)
@@ -8573,10 +8592,10 @@ function renderSupplierAccounts() {
   const searchVal = (document.getElementById("supplier-accounts-search")?.value || "").toLowerCase();
   const proveedors = state.currentAccounts.filter(a => a.type === "proveedor" && a.entityName.toLowerCase().includes(searchVal));
 
-  // Calcular métricas globales
+  // Calcular métricas globales ponderadas
   let globalTotal = 0;
-  let totalAvgDaysSum = 0;
-  let accountsWithPayments = 0;
+  let globalWeightedDaysSum = 0;
+  let globalTotalInvoiced = 0;
   let totalDueSoonWeek = 0;
   let totalDueSoonMonth = 0;
 
@@ -8587,15 +8606,15 @@ function renderSupplierAccounts() {
     const metrics = calculateAccountMetrics(acc);
     acc._metrics = metrics; // cache to use during render
 
-    if (metrics.avgDays !== null) {
-      totalAvgDaysSum += metrics.avgDays;
-      accountsWithPayments++;
+    if (metrics.totalInvoiced > 0) {
+      globalWeightedDaysSum += metrics.weightedDaysSum;
+      globalTotalInvoiced += metrics.totalInvoiced;
     }
     totalDueSoonWeek += metrics.dueSoonWeek;
     totalDueSoonMonth += metrics.dueSoonMonth;
   });
 
-  const globalAvgDays = accountsWithPayments > 0 ? Math.round(totalAvgDaysSum / accountsWithPayments) : null;
+  const globalAvgDays = globalTotalInvoiced > 0 ? (globalWeightedDaysSum / globalTotalInvoiced) : null;
 
   // Actualizar KPIs del header
   const kpiVal = document.getElementById("supplier-accounts-kpi-val");
@@ -8603,7 +8622,7 @@ function renderSupplierAccounts() {
 
   const kpiAvgDays = document.getElementById("supplier-accounts-kpi-avg-days");
   if (kpiAvgDays) {
-    kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays} días` : "-";
+    kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays % 1 === 0 ? globalAvgDays : globalAvgDays.toFixed(1)} días` : "-";
   }
 
   const periodSelect = document.getElementById("supplier-kpi-due-period")?.value || "week";
@@ -8708,7 +8727,7 @@ function renderSupplierAccounts() {
             <span>📍 ${acc.address || "-"}</span>
           </div>
           <div style="font-size: 0.7rem; color: var(--text-gray-light); margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; background: rgba(255,255,255,0.02); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.03);">
-            <span>⏱️ Pago Prom.: <strong style="color: var(--accent-blue);">${metrics.avgDays !== null ? metrics.avgDays + ' días' : 'Sin pagos'}</strong></span>
+            <span>⏱️ Pago Prom.: <strong style="color: var(--accent-blue);">${metrics.avgDays !== null ? metrics.avgDays + ' días' : 'Sin movimientos'}</strong></span>
             <span>📅 Vence pronto: <strong style="color: #f59e0b;">$ ${metrics.dueSoonMonth.toLocaleString()} (mes)</strong></span>
             <span>Plazo Acordado: <strong>${acc.paymentTerms !== undefined ? acc.paymentTerms : 30} días</strong></span>
           </div>
@@ -8761,10 +8780,10 @@ function renderCollections() {
   });
   clientes.sort((a, b) => b._balance - a._balance);
 
-  // Calcular métricas globales
+  // Calcular métricas globales ponderadas
   let globalTotal = 0;
-  let totalAvgDaysSum = 0;
-  let accountsWithPayments = 0;
+  let globalWeightedDaysSum = 0;
+  let globalTotalInvoiced = 0;
   let totalOverdue = 0;
 
   clientes.forEach(acc => {
@@ -8774,14 +8793,14 @@ function renderCollections() {
     const metrics = calculateAccountMetrics(acc);
     acc._metrics = metrics;
 
-    if (metrics.avgDays !== null) {
-      totalAvgDaysSum += metrics.avgDays;
-      accountsWithPayments++;
+    if (metrics.totalInvoiced > 0) {
+      globalWeightedDaysSum += metrics.weightedDaysSum;
+      globalTotalInvoiced += metrics.totalInvoiced;
     }
     totalOverdue += metrics.overdueAmount;
   });
 
-  const globalAvgDays = accountsWithPayments > 0 ? Math.round(totalAvgDaysSum / accountsWithPayments) : null;
+  const globalAvgDays = globalTotalInvoiced > 0 ? (globalWeightedDaysSum / globalTotalInvoiced) : null;
 
   // Actualizar KPIs del header
   const kpiVal = document.getElementById("collections-kpi-val");
@@ -8789,7 +8808,7 @@ function renderCollections() {
 
   const kpiAvgDays = document.getElementById("collections-kpi-avg-days");
   if (kpiAvgDays) {
-    kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays} días` : "-";
+    kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays % 1 === 0 ? globalAvgDays : globalAvgDays.toFixed(1)} días` : "-";
   }
 
   const kpiOverdue = document.getElementById("collections-kpi-overdue");
@@ -8892,7 +8911,7 @@ function renderCollections() {
             <span>📍 ${acc.address || "-"}</span>
           </div>
           <div style="font-size: 0.7rem; color: var(--text-gray-light); margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; background: rgba(255,255,255,0.02); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.03);">
-            <span>⏱️ Tardanza Prom.: <strong style="color: var(--accent-blue);">${metrics.avgDays !== null ? metrics.avgDays + ' días' : 'Sin pagos'}</strong></span>
+            <span>⏱️ Cobro Prom.: <strong style="color: var(--accent-blue);">${metrics.avgDays !== null ? metrics.avgDays + ' días' : 'Sin movimientos'}</strong></span>
             <span>⚠️ Vencido: <strong style="color: var(--accent-red);">$ ${metrics.overdueAmount.toLocaleString()}</strong></span>
             <span>Plazo Acordado: <strong>${acc.paymentTerms !== undefined ? acc.paymentTerms : 30} días</strong></span>
           </div>
