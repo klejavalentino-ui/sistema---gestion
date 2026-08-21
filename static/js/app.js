@@ -8598,9 +8598,13 @@ function renderSupplierAccounts() {
   let globalTotalInvoiced = 0;
   let totalDueSoonWeek = 0;
   let totalDueSoonMonth = 0;
+  let suppliersWithDebtCount = 0;
 
   proveedors.forEach(acc => {
     const balance = acc.transactions ? acc.transactions.reduce((s, tx) => s + (tx.amount - tx.payment), 0) : 0;
+    if (balance > 0.001) {
+      suppliersWithDebtCount++;
+    }
     globalTotal += Math.max(0, balance);
 
     const metrics = calculateAccountMetrics(acc);
@@ -8623,6 +8627,11 @@ function renderSupplierAccounts() {
   const kpiAvgDays = document.getElementById("supplier-accounts-kpi-avg-days");
   if (kpiAvgDays) {
     kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays % 1 === 0 ? globalAvgDays : globalAvgDays.toFixed(1)} días` : "-";
+  }
+
+  const kpiCount = document.getElementById("supplier-accounts-kpi-debtors-count");
+  if (kpiCount) {
+    kpiCount.innerText = suppliersWithDebtCount.toLocaleString();
   }
 
   const periodSelect = document.getElementById("supplier-kpi-due-period")?.value || "week";
@@ -8785,9 +8794,13 @@ function renderCollections() {
   let globalWeightedDaysSum = 0;
   let globalTotalInvoiced = 0;
   let totalOverdue = 0;
+  let clientsWithDebtCount = 0;
 
   clientes.forEach(acc => {
     const balance = acc._balance;
+    if (balance > 0.001) {
+      clientsWithDebtCount++;
+    }
     globalTotal += Math.max(0, balance);
 
     const metrics = calculateAccountMetrics(acc);
@@ -8809,6 +8822,11 @@ function renderCollections() {
   const kpiAvgDays = document.getElementById("collections-kpi-avg-days");
   if (kpiAvgDays) {
     kpiAvgDays.innerText = globalAvgDays !== null ? `${globalAvgDays % 1 === 0 ? globalAvgDays : globalAvgDays.toFixed(1)} días` : "-";
+  }
+
+  const kpiCount = document.getElementById("collections-kpi-debtors-count");
+  if (kpiCount) {
+    kpiCount.innerText = clientsWithDebtCount.toLocaleString();
   }
 
   const kpiOverdue = document.getElementById("collections-kpi-overdue");
