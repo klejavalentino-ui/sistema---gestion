@@ -4420,150 +4420,131 @@ window.printInvoiceA4 = printInvoiceA4;
 async function generatePdfFromHtmlDoc(fullHtmlString, filename, targetWidth = 794) {
   showToast("Generando PDF del comprobante...");
 
-  // Extraer solo el contenido del <body>. NO inyectamos los <style> del template
-  // en el <head> porque contienen reglas globales (html,body{width:420px}) que
-  // rompen el layout de toda la app.
-  const bodyMatch = fullHtmlString.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  const innerContent = bodyMatch ? bodyMatch[1] : fullHtmlString;
-  const isTicket = targetWidth <= 500;
+  var isTicket = targetWidth <= 500;
 
-  // Crear contenedor en coordenadas (0,0) para que getBoundingClientRect()
-  // devuelva valores válidos (html2canvas los usa ANTES de clonar).
-  // opacity:0 lo hace invisible para el usuario sin afectar layout ni coords.
-  // z-index:-99999 lo pone detrás de todo. pointer-events:none impide interacción.
-  const containerId = "pdf-gen-" + Date.now();
-  const container = document.createElement("div");
-  container.id = containerId;
-  container.style.cssText = [
-    "position: fixed",
-    "top: 0px",
-    "left: 0px",
-    "width: " + targetWidth + "px",
-    "min-height: 100px",
-    "background: #ffffff",
-    "color: #000000",
-    "font-family: " + (isTicket ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif"),
-    "font-size: 11px",
-    "line-height: 1.35",
-    "box-sizing: border-box",
-    "overflow: visible",
-    "z-index: -99999",
-    "pointer-events: none",
-    "opacity: 0"
-  ].join("; ");
+  // =====================================================================
+  // ESTRATEGIA: Usar popup window (igual que el botón "Imprimir" que funciona).
+  //
+  // ¿Por qué popup? Porque el botón "Imprimir" abre una popup con window.open(),
+  // escribe el HTML completo con document.write(), y llama window.print().
+  // El contenido se ve PERFECTO ahí porque tiene su propio documento con todos
+  // los estilos del template aplicados.
+  //
+  // Nosotros hacemos lo mismo, pero en vez de llamar print(), inyectamos
+  // html2canvas dentro de la popup y capturamos el contenido ahí. Así:
+  // - html2canvas corre en el MISMO documento que el contenido → captura perfecta
+  // - No tocamos el DOM de la app principal → sin glitch visual
+  // - Todos los <style> del template se aplican correctamente → nada en blanco
+  // =====================================================================
 
-  container.innerHTML = innerContent;
-  document.body.appendChild(container);
+  var popupW = Math.max(targetWidth + 50, 500);
+  var popup = window.open("", "pdf_gen",
+    "width=" + popupW + ",height=900,scrollbars=yes,menubar=no,toolbar=no,location=no");
 
-  // Aplicar estilos de layout directamente al #invoice-page (en vez de global CSS).
-  // Estos estilos normalmente vienen del <style> del template, pero los aplicamos
-  // inline para no contaminar el documento principal.
-  const invoicePage = container.querySelector("#invoice-page");
-  if (invoicePage) {
-    invoicePage.style.backgroundColor = "#ffffff";
-    invoicePage.style.color = "#000000";
-    invoicePage.style.boxSizing = "border-box";
-    if (isTicket) {
-      invoicePage.style.width = "390px";
-      invoicePage.style.margin = "15px auto";
-      invoicePage.style.padding = "10px";
-    } else {
-      invoicePage.style.width = "754px";
-      invoicePage.style.margin = "20px auto";
-      invoicePage.style.padding = "10px";
-    }
+  if (!popup) {
+    showToast("Por favor permita ventanas emergentes para descargar PDF.", true);
+    return;
   }
 
-  // Forzar texto negro en todos los elementos (sobreescribe variables del tema oscuro)
-  container.querySelectorAll("*").forEach(el => {
-    el.style.color = "#000000";
-    el.style.webkitTextFillColor = "#000000";
-    el.style.textShadow = "none";
-  });
-
-  // Esperar que imágenes (logo del negocio, QR de ARCA/AFIP) se carguen
-  await new Promise((resolve) => {
-    const imgs = Array.from(container.querySelectorAll("img"));
-    if (imgs.length === 0) return resolve();
-    let loaded = 0;
-    const check = () => { loaded++; if (loaded >= imgs.length) resolve(); };
-    imgs.forEach(img => {
-      if (img.complete) { loaded++; }
-      else { img.onload = check; img.onerror = check; }
-    });
-    if (loaded >= imgs.length) resolve();
-    setTimeout(resolve, 2000); // timeout de seguridad
-  });
-  // Dar tiempo extra al browser para pintar
-  await new Promise(r => setTimeout(r, 200));
-
-  const element = invoicePage || container;
-
   try {
-    if (window.html2pdf) {
-      const opt = {
-        margin: isTicket ? [2, 2, 2, 2] : [5, 5, 5, 5],
-        filename: filename,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#ffffff",
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: targetWidth,
-          // onclone se ejecuta DESPUÉS de clonar pero ANTES de renderizar.
-          // Aquí hacemos visible el contenedor en el CLON (el original sigue invisible).
-          onclone: function(clonedDoc) {
-            // 1) Ocultar toda la UI de la app en el clon (sidebar, header, modales)
-            Array.from(clonedDoc.body.children).forEach(function(child) {
-              if (child.id !== containerId) {
-                child.style.display = "none";
-              }
-            });
-            // 2) Hacer visible el contenedor del PDF en el clon
-            var clonedContainer = clonedDoc.getElementById(containerId);
-            if (clonedContainer) {
-              clonedContainer.style.opacity = "1";
-              clonedContainer.style.zIndex = "9999";
-            }
-          }
-        },
-        jsPDF: {
-          unit: "mm",
-          format: isTicket ? [80, 297] : "a4",
-          orientation: "portrait"
-        }
-      };
-      await window.html2pdf().set(opt).from(element).save();
-      showToast("¡PDF descargado con éxito!");
+    // Minimizar impacto visual: desenfocar popup, enfocar ventana principal
+    try { popup.blur(); window.focus(); } catch(e) {}
+
+    // Inyectar html2canvas CDN en el HTML antes de </head>
+    var cdnScript = '<scr' + 'ipt src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></scr' + 'ipt>';
+    var htmlToWrite = fullHtmlString;
+    if (htmlToWrite.match(/<\/head>/i)) {
+      htmlToWrite = htmlToWrite.replace(/<\/head>/i, cdnScript + '\n</head>');
     } else {
-      // Fallback: abrir ventana de impresión (usuario puede "Guardar como PDF")
-      var printWin = window.open("", "_blank", "width=800,height=900");
-      if (printWin) {
-        printWin.document.write(fullHtmlString);
-        printWin.document.close();
-        printWin.focus();
-        setTimeout(function() { printWin.print(); printWin.close(); }, 600);
-      } else {
-        showToast("No se pudo generar el PDF. Intentá con Imprimir.", true);
-      }
+      htmlToWrite = '<head>' + cdnScript + '</head>' + htmlToWrite;
     }
+
+    popup.document.write(htmlToWrite);
+    popup.document.close();
+
+    // Esperar a que html2canvas se cargue en la popup (polling con timeout)
+    await new Promise(function(resolve, reject) {
+      var attempts = 0;
+      var check = setInterval(function() {
+        attempts++;
+        if (popup.closed) { clearInterval(check); reject(new Error("POPUP_CLOSED")); return; }
+        if (typeof popup.html2canvas === "function") { clearInterval(check); resolve(); return; }
+        if (attempts > 100) { clearInterval(check); reject(new Error("SCRIPT_TIMEOUT")); return; }
+      }, 100);
+    });
+
+    // Esperar a que todas las imágenes (logo, QR ARCA) se carguen en la popup
+    var popupImgs = [];
+    try { popupImgs = Array.from(popup.document.querySelectorAll("img")); } catch(e) {}
+    if (popupImgs.length > 0) {
+      await Promise.all(popupImgs.map(function(img) {
+        return new Promise(function(r) {
+          if (img.complete) r();
+          else { img.onload = r; img.onerror = r; }
+        });
+      }));
+    }
+    // Dar tiempo extra al browser para renderizar/pintar
+    await new Promise(function(r) { setTimeout(r, 500); });
+
+    // Capturar el #invoice-page con html2canvas corriendo DENTRO de la popup
+    var popupElement = popup.document.getElementById("invoice-page") || popup.document.body;
+    var canvas = await Promise.resolve(popup.html2canvas(popupElement, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      windowWidth: targetWidth
+    }));
+
+    // Obtener los datos de la imagen y cerrar popup inmediatamente
+    var imgData = canvas.toDataURL("image/jpeg", 0.98);
+    var canvasW = canvas.width;
+    var canvasH = canvas.height;
+    popup.close();
+
+    // Generar el PDF en la ventana principal con jsPDF
+    var JsPdfClass = (window.jspdf && window.jspdf.jsPDF);
+    if (!JsPdfClass) {
+      throw new Error("jsPDF no disponible");
+    }
+
+    var margin = isTicket ? 2 : 5;
+    var pdfPageWidth = isTicket ? 80 : 210;
+    var contentWidth = pdfPageWidth - (margin * 2);
+    var contentHeight = (canvasH * contentWidth) / canvasW;
+    var pdfPageHeight = isTicket ? Math.max(contentHeight + margin * 2, 100) : 297;
+
+    var pdf = new JsPdfClass("p", "mm", isTicket ? [pdfPageWidth, pdfPageHeight] : "a4");
+    pdf.addImage(imgData, "JPEG", margin, margin, contentWidth, contentHeight);
+    pdf.save(filename);
+
+    showToast("¡PDF descargado con éxito!");
+
   } catch (err) {
     console.error("Error en generatePdfFromHtmlDoc:", err);
-    var fallbackWin = window.open("", "_blank", "width=800,height=900");
-    if (fallbackWin) {
-      fallbackWin.document.write(fullHtmlString);
-      fallbackWin.document.close();
-      fallbackWin.focus();
-      setTimeout(function() { fallbackWin.print(); fallbackWin.close(); }, 600);
-    } else {
-      showToast("Error al generar PDF: " + err.message, true);
-    }
-  } finally {
-    if (container && container.parentNode) {
-      container.parentNode.removeChild(container);
+
+    // Fallback: si falla la generación, abrir diálogo de impresión
+    // (el usuario puede elegir "Guardar como PDF" desde ahí)
+    try {
+      if (popup && !popup.closed) {
+        popup.focus();
+        popup.print();
+        showToast("Seleccioná 'Guardar como PDF' en el diálogo de impresión.");
+      } else {
+        var printWin = window.open("", "_blank", "width=800,height=900");
+        if (printWin) {
+          printWin.document.write(fullHtmlString);
+          printWin.document.close();
+          printWin.focus();
+          setTimeout(function() { printWin.print(); }, 600);
+          showToast("Seleccioná 'Guardar como PDF' en el diálogo de impresión.");
+        } else {
+          showToast("Error al generar PDF. Usá la opción Imprimir.", true);
+        }
+      }
+    } catch(e) {
+      showToast("Error al generar PDF. Usá la opción Imprimir.", true);
     }
   }
 }
